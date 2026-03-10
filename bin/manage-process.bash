@@ -156,7 +156,42 @@ function do_attach {
     exec "${CON_TOOL}" -c "${sock_path}" || exit
 }
 
+function do_install {
+    local source_conf="$1"
+    if [[ ! -f "${source_conf}" ]]; then
+        printf "Error: Configuration file %s not found.\n" "${source_conf}" >&2
+        exit 1
+    fi
+
+    local ioc_name
+    ioc_name=$(basename "${source_conf}" .conf)
+
+    # 1. Create target directory and copy config
+    mkdir -p "${CONF_DIR}"
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        sudo cp "${source_conf}" "${CONF_DIR}/"
+    else
+        cp "${source_conf}" "${CONF_DIR}/"
+    fi
+
+    # 2. Trigger Generator for local mode
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        mkdir -p "${LOCAL_SYSTEMD_DIR}"
+        export CONF_DIR
+        bash "${GENERATOR_EXEC}" "${LOCAL_SYSTEMD_DIR}" "${LOCAL_SYSTEMD_DIR}" "${LOCAL_SYSTEMD_DIR}"
+    fi
+
+    # 3. Reload and Start
+    "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
+    "${SYSTEMCTL_CMD[@]}" restart "epics-${ioc_name}.service" || exit
+
+    printf "IOC %s installed and started in %s mode.\n" "${ioc_name}" "${EXEC_MODE}"
+}
+
 case "${COMMAND_ACTION}" in
+    install)
+        do_install "$1"
+        ;;
     add)
         do_add "$@"
         ;;
