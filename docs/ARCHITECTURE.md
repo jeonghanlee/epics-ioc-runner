@@ -6,22 +6,22 @@ This architecture defines a robust, dependency-free environment for managing EPI
 ### 1.1. High-Level Architecture
 ```text
 [ Trained Engineers (ioc group) ]
-        │
-        ├── (1. Config) ──> [ /etc/procServ.d/ (Local config dir, 2775) ]
-        │                       │
-        │                       ▼
-        │                 [ Systemd Generator (AWK) ] ──> Generates epics-*.service files
-        │                       │
-        ├── (2. Control) ──> [ sudo systemctl ] ──> [ systemd ]
-        │                                               │ (Spawn & Manage)
-        │                                               ▼
-        │                                       [ procServ Daemon (ioc-srv) ]
-        │                                               │
-        │                                               ├───> Run ──> [ EPICS IOC ]
-        │                                               │
-        │                                               └───> Comm ──> [ UNIX Domain Socket ]
-        │                                                                    ▲
-        └── (3. Local Access) ──> [ con Utility ] ───────────────────────────┘
+        |
+        |-- (1. Config) --> [ /etc/procServ.d/ (Local config dir, 2775) ]
+        |                       |
+        |                       V
+        |                 [ Systemd Generator (AWK) ] --> Generates epics-*.service files
+        |                       |
+        |-- (2. Control) --> [ sudo systemctl ] --> [ systemd ]
+        |                                               | (Spawn & Manage)
+        |                                               V
+        |                                       [ procServ Daemon (ioc-srv) ]
+        |                                               |
+        |                                               |---> Run --> [ EPICS IOC ]
+        |                                               |
+        |                                               |---> Comm --> [ UNIX Domain Socket ]
+        |                                                                    A
+        |-- (3. Local Access) --> [ con Utility ] ---------------------------|
 ```
 
 ---
@@ -34,12 +34,14 @@ This architecture defines a robust, dependency-free environment for managing EPI
 
 ### 2.2. Sudoers Configuration
 Instead of relying on fragmented Polkit rules, service control is delegated explicitly via `/etc/sudoers.d/10-epics-ioc`.
+
 ```bash
-%ioc ALL=(root) NOPASSWD: SYSTEMCTL start epics-*, \
-                          SYSTEMCTL stop epics-*, \
-                          SYSTEMCTL restart epics-*, \
-                          SYSTEMCTL status epics-*, \
-                          SYSTEMCTL daemon-reload
+# Allow trained engineers to manage ONLY EPICS-related services
+%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-*, \
+                          /bin/systemctl stop epics-*, \
+                          /bin/systemctl restart epics-*, \
+                          /bin/systemctl status epics-*, \
+                          /bin/systemctl daemon-reload
 ```
 
 ---
@@ -47,7 +49,7 @@ Instead of relying on fragmented Polkit rules, service control is delegated expl
 ## 3. Core Components
 
 ### 3.1. Systemd Generator (AWK + Bash)
-A native systemd generator executable located in `/usr/lib/systemd/system-generators/`. During the system boot or `daemon-reload`, it parses simple configuration files in `/etc/procServ.d/` using `AWK` and dynamically translates them into transient systemd `.service` files.
+A native systemd generator executable located in `/usr/lib/systemd/system-generators/`. During the system boot or `daemon-reload`, it parses simple configuration files in `/etc/procServ.d/` using `AWK` and dynamically translates them into transient systemd `epics-*.service` files. *(Note: To prevent boot race conditions, `/etc/procServ.d/` must be a local directory, populated via GitOps, not an NFS mount.)*
 
 ### 3.2. manage-procs (Wrapper Script)
 A pure Bash utility to manage IOC configurations. It creates the config file and invokes `sudo systemctl daemon-reload` to trigger the Systemd Generator. It also invokes the `con` tool for native console access to the UNIX Domain Socket.

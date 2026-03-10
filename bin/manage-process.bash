@@ -1,26 +1,57 @@
 #!/usr/bin/env bash
 #
 # A front-end CLI manager for EPICS IOCs.
-# Creates configurations and relies on the Systemd Generator.
+# Supports both system-wide deployment and local user-level testing.
 
 set -e
 
+declare -g EXEC_MODE="system"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g RUN_BASE_DIR="/run/procserv"
-declare -g CON_TOOL="/usr/local/bin/con"
+declare -g LOCAL_SYSTEMD_DIR="${HOME}/.config/systemd/user"
+declare -g GENERATOR_EXEC="/usr/lib/systemd/system-generators/epics-ioc-generator"
 
+declare -g -a SYSTEMCTL_CMD=(sudo /bin/systemctl)
+
+declare -g CON_TOOL="/usr/local/bin/con"
 declare -g DEFAULT_USER="ioc-srv"
 declare -g DEFAULT_GROUP="ioc"
 
-function print_usage {
-    printf "Usage: %s {add|remove|start|stop|restart|status|attach} <ioc_name> [options]\n" "$0"
-    printf "\n"
-    printf "Commands:\n"
-    printf "  add <ioc_name> -C <chdir> -c <command> [args...]\n"
-    printf "  remove <ioc_name>\n"
-    printf "  start|stop|restart|status <ioc_name>\n"
-    printf "  attach <ioc_name>\n"
+function set_local_mode {
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+    EXEC_MODE="local"
+    CONF_DIR="${HOME}/.config/procServ.d"
+    RUN_BASE_DIR="/run/user/${EUID}/procserv"
+    SYSTEMCTL_CMD=(/bin/systemctl --user)
+    DEFAULT_USER="$(id -un)"
+    DEFAULT_GROUP="$(id -gn)"
+    GENERATOR_EXEC="${script_dir}/epics-ioc-generator.bash"
 }
+
+function print_usage {
+    printf "%s\n" "Usage: $0 [--local] {add|remove|start|stop|restart|status|attach} <ioc_name> [options]"
+    printf "\n"
+    printf "%s\n" "Commands:"
+    printf "%s\n" "  add <ioc_name> -C <chdir> -c <command> [args...]"
+    printf "%s\n" "  remove <ioc_name>"
+    printf "%s\n" "  start|stop|restart|status <ioc_name>"
+    printf "%s\n" "  attach <ioc_name>"
+}
+
+if [[ "$1" == "--local" ]]; then
+    set_local_mode
+    shift
+fi
+
+if [[ $# -lt 1 ]]; then
+    print_usage
+    exit 1
+fi
+
+declare -g COMMAND_ACTION="$1"
+shift
 
 function do_add {
     local ioc_name="$1"
@@ -47,13 +78,15 @@ function do_add {
     fi
 
     if [[ -z "${ioc_chdir}" || -z "${ioc_cmd}" ]]; then
-        printf "Error: --chdir and --command are required.\n" >&2
+        printf "%s\n" "Error: --chdir and --command are required." >&2
         exit 1
     fi
 
     local sock_path="${RUN_BASE_DIR}/${ioc_name}/control"
     local ioc_port="unix:${ioc_user}:${ioc_group}:0660:${sock_path}"
     local conf_file="${CONF_DIR}/${ioc_name}.conf"
+
+    mkdir -p "${CONF_DIR}"
 
     printf "%s\n" "--------------------------------------------------------"
     printf "Creating configuration for IOC: %s\n" "${ioc_name}"
@@ -70,8 +103,14 @@ EOF
 
     printf "Configuration saved at %s\n" "${conf_file}"
 
-    sudo /bin/systemctl daemon-reload || exit
-    sudo /bin/systemctl start "epics-${ioc_name}.service" || exit
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        mkdir -p "${LOCAL_SYSTEMD_DIR}"
+        export CONF_DIR
+        bash "${GENERATOR_EXEC}" "${LOCAL_SYSTEMD_DIR}" "${LOCAL_SYSTEMD_DIR}" "${LOCAL_SYSTEMD_DIR}"
+    fi
+
+    "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
+    "${SYSTEMCTL_CMD[@]}" start "epics-${ioc_name}.service" || exit
 
     printf "IOC %s has been successfully added and started.\n" "${ioc_name}"
 }
@@ -84,10 +123,15 @@ function do_remove {
     printf "Removing IOC: %s\n" "${ioc_name}"
     printf "%s\n" "--------------------------------------------------------"
 
-    sudo /bin/systemctl stop "epics-${ioc_name}.service" 2>/dev/null || true
+    "${SYSTEMCTL_CMD[@]}" stop "epics-${ioc_name}.service" 2>/dev/null || true
     rm -f "${conf_file}" || exit
 
-    sudo /bin/systemctl daemon-reload || exit
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        rm -f "${LOCAL_SYSTEMD_DIR}/epics-${ioc_name}.service"
+        rm -f "${LOCAL_SYSTEMD_DIR}/multi-user.target.wants/epics-${ioc_name}.service"
+    fi
+
+    "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
     printf "IOC %s has been successfully removed.\n" "${ioc_name}"
 }
 
@@ -112,14 +156,6 @@ function do_attach {
     exec "${CON_TOOL}" -c "${sock_path}" || exit
 }
 
-if [[ $# -lt 1 ]]; then
-    print_usage
-    exit 1
-fi
-
-declare -g COMMAND_ACTION="$1"
-shift
-
 case "${COMMAND_ACTION}" in
     add)
         do_add "$@"
@@ -131,7 +167,7 @@ case "${COMMAND_ACTION}" in
         do_attach "$1"
         ;;
     start|stop|restart|status)
-        sudo /bin/systemctl "${COMMAND_ACTION}" "epics-$1.service" || exit
+        "${SYSTEMCTL_CMD[@]}" "${COMMAND_ACTION}" "epics-$1.service" || exit
         ;;
     *)
         print_usage

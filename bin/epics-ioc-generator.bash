@@ -6,7 +6,7 @@
 set -e
 
 declare -g NORMAL_DIR="$1"
-declare -g CONF_DIR="/etc/procServ.d"
+declare -g CONF_DIR="${CONF_DIR:-/etc/procServ.d}"
 declare -g PROCSERV_EXEC="/usr/bin/procServ"
 
 if [[ ! -d "${CONF_DIR}" ]] || [[ -z $(ls -A "${CONF_DIR}"/*.conf 2>/dev/null) ]]; then
@@ -58,9 +58,7 @@ for conf_file in "${CONF_DIR}"/*.conf; do
             print "WorkingDirectory=" chdir >> svc_file;
         }
         print "RuntimeDirectory=procserv/" name >> svc_file;
-
         print "ExecStart=" procserv " --foreground --logfile=- --name=" name " --ignore=^D^C^] --logoutcmd=^D --port=" port " " cmd >> svc_file;
-
         print "StandardOutput=syslog" >> svc_file;
         print "StandardError=inherit" >> svc_file;
         print "SyslogIdentifier=epics-" name >> svc_file;
