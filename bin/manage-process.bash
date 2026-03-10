@@ -71,7 +71,7 @@ EOF
     printf "Configuration saved at %s\n" "${conf_file}"
 
     sudo /bin/systemctl daemon-reload || exit
-    sudo /bin/systemctl start "procserv-${ioc_name}.service" || exit
+    sudo /bin/systemctl start "epics-${ioc_name}.service" || exit
 
     printf "IOC %s has been successfully added and started.\n" "${ioc_name}"
 }
@@ -84,7 +84,7 @@ function do_remove {
     printf "Removing IOC: %s\n" "${ioc_name}"
     printf "%s\n" "--------------------------------------------------------"
 
-    sudo /bin/systemctl stop "procserv-${ioc_name}.service" 2>/dev/null || true
+    sudo /bin/systemctl stop "epics-${ioc_name}.service" 2>/dev/null || true
     rm -f "${conf_file}" || exit
 
     sudo /bin/systemctl daemon-reload || exit
@@ -131,7 +131,7 @@ case "${COMMAND_ACTION}" in
         do_attach "$1"
         ;;
     start|stop|restart|status)
-        sudo /bin/systemctl "${COMMAND_ACTION}" "procserv-$1.service" || exit
+        sudo /bin/systemctl "${COMMAND_ACTION}" "epics-$1.service" || exit
         ;;
     *)
         print_usage

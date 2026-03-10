@@ -7,10 +7,10 @@ This architecture defines a robust, dependency-free environment for managing EPI
 ```text
 [ Trained Engineers (ioc group) ]
         │
-        ├── (1. Config) ──> [ /etc/procServ.d/ (Shared config dir, 2775) ]
+        ├── (1. Config) ──> [ /etc/procServ.d/ (Local config dir, 2775) ]
         │                       │
         │                       ▼
-        │                 [ Systemd Generator (AWK) ] ──> Generates transient .service files
+        │                 [ Systemd Generator (AWK) ] ──> Generates epics-*.service files
         │                       │
         ├── (2. Control) ──> [ sudo systemctl ] ──> [ systemd ]
         │                                               │ (Spawn & Manage)
@@ -33,14 +33,13 @@ This architecture defines a robust, dependency-free environment for managing EPI
 * **`ioc` group**: The management group for trained engineers. Grants write access to `/etc/procServ.d/`.
 
 ### 2.2. Sudoers Configuration
-Instead of relying on fragmented Polkit rules, service control is delegated explicitly via `/etc/sudoers.d/10-ioc`.
+Instead of relying on fragmented Polkit rules, service control is delegated explicitly via `/etc/sudoers.d/10-epics-ioc`.
 ```bash
-# Allow trained engineers to manage ONLY procServ-related services
-%ioc ALL=(root) NOPASSWD: /bin/systemctl start procserv-*, \
-                          /bin/systemctl stop procserv-*, \
-                          /bin/systemctl restart procserv-*, \
-                          /bin/systemctl status procserv-*, \
-                          /bin/systemctl daemon-reload
+%ioc ALL=(root) NOPASSWD: SYSTEMCTL start epics-*, \
+                          SYSTEMCTL stop epics-*, \
+                          SYSTEMCTL restart epics-*, \
+                          SYSTEMCTL status epics-*, \
+                          SYSTEMCTL daemon-reload
 ```
 
 ---

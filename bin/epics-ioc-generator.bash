@@ -40,7 +40,7 @@ for conf_file in "${CONF_DIR}"/*.conf; do
         cmd = config["IOC_CMD"];
         port = config["IOC_PORT"];
 
-        svc_file = target_dir "/procserv-" name ".service";
+        svc_file = target_dir "/epics-" name ".service";
 
         print "[Unit]" > svc_file;
         print "Description=procServ for " name >> svc_file;
@@ -63,9 +63,9 @@ for conf_file in "${CONF_DIR}"/*.conf; do
 
         print "StandardOutput=syslog" >> svc_file;
         print "StandardError=inherit" >> svc_file;
-        print "SyslogIdentifier=procserv-" name >> svc_file;
+        print "SyslogIdentifier=epics-" name >> svc_file;
 
-        symlink = target_dir "/multi-user.target.wants/procserv-" name ".service";
+        symlink = target_dir "/multi-user.target.wants/epics-" name ".service";
         system("ln -sf " svc_file " " symlink);
     }' "${conf_file}"
 

@@ -22,26 +22,33 @@ usermod -aG ioc userA
 usermod -aG ioc userB
 ```
 
-## 2. Shared Configuration Directory Setup
+## 2. Shared Configuration Directory Setup (Local Storage Only)
 Create the directory where IOC configuration files will reside. This directory must be writable by the `ioc` group.
 
+> **⚠️ IMPORTANT (SRE Guideline):** Do **NOT** mount this directory via NFS. To prevent Systemd boot race conditions and avoid Single Points of Failure (SPOF), this directory must reside on the server's local disk.
+
 ```bash
-mkdir -p /etc/procServ.d/
-chown root:ioc /etc/procServ.d/
-chmod 2775 /etc/procServ.d/
+sudo mkdir -p /etc/procServ.d/
+sudo chown root:ioc /etc/procServ.d/
+sudo chmod 2775 /etc/procServ.d/
 ```
 
 ## 3. Sudoers Configuration
-Allow members of the `ioc` group to manage `procServ` related systemd services without requiring a password.
+Allow members of the `ioc` group to manage `procServ` related systemd services without requiring a password. We use `Cmnd_Alias` to ensure security (absolute paths) while maintaining compatibility across different Linux distributions.
 
-Create the file `/etc/sudoers.d/10-ioc`:
+Create the file `/etc/sudoers.d/10-epics-ioc`:
 ```bash
-# /etc/sudoers.d/10-ioc
-%ioc ALL=(root) NOPASSWD: /bin/systemctl start procserv-*, \
-                          /bin/systemctl stop procserv-*, \
-                          /bin/systemctl restart procserv-*, \
-                          /bin/systemctl status procserv-*, \
-                          /bin/systemctl daemon-reload
+# /etc/sudoers.d/10-epics-ioc
+
+# Define paths for systemctl to cover both Debian and RHEL/Rocky families
+Cmnd_Alias SYSTEMCTL = /bin/systemctl, /usr/bin/systemctl
+
+# Allow trained engineers to manage ONLY procServ-related services
+%ioc ALL=(root) NOPASSWD: SYSTEMCTL start epics-*, \
+                          SYSTEMCTL stop epics-*, \
+                          SYSTEMCTL restart epics-*, \
+                          SYSTEMCTL status epics-*, \
+                          SYSTEMCTL daemon-reload
 ```
 Apply strict permissions to the sudoers file:
 ```bash
