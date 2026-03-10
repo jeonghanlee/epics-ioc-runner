@@ -1,0 +1,8 @@
+# /etc/sudoers.d/10-epics-ioc
+
+# Allow trained engineers to manage ONLY EPICS-related services
+%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-*, \
+                          /bin/systemctl stop epics-*, \
+                          /bin/systemctl restart epics-*, \
+                          /bin/systemctl status epics-*, \
+                          /bin/systemctl daemon-reload
