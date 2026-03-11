@@ -50,23 +50,27 @@ fi
 declare -g COMMAND_ACTION="$1"
 shift
 
+declare -g TARGET_ARG="$1"
+declare -g IOC_NAME=""
+
+if [[ -n "${TARGET_ARG}" ]]; then
+    IOC_NAME=$(basename "${TARGET_ARG}" .conf)
+fi
+
 function do_install {
-    local source_conf="$1"
+    local source_conf="${TARGET_ARG}"
     if [[ ! -f "${source_conf}" ]]; then
         printf "Error: Configuration file %s not found.\n" "${source_conf}" >&2
         exit 1
     fi
 
-    local ioc_name
-    ioc_name=$(basename "${source_conf}" .conf)
-
     local state
-    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-${ioc_name}.service" 2>/dev/null || true)
+    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-${IOC_NAME}.service" 2>/dev/null || true)
 
     if [[ "${state}" == "active" ]]; then
         printf "%s\n" "================================================================================" >&2
         printf "WARNING: Installation aborted.\n" >&2
-        printf "IOC '%s' is currently running.\n" "${ioc_name}" >&2
+        printf "IOC '%s' is currently running.\n" "${IOC_NAME}" >&2
         printf "Please stop the service explicitly before reinstalling to prevent data loss.\n" >&2
         printf "%s\n" "================================================================================" >&2
         exit 1
@@ -88,34 +92,32 @@ function do_install {
 
     "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
 
-    printf "IOC %s installed in %s mode. Use 'start' command to run it.\n" "${ioc_name}" "${EXEC_MODE}"
+    printf "IOC %s installed in %s mode. Use 'start' command to run it.\n" "${IOC_NAME}" "${EXEC_MODE}"
 }
 
 function do_remove {
-    local ioc_name="$1"
-    local target_conf="${CONF_DIR}/${ioc_name}.conf"
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
 
-    "${SYSTEMCTL_CMD[@]}" stop "epics-${ioc_name}.service" 2>/dev/null || true
-    "${SYSTEMCTL_CMD[@]}" disable "epics-${ioc_name}.service" 2>/dev/null || true
+    "${SYSTEMCTL_CMD[@]}" stop "epics-${IOC_NAME}.service" 2>/dev/null || true
+    "${SYSTEMCTL_CMD[@]}" disable "epics-${IOC_NAME}.service" 2>/dev/null || true
 
     if [[ "${EXEC_MODE}" == "system" ]]; then
         sudo rm -f "${target_conf}" || true
-        sudo rm -f "${SYSTEM_SYSTEMD_DIR}/epics-${ioc_name}.service" || true
+        sudo rm -f "${SYSTEM_SYSTEMD_DIR}/epics-${IOC_NAME}.service" || true
     else
         rm -f "${target_conf}" || true
-        rm -f "${LOCAL_SYSTEMD_DIR}/epics-${ioc_name}.service" || true
+        rm -f "${LOCAL_SYSTEMD_DIR}/epics-${IOC_NAME}.service" || true
     fi
 
     "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
-    printf "IOC %s removed.\n" "${ioc_name}"
+    printf "IOC %s removed.\n" "${IOC_NAME}"
 }
 
 function do_attach {
-    local ioc_name="$1"
-    local target_conf="${CONF_DIR}/${ioc_name}.conf"
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
 
     if [[ ! -f "${target_conf}" ]]; then
-        printf "Error: Configuration for %s not found.\n" "${ioc_name}" >&2
+        printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
         exit 1
     fi
 
@@ -123,7 +125,7 @@ function do_attach {
     local sock_path="${IOC_PORT##*:}"
 
     printf "%s\n" "========================================================"
-    printf "Attaching to %s via UNIX domain socket:\n" "${ioc_name}"
+    printf "Attaching to %s via UNIX domain socket:\n" "${IOC_NAME}"
     printf "Path: %s\n" "${sock_path}"
     printf "Use Ctrl-A to exit the console.\n"
     printf "%s\n" "========================================================"
@@ -160,7 +162,6 @@ function do_list {
 
     local sock ioc_name
     for sock in "${sockets[@]}"; do
-        # Assume socket path is <run_dir>/<ioc_name>/control
         ioc_name=$(basename "$(dirname "${sock}")")
         printf "%-30s | %s\n" "${ioc_name}" "${sock}"
     done
@@ -169,22 +170,22 @@ function do_list {
 
 case "${COMMAND_ACTION}" in
     install)
-        do_install "$1"
+        do_install
         ;;
     remove)
-        do_remove "$1"
+        do_remove
         ;;
     attach)
-        do_attach "$1"
+        do_attach
         ;;
     list)
         do_list
         ;;
     view)
-        "${SYSTEMCTL_CMD[@]}" cat "epics-$1.service" || exit
+        "${SYSTEMCTL_CMD[@]}" cat "epics-${IOC_NAME}.service" || exit
         ;;
     start|stop|restart|status|enable|disable)
-        "${SYSTEMCTL_CMD[@]}" "${COMMAND_ACTION}" "epics-$1.service" || exit
+        "${SYSTEMCTL_CMD[@]}" "${COMMAND_ACTION}" "epics-${IOC_NAME}.service" || exit
         ;;
     *)
         print_usage
