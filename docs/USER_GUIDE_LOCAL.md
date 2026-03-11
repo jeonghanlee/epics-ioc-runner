@@ -2,6 +2,13 @@
 
 This guide describes how to run and test EPICS IOCs in an isolated, user-level systemd environment without requiring root or sudo privileges.
 
+## Prerequisites
+Ensure that the core utilities **`procServ`** and **`con`** are installed on your system (`/usr/bin` or `/usr/local/bin`). You can build and install them from the following repositories:
+* **con**: https://github.com/jeonghanlee/con
+* **procServ**: https://github.com/jeonghanlee/procServ-env
+
+If they are not installed, please refer to the [System Installation Guide](INSTALL.md) or contact your system administrator before proceeding.
+
 ## 1. Preparation: Clone the Repository
 Create a local workspace and clone the target IOC repository. Navigate to the specific IOC boot directory.
 
@@ -26,28 +33,42 @@ IOC_CMD="./st.cmd"
 EOF
 ```
 
-## 3. Install and Start (Local Mode)
-Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/`, trigger the user-level systemd generator, and start the service.
+## 3. Install the Configuration (Local Mode)
+Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and trigger the user-level systemd generator to recognize the service. **It does not start the service automatically.**
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local install iocctrlslab-tcmd.conf
 ```
 
-## 4. Verify Service Status
+## 4. View the Generated Service File
+To verify that the systemd generator correctly created the unit file, you can view its contents directly.
+
+```bash
+~/epics-ioc-runner/bin/manage-process.bash --local view iocctrlslab-tcmd
+```
+
+## 5. Start the IOC
+Once the configuration is installed and verified, start the IOC process explicitly.
+
+```bash
+~/epics-ioc-runner/bin/manage-process.bash --local start iocctrlslab-tcmd
+```
+
+## 6. Verify Service Status
 Check if the IOC process has been successfully started by the user's systemd manager.
 
 ```bash
 systemctl --user status epics-iocctrlslab-tcmd.service
 ```
 
-## 5. List Managed IOCs
-You can view the statuses of all locally managed IOCs at a glance using the `list` command.
+## 7. List Managed IOCs
+You can view the active UNIX Domain Sockets for all locally managed IOCs using the `list` command.
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local list
 ```
 
-## 6. Attach to the IOC Console
+## 8. Attach to the IOC Console
 Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 
 ```bash
@@ -56,15 +77,12 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
 * **Press Ctrl-A** to safely detach from the console while leaving the IOC running in the background.
 
-## 7. Service Control and Cleanup (Systemd Operations)
+## 9. Service Control and Cleanup (Systemd Operations)
 The wrapper script acts as a frontend for `systemctl`. It fully supports standard systemd service lifecycle commands, allowing you to easily manage the IOC.
 
 ```bash
 # Stop the local IOC service
 ~/epics-ioc-runner/bin/manage-process.bash --local stop iocctrlslab-tcmd
-
-# Start the local IOC service
-~/epics-ioc-runner/bin/manage-process.bash --local start iocctrlslab-tcmd
 
 # Restart the local IOC service
 ~/epics-ioc-runner/bin/manage-process.bash --local restart iocctrlslab-tcmd
@@ -79,7 +97,7 @@ When the local testing is completely finished and you want to clean up the envir
 ~/epics-ioc-runner/bin/manage-process.bash --local remove iocctrlslab-tcmd
 ```
 
-## 8. Direct systemd Control (Alternative)
+## 10. Direct systemd Control (Alternative)
 Since the wrapper script generates standard systemd unit files, you can also use native `systemctl` commands directly to manage your local IOCs. Just remember to use the `--user` flag and the `epics-` prefix for the service name.
 
 ```bash

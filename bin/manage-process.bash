@@ -23,9 +23,8 @@ function set_local_mode {
 }
 
 function print_usage {
-    printf "%s\n" "Usage: $0 [--local] {install|remove|start|stop|restart|status|attach|list} [ioc_conf_or_name]"
+    printf "%s\n" "Usage: $0 [--local] {install|remove|start|stop|restart|status|attach|list|view} [ioc_conf_or_name]"
 }
-
 
 if [[ -x "/usr/local/bin/con" ]]; then
     CON_TOOL="/usr/local/bin/con"
@@ -60,6 +59,18 @@ function do_install {
     local ioc_name
     ioc_name=$(basename "${source_conf}" .conf)
 
+    local state
+    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-${ioc_name}.service" 2>/dev/null || true)
+
+    if [[ "${state}" == "active" ]]; then
+        printf "================================================================================\n" >&2
+        printf "WARNING: Installation aborted.\n" >&2
+        printf "IOC '%s' is currently running.\n" "${ioc_name}" >&2
+        printf "Please stop the service explicitly before reinstalling to prevent data loss.\n" >&2
+        printf "================================================================================\n" >&2
+        exit 1
+    fi
+
     mkdir -p "${CONF_DIR}"
     if [[ "${EXEC_MODE}" == "system" ]]; then
         sudo cp "${source_conf}" "${CONF_DIR}/"
@@ -75,9 +86,8 @@ function do_install {
     fi
 
     "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
-    "${SYSTEMCTL_CMD[@]}" restart "epics-${ioc_name}.service" || exit
 
-    printf "IOC %s installed and started in %s mode.\n" "${ioc_name}" "${EXEC_MODE}"
+    printf "IOC %s installed in %s mode. Use 'start' command to run it.\n" "${ioc_name}" "${EXEC_MODE}"
 }
 
 function do_remove {
@@ -168,6 +178,9 @@ case "${COMMAND_ACTION}" in
         ;;
     list)
         do_list
+        ;;
+    view)
+        "${SYSTEMCTL_CMD[@]}" cat "epics-$1.service" || exit
         ;;
     start|stop|restart|status)
         "${SYSTEMCTL_CMD[@]}" "${COMMAND_ACTION}" "epics-$1.service" || exit
