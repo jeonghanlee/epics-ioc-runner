@@ -23,7 +23,7 @@ function set_local_mode {
 }
 
 function print_usage {
-    printf "%s\n" "Usage: $0 [--local] {install|remove|start|stop|restart|status|attach} <ioc_conf_or_name>"
+    printf "%s\n" "Usage: $0 [--local] {install|remove|start|stop|restart|status|attach|list} [ioc_conf_or_name]"
 }
 
 
@@ -85,7 +85,7 @@ function do_remove {
     local target_conf="${CONF_DIR}/${ioc_name}.conf"
 
     "${SYSTEMCTL_CMD[@]}" stop "epics-${ioc_name}.service" 2>/dev/null || true
-    
+
     if [[ "${EXEC_MODE}" == "system" ]]; then
         sudo rm -f "${target_conf}" || true
     else
@@ -119,6 +119,43 @@ function do_attach {
     exec "${CON_TOOL}" -c "${sock_path}" || exit
 }
 
+# no test yet
+function do_list {
+    local run_dir
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        run_dir="/run/user/$(id -u)/procserv"
+    else
+        run_dir="/run/procserv"
+    fi
+
+    if [[ ! -d "${run_dir}" ]]; then
+        printf "No active IOC sockets found in %s\n" "${run_dir}"
+        return 0
+    fi
+
+    local sockets=()
+    while IFS= read -r -d '' sock; do
+        sockets+=("$sock")
+    done < <(find "${run_dir}" -type s -print0 2>/dev/null)
+
+    if [[ ${#sockets[@]} -eq 0 ]]; then
+        printf "No active IOC sockets found in %s\n" "${run_dir}"
+        return 0
+    fi
+
+    printf "%s\n" "================================================================================"
+    printf "%-30s | %s\n" "IOC NAME" "UDS PATH"
+    printf "%s\n" "--------------------------------------------------------------------------------"
+
+    local sock ioc_name
+    for sock in "${sockets[@]}"; do
+        # Assume socket path is <run_dir>/<ioc_name>/control
+        ioc_name=$(basename "$(dirname "${sock}")")
+        printf "%-30s | %s\n" "${ioc_name}" "${sock}"
+    done
+    printf "%s\n" "================================================================================"
+}
+
 case "${COMMAND_ACTION}" in
     install)
         do_install "$1"
@@ -128,6 +165,9 @@ case "${COMMAND_ACTION}" in
         ;;
     attach)
         do_attach "$1"
+        ;;
+    list)
+        do_list
         ;;
     start|stop|restart|status)
         "${SYSTEMCTL_CMD[@]}" "${COMMAND_ACTION}" "epics-$1.service" || exit

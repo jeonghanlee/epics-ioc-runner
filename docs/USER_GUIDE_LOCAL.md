@@ -40,7 +40,14 @@ Check if the IOC process has been successfully started by the user's systemd man
 systemctl --user status epics-iocctrlslab-tcmd.service
 ```
 
-## 5. Attach to the IOC Console
+## 5. List Managed IOCs
+You can view the statuses of all locally managed IOCs at a glance using the `list` command.
+
+```bash
+~/epics-ioc-runner/bin/manage-process.bash --local list
+```
+
+## 6. Attach to the IOC Console
 Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 
 ```bash
@@ -49,7 +56,7 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
 * **Press Ctrl-A** to safely detach from the console while leaving the IOC running in the background.
 
-## 6. Service Control and Cleanup (Systemd Operations)
+## 7. Service Control and Cleanup (Systemd Operations)
 The wrapper script acts as a frontend for `systemctl`. It fully supports standard systemd service lifecycle commands, allowing you to easily manage the IOC.
 
 ```bash
@@ -72,8 +79,7 @@ When the local testing is completely finished and you want to clean up the envir
 ~/epics-ioc-runner/bin/manage-process.bash --local remove iocctrlslab-tcmd
 ```
 
-
-## 7. Direct systemd Control (Alternative)
+## 8. Direct systemd Control (Alternative)
 Since the wrapper script generates standard systemd unit files, you can also use native `systemctl` commands directly to manage your local IOCs. Just remember to use the `--user` flag and the `epics-` prefix for the service name.
 
 ```bash

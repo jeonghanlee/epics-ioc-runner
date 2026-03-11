@@ -51,8 +51,8 @@ Instead of relying on fragmented Polkit rules, service control is delegated expl
 ### 3.1. Systemd Generator (AWK + Bash)
 A native systemd generator executable located in `/usr/lib/systemd/system-generators/`. During the system boot or `daemon-reload`, it parses simple configuration files in `/etc/procServ.d/` using `AWK` and dynamically translates them into transient systemd `epics-*.service` files. *(Note: To prevent boot race conditions, `/etc/procServ.d/` must be a local directory, populated via GitOps, not an NFS mount.)*
 
-### 3.2. manage-procs (Wrapper Script)
-A pure Bash utility to manage IOC configurations. It creates the config file and invokes `sudo systemctl daemon-reload` to trigger the Systemd Generator. It also invokes the `con` tool for native console access to the UNIX Domain Socket.
+### 3.2. manage-process.bash (Wrapper Script)
+A pure Bash utility to manage IOC configurations. It installs existing `.conf` files and invokes systemd daemon reloads to trigger the Systemd Generator. It supports both system-wide deployment (`sudo systemctl`) and isolated local testing (`systemctl --user` via the `--local` flag). It also invokes the `con` tool for native console access to the UNIX Domain Socket.
 
 ### 3.3. con (Local Console Access)
 A C++ based terminal emulator replacing `socat` or `minicom` to provide seamless terminal session control to the UDS.
