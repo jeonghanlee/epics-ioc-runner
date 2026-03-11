@@ -182,7 +182,7 @@ case "${COMMAND_ACTION}" in
     view)
         "${SYSTEMCTL_CMD[@]}" cat "epics-$1.service" || exit
         ;;
-    start|stop|restart|status)
+    start|stop|restart|status|enable|disable)
         "${SYSTEMCTL_CMD[@]}" "${COMMAND_ACTION}" "epics-$1.service" || exit
         ;;
     *)

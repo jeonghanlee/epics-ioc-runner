@@ -112,3 +112,16 @@ systemctl --user status epics-iocctrlslab-tcmd.service
 # View the live logs directly from systemd journal
 journalctl --user -u epics-iocctrlslab-tcmd.service -f
 ```
+
+## 11. Persistence Across Reboots
+By default, the `install` command sets up the service to be recognized by systemd. To ensure the IOC starts automatically after a system reboot, use the `enable` command.
+
+```bash
+# Enable the service to start on boot
+~/epics-ioc-runner/bin/manage-process.bash --local enable iocctrlslab-tcmd
+
+# Disable the service from starting on boot
+~/epics-ioc-runner/bin/manage-process.bash --local disable iocctrlslab-tcmd
+```
+> **Note:** For user-level services (`--local`), the user session must be active or "lingering" for the service to start on boot. You can enable lingering with: `loginctl enable-linger $(id -un)`
+
