@@ -6,7 +6,7 @@
 ## Overview
 `epics-ioc-runner` is a robust, dependency-free, and OS-native management environment for EPICS IOCs. It provides a streamlined approach to deploying, monitoring, and controlling IOCs running under `procServ` using standard Linux tools like `systemd`, `awk`, `bash`, and `sudo`.
 
-By eliminating heavy dependencies and complex configuration engines, this architecture adheres strictly to the **KISS (Keep It Simple, Stupid)** and **DRY (Don't Repeat Yourself)** principles, ensuring long-term maintainability across different Linux distributions.
+By eliminating heavy dependencies - because *"I couldn't even debug the Python dependency conflicts from the code I wrote 3 years ago"* - this architecture adheres strictly to the **KISS (Keep It Simple, Stupid)** and **DRY (Don't Repeat Yourself)** principles, ensuring long-term maintainability across different Linux distributions.
 
 ## Prerequisites
 This architecture requires the following core utilities to be installed on your system (e.g., in `/usr/bin` or `/usr/local/bin`):
@@ -14,7 +14,7 @@ This architecture requires the following core utilities to be installed on your 
 * **con**: https://github.com/jeonghanlee/con
 
 ## Key Features
-* **Zero External Dependencies**: Relies entirely on POSIX-standard tools (`bash`, `awk`) and native `systemd` mechanisms.
+* **Zero External Dependencies**: Relies entirely on POSIX-standard tools (`bash`, `awk`) and native `systemd` mechanisms. We profoundly despise `pip` dependency hell, so absolutely no Python or external packages are required.
 * **Dynamic Systemd Generation**: Uses a native `systemd-generator` (written in AWK) to translate simple configuration files into transient `epics-*.service` units.
 * **Local Test Environment Support**: Provides a `--local` flag allowing engineers to generate user-level systemd units and run isolated tests entirely within their own user space without requiring `sudo` privileges.
 * **Role-Based Access Control (RBAC)**: Utilizes traditional `/etc/sudoers.d/` policies to securely grant trained engineers (`ioc` group) passwordless access to IOC service management.
