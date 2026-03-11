@@ -72,11 +72,9 @@ for conf_file in "${CONF_DIR}"/*.conf; do
             printf "WorkingDirectory=%s\n", chdir >> svc_file;
         }
 
-        if (exec_mode == "system") {
-            printf "RuntimeDirectory=procserv/%s\n", name >> svc_file;
-        }
+        printf "RuntimeDirectory=procserv/%s\n", name >> svc_file;
 
-        printf "ExecStart=%s --foreground --logfile=- --name=%s --ignore=^D^C^] --logoutcmd=^D --port=%s %s\n", \
+        printf "ExecStart=%s --foreground --logfile=- --name=%s --ignore=^D^C^] --port=%s %s\n", \
                 procserv, name, port, cmd >> svc_file;
         
         printf "StandardOutput=syslog\n" >> svc_file;
