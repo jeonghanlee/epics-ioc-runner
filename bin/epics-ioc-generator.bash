@@ -7,7 +7,17 @@ set -e
 
 declare -g NORMAL_DIR="$1"
 declare -g CONF_DIR="${CONF_DIR:-/etc/procServ.d}"
-declare -g PROCSERV_EXEC="/usr/bin/procServ"
+declare -g PROCSERV_EXEC=""
+
+if [[ -x "/usr/local/bin/procServ" ]]; then
+    PROCSERV_EXEC="/usr/local/bin/procServ"
+elif [[ -x "/usr/bin/procServ" ]]; then
+    PROCSERV_EXEC="/usr/bin/procServ"
+else
+	printf "%s\n" "Error: procServ executable not found in /usr/local/bin or /usr/bin." >&2
+    printf "%s\n" "Please install procServ before managing EPICS IOCs." >&2
+    exit 1
+fi
 
 if [[ ! -d "${CONF_DIR}" ]] || [[ -z $(ls -A "${CONF_DIR}"/*.conf 2>/dev/null) ]]; then
     exit 0
@@ -17,7 +27,7 @@ mkdir -p "${NORMAL_DIR}/multi-user.target.wants" || exit
 
 for conf_file in "${CONF_DIR}"/*.conf; do
 
-    awk -v target_dir="${NORMAL_DIR}" -v procserv="${PROCSERV_EXEC}" '
+    awk -v target_dir="${NORMAL_DIR}" -v procserv="${PROCSERV_EXEC}" -v exec_mode="${EXEC_MODE:-system}" '
     BEGIN {
         FS="=";
     }
@@ -42,29 +52,39 @@ for conf_file in "${CONF_DIR}"/*.conf; do
 
         svc_file = target_dir "/epics-" name ".service";
 
-        print "[Unit]" > svc_file;
-        print "Description=procServ for " name >> svc_file;
-        print "After=network.target remote-fs.target" >> svc_file;
+        printf "[Unit]\n" > svc_file;
+        printf "Description=procServ for %s\n", name >> svc_file;
+        printf "After=network.target remote-fs.target\n" >> svc_file;
         if (chdir != "") {
-            print "ConditionPathIsDirectory=" chdir >> svc_file;
+            printf "ConditionPathIsDirectory=%s\n", chdir >> svc_file;
         }
-        print "" >> svc_file;
+        printf "\n" >> svc_file;
 
-        print "[Service]" >> svc_file;
-        print "Type=simple" >> svc_file;
-        print "User=" user >> svc_file;
-        print "Group=" group >> svc_file;
-        if (chdir != "") {
-            print "WorkingDirectory=" chdir >> svc_file;
+        printf "[Service]\n" >> svc_file;
+        printf "Type=simple\n" >> svc_file;
+
+        if (exec_mode == "system") {
+            printf "User=%s\n", user >> svc_file;
+            printf "Group=%s\n", group >> svc_file;
         }
-        print "RuntimeDirectory=procserv/" name >> svc_file;
-        print "ExecStart=" procserv " --foreground --logfile=- --name=" name " --ignore=^D^C^] --logoutcmd=^D --port=" port " " cmd >> svc_file;
-        print "StandardOutput=syslog" >> svc_file;
-        print "StandardError=inherit" >> svc_file;
-        print "SyslogIdentifier=epics-" name >> svc_file;
+
+        if (chdir != "") {
+            printf "WorkingDirectory=%s\n", chdir >> svc_file;
+        }
+
+        if (exec_mode == "system") {
+            printf "RuntimeDirectory=procserv/%s\n", name >> svc_file;
+        }
+
+        printf "ExecStart=%s --foreground --logfile=- --name=%s --ignore=^D^C^] --logoutcmd=^D --port=%s %s\n", \
+                procserv, name, port, cmd >> svc_file;
+        
+        printf "StandardOutput=syslog\n" >> svc_file;
+        printf "StandardError=inherit\n" >> svc_file;
+        printf "SyslogIdentifier=epics-%s\n", name >> svc_file;
 
         symlink = target_dir "/multi-user.target.wants/epics-" name ".service";
-        system("ln -sf " svc_file " " symlink);
+        system(sprintf("ln -sf %s %s", svc_file, symlink));
     }' "${conf_file}"
 
 done
