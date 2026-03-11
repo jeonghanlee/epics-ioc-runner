@@ -23,8 +23,6 @@ if [[ ! -d "${CONF_DIR}" ]] || [[ -z $(ls -A "${CONF_DIR}"/*.conf 2>/dev/null) ]
     exit 0
 fi
 
-mkdir -p "${NORMAL_DIR}/multi-user.target.wants" || exit
-
 for conf_file in "${CONF_DIR}"/*.conf; do
 
     awk -v target_dir="${NORMAL_DIR}" -v procserv="${PROCSERV_EXEC}" -v exec_mode="${EXEC_MODE:-system}" '
@@ -81,8 +79,13 @@ for conf_file in "${CONF_DIR}"/*.conf; do
         printf "StandardError=inherit\n" >> svc_file;
         printf "SyslogIdentifier=epics-%s\n", name >> svc_file;
 
-        symlink = target_dir "/multi-user.target.wants/epics-" name ".service";
-        system(sprintf("ln -sf %s %s", svc_file, symlink));
+        printf "\n" >> svc_file;
+        printf "[Install]\n" >> svc_file;
+        if (exec_mode == "system") {
+            printf "WantedBy=multi-user.target\n" >> svc_file;
+        } else {
+            printf "WantedBy=default.target\n" >> svc_file;
+        }
     }' "${conf_file}"
 
 done

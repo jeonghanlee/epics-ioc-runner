@@ -7,6 +7,7 @@ set -e
 
 declare -g EXEC_MODE="system"
 declare -g CONF_DIR="/etc/procServ.d"
+declare -g SYSTEM_SYSTEMD_DIR="/etc/systemd/system"
 declare -g LOCAL_SYSTEMD_DIR="${HOME}/.config/systemd/user"
 declare -g GENERATOR_EXEC="/usr/lib/systemd/system-generators/epics-ioc-generator"
 declare -g CON_TOOL=""
@@ -23,7 +24,7 @@ function set_local_mode {
 }
 
 function print_usage {
-    printf "%s\n" "Usage: $0 [--local] {install|remove|start|stop|restart|status|attach|list|view} [ioc_conf_or_name]"
+    printf "%s\n" "Usage: $0 [--local] {install|remove|start|stop|restart|status|attach|list|view|enable|disable} [ioc_conf_or_name]"
 }
 
 if [[ -x "/usr/local/bin/con" ]]; then
@@ -63,27 +64,27 @@ function do_install {
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-${ioc_name}.service" 2>/dev/null || true)
 
     if [[ "${state}" == "active" ]]; then
-        printf "================================================================================\n" >&2
+        printf "%s\n" "================================================================================" >&2
         printf "WARNING: Installation aborted.\n" >&2
         printf "IOC '%s' is currently running.\n" "${ioc_name}" >&2
         printf "Please stop the service explicitly before reinstalling to prevent data loss.\n" >&2
-        printf "================================================================================\n" >&2
+        printf "%s\n" "================================================================================" >&2
         exit 1
     fi
 
     mkdir -p "${CONF_DIR}"
+    
+    export CONF_DIR="${CONF_DIR}"
+    export EXEC_MODE="${EXEC_MODE}"
+
     if [[ "${EXEC_MODE}" == "system" ]]; then
         sudo cp "${source_conf}" "${CONF_DIR}/"
+        sudo -E bash "${GENERATOR_EXEC}" "${SYSTEM_SYSTEMD_DIR}"
     else
         cp "${source_conf}" "${CONF_DIR}/"
-    fi
-
-    if [[ "${EXEC_MODE}" == "local" ]]; then
         mkdir -p "${LOCAL_SYSTEMD_DIR}"
-        export CONF_DIR="${CONF_DIR}"
-        export EXEC_MODE="${EXEC_MODE}"
-        bash "${GENERATOR_EXEC}" "${LOCAL_SYSTEMD_DIR}" "${LOCAL_SYSTEMD_DIR}" "${LOCAL_SYSTEMD_DIR}"
-    fi
+        bash "${GENERATOR_EXEC}" "${LOCAL_SYSTEMD_DIR}"
+    fi      
 
     "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
 
@@ -95,13 +96,14 @@ function do_remove {
     local target_conf="${CONF_DIR}/${ioc_name}.conf"
 
     "${SYSTEMCTL_CMD[@]}" stop "epics-${ioc_name}.service" 2>/dev/null || true
+    "${SYSTEMCTL_CMD[@]}" disable "epics-${ioc_name}.service" 2>/dev/null || true
 
     if [[ "${EXEC_MODE}" == "system" ]]; then
         sudo rm -f "${target_conf}" || true
+        sudo rm -f "${SYSTEM_SYSTEMD_DIR}/epics-${ioc_name}.service" || true
     else
         rm -f "${target_conf}" || true
-        rm -f "${LOCAL_SYSTEMD_DIR}/epics-${ioc_name}.service"
-        rm -f "${LOCAL_SYSTEMD_DIR}/multi-user.target.wants/epics-${ioc_name}.service"
+        rm -f "${LOCAL_SYSTEMD_DIR}/epics-${ioc_name}.service" || true
     fi
 
     "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
@@ -129,7 +131,6 @@ function do_attach {
     exec "${CON_TOOL}" -c "${sock_path}" || exit
 }
 
-# no test yet
 function do_list {
     local run_dir
     if [[ "${EXEC_MODE}" == "local" ]]; then

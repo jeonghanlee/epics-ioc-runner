@@ -34,14 +34,14 @@ EOF
 ```
 
 ## 3. Install the Configuration (Local Mode)
-Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and trigger the user-level systemd generator to recognize the service. **It does not start the service automatically.**
+Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and generate the user-level systemd unit file. **It does not start the service automatically.**
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local install iocctrlslab-tcmd.conf
 ```
 
 ## 4. View the Generated Service File
-To verify that the systemd generator correctly created the unit file, you can view its contents directly.
+To verify that the unit file was correctly generated, you can view its contents directly.
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local view iocctrlslab-tcmd
@@ -54,21 +54,33 @@ Once the configuration is installed and verified, start the IOC process explicit
 ~/epics-ioc-runner/bin/manage-process.bash --local start iocctrlslab-tcmd
 ```
 
-## 6. Verify Service Status
+## 6. Enable Auto-Start on Boot (Persistence)
+By default, the `install` command creates the service file but does not enable it for auto-start. To ensure the IOC starts automatically after a system reboot, use the `enable` command.
+
+```bash
+# Enable the service to start on boot
+~/epics-ioc-runner/bin/manage-process.bash --local enable iocctrlslab-tcmd
+
+# Disable the service from starting on boot
+~/epics-ioc-runner/bin/manage-process.bash --local disable iocctrlslab-tcmd
+```
+> **Note:** For user-level services (`--local`), the user session must be active or "lingering" for the service to start on boot. You can enable lingering with: `loginctl enable-linger $(id -un)`
+
+## 7. Verify Service Status
 Check if the IOC process has been successfully started by the user's systemd manager.
 
 ```bash
 systemctl --user status epics-iocctrlslab-tcmd.service
 ```
 
-## 7. List Managed IOCs
+## 8. List Managed IOCs
 You can view the active UNIX Domain Sockets for all locally managed IOCs using the `list` command.
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local list
 ```
 
-## 8. Attach to the IOC Console
+## 9. Attach to the IOC Console
 Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 
 ```bash
@@ -77,7 +89,7 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
 * **Press Ctrl-A** to safely detach from the console while leaving the IOC running in the background.
 
-## 9. Service Control and Cleanup (Systemd Operations)
+## 10. Service Control and Cleanup (Systemd Operations)
 The wrapper script acts as a frontend for `systemctl`. It fully supports standard systemd service lifecycle commands, allowing you to easily manage the IOC.
 
 ```bash
@@ -97,7 +109,7 @@ When the local testing is completely finished and you want to clean up the envir
 ~/epics-ioc-runner/bin/manage-process.bash --local remove iocctrlslab-tcmd
 ```
 
-## 10. Direct systemd Control (Alternative)
+## 11. Direct systemd Control (Alternative)
 Since the wrapper script generates standard systemd unit files, you can also use native `systemctl` commands directly to manage your local IOCs. Just remember to use the `--user` flag and the `epics-` prefix for the service name.
 
 ```bash
@@ -112,16 +124,3 @@ systemctl --user status epics-iocctrlslab-tcmd.service
 # View the live logs directly from systemd journal
 journalctl --user -u epics-iocctrlslab-tcmd.service -f
 ```
-
-## 11. Persistence Across Reboots
-By default, the `install` command sets up the service to be recognized by systemd. To ensure the IOC starts automatically after a system reboot, use the `enable` command.
-
-```bash
-# Enable the service to start on boot
-~/epics-ioc-runner/bin/manage-process.bash --local enable iocctrlslab-tcmd
-
-# Disable the service from starting on boot
-~/epics-ioc-runner/bin/manage-process.bash --local disable iocctrlslab-tcmd
-```
-> **Note:** For user-level services (`--local`), the user session must be active or "lingering" for the service to start on boot. You can enable lingering with: `loginctl enable-linger $(id -un)`
-
