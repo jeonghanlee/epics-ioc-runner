@@ -1,6 +1,6 @@
 # EPICS IOC Runner - System Installation & Configuration Guide
 
-This guide describes the initial server setup required to deploy the `epics-ioc-runner` architecture. It covers the installation of prerequisite utilities, creation of service accounts, directory permissions, systemd template deployment, and sudoers configuration.
+This guide describes the initial server setup required to deploy the `epics-ioc-runner` architecture system-wide. It covers the installation of prerequisite utilities, creation of isolated service accounts, strict directory permissions, systemd template deployment, and secure sudoers configuration.
 
 ## Prerequisites
 * Root (sudo) access to the target server.
@@ -9,42 +9,54 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
 
 ---
 
-## 1. Account and Group Setup
-Create a dedicated service account and a management group. Only trained engineers should be added to the management group.
+## 1. Automated Infrastructure Setup (Recommended)
+We provide a hardened, idempotent setup script that automatically configures isolated service accounts, strict directory permissions, and validated sudoers policies.
 
+From the root of the repository, execute the following script as root:
+```bash
+sudo ./bin/setup-system-infra.bash
+```
+
+Once the script completes successfully, manually add your authorized engineers to the `ioc` management group:
+```bash
+sudo usermod -aG ioc <username>
+```
+
+---
+
+## 2. Manual Setup Reference (Under the Hood)
+If you prefer to configure the system manually or need to audit the security changes made by the automated script, follow these steps.
+
+### 2.1. Account and Group Setup
+Create an isolated service account and a management group.
 ```bash
 # Create the management group
 groupadd ioc
 
-# Create the service account with no login shell
-useradd -r -g ioc -s /sbin/nologin ioc-srv
-
-# Add authorized engineers to the management group
-usermod -aG ioc userA
-usermod -aG ioc userB
+# Create the isolated service account with no home directory and no login shell
+useradd -r -M -d /nonexistent -g ioc -s /sbin/nologin -c "EPICS procServ Daemon Account" ioc-srv
 ```
 
-## 2. Shared Configuration Directory Setup
-Create the directory where IOC configuration files will reside. This directory must be writable by the `ioc` group to allow engineers to deploy configurations without sudo.
-
+### 2.2. Shared Configuration Directory Setup (Strict ACL)
+Create the directory where IOC configuration files will reside. This directory is strictly restricted to `root` and the `ioc` group using `2770` permissions.
 ```bash
 mkdir -p /etc/procServ.d/
 chown root:ioc /etc/procServ.d/
-chmod 2775 /etc/procServ.d/
+chmod 2770 /etc/procServ.d/
 ```
 
-## 3. Sudoers Configuration
-Allow members of the `ioc` group to manage `epics-*` systemd services without requiring a password.
+### 2.3. Sudoers Configuration (Restricted)
+Allow members of the `ioc` group to manage only specific `epics-@*.service` systemd instances securely.
 
 Create the file `/etc/sudoers.d/10-epics-ioc`:
 ```bash
 # /etc/sudoers.d/10-epics-ioc
 
-# Allow trained engineers to manage ONLY EPICS-related services
-%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-*, \
-                          /bin/systemctl stop epics-*, \
-                          /bin/systemctl restart epics-*, \
-                          /bin/systemctl status epics-*, \
+# Allow trained engineers to manage ONLY EPICS template services
+%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-@*.service, \
+                          /bin/systemctl stop epics-@*.service, \
+                          /bin/systemctl restart epics-@*.service, \
+                          /bin/systemctl status epics-@*.service, \
                           /bin/systemctl daemon-reload
 ```
 Apply strict permissions to the sudoers file:
@@ -52,7 +64,7 @@ Apply strict permissions to the sudoers file:
 chmod 0440 /etc/sudoers.d/10-epics-ioc
 ```
 
-## 4. Systemd Template Unit Deployment
+### 2.4. Systemd Template Unit Deployment
 Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide.
 
 Create `/etc/systemd/system/epics-@.service`:
@@ -82,10 +94,12 @@ Reload the systemd daemon to recognize the new template:
 systemctl daemon-reload
 ```
 
-## 5. CLI Wrapper Deployment
-Deploy the frontend management script `manage-process.bash` to a standard binary path.
+---
+
+## 3. CLI Wrapper Deployment
+Deploy the frontend management script `manage-process.bash` to a standard binary path for all engineers to use.
 
 ```bash
-cp bin/manage-process.bash /usr/local/bin/manage-procs
-chmod +x /usr/local/bin/manage-procs
+sudo cp bin/manage-process.bash /usr/local/bin/manage-procs
+sudo chmod +x /usr/local/bin/manage-procs
 ```

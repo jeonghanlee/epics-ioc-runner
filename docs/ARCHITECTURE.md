@@ -7,7 +7,7 @@ This architecture defines a robust, dependency-free environment for managing EPI
 ```text
 [ Trained Engineers (ioc group) ]
         |
-        |-- (1. Config) --> [ /etc/procServ.d/myioc.conf (Local config dir, 2775) ]
+        |-- (1. Config) --> [ /etc/procServ.d/myioc.conf (Local config dir, 2770) ]
         |
         |-- (2. Control) --> [ sudo systemctl start epics-@myioc.service ]
                                                 |
@@ -29,18 +29,18 @@ This architecture defines a robust, dependency-free environment for managing EPI
 ## 2. Access Control and Security
 
 ### 2.1. System Accounts
-* **`ioc-srv`**: A dedicated system account with no login shell (`/sbin/nologin`). Runs all `procServ` daemons.
-* **`ioc` group**: The management group for trained engineers. Grants passwordless write access to `/etc/procServ.d/` via SetGID (`2775`).
+* **`ioc-srv`**: A dedicated, fully isolated system account with no login shell (`/sbin/nologin`) and no home directory (`/nonexistent`). Runs all `procServ` daemons to prevent shell-based exploits.
+* **`ioc` group**: The management group for trained engineers. Grants passwordless write access to `/etc/procServ.d/` via strict SetGID (`2770`) permissions, ensuring other unauthorized users cannot read or modify configurations.
 
 ### 2.2. Sudoers Configuration
-Instead of relying on fragmented Polkit rules, service control is delegated explicitly via `/etc/sudoers.d/10-epics-ioc`.
+Instead of relying on fragmented Polkit rules or overly broad wildcards, service control is delegated explicitly and strictly via `/etc/sudoers.d/10-epics-ioc`.
 
 ```bash
-# Allow trained engineers to manage ONLY EPICS-related services
-%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-*, \
-                          /bin/systemctl stop epics-*, \
-                          /bin/systemctl restart epics-*, \
-                          /bin/systemctl status epics-*, \
+# Allow trained engineers to manage ONLY EPICS template services
+%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-@*.service, \
+                          /bin/systemctl stop epics-@*.service, \
+                          /bin/systemctl restart epics-@*.service, \
+                          /bin/systemctl status epics-@*.service, \
                           /bin/systemctl daemon-reload
 ```
 
