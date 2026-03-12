@@ -37,21 +37,21 @@ EOF
 Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and dynamically generate the user-level systemd template (`epics-@.service`) if it does not exist.
 
 ```bash
-~/epics-ioc-runner/bin/manage-process.bash --local install iocctrlslab-tcmd.conf
+~/epics-ioc-runner/bin/ioc-runner --local install iocctrlslab-tcmd.conf
 ```
 
 ## 4. View the Service Configuration
 To verify that the unit file template is correctly loaded for your IOC, you can view its contents.
 
 ```bash
-~/epics-ioc-runner/bin/manage-process.bash --local view iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local view iocctrlslab-tcmd
 ```
 
 ## 5. Start the IOC
 Once the configuration is installed, start the IOC process explicitly.
 
 ```bash
-~/epics-ioc-runner/bin/manage-process.bash --local start iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local start iocctrlslab-tcmd
 ```
 
 ## 6. Enable Auto-Start on Boot (Persistence)
@@ -59,10 +59,10 @@ By default, the `install` command deploys the configuration but does not enable 
 
 ```bash
 # Enable the service to start on boot
-~/epics-ioc-runner/bin/manage-process.bash --local enable iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local enable iocctrlslab-tcmd
 
 # Disable the service from starting on boot
-~/epics-ioc-runner/bin/manage-process.bash --local disable iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local disable iocctrlslab-tcmd
 ```
 > **Note:** For user-level services (`--local`), the user session must be active or "lingering" for the service to start on boot. You can enable lingering with: `loginctl enable-linger $(id -un)`
 
@@ -77,14 +77,14 @@ systemctl --user status epics-@iocctrlslab-tcmd.service
 You can view the active UNIX Domain Sockets for all locally managed IOCs using the `list` command.
 
 ```bash
-~/epics-ioc-runner/bin/manage-process.bash --local list
+~/epics-ioc-runner/bin/ioc-runner --local list
 ```
 
 ## 9. Attach to the IOC Console
 Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 
 ```bash
-~/epics-ioc-runner/bin/manage-process.bash --local attach iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local attach iocctrlslab-tcmd
 ```
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
 * **Press Ctrl-A** to safely detach from the console while leaving the IOC running in the background.
@@ -94,16 +94,16 @@ The wrapper script acts as a frontend for `systemctl`. It fully supports standar
 
 ```bash
 # Stop the local IOC service
-~/epics-ioc-runner/bin/manage-process.bash --local stop iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local stop iocctrlslab-tcmd
 
 # Restart the local IOC service
-~/epics-ioc-runner/bin/manage-process.bash --local restart iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local restart iocctrlslab-tcmd
 ```
 
 When the local testing is completely finished and you want to clean up the environment, use the `remove` command. This will stop the service and remove the configuration file from the local directory.
 
 ```bash
-~/epics-ioc-runner/bin/manage-process.bash --local remove iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local remove iocctrlslab-tcmd
 ```
 
 ## 11. Direct systemd Control (Alternative)
@@ -127,7 +127,7 @@ While the `attach` command automatically resolves the socket path, you can also 
 
 First, find the exact UDS path for your active IOCs using the `list` command:
 ```bash
-~/epics-ioc-runner/bin/manage-process.bash --local list
+~/epics-ioc-runner/bin/ioc-runner --local list
 ```
 
 The output will display the full path, which typically follows this pattern for local user sessions:
@@ -138,4 +138,3 @@ You can then connect directly using `con`:
 con -c /run/user/1000/procserv/iocctrlslab-tcmd/control
 ```
 * **To exit the console session**: Press `Ctrl-A`.
-

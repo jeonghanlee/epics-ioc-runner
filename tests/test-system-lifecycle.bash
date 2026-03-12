@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 #
-# Automated lifecycle test for EPICS local IOC management.
+# Automated lifecycle test for EPICS system-wide IOC management.
 # This script uses the actual ServiceTestIOC repository to verify
 # the install, start, view, list, enable, disable, and remove workflows.
-# It validates the systemd template unit (@.service) architecture dynamically.
+# It validates the systemd template unit (@.service) architecture at the system level.
 
 set -e
 
-# --- Global Output & Color Settings ---
 declare -g RED='\033[0;31m'
 declare -g GREEN='\033[0;32m'
 declare -g MAGENTA='\033[0;35m'
@@ -15,14 +14,12 @@ declare -g BLUE='\033[0;34m'
 declare -g YELLOW='\033[0;33m'
 declare -g NC='\033[0m'
 
-# --- Global Test Tracking ---
 declare -g TEST_TOTAL=0
 declare -g TEST_PASSED=0
 declare -g TEST_FAILED=0
 declare -g SCRIPT_ERROR=0
 declare -g -a FAILED_DETAILS=()
 
-# --- EPICS Test Configuration ---
 declare -g MAX_CAGET_READS=10
 declare -g CAGET_INTERVAL=1
 
@@ -41,24 +38,21 @@ declare -g SC_TOP
 SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
-# --- Managed Architecture Paths ---
 declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
-declare -g CONF_DIR="${HOME}/.config/procServ.d"
-declare -g SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
-declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"
-declare -g RUN_DIR="/run/user/$(id -u)/procserv"
+declare -g CONF_DIR="/etc/procServ.d"
+declare -g SYSTEMD_DIR="/etc/systemd/system"
+declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
+declare -g RUN_DIR="/run/procserv"
 
-# --- IOC Test Target Paths ---
 declare -g WORKSPACE="${HOME}/ioc-test-workspace"
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
-declare -g IOC_NAME="ServiceTestIOC"
+declare -g IOC_NAME="ServiceTestIOC-SYS"
 declare -g IOC_DIR="${WORKSPACE}/${IOC_NAME}"
 declare -g CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
 
-declare -g -a SYSTEMCTL_CMD=(systemctl --user)
+declare -g -a SYSTEMCTL_CMD=(sudo systemctl)
 
-# --- Interrupt & Exit Handling ---
 function _handle_exit {
     local exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
@@ -69,10 +63,6 @@ function _handle_exit {
 }
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
-
-# ==============================================================================
-# Utilities
-# ==============================================================================
 
 function _log {
     local level="$1"
@@ -100,7 +90,7 @@ function print_sub_divider {
 function print_summary {
     printf "\n"
     printf "${BLUE}%s${NC}\n" "===================================================================================================="
-    printf "${BLUE}%s${NC}\n" "                                     LOCAL LIFECYCLE TEST SUMMARY                                   "
+    printf "${BLUE}%s${NC}\n" "                                    SYSTEM LIFECYCLE TEST SUMMARY                                   "
     printf "${BLUE}%s${NC}\n" "===================================================================================================="
 
     printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
@@ -151,27 +141,36 @@ function verify_state {
     fi
 }
 
-# ==============================================================================
-# Test Steps
-# ==============================================================================
+function verify_infrastructure {
+    print_divider
+    _log "INFO" "STEP 0: Verify System Infrastructure"
+    print_sub_divider
+
+    local conf_dir_exist="false"
+    local conf_dir_writable="false"
+    local tmpl_exist="false"
+
+    if [[ -d "${CONF_DIR}" ]]; then conf_dir_exist="true"; fi
+    if [[ -w "${CONF_DIR}" ]]; then conf_dir_writable="true"; fi
+    if [[ -f "${SYSTEMD_DIR}/epics-@.service" ]]; then tmpl_exist="true"; fi
+
+    verify_state "true" "${conf_dir_exist}" "System configuration directory exists (${CONF_DIR})"
+    verify_state "true" "${conf_dir_writable}" "System configuration directory is writable by current user"
+    verify_state "true" "${tmpl_exist}" "System template unit exists (${SYSTEMD_DIR}/epics-@.service)"
+}
 
 function cleanup_previous_state {
     print_divider
-    _log "INFO" "STEP 0: Cleanup Previous State"
+    _log "INFO" "STEP 1: Cleanup Previous State"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
-
-    # Reset local template strictly to verify 'install' creates it dynamically
-    rm -f "${SYSTEMD_USER_DIR}/epics-@.service"
-    systemctl --user daemon-reload || true
-
-    _log "SUCCESS" "Cleaned up residual processes, templates, and configurations."
+    bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}" >/dev/null 2>&1 || true
+    _log "SUCCESS" "Cleaned up residual processes and configurations."
 }
 
 function setup_environment {
     print_divider
-    _log "INFO" "STEP 1: Environment Setup & Compilation"
+    _log "INFO" "STEP 2: Environment Setup & Compilation"
     print_sub_divider
 
     mkdir -p "${WORKSPACE}"
@@ -183,7 +182,7 @@ function setup_environment {
 
     cd "${IOC_DIR}"
     if [[ ! -d "bin" ]]; then
-        _log "INFO" "Configuring local EPICS environment..."
+        _log "INFO" "Configuring EPICS environment..."
         printf "EPICS_BASE=%s\n" "${EPICS_BASE}" > configure/RELEASE.local
 
         _log "INFO" "Compiling ServiceTestIOC..."
@@ -198,10 +197,10 @@ function setup_environment {
     _log "INFO" "Generating Configuration File in workspace..."
     cat <<EOF > "${CONF_FILE}"
 IOC_NAME="${IOC_NAME}"
-IOC_USER="$(id -un)"
-IOC_GROUP="$(id -gn)"
+IOC_USER="ioc-srv"
+IOC_GROUP="ioc"
 IOC_CHDIR="${IOC_DIR}"
-IOC_PORT="unix:$(id -un):$(id -gn):0660:${UDS_PATH}"
+IOC_PORT="unix:ioc-srv:ioc:0660:${UDS_PATH}"
 IOC_CMD="./cmd/st.cmd"
 EOF
     _log "SUCCESS" "Configuration generated at ${CONF_FILE}"
@@ -209,29 +208,25 @@ EOF
 
 function test_install {
     print_divider
-    _log "INFO" "STEP 2: Test Install Command"
+    _log "INFO" "STEP 3: Test Install Command"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local install "${CONF_FILE}"
+    bash "${RUNNER_SCRIPT}" install "${CONF_FILE}"
 
     local conf_exist="false"
-    local tmpl_exist="false"
-
     if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
-    if [[ -f "${SYSTEMD_USER_DIR}/epics-@.service" ]]; then tmpl_exist="true"; fi
 
-    verify_state "true" "${conf_exist}" "Configuration file deployed to user procServ.d"
-    verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) dynamically generated in user directory"
+    verify_state "true" "${conf_exist}" "Configuration file deployed to system procServ.d"
 }
 
 function test_start {
     print_divider
-    _log "INFO" "STEP 3: Test Start Command"
+    _log "INFO" "STEP 4: Test Start Command"
     print_sub_divider
 
     local start_time=${SECONDS}
 
-    bash "${RUNNER_SCRIPT}" --local start "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" start "${IOC_NAME}"
     _log "INFO" "Waiting for IOC to initialize (2 seconds)..."
     sleep 2
 
@@ -244,31 +239,31 @@ function test_start {
 
 function test_socket_list {
     print_divider
-    _log "INFO" "STEP 4: Test List and Socket Creation"
+    _log "INFO" "STEP 5: Test List and Socket Creation"
     print_sub_divider
 
     local socket_exist="false"
 
     if [[ -S "${UDS_PATH}" ]]; then socket_exist="true"; fi
-    verify_state "true" "${socket_exist}" "UNIX Domain Socket explicitly created"
+    verify_state "true" "${socket_exist}" "UNIX Domain Socket explicitly created in system directory"
 
     _log "INFO" "Executing list command:"
-    bash "${RUNNER_SCRIPT}" --local list
+    bash "${RUNNER_SCRIPT}" list
 }
 
 function test_console_attach {
     print_divider
-    _log "INFO" "STEP 4.5: Interactive Console Attach"
+    _log "INFO" "STEP 5.5: Interactive Console Attach"
     print_sub_divider
 
-    printf "${YELLOW}%s${NC}\n" ">>> The script will now attach to the IOC console for debugging."
+    printf "${YELLOW}%s${NC}\n" ">>> The script will now attach to the system IOC console for debugging."
     printf "${YELLOW}%s${NC}\n" ">>> 1. Check if there are any iocInit errors."
     printf "${YELLOW}%s${NC}\n" ">>> 2. Press [Enter] to display the 'epics>' prompt."
     printf "${YELLOW}%s${NC}\n" ">>> 3. Press [Ctrl-A] when you are ready to resume the test."
     printf "\n"
     read -r -p "Press [Enter] to attach now..."
 
-    bash "${RUNNER_SCRIPT}" --local attach "${IOC_NAME}" || true
+    bash "${RUNNER_SCRIPT}" attach "${IOC_NAME}" || true
 
     printf "\n"
     _log "SUCCESS" "Detached from console. Resuming tests..."
@@ -276,7 +271,7 @@ function test_console_attach {
 
 function test_channel_access {
     print_divider
-    _log "INFO" "STEP 5: Test EPICS Channel Access (caget)"
+    _log "INFO" "STEP 6: Test EPICS Channel Access (caget)"
     print_sub_divider
 
     local caget_cmd
@@ -330,16 +325,16 @@ function test_channel_access {
 
 function test_persistence {
     print_divider
-    _log "INFO" "STEP 6: Test Enable and Disable (Persistence)"
+    _log "INFO" "STEP 7: Test Enable and Disable (Persistence)"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local enable "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" enable "${IOC_NAME}"
 
     local link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
     verify_state "true" "${link_exist}" "Symlink created in multi-user.wants (Enable)"
 
-    bash "${RUNNER_SCRIPT}" --local disable "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" disable "${IOC_NAME}"
 
     link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
@@ -348,10 +343,10 @@ function test_persistence {
 
 function test_remove {
     print_divider
-    _log "INFO" "STEP 7: Test Remove Command"
+    _log "INFO" "STEP 8: Test Remove Command"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}"
 
     local conf_exist="false"
     local state
@@ -364,6 +359,7 @@ function test_remove {
 }
 
 function run_all_tests {
+    verify_infrastructure
     cleanup_previous_state
     setup_environment
     test_install

@@ -23,7 +23,8 @@ This architecture requires the following core utilities to be installed on your 
 ```text
 epics-ioc-runner/
 ├── bin/
-│   └── manage-process.bash       # Front-end CLI wrapper for install/remove/attach/list
+│   ├── ioc-runner                # Front-end CLI wrapper for install/remove/attach/list
+│   └── setup-system-infra.bash   # Automated system infrastructure setup script
 ├── docs/
 │   ├── ARCHITECTURE.md           # Architecture overview and security model
 │   ├── INSTALL.md                # System installation and infrastructure setup guide
@@ -34,6 +35,7 @@ epics-ioc-runner/
 │   └── 10-epics-ioc              # Sudoers configuration for RBAC
 ├── tests/
 │   ├── test-local-lifecycle.bash # Automated integration tests for local execution
+│   ├── test-system-lifecycle.bash# Automated integration tests for system-wide execution
 │   └── README.md                 # Test execution guide
 ├── LICENSE                       # MIT License
 └── README.md                     # Project overview and key features

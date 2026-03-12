@@ -16,8 +16,10 @@ declare -g LOCAL_SYSTEMD_DIR="${HOME}/.config/systemd/user"
 declare -g SYSTEM_RUN_DIR="/run/procserv"
 declare -g LOCAL_RUN_DIR="/run/user/$(id -u)/procserv"
 
-# --- Base Commands ---
+# --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN="/bin/systemctl"
+declare -g -a CON_SEARCH_PATHS=("/usr/local/bin/con" "/usr/bin/con")
+declare -g -a PROCSERV_SEARCH_PATHS=("/usr/local/bin/procServ" "/usr/bin/procServ")
 
 # --- Active State Variables ---
 declare -g EXEC_MODE="system"
@@ -34,15 +36,49 @@ function set_local_mode {
 }
 
 function print_usage {
-    printf "%s\n" "Usage: $0 [--local] {install|remove|start|stop|restart|status|attach|list|view|enable|disable} [ioc_conf_or_name]"
+    local prog_name
+    prog_name=$(basename "$0")
+
+    cat << EOF
+EPICS IOC Runner - CLI Manager
+
+Usage: ${prog_name} [OPTIONS] COMMAND [TARGET]
+
+Options:
+  --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d)
+  -h, --help     Show this help message and exit
+
+Commands:
+  install        Install a new IOC configuration file (.conf) and reload systemd
+  remove         Stop, disable, and remove an existing IOC configuration
+  start          Start the specified IOC service
+  stop           Stop the specified IOC service
+  restart        Restart the specified IOC service
+  status         Show the systemd status of the IOC service
+  enable         Enable the IOC service to start on boot
+  disable        Disable the IOC service from starting on boot
+  view           Print the contents of the generated systemd unit file
+  list           List all active UNIX Domain Sockets for managed IOCs (no target required)
+  attach         Attach to the IOC console via UNIX Domain Socket (use Ctrl-A to detach)
+
+Examples:
+  ${prog_name} install myioc.conf      # Install system-wide IOC
+  ${prog_name} start myioc             # Start the system-wide IOC
+  ${prog_name} attach myioc            # Connect to the IOC console
+  ${prog_name} --local install t.conf  # Install IOC in local user space
+EOF
 }
 
-if [[ -x "/usr/local/bin/con" ]]; then
-    CON_TOOL="/usr/local/bin/con"
-elif [[ -x "/usr/bin/con" ]]; then
-    CON_TOOL="/usr/bin/con"
-else
-    printf "%s\n" "Error: con utility not found in /usr/local/bin or /usr/bin." >&2
+# Resolve con utility path
+for path in "${CON_SEARCH_PATHS[@]}"; do
+    if [[ -x "${path}" ]]; then
+        CON_TOOL="${path}"
+        break
+    fi
+done
+
+if [[ -z "${CON_TOOL}" ]]; then
+    printf "%s\n" "Error: con utility not found in standard paths." >&2
     printf "%s\n" "Please install con before managing EPICS IOCs." >&2
     exit 1
 fi
@@ -52,9 +88,9 @@ if [[ "$1" == "--local" ]]; then
     shift
 fi
 
-if [[ $# -lt 1 ]]; then
+if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
     print_usage
-    exit 1
+    exit 0
 fi
 
 declare -g COMMAND_ACTION="$1"
@@ -90,15 +126,19 @@ function run_systemctl {
 }
 
 function deploy_local_template {
-    local procserv_bin
+    local procserv_bin=""
     local template_path="${SYSTEMD_DIR}/epics-@.service"
 
-    if [[ -x "/usr/local/bin/procServ" ]]; then
-        procserv_bin="/usr/local/bin/procServ"
-    elif [[ -x "/usr/bin/procServ" ]]; then
-        procserv_bin="/usr/bin/procServ"
-    else
-        printf "%s\n" "Error: procServ executable not found in /usr/local/bin or /usr/bin." >&2
+    # Resolve procServ binary path
+    for path in "${PROCSERV_SEARCH_PATHS[@]}"; do
+        if [[ -x "${path}" ]]; then
+            procserv_bin="${path}"
+            break
+        fi
+    done
+
+    if [[ -z "${procserv_bin}" ]]; then
+        printf "%s\n" "Error: procServ executable not found in standard paths." >&2
         exit 1
     fi
 
@@ -177,6 +217,11 @@ function do_install {
 }
 
 function do_remove {
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: Target IOC name is required for removal.\n" >&2
+        exit 1
+    fi
+
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
 
     run_systemctl stop "epics-@${IOC_NAME}.service" 2>/dev/null || true
@@ -193,6 +238,11 @@ function do_remove {
 }
 
 function do_attach {
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: Target IOC name is required to attach.\n" >&2
+        exit 1
+    fi
+
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
 
     if [[ ! -f "${target_conf}" ]]; then
@@ -240,6 +290,32 @@ function do_list {
     printf "%s\n" "===================================================================================================="
 }
 
+function do_view {
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: Target IOC name is required to view.\n" >&2
+        exit 1
+    fi
+
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+
+    printf "%s\n" "===================================================================================================="
+    printf "1. IOC Configuration File: %s\n" "${target_conf}"
+    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+    if [[ -f "${target_conf}" ]]; then
+        cat "${target_conf}"
+    else
+        printf "Error: Configuration file not found at %s\n" "${target_conf}" >&2
+    fi
+    printf "\n"
+
+    printf "%s\n" "===================================================================================================="
+    printf "2. Systemd Template Unit\n"
+    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+    run_systemctl cat "epics-@${IOC_NAME}.service" || true
+    printf "%s\n" "===================================================================================================="
+}
+
+
 case "${COMMAND_ACTION}" in
     install)
         do_install
@@ -254,9 +330,13 @@ case "${COMMAND_ACTION}" in
         do_list
         ;;
     view)
-        run_systemctl cat "epics-@${IOC_NAME}.service" || exit
+        do_view
         ;;
     start|stop|restart|status|enable|disable)
+        if [[ -z "${IOC_NAME}" ]]; then
+            printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
+            exit 1
+        fi
         run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service" || exit
         ;;
     *)
