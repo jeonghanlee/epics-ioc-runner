@@ -36,5 +36,3 @@ Run the script directly from the terminal. The script will handle creating a wor
 7. **Persistence**: Tests `enable` and `disable` commands to verify systemd boot symlink creation.
 8. **Remove & Cleanup**: Completely purges the generated service units and stops the daemon to ensure idempotency.
 
-## Output and Assertion
-The script provides colorized standard output and a final summary dashboard showing the total number of passed and failed assertions. It operates with `set -e` to abort immediately upon any unexpected script failures, ensuring no false positives.
