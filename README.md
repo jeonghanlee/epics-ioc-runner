@@ -35,6 +35,7 @@ epics-ioc-runner/
 │   └── 10-epics-ioc              # Sudoers configuration for RBAC
 ├── tests/
 │   ├── test-local-lifecycle.bash # Automated integration tests for local execution
+│   ├── test-system-lifecycle.bash# Automated integration tests for system-wide execution
 │   └── README.md                 # Test execution guide
 ├── LICENSE                       # MIT License
 └── README.md                     # Project overview and key features
