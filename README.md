@@ -1,12 +1,9 @@
 # EPICS IOC Runner
 
-> **⚠️ DISCLAIMER: WORK IN PROGRESS**
-> The local testing environment (user-level systemd integration) is fully functional and verified. However, system-wide deployment components—including service accounts, user groups, and global systemd integration—are currently under active development and testing. **Do not use this in a production environment yet.**
-
 ## Overview
-`epics-ioc-runner` is a robust, dependency-free, and OS-native management environment for EPICS IOCs. It provides a streamlined approach to deploying, monitoring, and controlling IOCs running under `procServ` using standard Linux tools like `systemd`, `awk`, `bash`, and `sudo`.
+`epics-ioc-runner` is a robust, dependency-free, and OS-native management environment for EPICS IOCs. It provides a streamlined approach to deploying, monitoring, and controlling IOCs running under `procServ` using standard Linux tools like `systemd`, `bash`, and `sudo`.
 
-By eliminating heavy dependencies - because *"I couldn't even debug the Python dependency conflicts from the code I wrote 3 years ago"* - this architecture adheres strictly to the **KISS (Keep It Simple, Stupid)** and **DRY (Don't Repeat Yourself)** principles, ensuring long-term maintainability across different Linux distributions.
+By eliminating heavy dependencies, this architecture adheres strictly to the **KISS (Keep It Simple, Stupid)** and **DRY (Don't Repeat Yourself)** principles, ensuring long-term maintainability across different Linux distributions without any version dependencies.
 
 ## Prerequisites
 This architecture requires the following core utilities to be installed on your system (e.g., in `/usr/bin` or `/usr/local/bin`):
@@ -14,10 +11,10 @@ This architecture requires the following core utilities to be installed on your 
 * **con**: https://github.com/jeonghanlee/con
 
 ## Key Features
-* **Zero External Dependencies**: Relies entirely on POSIX-standard tools (`bash`, `awk`) and native `systemd` mechanisms. We profoundly despise `pip` dependency hell, so absolutely no Python or external packages are required.
-* **Dynamic Systemd Generation**: Uses a native `systemd-generator` (written in AWK) to translate simple configuration files into transient `epics-*.service` units.
-* **Local Test Environment Support**: Provides a `--local` flag allowing engineers to generate user-level systemd units and run isolated tests entirely within their own user space without requiring `sudo` privileges.
-* **Role-Based Access Control (RBAC)**: Utilizes traditional `/etc/sudoers.d/` policies to securely grant trained engineers (`ioc` group) passwordless access to IOC service management.
+* **Zero External Dependencies**: Relies entirely on POSIX-standard tools (`bash`) and native `systemd` mechanisms. We profoundly despise `pip` dependency hell, so absolutely no Python or external packages are required.
+* **Native Systemd Templates**: Utilizes a single systemd template unit (`epics-@.service`) to dynamically manage all IOC instances, eliminating the need for complex generator scripts or multiple daemon reloads.
+* **Local Test Environment Support**: Provides a `--local` flag allowing engineers to run isolated tests entirely within their own user space using systemd user sessions, without requiring `sudo` privileges.
+* **Role-Based Access Control (RBAC)**: Utilizes traditional `/etc/sudoers.d/` policies and SetGID directory permissions to securely grant trained engineers (`ioc` group) passwordless access to IOC service management.
 * **UNIX Domain Sockets (UDS)**: Secures console access and eliminates TCP port conflicts.
 * **Native Console Tool (`con`)**: Includes a lightweight, custom C++ terminal emulator for seamless UDS connections.
 
@@ -26,15 +23,18 @@ This architecture requires the following core utilities to be installed on your 
 ```text
 epics-ioc-runner/
 ├── bin/
-│   ├── epics-ioc-generator.bash  # AWK/Bash systemd generator script
 │   └── manage-process.bash       # Front-end CLI wrapper for install/remove/attach/list
 ├── docs/
 │   ├── ARCHITECTURE.md           # Architecture overview and security model
 │   ├── INSTALL.md                # System installation and infrastructure setup guide
+│   ├── README.md                 # Documentation index for the docs directory
 │   ├── USER_GUIDE.md             # System-wide operations and IOC management guide
 │   └── USER_GUIDE_LOCAL.md       # Local isolated testing guide for engineers
 ├── policy/
 │   └── 10-epics-ioc              # Sudoers configuration for RBAC
+├── tests/
+│   ├── test-local-lifecycle.bash # Automated integration tests for local execution
+│   └── README.md                 # Test execution guide
 ├── LICENSE                       # MIT License
 └── README.md                     # Project overview and key features
 ```

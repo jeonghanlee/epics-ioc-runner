@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
 #
 # A front-end CLI manager for EPICS IOCs.
+# Utilizes systemd template units (@.service) for zero-dependency management.
 # Supports both system-wide deployment and local user-level testing.
 
 set -e
 
-declare -g EXEC_MODE="system"
-declare -g CONF_DIR="/etc/procServ.d"
+# --- Configuration Directories ---
+declare -g SYSTEM_CONF_DIR="/etc/procServ.d"
+declare -g LOCAL_CONF_DIR="${HOME}/.config/procServ.d"
+
 declare -g SYSTEM_SYSTEMD_DIR="/etc/systemd/system"
 declare -g LOCAL_SYSTEMD_DIR="${HOME}/.config/systemd/user"
-declare -g GENERATOR_EXEC="/usr/lib/systemd/system-generators/epics-ioc-generator"
+
+declare -g SYSTEM_RUN_DIR="/run/procserv"
+declare -g LOCAL_RUN_DIR="/run/user/$(id -u)/procserv"
+
+# --- Base Commands ---
+declare -g SYSTEMCTL_BIN="/bin/systemctl"
+
+# --- Active State Variables ---
+declare -g EXEC_MODE="system"
+declare -g CONF_DIR="${SYSTEM_CONF_DIR}"
+declare -g SYSTEMD_DIR="${SYSTEM_SYSTEMD_DIR}"
+declare -g RUN_DIR="${SYSTEM_RUN_DIR}"
 declare -g CON_TOOL=""
-declare -g -a SYSTEMCTL_CMD=(sudo /bin/systemctl)
 
 function set_local_mode {
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
     EXEC_MODE="local"
-    CONF_DIR="${HOME}/.config/procServ.d"
-    SYSTEMCTL_CMD=(/bin/systemctl --user)
-    GENERATOR_EXEC="${script_dir}/epics-ioc-generator.bash"
+    CONF_DIR="${LOCAL_CONF_DIR}"
+    SYSTEMD_DIR="${LOCAL_SYSTEMD_DIR}"
+    RUN_DIR="${LOCAL_RUN_DIR}"
 }
 
 function print_usage {
@@ -57,6 +67,65 @@ if [[ -n "${TARGET_ARG}" ]]; then
     IOC_NAME=$(basename "${TARGET_ARG}" .conf)
 fi
 
+function run_systemctl {
+    local action="$1"
+    shift
+
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        "${SYSTEMCTL_BIN}" --user "${action}" "$@"
+    else
+        case "${action}" in
+            is-active|status|cat|show)
+                "${SYSTEMCTL_BIN}" "${action}" "$@"
+                ;;
+            *)
+                if [[ $EUID -eq 0 ]]; then
+                    "${SYSTEMCTL_BIN}" "${action}" "$@"
+                else
+                    sudo "${SYSTEMCTL_BIN}" "${action}" "$@"
+                fi
+                ;;
+        esac
+    fi
+}
+
+function deploy_local_template {
+    local procserv_bin
+    local template_path="${SYSTEMD_DIR}/epics-@.service"
+
+    if [[ -x "/usr/local/bin/procServ" ]]; then
+        procserv_bin="/usr/local/bin/procServ"
+    elif [[ -x "/usr/bin/procServ" ]]; then
+        procserv_bin="/usr/bin/procServ"
+    else
+        printf "%s\n" "Error: procServ executable not found in /usr/local/bin or /usr/bin." >&2
+        exit 1
+    fi
+
+    if [[ ! -f "${template_path}" ]]; then
+        printf "Deploying user-level systemd template to %s...\n" "${template_path}"
+        mkdir -p "${SYSTEMD_DIR}"
+        cat > "${template_path}" <<EOF
+[Unit]
+Description=procServ for %i (Local User)
+AssertFileNotEmpty=${CONF_DIR}/%i.conf
+
+[Service]
+Type=simple
+EnvironmentFile=${CONF_DIR}/%i.conf
+RuntimeDirectory=procserv/%i
+ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+StandardOutput=syslog
+StandardError=inherit
+SyslogIdentifier=epics-%i
+
+[Install]
+WantedBy=default.target
+EOF
+        run_systemctl daemon-reload
+    fi
+}
+
 function do_install {
     local source_conf="${TARGET_ARG}"
     if [[ ! -f "${source_conf}" ]]; then
@@ -64,33 +133,45 @@ function do_install {
         exit 1
     fi
 
+    local template_path="${SYSTEMD_DIR}/epics-@.service"
+
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        if [[ ! -f "${template_path}" ]]; then
+            printf "Error: Systemd template %s not found.\n" "${template_path}" >&2
+            printf "Please ensure the template is deployed by an administrator before installing IOCs.\n" >&2
+            exit 1
+        fi
+    else
+        deploy_local_template
+    fi
+
     local state
-    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-${IOC_NAME}.service" 2>/dev/null || true)
+    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
 
     if [[ "${state}" == "active" ]]; then
-        printf "%s\n" "================================================================================" >&2
+        printf "%s\n" "====================================================================================================" >&2
         printf "WARNING: Installation aborted.\n" >&2
         printf "IOC '%s' is currently running.\n" "${IOC_NAME}" >&2
         printf "Please stop the service explicitly before reinstalling to prevent data loss.\n" >&2
-        printf "%s\n" "================================================================================" >&2
+        printf "%s\n" "====================================================================================================" >&2
         exit 1
     fi
 
-    mkdir -p "${CONF_DIR}"
-    
-    export CONF_DIR="${CONF_DIR}"
-    export EXEC_MODE="${EXEC_MODE}"
+    if [[ ! -d "${CONF_DIR}" ]]; then
+        if [[ "${EXEC_MODE}" == "system" && $EUID -ne 0 ]]; then
+            sudo mkdir -p "${CONF_DIR}"
+        else
+            mkdir -p "${CONF_DIR}"
+        fi
+    fi
 
-    if [[ "${EXEC_MODE}" == "system" ]]; then
+    if [[ "${EXEC_MODE}" == "system" && ! -w "${CONF_DIR}" ]]; then
         sudo cp "${source_conf}" "${CONF_DIR}/"
-        sudo -E bash "${GENERATOR_EXEC}" "${SYSTEM_SYSTEMD_DIR}"
     else
         cp "${source_conf}" "${CONF_DIR}/"
-        mkdir -p "${LOCAL_SYSTEMD_DIR}"
-        bash "${GENERATOR_EXEC}" "${LOCAL_SYSTEMD_DIR}"
-    fi      
+    fi
 
-    "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
+    run_systemctl daemon-reload || exit
 
     printf "IOC %s installed in %s mode. Use 'start' command to run it.\n" "${IOC_NAME}" "${EXEC_MODE}"
 }
@@ -98,18 +179,16 @@ function do_install {
 function do_remove {
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
 
-    "${SYSTEMCTL_CMD[@]}" stop "epics-${IOC_NAME}.service" 2>/dev/null || true
-    "${SYSTEMCTL_CMD[@]}" disable "epics-${IOC_NAME}.service" 2>/dev/null || true
+    run_systemctl stop "epics-@${IOC_NAME}.service" 2>/dev/null || true
+    run_systemctl disable "epics-@${IOC_NAME}.service" 2>/dev/null || true
 
-    if [[ "${EXEC_MODE}" == "system" ]]; then
+    if [[ "${EXEC_MODE}" == "system" && ! -w "${CONF_DIR}" ]]; then
         sudo rm -f "${target_conf}" || true
-        sudo rm -f "${SYSTEM_SYSTEMD_DIR}/epics-${IOC_NAME}.service" || true
     else
         rm -f "${target_conf}" || true
-        rm -f "${LOCAL_SYSTEMD_DIR}/epics-${IOC_NAME}.service" || true
     fi
 
-    "${SYSTEMCTL_CMD[@]}" daemon-reload || exit
+    run_systemctl daemon-reload || exit
     printf "IOC %s removed.\n" "${IOC_NAME}"
 }
 
@@ -124,48 +203,41 @@ function do_attach {
     source "${target_conf}"
     local sock_path="${IOC_PORT##*:}"
 
-    printf "%s\n" "========================================================"
+    printf "%s\n" "===================================================================================================="
     printf "Attaching to %s via UNIX domain socket:\n" "${IOC_NAME}"
     printf "Path: %s\n" "${sock_path}"
     printf "Use Ctrl-A to exit the console.\n"
-    printf "%s\n" "========================================================"
+    printf "%s\n" "===================================================================================================="
 
     exec "${CON_TOOL}" -c "${sock_path}" || exit
 }
 
 function do_list {
-    local run_dir
-    if [[ "${EXEC_MODE}" == "local" ]]; then
-        run_dir="/run/user/$(id -u)/procserv"
-    else
-        run_dir="/run/procserv"
-    fi
-
-    if [[ ! -d "${run_dir}" ]]; then
-        printf "No active IOC sockets found in %s\n" "${run_dir}"
+    if [[ ! -d "${RUN_DIR}" ]]; then
+        printf "No active IOC sockets found in %s\n" "${RUN_DIR}"
         return 0
     fi
 
     local sockets=()
     while IFS= read -r -d '' sock; do
         sockets+=("$sock")
-    done < <(find "${run_dir}" -type s -print0 2>/dev/null)
+    done < <(find "${RUN_DIR}" -type s -print0 2>/dev/null)
 
     if [[ ${#sockets[@]} -eq 0 ]]; then
-        printf "No active IOC sockets found in %s\n" "${run_dir}"
+        printf "No active IOC sockets found in %s\n" "${RUN_DIR}"
         return 0
     fi
 
-    printf "%s\n" "================================================================================"
+    printf "%s\n" "===================================================================================================="
     printf "%-30s | %s\n" "IOC NAME" "UDS PATH"
-    printf "%s\n" "--------------------------------------------------------------------------------"
+    printf "%s\n" "----------------------------------------------------------------------------------------------------"
 
     local sock ioc_name
     for sock in "${sockets[@]}"; do
         ioc_name=$(basename "$(dirname "${sock}")")
         printf "%-30s | %s\n" "${ioc_name}" "${sock}"
     done
-    printf "%s\n" "================================================================================"
+    printf "%s\n" "===================================================================================================="
 }
 
 case "${COMMAND_ACTION}" in
@@ -182,10 +254,10 @@ case "${COMMAND_ACTION}" in
         do_list
         ;;
     view)
-        "${SYSTEMCTL_CMD[@]}" cat "epics-${IOC_NAME}.service" || exit
+        run_systemctl cat "epics-@${IOC_NAME}.service" || exit
         ;;
     start|stop|restart|status|enable|disable)
-        "${SYSTEMCTL_CMD[@]}" "${COMMAND_ACTION}" "epics-${IOC_NAME}.service" || exit
+        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service" || exit
         ;;
     *)
         print_usage
