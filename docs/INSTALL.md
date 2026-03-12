@@ -50,13 +50,13 @@ Allow members of the `ioc` group to manage only specific `epics-@*.service` syst
 
 Create the file `/etc/sudoers.d/10-epics-ioc`:
 ```bash
-# /etc/sudoers.d/10-epics-ioc
-
 # Allow trained engineers to manage ONLY EPICS template services
 %ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-@*.service, \
                           /bin/systemctl stop epics-@*.service, \
                           /bin/systemctl restart epics-@*.service, \
                           /bin/systemctl status epics-@*.service, \
+                          /bin/systemctl enable epics-@*.service, \
+                          /bin/systemctl disable epics-@*.service, \
                           /bin/systemctl daemon-reload
 ```
 Apply strict permissions to the sudoers file:

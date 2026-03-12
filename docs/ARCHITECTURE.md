@@ -41,6 +41,8 @@ Instead of relying on fragmented Polkit rules or overly broad wildcards, service
                           /bin/systemctl stop epics-@*.service, \
                           /bin/systemctl restart epics-@*.service, \
                           /bin/systemctl status epics-@*.service, \
+                          /bin/systemctl enable epics-@*.service, \
+                          /bin/systemctl disable epics-@*.service, \
                           /bin/systemctl daemon-reload
 ```
 

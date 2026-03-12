@@ -65,6 +65,13 @@ sudo systemctl restart epics-@myioc.service
 sudo systemctl stop epics-@myioc.service
 ```
 
+**Enable/Disable IOC auto-start on boot:**
+```bash
+sudo systemctl enable epics-@myioc.service
+sudo systemctl disable epics-@myioc.service
+```
+
+
 ## 4. Viewing IOC Logs
 All standard output (stdout/stderr) from the IOC is automatically captured by the system journal.
 
