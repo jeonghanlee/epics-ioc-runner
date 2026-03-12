@@ -89,6 +89,43 @@ function run_systemctl {
     fi
 }
 
+function deploy_local_template {
+    local procserv_bin
+    local template_path="${SYSTEMD_DIR}/epics-@.service"
+
+    if [[ -x "/usr/local/bin/procServ" ]]; then
+        procserv_bin="/usr/local/bin/procServ"
+    elif [[ -x "/usr/bin/procServ" ]]; then
+        procserv_bin="/usr/bin/procServ"
+    else
+        printf "%s\n" "Error: procServ executable not found in /usr/local/bin or /usr/bin." >&2
+        exit 1
+    fi
+
+    if [[ ! -f "${template_path}" ]]; then
+        printf "Deploying user-level systemd template to %s...\n" "${template_path}"
+        mkdir -p "${SYSTEMD_DIR}"
+        cat > "${template_path}" <<EOF
+[Unit]
+Description=procServ for %i (Local User)
+AssertFileNotEmpty=${CONF_DIR}/%i.conf
+
+[Service]
+Type=simple
+EnvironmentFile=${CONF_DIR}/%i.conf
+RuntimeDirectory=procserv/%i
+ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+StandardOutput=syslog
+StandardError=inherit
+SyslogIdentifier=epics-%i
+
+[Install]
+WantedBy=default.target
+EOF
+        run_systemctl daemon-reload
+    fi
+}
+
 function do_install {
     local source_conf="${TARGET_ARG}"
     if [[ ! -f "${source_conf}" ]]; then
@@ -97,10 +134,15 @@ function do_install {
     fi
 
     local template_path="${SYSTEMD_DIR}/epics-@.service"
-    if [[ ! -f "${template_path}" ]]; then
-        printf "Error: Systemd template %s not found.\n" "${template_path}" >&2
-        printf "Please ensure the template is deployed before installing IOCs.\n" >&2
-        exit 1
+
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        if [[ ! -f "${template_path}" ]]; then
+            printf "Error: Systemd template %s not found.\n" "${template_path}" >&2
+            printf "Please ensure the template is deployed by an administrator before installing IOCs.\n" >&2
+            exit 1
+        fi
+    else
+        deploy_local_template
     fi
 
     local state
