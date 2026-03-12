@@ -42,7 +42,7 @@ SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
 # --- Managed Architecture Paths ---
-declare -g MANAGER_SCRIPT="${SC_TOP}/../bin/manage-process.bash"
+declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 declare -g CONF_DIR="${HOME}/.config/procServ.d"
 declare -g SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"
@@ -160,7 +160,7 @@ function cleanup_previous_state {
     _log "INFO" "STEP 0: Cleanup Previous State"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
+    bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
 
     # Reset local template strictly to verify 'install' creates it dynamically
     rm -f "${SYSTEMD_USER_DIR}/epics-@.service"
@@ -212,7 +212,7 @@ function test_install {
     _log "INFO" "STEP 2: Test Install Command"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" --local install "${CONF_FILE}"
+    bash "${RUNNER_SCRIPT}" --local install "${CONF_FILE}"
 
     local conf_exist="false"
     local tmpl_exist="false"
@@ -231,7 +231,7 @@ function test_start {
 
     local start_time=${SECONDS}
 
-    bash "${MANAGER_SCRIPT}" --local start "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" --local start "${IOC_NAME}"
     _log "INFO" "Waiting for IOC to initialize (2 seconds)..."
     sleep 2
 
@@ -253,7 +253,7 @@ function test_socket_list {
     verify_state "true" "${socket_exist}" "UNIX Domain Socket explicitly created"
 
     _log "INFO" "Executing list command:"
-    bash "${MANAGER_SCRIPT}" --local list
+    bash "${RUNNER_SCRIPT}" --local list
 }
 
 function test_console_attach {
@@ -268,7 +268,7 @@ function test_console_attach {
     printf "\n"
     read -r -p "Press [Enter] to attach now..."
 
-    bash "${MANAGER_SCRIPT}" --local attach "${IOC_NAME}" || true
+    bash "${RUNNER_SCRIPT}" --local attach "${IOC_NAME}" || true
 
     printf "\n"
     _log "SUCCESS" "Detached from console. Resuming tests..."
@@ -333,13 +333,13 @@ function test_persistence {
     _log "INFO" "STEP 6: Test Enable and Disable (Persistence)"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" --local enable "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" --local enable "${IOC_NAME}"
 
     local link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
     verify_state "true" "${link_exist}" "Symlink created in multi-user.wants (Enable)"
 
-    bash "${MANAGER_SCRIPT}" --local disable "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" --local disable "${IOC_NAME}"
 
     link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
@@ -351,7 +351,7 @@ function test_remove {
     _log "INFO" "STEP 7: Test Remove Command"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" --local remove "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}"
 
     local conf_exist="false"
     local state

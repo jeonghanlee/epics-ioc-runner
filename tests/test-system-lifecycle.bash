@@ -38,7 +38,7 @@ declare -g SC_TOP
 SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
-declare -g MANAGER_SCRIPT="${SC_TOP}/../bin/manage-process.bash"
+declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
@@ -164,7 +164,7 @@ function cleanup_previous_state {
     _log "INFO" "STEP 1: Cleanup Previous State"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" remove "${IOC_NAME}" >/dev/null 2>&1 || true
+    bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}" >/dev/null 2>&1 || true
     _log "SUCCESS" "Cleaned up residual processes and configurations."
 }
 
@@ -211,7 +211,7 @@ function test_install {
     _log "INFO" "STEP 3: Test Install Command"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" install "${CONF_FILE}"
+    bash "${RUNNER_SCRIPT}" install "${CONF_FILE}"
 
     local conf_exist="false"
     if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
@@ -226,7 +226,7 @@ function test_start {
 
     local start_time=${SECONDS}
 
-    bash "${MANAGER_SCRIPT}" start "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" start "${IOC_NAME}"
     _log "INFO" "Waiting for IOC to initialize (2 seconds)..."
     sleep 2
 
@@ -248,7 +248,7 @@ function test_socket_list {
     verify_state "true" "${socket_exist}" "UNIX Domain Socket explicitly created in system directory"
 
     _log "INFO" "Executing list command:"
-    bash "${MANAGER_SCRIPT}" list
+    bash "${RUNNER_SCRIPT}" list
 }
 
 function test_console_attach {
@@ -263,7 +263,7 @@ function test_console_attach {
     printf "\n"
     read -r -p "Press [Enter] to attach now..."
 
-    bash "${MANAGER_SCRIPT}" attach "${IOC_NAME}" || true
+    bash "${RUNNER_SCRIPT}" attach "${IOC_NAME}" || true
 
     printf "\n"
     _log "SUCCESS" "Detached from console. Resuming tests..."
@@ -328,13 +328,13 @@ function test_persistence {
     _log "INFO" "STEP 7: Test Enable and Disable (Persistence)"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" enable "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" enable "${IOC_NAME}"
 
     local link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
     verify_state "true" "${link_exist}" "Symlink created in multi-user.wants (Enable)"
 
-    bash "${MANAGER_SCRIPT}" disable "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" disable "${IOC_NAME}"
 
     link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
@@ -346,7 +346,7 @@ function test_remove {
     _log "INFO" "STEP 8: Test Remove Command"
     print_sub_divider
 
-    bash "${MANAGER_SCRIPT}" remove "${IOC_NAME}"
+    bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}"
 
     local conf_exist="false"
     local state

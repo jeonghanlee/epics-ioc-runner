@@ -97,9 +97,9 @@ systemctl daemon-reload
 ---
 
 ## 3. CLI Wrapper Deployment
-Deploy the frontend management script `manage-process.bash` to a standard binary path for all engineers to use.
+Deploy the frontend management script `ioc-runner` to a standard binary path for all engineers to use.
 
 ```bash
-sudo cp bin/manage-process.bash /usr/local/bin/manage-procs
-sudo chmod +x /usr/local/bin/manage-procs
+sudo cp bin/ioc-runner /usr/local/bin/ioc-runner
+sudo chmod +x /usr/local/bin/ioc-runner
 ```

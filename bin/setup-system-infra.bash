@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Automated system infrastructure setup for EPICS IOC Runner.
-# Deploys service accounts, shared directories, sudoers policies, and systemd templates.
+# Deploys service accounts, shared directories, sudoers policies, systemd templates,
+# and the CLI wrapper script.
 # Includes security hardening: sudoers validation, strict ACLs, and isolated accounts.
 # Must be executed with root privileges.
 
@@ -22,6 +23,12 @@ declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
+
+# Resolve script directory to find ioc-runner
+declare -g SC_RPATH="$(realpath "$0")"
+declare -g SC_DIR="${SC_RPATH%/*}"
+declare -g RUNNER_SCRIPT_SRC="${SC_DIR}/ioc-runner"
+declare -g RUNNER_SCRIPT_DEST="/usr/local/bin/ioc-runner"
 
 function _log {
     local level="$1"
@@ -130,6 +137,20 @@ _log "SUCCESS" "Deployed systemd template to ${SYSTEMD_TEMPLATE}"
 
 systemctl daemon-reload
 _log "SUCCESS" "Reloaded systemd daemon."
+
+print_divider
+_log "INFO" "STEP 5: CLI Wrapper Deployment"
+print_sub_divider
+
+if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
+    cp "${RUNNER_SCRIPT_SRC}" "${RUNNER_SCRIPT_DEST}"
+    chmod 0755 "${RUNNER_SCRIPT_DEST}"
+    _log "SUCCESS" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (0755)"
+else
+    _log "ERROR" "Could not find ${RUNNER_SCRIPT_SRC}."
+    _log "ERROR" "Please ensure you are running this script from the repository's bin/ directory."
+    exit 1
+fi
 
 print_divider
 printf "${GREEN}%s${NC}\n" "[SUCCESS] Secure system infrastructure setup completed perfectly!"

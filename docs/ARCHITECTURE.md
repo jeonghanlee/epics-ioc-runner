@@ -51,7 +51,7 @@ Instead of relying on fragmented Polkit rules or overly broad wildcards, service
 ### 3.1. Systemd Template Unit (`epics-@.service`)
 The core of this architecture is a single, static systemd template file located at `/etc/systemd/system/epics-@.service`. When an engineer starts an instance (e.g., `epics-@myioc.service`), systemd dynamically loads the corresponding environment variables from `/etc/procServ.d/myioc.conf`. This eliminates the need for dynamic generator scripts and multiple daemon reloads.
 
-### 3.2. manage-process.bash (Wrapper Script)
+### 3.2. ioc-runner (Wrapper Script)
 A pure Bash utility to manage IOC configurations. It copies user-defined `.conf` files to the target directory and issues the appropriate `systemctl` commands. It inherently supports the symmetry of this architecture by allowing both system-wide deployment (`sudo systemctl`) and isolated local testing (`systemctl --user` via the `--local` flag) using the exact same template logic.
 
 ### 3.3. con (Local Console Access)

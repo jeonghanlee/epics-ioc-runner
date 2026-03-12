@@ -1,9 +1,9 @@
 # EPICS IOC Runner - Operations User Guide
 
-This guide provides instructions for trained engineers on how to deploy, monitor, and manage EPICS IOCs system-wide using the `manage-procs` utility and native `systemd` commands.
+This guide provides instructions for trained engineers on how to deploy, monitor, and manage EPICS IOCs system-wide using the `ioc-runner` utility and native `systemd` commands.
 
 ## 1. Adding a New IOC
-To deploy a new IOC to the system, you must first create a configuration file (`.conf`) and then install it using `manage-procs`.
+To deploy a new IOC to the system, you must first create a configuration file (`.conf`) and then install it using `ioc-runner`.
 
 **1. Create the Configuration File (`myioc.conf`):**
 ```bash
@@ -18,19 +18,19 @@ EOF
 **2. Install the Configuration:**
 Deploy the configuration to the system. Since the target directory (`/etc/procServ.d/`) is writable by the `ioc` group, you do not need `sudo`.
 ```bash
-manage-procs install myioc.conf
+ioc-runner install myioc.conf
 ```
 
 **3. Start the Service:**
 ```bash
-manage-procs start myioc
+ioc-runner start myioc
 ```
 
 ## 2. Attaching to the IOC Console
 To interact with the IOC shell, use the `attach` command. This invokes the `con` utility to securely connect to the UNIX Domain Socket.
 
 ```bash
-manage-procs attach myioc
+ioc-runner attach myioc
 ```
 * **To exit the console session**: Press `Ctrl-A`.
 * *Do not use `Ctrl-C` or `Ctrl-D` as it may terminate the IOC depending on the shell settings.*
@@ -70,5 +70,5 @@ journalctl -u epics-@myioc.service --since "1 hour ago"
 To permanently stop and remove an IOC from the system, use the `remove` command. This will stop the service and delete the configuration file.
 
 ```bash
-manage-procs remove myioc
+ioc-runner remove myioc
 ```
