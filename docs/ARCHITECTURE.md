@@ -1,27 +1,27 @@
 # EPICS IOC Integrated Management Architecture
 
 ## 1. Architecture Overview
-This architecture defines a robust, dependency-free environment for managing EPICS IOCs. It adheres to the KISS and DRY principles by utilizing POSIX-standard tools (`AWK`, `Bash`), traditional Unix security (`sudoers`), Systemd Generators, and a lightweight C++ terminal emulator (`con`).
+This architecture defines a robust, dependency-free environment for managing EPICS IOCs. It adheres to the KISS and DRY principles by utilizing POSIX-standard tools, traditional Unix security (`sudoers`), native Systemd Template Units (`@.service`), and a lightweight C++ terminal emulator (`con`).
 
 ### 1.1. High-Level Architecture
 ```text
 [ Trained Engineers (ioc group) ]
         |
-        |-- (1. Config) --> [ /etc/procServ.d/ (Local config dir, 2775) ]
-        |                       |
-        |                       V
-        |                 [ Systemd Generator (AWK) ] --> Generates epics-*.service files
-        |                       |
-        |-- (2. Control) --> [ sudo systemctl ] --> [ systemd ]
-        |                                               | (Spawn & Manage)
-        |                                               V
-        |                                       [ procServ Daemon (ioc-srv) ]
-        |                                               |
-        |                                               |---> Run --> [ EPICS IOC ]
-        |                                               |
-        |                                               |---> Comm --> [ UNIX Domain Socket ]
-        |                                                                    A
-        |-- (3. Local Access) --> [ con Utility ] ---------------------------|
+        |-- (1. Config) --> [ /etc/procServ.d/myioc.conf (Local config dir, 2775) ]
+        |
+        |-- (2. Control) --> [ sudo systemctl start epics-@myioc.service ]
+                                                |
+                                                V
+                                        [ systemd ] ---> Reads /etc/systemd/system/epics-@.service
+                                                | (Spawn & Manage)
+                                                V
+                                        [ procServ Daemon (ioc-srv) ]
+                                                |
+                                                |---> Run --> [ EPICS IOC ]
+                                                |
+                                                |---> Comm --> [ UNIX Domain Socket ]
+                                                                     A
+        |-- (3. Local Access) --> [ con Utility ] -------------------|
 ```
 
 ---
@@ -30,7 +30,7 @@ This architecture defines a robust, dependency-free environment for managing EPI
 
 ### 2.1. System Accounts
 * **`ioc-srv`**: A dedicated system account with no login shell (`/sbin/nologin`). Runs all `procServ` daemons.
-* **`ioc` group**: The management group for trained engineers. Grants write access to `/etc/procServ.d/`.
+* **`ioc` group**: The management group for trained engineers. Grants passwordless write access to `/etc/procServ.d/` via SetGID (`2775`).
 
 ### 2.2. Sudoers Configuration
 Instead of relying on fragmented Polkit rules, service control is delegated explicitly via `/etc/sudoers.d/10-epics-ioc`.
@@ -48,11 +48,11 @@ Instead of relying on fragmented Polkit rules, service control is delegated expl
 
 ## 3. Core Components
 
-### 3.1. Systemd Generator (AWK + Bash)
-A native systemd generator executable located in `/usr/lib/systemd/system-generators/`. During the system boot or `daemon-reload`, it parses simple configuration files in `/etc/procServ.d/` using `AWK` and dynamically translates them into transient systemd `epics-*.service` files. *(Note: To prevent boot race conditions, `/etc/procServ.d/` must be a local directory, populated via GitOps, not an NFS mount.)*
+### 3.1. Systemd Template Unit (`epics-@.service`)
+The core of this architecture is a single, static systemd template file located at `/etc/systemd/system/epics-@.service`. When an engineer starts an instance (e.g., `epics-@myioc.service`), systemd dynamically loads the corresponding environment variables from `/etc/procServ.d/myioc.conf`. This eliminates the need for dynamic generator scripts and multiple daemon reloads.
 
 ### 3.2. manage-process.bash (Wrapper Script)
-A pure Bash utility to manage IOC configurations. It installs existing `.conf` files and invokes systemd daemon reloads to trigger the Systemd Generator. It supports both system-wide deployment (`sudo systemctl`) and isolated local testing (`systemctl --user` via the `--local` flag). It also invokes the `con` tool for native console access to the UNIX Domain Socket.
+A pure Bash utility to manage IOC configurations. It copies user-defined `.conf` files to the target directory and issues the appropriate `systemctl` commands. It inherently supports the symmetry of this architecture by allowing both system-wide deployment (`sudo systemctl`) and isolated local testing (`systemctl --user` via the `--local` flag) using the exact same template logic.
 
 ### 3.3. con (Local Console Access)
 A C++ based terminal emulator replacing `socat` or `minicom` to provide seamless terminal session control to the UDS.

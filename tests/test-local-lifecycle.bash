@@ -3,7 +3,7 @@
 # Automated lifecycle test for EPICS local IOC management.
 # This script uses the actual ServiceTestIOC repository to verify
 # the install, start, view, list, enable, disable, and remove workflows.
-# It includes colorized output, a comprehensive test summary, interactive attach, and actual PV read tests.
+# It mocks the systemd template unit (@.service) to simulate infra setup.
 
 set -e
 
@@ -26,18 +26,6 @@ declare -g -a FAILED_DETAILS=()
 declare -g MAX_CAGET_READS=10
 declare -g CAGET_INTERVAL=1
 
-# --- Interrupt & Exit Handling ---
-function _handle_exit {
-    local exit_code=$?
-    if [[ $exit_code -ne 0 ]]; then
-        SCRIPT_ERROR=1
-        printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
-    fi
-    print_summary
-}
-trap _handle_exit EXIT
-trap 'exit 1' SIGINT
-
 if [[ -z "${EPICS_BASE}" ]]; then
     printf "${RED}%s${NC}\n" "ERROR: The EPICS_BASE environment variable is not set." >&2
     printf "Please source your EPICS environment script before running this test.\n" >&2
@@ -53,18 +41,34 @@ declare -g SC_TOP
 SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
+# --- Managed Architecture Paths ---
 declare -g MANAGER_SCRIPT="${SC_TOP}/../bin/manage-process.bash"
+declare -g CONF_DIR="${HOME}/.config/procServ.d"
+declare -g SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
+declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"
+declare -g RUN_DIR="/run/user/$(id -u)/procserv"
 
+# --- IOC Test Target Paths ---
 declare -g WORKSPACE="${HOME}/ioc-test-workspace"
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g IOC_NAME="ServiceTestIOC"
 declare -g IOC_DIR="${WORKSPACE}/${IOC_NAME}"
 declare -g CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
+declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
 
-declare -g PROC_DIR="${HOME}/.config/procServ.d"
-declare -g SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
-declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"
 declare -g -a SYSTEMCTL_CMD=(systemctl --user)
+
+# --- Interrupt & Exit Handling ---
+function _handle_exit {
+    local exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        SCRIPT_ERROR=1
+        printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
+    fi
+    print_summary
+}
+trap _handle_exit EXIT
+trap 'exit 1' SIGINT
 
 # ==============================================================================
 # Utilities
@@ -157,7 +161,12 @@ function cleanup_previous_state {
     print_sub_divider
 
     bash "${MANAGER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
-    _log "SUCCESS" "Cleaned up residual processes and configurations."
+
+    # Remove mock template
+    rm -f "${SYSTEMD_USER_DIR}/epics-@.service"
+    systemctl --user daemon-reload || true
+
+    _log "SUCCESS" "Cleaned up residual processes, templates, and configurations."
 }
 
 function setup_environment {
@@ -192,10 +201,44 @@ IOC_NAME="${IOC_NAME}"
 IOC_USER="$(id -un)"
 IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${IOC_DIR}"
-IOC_PORT="unix:$(id -un):$(id -gn):0660:/run/user/$(id -u)/procserv/${IOC_NAME}/control"
+IOC_PORT="unix:$(id -un):$(id -gn):0660:${UDS_PATH}"
 IOC_CMD="./cmd/st.cmd"
 EOF
     _log "SUCCESS" "Configuration generated at ${CONF_FILE}"
+
+    # Mocking the infrastructure template since this is a local isolated test
+    _log "INFO" "Deploying temporary local systemd template for testing..."
+    mkdir -p "${SYSTEMD_USER_DIR}"
+
+    local procserv_bin
+    if [[ -x "/usr/local/bin/procServ" ]]; then
+        procserv_bin="/usr/local/bin/procServ"
+    elif [[ -x "/usr/bin/procServ" ]]; then
+        procserv_bin="/usr/bin/procServ"
+    else
+        _log "ERROR" "procServ not found. Cannot create mock template."
+        exit 1
+    fi
+
+    cat <<EOF > "${SYSTEMD_USER_DIR}/epics-@.service"
+[Unit]
+Description=procServ for %i (Local Test)
+AssertFileNotEmpty=${CONF_DIR}/%i.conf
+
+[Service]
+Type=simple
+EnvironmentFile=${CONF_DIR}/%i.conf
+RuntimeDirectory=procserv/%i
+ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+StandardOutput=syslog
+StandardError=inherit
+SyslogIdentifier=epics-%i
+
+[Install]
+WantedBy=default.target
+EOF
+    systemctl --user daemon-reload
+    _log "SUCCESS" "Temporary template deployed."
 }
 
 function test_install {
@@ -206,13 +249,13 @@ function test_install {
     bash "${MANAGER_SCRIPT}" --local install "${CONF_FILE}"
 
     local conf_exist="false"
-    local svc_exist="false"
+    local tmpl_exist="false"
 
-    if [[ -f "${PROC_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
-    if [[ -f "${SYSTEMD_USER_DIR}/epics-${IOC_NAME}.service" ]]; then svc_exist="true"; fi
+    if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
+    if [[ -f "${SYSTEMD_USER_DIR}/epics-@.service" ]]; then tmpl_exist="true"; fi
 
     verify_state "true" "${conf_exist}" "Configuration file deployed to user procServ.d"
-    verify_state "true" "${svc_exist}"  "Systemd unit file generated in user systemd directory"
+    verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) exists in user directory"
 }
 
 function test_start {
@@ -227,7 +270,7 @@ function test_start {
     sleep 2
 
     local state
-    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-${IOC_NAME}.service" || true)
+    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
 
     local elapsed=$((SECONDS - start_time))
     verify_state "active" "${state}" "Service state is 'active' (Startup time: ${elapsed}s)"
@@ -238,10 +281,9 @@ function test_socket_list {
     _log "INFO" "STEP 4: Test List and Socket Creation"
     print_sub_divider
 
-    local socket_path="/run/user/$(id -u)/procserv/${IOC_NAME}/control"
     local socket_exist="false"
 
-    if [[ -S "${socket_path}" ]]; then socket_exist="true"; fi
+    if [[ -S "${UDS_PATH}" ]]; then socket_exist="true"; fi
     verify_state "true" "${socket_exist}" "UNIX Domain Socket explicitly created"
 
     _log "INFO" "Executing list command:"
@@ -328,13 +370,13 @@ function test_persistence {
     bash "${MANAGER_SCRIPT}" --local enable "${IOC_NAME}"
 
     local link_exist="false"
-    if [[ -L "${SYSTEMD_WANTS_DIR}/epics-${IOC_NAME}.service" ]]; then link_exist="true"; fi
+    if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
     verify_state "true" "${link_exist}" "Symlink created in multi-user.wants (Enable)"
 
     bash "${MANAGER_SCRIPT}" --local disable "${IOC_NAME}"
 
     link_exist="false"
-    if [[ -L "${SYSTEMD_WANTS_DIR}/epics-${IOC_NAME}.service" ]]; then link_exist="true"; fi
+    if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
     verify_state "false" "${link_exist}" "Symlink strictly removed (Disable)"
 }
 
@@ -346,15 +388,12 @@ function test_remove {
     bash "${MANAGER_SCRIPT}" --local remove "${IOC_NAME}"
 
     local conf_exist="false"
-    local svc_exist="false"
     local state
 
-    if [[ -f "${PROC_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
-    if [[ -f "${SYSTEMD_USER_DIR}/epics-${IOC_NAME}.service" ]]; then svc_exist="true"; fi
-    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-${IOC_NAME}.service" || true)
+    if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
+    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
 
     verify_state "false" "${conf_exist}" "Configuration file safely removed"
-    verify_state "false" "${svc_exist}"  "Systemd unit file safely removed"
     verify_state "inactive" "${state}"   "Service completely stopped (inactive)"
 }
 

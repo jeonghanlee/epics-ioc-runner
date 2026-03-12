@@ -34,28 +34,28 @@ EOF
 ```
 
 ## 3. Install the Configuration (Local Mode)
-Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and generate the user-level systemd unit file. **It does not start the service automatically.**
+Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and dynamically generate the user-level systemd template (`epics-@.service`) if it does not exist.
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local install iocctrlslab-tcmd.conf
 ```
 
-## 4. View the Generated Service File
-To verify that the unit file was correctly generated, you can view its contents directly.
+## 4. View the Service Configuration
+To verify that the unit file template is correctly loaded for your IOC, you can view its contents.
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local view iocctrlslab-tcmd
 ```
 
 ## 5. Start the IOC
-Once the configuration is installed and verified, start the IOC process explicitly.
+Once the configuration is installed, start the IOC process explicitly.
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local start iocctrlslab-tcmd
 ```
 
 ## 6. Enable Auto-Start on Boot (Persistence)
-By default, the `install` command creates the service file but does not enable it for auto-start. To ensure the IOC starts automatically after a system reboot, use the `enable` command.
+By default, the `install` command deploys the configuration but does not enable it for auto-start. To ensure the IOC starts automatically after a system reboot, use the `enable` command.
 
 ```bash
 # Enable the service to start on boot
@@ -70,7 +70,7 @@ By default, the `install` command creates the service file but does not enable i
 Check if the IOC process has been successfully started by the user's systemd manager.
 
 ```bash
-systemctl --user status epics-iocctrlslab-tcmd.service
+systemctl --user status epics-@iocctrlslab-tcmd.service
 ```
 
 ## 8. List Managed IOCs
@@ -90,7 +90,7 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 * **Press Ctrl-A** to safely detach from the console while leaving the IOC running in the background.
 
 ## 10. Service Control and Cleanup (Systemd Operations)
-The wrapper script acts as a frontend for `systemctl`. It fully supports standard systemd service lifecycle commands, allowing you to easily manage the IOC.
+The wrapper script acts as a frontend for `systemctl`. It fully supports standard systemd service lifecycle commands.
 
 ```bash
 # Stop the local IOC service
@@ -98,29 +98,26 @@ The wrapper script acts as a frontend for `systemctl`. It fully supports standar
 
 # Restart the local IOC service
 ~/epics-ioc-runner/bin/manage-process.bash --local restart iocctrlslab-tcmd
-
-# Check the status of the local IOC service
-~/epics-ioc-runner/bin/manage-process.bash --local status iocctrlslab-tcmd
 ```
 
-When the local testing is completely finished and you want to clean up the environment, use the `remove` command. This will stop the service, delete the generated user-level systemd unit, and remove the configuration file from the local test directory.
+When the local testing is completely finished and you want to clean up the environment, use the `remove` command. This will stop the service and remove the configuration file from the local directory.
 
 ```bash
 ~/epics-ioc-runner/bin/manage-process.bash --local remove iocctrlslab-tcmd
 ```
 
 ## 11. Direct systemd Control (Alternative)
-Since the wrapper script generates standard systemd unit files, you can also use native `systemctl` commands directly to manage your local IOCs. Just remember to use the `--user` flag and the `epics-` prefix for the service name.
+Since the architecture relies on standard systemd templates, you can also use native `systemctl` commands directly. Just remember to use the `--user` flag and the `epics-@` prefix for the service name.
 
 ```bash
 # Start, stop, or restart the service directly
-systemctl --user start epics-iocctrlslab-tcmd.service
-systemctl --user stop epics-iocctrlslab-tcmd.service
-systemctl --user restart epics-iocctrlslab-tcmd.service
+systemctl --user start epics-@iocctrlslab-tcmd.service
+systemctl --user stop epics-@iocctrlslab-tcmd.service
+systemctl --user restart epics-@iocctrlslab-tcmd.service
 
 # Check the detailed status
-systemctl --user status epics-iocctrlslab-tcmd.service
+systemctl --user status epics-@iocctrlslab-tcmd.service
 
 # View the live logs directly from systemd journal
-journalctl --user -u epics-iocctrlslab-tcmd.service -f
+journalctl --user -u epics-@iocctrlslab-tcmd.service -f
 ```
