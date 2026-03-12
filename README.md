@@ -27,6 +27,7 @@ epics-ioc-runner/
 ├── docs/
 │   ├── ARCHITECTURE.md           # Architecture overview and security model
 │   ├── INSTALL.md                # System installation and infrastructure setup guide
+│   ├── README.md                 # Documentation index for the docs directory
 │   ├── USER_GUIDE.md             # System-wide operations and IOC management guide
 │   └── USER_GUIDE_LOCAL.md       # Local isolated testing guide for engineers
 ├── policy/

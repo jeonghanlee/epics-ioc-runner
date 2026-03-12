@@ -3,7 +3,7 @@
 # Automated lifecycle test for EPICS local IOC management.
 # This script uses the actual ServiceTestIOC repository to verify
 # the install, start, view, list, enable, disable, and remove workflows.
-# It mocks the systemd template unit (@.service) to simulate infra setup.
+# It validates the systemd template unit (@.service) architecture dynamically.
 
 set -e
 
@@ -90,18 +90,18 @@ function _log {
 }
 
 function print_divider {
-    printf "${BLUE}%s${NC}\n" "================================================================================"
+    printf "${BLUE}%s${NC}\n" "===================================================================================================="
 }
 
 function print_sub_divider {
-    printf "${BLUE}%s${NC}\n" "--------------------------------------------------------------------------------"
+    printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
 }
 
 function print_summary {
     printf "\n"
-    printf "${BLUE}%s${NC}\n" "================================================================================"
-    printf "${BLUE}%s${NC}\n" "                           LOCAL LIFECYCLE TEST SUMMARY                         "
-    printf "${BLUE}%s${NC}\n" "================================================================================"
+    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+    printf "${BLUE}%s${NC}\n" "                                     LOCAL LIFECYCLE TEST SUMMARY                                   "
+    printf "${BLUE}%s${NC}\n" "===================================================================================================="
 
     printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
     printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
@@ -128,7 +128,7 @@ function print_summary {
         printf "\n${GREEN}%s${NC}\n" "[SUCCESS] All lifecycle tests completed perfectly!"
     fi
 
-    printf "${BLUE}%s${NC}\n\n" "================================================================================"
+    printf "${BLUE}%s${NC}\n\n" "===================================================================================================="
 }
 
 function verify_state {
@@ -162,7 +162,7 @@ function cleanup_previous_state {
 
     bash "${MANAGER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
 
-    # Remove mock template
+    # Reset local template strictly to verify 'install' creates it dynamically
     rm -f "${SYSTEMD_USER_DIR}/epics-@.service"
     systemctl --user daemon-reload || true
 
@@ -205,40 +205,6 @@ IOC_PORT="unix:$(id -un):$(id -gn):0660:${UDS_PATH}"
 IOC_CMD="./cmd/st.cmd"
 EOF
     _log "SUCCESS" "Configuration generated at ${CONF_FILE}"
-
-    # Mocking the infrastructure template since this is a local isolated test
-    _log "INFO" "Deploying temporary local systemd template for testing..."
-    mkdir -p "${SYSTEMD_USER_DIR}"
-
-    local procserv_bin
-    if [[ -x "/usr/local/bin/procServ" ]]; then
-        procserv_bin="/usr/local/bin/procServ"
-    elif [[ -x "/usr/bin/procServ" ]]; then
-        procserv_bin="/usr/bin/procServ"
-    else
-        _log "ERROR" "procServ not found. Cannot create mock template."
-        exit 1
-    fi
-
-    cat <<EOF > "${SYSTEMD_USER_DIR}/epics-@.service"
-[Unit]
-Description=procServ for %i (Local Test)
-AssertFileNotEmpty=${CONF_DIR}/%i.conf
-
-[Service]
-Type=simple
-EnvironmentFile=${CONF_DIR}/%i.conf
-RuntimeDirectory=procserv/%i
-ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
-StandardOutput=syslog
-StandardError=inherit
-SyslogIdentifier=epics-%i
-
-[Install]
-WantedBy=default.target
-EOF
-    systemctl --user daemon-reload
-    _log "SUCCESS" "Temporary template deployed."
 }
 
 function test_install {
@@ -255,7 +221,7 @@ function test_install {
     if [[ -f "${SYSTEMD_USER_DIR}/epics-@.service" ]]; then tmpl_exist="true"; fi
 
     verify_state "true" "${conf_exist}" "Configuration file deployed to user procServ.d"
-    verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) exists in user directory"
+    verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) dynamically generated in user directory"
 }
 
 function test_start {
