@@ -121,3 +121,21 @@ systemctl --user status epics-@iocctrlslab-tcmd.service
 # View the live logs directly from systemd journal
 journalctl --user -u epics-@iocctrlslab-tcmd.service -f
 ```
+
+## 12. Direct Console Access (Alternative)
+While the `attach` command automatically resolves the socket path, you can also connect to the UNIX Domain Socket directly using the `con` utility.
+
+First, find the exact UDS path for your active IOCs using the `list` command:
+```bash
+~/epics-ioc-runner/bin/manage-process.bash --local list
+```
+
+The output will display the full path, which typically follows this pattern for local user sessions:
+`/run/user/$(id -u)/procserv/<ioc_name>/control`
+
+You can then connect directly using `con`:
+```bash
+con -c /run/user/1000/procserv/iocctrlslab-tcmd/control
+```
+* **To exit the console session**: Press `Ctrl-A`.
+
