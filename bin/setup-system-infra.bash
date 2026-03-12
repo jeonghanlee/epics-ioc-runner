@@ -23,8 +23,11 @@ declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
+declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
 
-# Resolve script directory to find ioc-runner
+declare -g -a PROCSERV_SEARCH_PATHS=("/usr/local/bin/procServ" "/usr/bin/procServ")
+declare -g RESOLVED_PROCSERV_BIN=""
+
 declare -g SC_RPATH="$(realpath "$0")"
 declare -g SC_DIR="${SC_RPATH%/*}"
 declare -g RUNNER_SCRIPT_SRC="${SC_DIR}/ioc-runner"
@@ -50,6 +53,38 @@ function print_divider {
 
 function print_sub_divider {
     printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
+}
+
+function backup_if_exists {
+    local target_file="$1"
+
+    if [[ -f "${target_file}" ]]; then
+        if [[ ! -d "${BACKUP_DIR}" ]]; then
+            mkdir -p "${BACKUP_DIR}"
+            chmod 0700 "${BACKUP_DIR}"
+        fi
+
+        local base_name
+        base_name=$(basename "${target_file}")
+
+        local timestamp
+        timestamp=$(date +%Y%m%d_%H%M%S)
+
+        local backup_file="${BACKUP_DIR}/${base_name}.${timestamp}.bak"
+
+        cp -a "${target_file}" "${backup_file}"
+        _log "INFO" "Created backup of ${base_name} in ${BACKUP_DIR}"
+
+        local backups
+        mapfile -t backups < <(ls -t "${BACKUP_DIR}/${base_name}".*.bak 2>/dev/null || true)
+
+        if [[ ${#backups[@]} -gt 3 ]]; then
+            local i
+            for ((i=3; i<${#backups[@]}; i++)); do
+                rm -f "${backups[i]}"
+            done
+        fi
+    fi
 }
 
 print_divider
@@ -94,11 +129,14 @@ cat <<EOF > "${tmp_sudoers}"
                           /bin/systemctl stop epics-@*.service, \\
                           /bin/systemctl restart epics-@*.service, \\
                           /bin/systemctl status epics-@*.service, \\
+                          /bin/systemctl enable epics-@*.service, \\
+                          /bin/systemctl disable epics-@*.service, \\
                           /bin/systemctl daemon-reload
 EOF
 
 if visudo -cf "${tmp_sudoers}" >/dev/null 2>&1; then
     chmod 0440 "${tmp_sudoers}"
+    backup_if_exists "${SUDOERS_FILE}"
     mv "${tmp_sudoers}" "${SUDOERS_FILE}"
     _log "SUCCESS" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
 else
@@ -110,6 +148,21 @@ fi
 print_divider
 _log "INFO" "STEP 4: Systemd Template Unit Deployment"
 print_sub_divider
+
+declare p_path
+for p_path in "${PROCSERV_SEARCH_PATHS[@]}"; do
+    if [[ -x "${p_path}" ]]; then
+        RESOLVED_PROCSERV_BIN="${p_path}"
+        break
+    fi
+done
+
+if [[ -z "${RESOLVED_PROCSERV_BIN}" ]]; then
+    _log "ERROR" "procServ executable not found in standard paths."
+    exit 1
+fi
+
+backup_if_exists "${SYSTEMD_TEMPLATE}"
 
 cat <<EOF > "${SYSTEMD_TEMPLATE}"
 [Unit]
@@ -123,7 +176,7 @@ User=${SYSTEM_USER}
 Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
-ExecStart=/usr/bin/procServ --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 StandardOutput=syslog
 StandardError=inherit
 SyslogIdentifier=epics-%i
@@ -133,7 +186,7 @@ WantedBy=multi-user.target
 EOF
 
 chmod 0644 "${SYSTEMD_TEMPLATE}"
-_log "SUCCESS" "Deployed systemd template to ${SYSTEMD_TEMPLATE}"
+_log "SUCCESS" "Deployed systemd template to ${SYSTEMD_TEMPLATE} using ${RESOLVED_PROCSERV_BIN}"
 
 systemctl daemon-reload
 _log "SUCCESS" "Reloaded systemd daemon."
@@ -143,6 +196,7 @@ _log "INFO" "STEP 5: CLI Wrapper Deployment"
 print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
+    backup_if_exists "${RUNNER_SCRIPT_DEST}"
     cp "${RUNNER_SCRIPT_SRC}" "${RUNNER_SCRIPT_DEST}"
     chmod 0755 "${RUNNER_SCRIPT_DEST}"
     _log "SUCCESS" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (0755)"

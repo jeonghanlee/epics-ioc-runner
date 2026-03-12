@@ -290,6 +290,32 @@ function do_list {
     printf "%s\n" "===================================================================================================="
 }
 
+function do_view {
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: Target IOC name is required to view.\n" >&2
+        exit 1
+    fi
+
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+
+    printf "%s\n" "===================================================================================================="
+    printf "1. IOC Configuration File: %s\n" "${target_conf}"
+    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+    if [[ -f "${target_conf}" ]]; then
+        cat "${target_conf}"
+    else
+        printf "Error: Configuration file not found at %s\n" "${target_conf}" >&2
+    fi
+    printf "\n"
+
+    printf "%s\n" "===================================================================================================="
+    printf "2. Systemd Template Unit\n"
+    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+    run_systemctl cat "epics-@${IOC_NAME}.service" || true
+    printf "%s\n" "===================================================================================================="
+}
+
+
 case "${COMMAND_ACTION}" in
     install)
         do_install
@@ -304,11 +330,7 @@ case "${COMMAND_ACTION}" in
         do_list
         ;;
     view)
-        if [[ -z "${IOC_NAME}" ]]; then
-            printf "Error: Target IOC name is required.\n" >&2
-            exit 1
-        fi
-        run_systemctl cat "epics-@${IOC_NAME}.service" || exit
+        do_view
         ;;
     start|stop|restart|status|enable|disable)
         if [[ -z "${IOC_NAME}" ]]; then

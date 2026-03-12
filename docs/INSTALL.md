@@ -103,3 +103,29 @@ Deploy the frontend management script `ioc-runner` to a standard binary path for
 sudo cp bin/ioc-runner /usr/local/bin/ioc-runner
 sudo chmod +x /usr/local/bin/ioc-runner
 ```
+
+## 4. Shared Deployment Directory Setup (/opt/epics-iocs)
+Before engineers can deploy IOCs, a shared payload directory must be established. This directory must be accessible and writable by the `ioc` group.
+
+### Option A: Local Local Disk
+If the IOCs will reside on the local server's filesystem:
+
+```bash
+sudo mkdir -p /opt/epics-iocs
+sudo chown root:ioc /opt/epics-iocs
+sudo chmod 2775 /opt/epics-iocs
+```
+
+### Option B: NFS Mount (Centralized Storage)
+For environments using a central storage server, ensure the NFS export is configured with the `ioc` GID and `2775` permissions.
+
+Mount the directory persistently via `/etc/fstab`:
+```text
+# /etc/fstab
+nfs-storage.local:/export/epics-iocs  /opt/epics-iocs  nfs  defaults,_netdev  0  0
+```
+
+Apply the mount:
+```bash
+sudo mount /opt/epics-iocs
+```
