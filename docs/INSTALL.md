@@ -107,7 +107,7 @@ sudo chmod +x /usr/local/bin/ioc-runner
 ## 4. Shared Deployment Directory Setup (/opt/epics-iocs)
 Before engineers can deploy IOCs, a shared payload directory must be established. This directory must be accessible and writable by the `ioc` group.
 
-### Option A: Local Local Disk
+### Option A: Local Disk
 If the IOCs will reside on the local server's filesystem:
 
 ```bash

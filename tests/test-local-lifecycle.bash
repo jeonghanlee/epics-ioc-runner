@@ -337,7 +337,7 @@ function test_persistence {
 
     local link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
-    verify_state "true" "${link_exist}" "Symlink created in multi-user.wants (Enable)"
+    verify_state "true" "${link_exist}" "Symlink created in default.target.wants (Enable)"
 
     bash "${RUNNER_SCRIPT}" --local disable "${IOC_NAME}"
 

@@ -14,7 +14,7 @@ This directory contains the complete documentation for deploying, managing, and 
 
 ### 3. System-Wide Operations (Engineers)
 * **[USER_GUIDE.md](USER_GUIDE.md)**
-  The primary manual for engineers deploying and managing production IOCs globally on the server. It explains how to use the `manage-procs` CLI wrapper to install configurations and how to use native `systemctl` and `journalctl` commands for daily operations.
+  The primary manual for engineers deploying and managing production IOCs globally on the server. It explains how to use the `ioc-runner` CLI wrapper to install configurations and how to use native `systemctl` and `journalctl` commands for daily operations.
 
 ### 4. Local Isolated Testing (Engineers)
 * **[USER_GUIDE_LOCAL.md](USER_GUIDE_LOCAL.md)**
