@@ -28,14 +28,14 @@ distributed across 20+ servers.
 
 ```
 Phase 1. Local Verification Environment
-         4x Rocky 8.10 VMs on KVM/libvirt (Debian 13 host)
-         - 1x Central server
-         - 3x IOC servers
+         2x Rocky 8.10 VMs on KVM/libvirt (Debian 13 host)
+         - 1x Central server (alsu-rocky8-gui-test)
+         - 1x IOC server (alsu-rocky8-test)
 
 Phase 2. Infrastructure Setup
          - SSH key generation and distribution
-         - Cockpit installation on central server
-         - cockpit-bridge installation on IOC servers
+         - Cockpit installation on central server (Web interface port 9090 enabled)
+         - cockpit-bridge and cockpit-pcp installation on IOC server (Web interface explicitly disabled)
          - Cockpit multi-host registration
 
 Phase 3. IOC Environment Setup
@@ -73,7 +73,8 @@ Phase 5. Production Rollout
      |---> [ IOC Server 02 ] Rocky 8.10
      |---> [ IOC Server .. ] Rocky 8.10
      |---> [ IOC Server 20+] Rocky 8.10
-           - cockpit-bridge
+           - cockpit-bridge (No web service listener)
+           - cockpit-pcp (Performance metrics collection)
            - systemd (epics-@.service)
            - procServ (/run/procserv/{ioc_name}/control)
            - ioc-runner
@@ -83,7 +84,6 @@ Phase 5. Production Rollout
 ```
 
 ---
-
 ## Access Control
 
 ```
@@ -107,6 +107,11 @@ Phase 5. Production Rollout
      |-- member of ioc group
      |-- SSH key-based auth to all IOC servers
 ```
+
+*Security Roadmap for Network and SSH Access:*
+- **Phase 1/2 (Current):** - Cockpit web interface (TCP 9090) is strictly restricted to the Central Server. IOC servers have the web socket disabled and firewalled.
+  - Standard SSH key distribution to enable Cockpit multi-host management and allow direct engineer access for on-site provisioning.
+- **Phase 3 (Future):** Strict enforcement including source IP restriction in `authorized_keys` and network-wide disablement of password authentication to prevent lateral movement.
 
 ---
 
