@@ -25,7 +25,7 @@ declare -g CAGET_INTERVAL=1
 
 if [[ -z "${EPICS_BASE}" ]]; then
     printf "${RED}%s${NC}\n" "ERROR: The EPICS_BASE environment variable is not set." >&2
-    printf "Please source your EPICS environment script and run as: sudo -E bash %s\n" "$(basename "$0")" >&2
+    printf "Please source your EPICS environment script and run as: bash %s\n" "$(basename "$0")" >&2
     exit 1
 fi
 

@@ -36,6 +36,8 @@ epics-ioc-runner/
 ├── tests/
 │   ├── test-local-lifecycle.bash # Automated integration tests for local execution
 │   ├── test-system-lifecycle.bash# Automated integration tests for system-wide execution
+│   ├── test-error-handling.bash  # Negative-path and error handling tests for ioc-runner
+│   ├── test-system-infra.bash    # Integration tests for setup-system-infra.bash
 │   └── README.md                 # Test execution guide
 ├── LICENSE                       # MIT License
 └── README.md                     # Project overview and key features
@@ -50,4 +52,4 @@ Please refer to the detailed documentation in the `docs/` directory to get start
 4. **[Architecture Overview](docs/ARCHITECTURE.md)**: Details on the security model and system design.
 
 ## Acknowledgments
-This project is heavily inspired by the Python-based `procServUtils` originally contributed by Michael Davidsaver and maintained in the [ralphlange/procServ](https://github.com/ralphlange/procServ/tree/master/procServUtils) repository.
+This project is inspired by the Python-based `procServUtils` originally contributed by Michael Davidsaver and maintained in the [ralphlange/procServ](https://github.com/ralphlange/procServ/tree/master/procServUtils) repository.
