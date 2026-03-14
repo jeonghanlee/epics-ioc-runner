@@ -7,14 +7,12 @@
 set -e
 
 # --- Configuration Directories ---
-declare -g SYSTEM_CONF_DIR="/etc/procServ.d"
-declare -g LOCAL_CONF_DIR="${HOME}/.config/procServ.d"
-
-declare -g SYSTEM_SYSTEMD_DIR="/etc/systemd/system"
-declare -g LOCAL_SYSTEMD_DIR="${HOME}/.config/systemd/user"
-
-declare -g SYSTEM_RUN_DIR="/run/procserv"
-declare -g LOCAL_RUN_DIR="/run/user/$(id -u)/procserv"
+declare -g SYSTEM_CONF_DIR="${IOC_RUNNER_CONF_DIR:-/etc/procServ.d}"
+declare -g LOCAL_CONF_DIR="${IOC_RUNNER_CONF_DIR:-${HOME}/.config/procServ.d}"
+declare -g SYSTEM_SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-/etc/systemd/system}"
+declare -g LOCAL_SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${HOME}/.config/systemd/user}"
+declare -g SYSTEM_RUN_DIR="${IOC_RUNNER_RUN_DIR:-/run/procserv}"
+declare -g LOCAL_RUN_DIR="${IOC_RUNNER_RUN_DIR:-/run/user/$(id -u)/procserv}"
 
 # --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN="/bin/systemctl"
@@ -27,6 +25,15 @@ declare -g CONF_DIR="${SYSTEM_CONF_DIR}"
 declare -g SYSTEMD_DIR="${SYSTEM_SYSTEMD_DIR}"
 declare -g RUN_DIR="${SYSTEM_RUN_DIR}"
 declare -g CON_TOOL=""
+
+
+function print_divider {
+    printf "%s\n" "===================================================================================================="
+}
+
+function print_sub_divider {
+    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+}
 
 function set_local_mode {
     EXEC_MODE="local"
@@ -69,19 +76,6 @@ Examples:
 EOF
 }
 
-# Resolve con utility path
-for path in "${CON_SEARCH_PATHS[@]}"; do
-    if [[ -x "${path}" ]]; then
-        CON_TOOL="${path}"
-        break
-    fi
-done
-
-if [[ -z "${CON_TOOL}" ]]; then
-    printf "%s\n" "Error: con utility not found in standard paths." >&2
-    printf "%s\n" "Please install con before managing EPICS IOCs." >&2
-    exit 1
-fi
 
 if [[ "$1" == "--local" ]]; then
     set_local_mode
@@ -101,6 +95,12 @@ declare -g IOC_NAME=""
 
 if [[ -n "${TARGET_ARG}" ]]; then
     IOC_NAME=$(basename "${TARGET_ARG}" .conf)
+fi
+
+# Reject IOC names containing characters outside the allowed set.
+if [[ -n "${IOC_NAME}" && ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
+    exit 1
 fi
 
 function run_systemctl {
@@ -189,11 +189,11 @@ function do_install {
     state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
 
     if [[ "${state}" == "active" ]]; then
-        printf "%s\n" "====================================================================================================" >&2
+        print_divider >&2
         printf "WARNING: Installation aborted.\n" >&2
         printf "IOC '%s' is currently running.\n" "${IOC_NAME}" >&2
         printf "Please stop the service explicitly before reinstalling to prevent data loss.\n" >&2
-        printf "%s\n" "====================================================================================================" >&2
+        print_divider >&2
         exit 1
     fi
 
@@ -211,7 +211,7 @@ function do_install {
         cp "${source_conf}" "${CONF_DIR}/"
     fi
 
-    run_systemctl daemon-reload || exit
+    run_systemctl daemon-reload
 
     printf "IOC %s installed in %s mode. Use 'start' command to run it.\n" "${IOC_NAME}" "${EXEC_MODE}"
 }
@@ -233,11 +233,28 @@ function do_remove {
         rm -f "${target_conf}" || true
     fi
 
-    run_systemctl daemon-reload || exit
+    run_systemctl daemon-reload
     printf "IOC %s removed.\n" "${IOC_NAME}"
 }
 
 function do_attach {
+
+    local con_tool="${IOC_RUNNER_CON_TOOL:-}"
+    if [[ -z "${con_tool}" ]]; then
+        for path in "${CON_SEARCH_PATHS[@]}"; do
+            if [[ -x "${path}" ]]; then
+                con_tool="${path}"
+                break
+            fi
+        done
+    fi
+
+    if [[ -z "${con_tool}" ]]; then
+        printf "%s\n" "Error: con utility not found in standard paths." >&2
+        printf "%s\n" "Please install con before managing EPICS IOCs." >&2
+        exit 1
+    fi
+
     if [[ -z "${IOC_NAME}" ]]; then
         printf "Error: Target IOC name is required to attach.\n" >&2
         exit 1
@@ -250,16 +267,17 @@ function do_attach {
         exit 1
     fi
 
-    source "${target_conf}"
-    local sock_path="${IOC_PORT##*:}"
+    local sock_path
+    sock_path=$(grep -E '^IOC_PORT=' "${target_conf}" | cut -d'=' -f2- | tr -d '"' | awk -F: '{print $NF}')
 
-    printf "%s\n" "===================================================================================================="
+
+    print_divider >&2
     printf "Attaching to %s via UNIX domain socket:\n" "${IOC_NAME}"
     printf "Path: %s\n" "${sock_path}"
     printf "Use Ctrl-A to exit the console.\n"
-    printf "%s\n" "===================================================================================================="
+    print_divider >&2
 
-    exec "${CON_TOOL}" -c "${sock_path}" || exit
+    exec "${con_tool}" -c "${sock_path}" || exit
 }
 
 function do_list {
@@ -278,16 +296,16 @@ function do_list {
         return 0
     fi
 
-    printf "%s\n" "===================================================================================================="
+    print_divider
     printf "%-30s | %s\n" "IOC NAME" "UDS PATH"
-    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+    print_sub_divider
 
     local sock ioc_name
     for sock in "${sockets[@]}"; do
         ioc_name=$(basename "$(dirname "${sock}")")
         printf "%-30s | %s\n" "${ioc_name}" "${sock}"
     done
-    printf "%s\n" "===================================================================================================="
+    print_divider
 }
 
 function do_view {
@@ -298,9 +316,9 @@ function do_view {
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
 
-    printf "%s\n" "===================================================================================================="
+    print_divider
     printf "1. IOC Configuration File: %s\n" "${target_conf}"
-    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+    print_sub_divider
     if [[ -f "${target_conf}" ]]; then
         cat "${target_conf}"
     else
@@ -308,11 +326,11 @@ function do_view {
     fi
     printf "\n"
 
-    printf "%s\n" "===================================================================================================="
+    print_divider
     printf "2. Systemd Template Unit\n"
-    printf "%s\n" "----------------------------------------------------------------------------------------------------"
+    print_sub_divider
     run_systemctl cat "epics-@${IOC_NAME}.service" || true
-    printf "%s\n" "===================================================================================================="
+    print_divider
 }
 
 
@@ -337,7 +355,7 @@ case "${COMMAND_ACTION}" in
             printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
             exit 1
         fi
-        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service" || exit
+        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
         ;;
     *)
         print_usage
