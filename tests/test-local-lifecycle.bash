@@ -343,15 +343,44 @@ function test_socket_list {
 
     local ioc_in_output="false"
     local uds_in_output="false"
-    local divider_in_output="false"
 
     if printf "%s" "${output}" | grep -q "${IOC_NAME}";  then ioc_in_output="true"; fi
     if printf "%s" "${output}" | grep -q "${UDS_PATH}";  then uds_in_output="true"; fi
-    if printf "%s" "${output}" | grep -q "====";         then divider_in_output="true"; fi
 
     verify_state "true" "${ioc_in_output}"      "IOC name appears in list output"
     verify_state "true" "${uds_in_output}"      "UDS socket path appears in list output"
-    verify_state "true" "${divider_in_output}"  "Divider lines present in list output"
+
+    # Test verbose level 1
+    local output_v
+    output_v=$(bash "${RUNNER_SCRIPT}" --local -v list)
+
+    local pid_in_output="false"
+    local cpu_in_output="false"
+    local mem_in_output="false"
+    if printf "%s" "${output_v}" | grep -q "PID";   then pid_in_output="true"; fi
+    if printf "%s" "${output_v}" | grep -q "CPU";   then cpu_in_output="true"; fi
+    if printf "%s" "${output_v}" | grep -q "MEM";   then mem_in_output="true"; fi
+
+    verify_state "true" "${pid_in_output}" "List -v output contains PID column"
+    verify_state "true" "${cpu_in_output}" "List -v output contains CPU column"
+    verify_state "true" "${mem_in_output}" "List -v output contains MEM column"
+
+    # Test verbose level 2
+    local output_vv
+    output_vv=$(bash "${RUNNER_SCRIPT}" --local -vv list)
+
+    local recv_in_output="false"
+    local sq_in_output="false"
+    local perm_in_output="false"
+
+    if printf "%s" "${output_vv}" | grep -q "RQ"; then recv_in_output="true"; fi
+    if printf "%s" "${output_vv}" | grep -q "SQ"; then sq_in_output="true"; fi
+    if printf "%s" "${output_vv}" | grep -q "PERM";   then perm_in_output="true"; fi
+
+    verify_state "true" "${recv_in_output}" "List -vv output contains Recv-Q column"
+    verify_state "true" "${sq_in_output}" "List -vv output contains Send-Q column"
+    verify_state "true" "${perm_in_output}" "List -vv output contains PERM column"
+
 }
 
 

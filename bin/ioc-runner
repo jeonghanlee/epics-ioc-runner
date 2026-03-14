@@ -26,6 +26,7 @@ declare -g SYSTEMD_DIR="${SYSTEM_SYSTEMD_DIR}"
 declare -g RUN_DIR="${SYSTEM_RUN_DIR}"
 declare -g CON_TOOL=""
 
+declare -g VERBOSE_LEVEL=0
 
 function print_divider {
     printf "%s\n" "===================================================================================================="
@@ -65,7 +66,10 @@ Commands:
   enable         Enable the IOC service to start on boot
   disable        Disable the IOC service from starting on boot
   view           Print the contents of the generated systemd unit file
-  list           List all active UNIX Domain Sockets for managed IOCs (no target required)
+  list           List all active IOC sockets
+                   (default: name, status, connections, start time, path)
+                   (-v: adds PID, CPU, memory)
+                   (-vv: adds Recv-Q, Send-Q, socket permissions)
   attach         Attach to the IOC console via UNIX Domain Socket (use Ctrl-A to detach)
 
 Examples:
@@ -73,12 +77,24 @@ Examples:
   ${prog_name} start myioc             # Start the system-wide IOC
   ${prog_name} attach myioc            # Connect to the IOC console
   ${prog_name} --local install t.conf  # Install IOC in local user space
+  ${prog_name} list                # List all IOCs with basic info
+  ${prog_name} -v list             # List with PID, CPU, memory
+  ${prog_name} -vv list            # List with full socket details
+  ${prog_name} --local -v list     # Local mode with verbose output
 EOF
 }
 
 
 if [[ "$1" == "--local" ]]; then
     set_local_mode
+    shift
+fi
+
+if [[ "$1" == "-vv" ]]; then
+    VERBOSE_LEVEL=2
+    shift
+elif [[ "$1" == "-v" ]]; then
+    VERBOSE_LEVEL=1
     shift
 fi
 
@@ -296,16 +312,94 @@ function do_list {
         return 0
     fi
 
-    print_divider
-    printf "%-30s | %s\n" "IOC NAME" "UDS PATH"
+    local systemctl_cmd=("systemctl")
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        systemctl_cmd=("systemctl" "--user")
+    fi
+
+    # Fetch all epics service states in a single systemctl call.
+    local unit_states
+    unit_states=$("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --no-pager --plain 2>/dev/null || true)
+
+    # Fetch all unix socket info in a single ss call.
+    local ss_output
+    ss_output=$(ss -lx 2>/dev/null || true)
+
+    if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
+        printf "%-20s | %-8s | %-3s | %-17s | %s\n" \
+            "IOC NAME" "STATUS" "CON" "STARTED" "UDS PATH"
+    elif [[ ${VERBOSE_LEVEL} -eq 1 ]]; then
+        printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %s\n" \
+            "IOC NAME" "STATUS" "CON" "STARTED" "PID" "CPU" "MEM" "UDS PATH"
+    else
+        printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-10s | %s\n" \
+            "IOC NAME" "STATUS" "CON" "STARTED" "PID" "CPU" "MEM" "RQ" "SQ" "PERM" "UDS PATH"
+    fi
+
     print_sub_divider
 
-    local sock ioc_name
+    local sock ioc_name status connections started pid cpu mem recv_q send_q perm
     for sock in "${sockets[@]}"; do
         ioc_name=$(basename "$(dirname "${sock}")")
-        printf "%-30s | %s\n" "${ioc_name}" "${sock}"
+
+        # Extract service state from pre-fetched unit_states.
+        status=$(printf "%s" "${unit_states}" | grep "epics-@${ioc_name}.service" | awk '{print $3}')
+        if [[ -z "${status}" ]]; then status="unknown"; fi
+
+        # Extract socket data from pre-fetched ss output and stat.
+        connections=$(printf "%s" "${ss_output}" | grep -c "${sock}" || true)
+        started=$(stat -c "%y" "${sock}" 2>/dev/null | awk '{print $1, $2}' | cut -d'.' -f1 | awk '{print $1, substr($2,1,5)}')
+        if [[ -z "${started}" ]]; then started="N/A"; fi
+
+        if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
+            printf "%-20s | %-8s | %-3s | %-17s | %s\n" \
+                "${ioc_name}" "${status}" "${connections}" "${started}" "${sock}"
+
+        elif [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
+            # Fetch per-service properties individually to ensure accurate parsing.
+            local unit_props
+            unit_props=$("${systemctl_cmd[@]}" show "epics-@${ioc_name}.service" \
+                --property=MainPID,CPUUsageNSec,MemoryCurrent \
+                2>/dev/null || true)
+
+            pid=$(printf "%s" "${unit_props}" | grep "MainPID=" | cut -d'=' -f2-)
+            if [[ -z "${pid}" || "${pid}" == "0" ]]; then pid="N/A"; fi
+
+            local cpu_ns
+            cpu_ns=$(printf "%s" "${unit_props}" | grep "CPUUsageNSec=" | cut -d'=' -f2-)
+            if [[ -n "${cpu_ns}" && "${cpu_ns}" != "18446744073709551615" ]]; then
+                cpu=$(awk "BEGIN {printf \"%.1fs\", ${cpu_ns}/1000000000}")
+            else
+                cpu="N/A"
+            fi
+
+            local mem_bytes
+            mem_bytes=$(printf "%s" "${unit_props}" | grep "MemoryCurrent=" | cut -d'=' -f2-)
+            if [[ -n "${mem_bytes}" && "${mem_bytes}" != "18446744073709551615" ]]; then
+                mem=$(awk "BEGIN {printf \"%.1fM\", ${mem_bytes}/1048576}")
+            else
+                mem="N/A"
+            fi
+
+            if [[ ${VERBOSE_LEVEL} -eq 1 ]]; then
+                printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %s\n" \
+                    "${ioc_name}" "${status}" "${connections}" "${started}" \
+                    "${pid}" "${cpu}" "${mem}" "${sock}"
+            else
+                recv_q=$(printf "%s" "${ss_output}" | grep "${sock}" | awk '{print $3}')
+                send_q=$(printf "%s" "${ss_output}" | grep "${sock}" | awk '{print $4}')
+                if [[ -z "${recv_q}" ]]; then recv_q="0"; fi
+                if [[ -z "${send_q}" ]]; then send_q="0"; fi
+
+                perm=$(stat -c "%A" "${sock}" 2>/dev/null || printf "N/A")
+
+                printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-10s | %s\n" \
+                    "${ioc_name}" "${status}" "${connections}" "${started}" \
+                    "${pid}" "${cpu}" "${mem}" "${recv_q}" "${send_q}" \
+                    "${perm}" "${sock}"
+            fi
+        fi
     done
-    print_divider
 }
 
 function do_view {

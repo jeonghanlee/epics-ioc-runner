@@ -16,7 +16,7 @@ This architecture requires the following core utilities to be installed on your 
 * **Local Test Environment Support**: Provides a `--local` flag allowing engineers to run isolated tests entirely within their own user space using systemd user sessions, without requiring `sudo` privileges.
 * **Role-Based Access Control (RBAC)**: Utilizes traditional `/etc/sudoers.d/` policies and SetGID directory permissions to securely grant trained engineers (`ioc` group) passwordless access to IOC service management.
 * **UNIX Domain Sockets (UDS)**: Secures console access and eliminates TCP port conflicts.
-* **Native Console Tool (`con`)**: Includes a lightweight, custom C++ terminal emulator for seamless UDS connections.
+* **Multi-level IOC Monitoring**: The `list` command supports `-v` and `-vv` flags to display per-IOC status, connection count, start time, PID, CPU, memory, socket permissions, and Recv-Q/Send-Q directly from UDS and systemd.
 
 ## Repository Structure
 
