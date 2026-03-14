@@ -242,36 +242,116 @@ function test_start {
     verify_state "active" "${state}" "Service state is 'active' (Startup time: ${elapsed}s)"
 }
 
+function test_status {
+    print_divider
+    _log "INFO" "STEP 3.1: Test Status Command"
+    print_sub_divider
+
+    local output
+    output=$(bash "${RUNNER_SCRIPT}" --local status "${IOC_NAME}" 2>&1 || true)
+
+    local active_in_output="false"
+    if printf "%s" "${output}" | grep -q "active"; then active_in_output="true"; fi
+    verify_state "true" "${active_in_output}" "Status output contains 'active'"
+}
+
+function test_view {
+    print_divider
+    _log "INFO" "STEP 3.2: Test View Command"
+    print_sub_divider
+
+    local output
+    output=$(bash "${RUNNER_SCRIPT}" --local view "${IOC_NAME}" 2>&1 || true)
+
+    local conf_in_output="false"
+    if printf "%s" "${output}" | grep -q "${IOC_NAME}"; then conf_in_output="true"; fi
+    verify_state "true" "${conf_in_output}" "View output contains IOC name"
+}
+
+function test_restart {
+    print_divider
+    _log "INFO" "STEP 3.3: Test Restart Command"
+    print_sub_divider
+
+    bash "${RUNNER_SCRIPT}" --local restart "${IOC_NAME}"
+    sleep 2
+
+    local state
+    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
+    verify_state "active" "${state}" "Service remains active after restart"
+}
+
+function test_stop {
+    print_divider
+    _log "INFO" "STEP 3.4: Test Stop Command"
+    print_sub_divider
+
+    bash "${RUNNER_SCRIPT}" --local stop "${IOC_NAME}"
+
+    local state
+    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
+    verify_state "inactive" "${state}" "Service is inactive after stop"
+
+    bash "${RUNNER_SCRIPT}" --local start "${IOC_NAME}"
+    sleep 2
+
+    state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
+    verify_state "active" "${state}" "Service is active after restart following stop"
+}
+
+
 function test_socket_list {
     print_divider
     _log "INFO" "STEP 4: Test List and Socket Creation"
     print_sub_divider
 
     local socket_exist="false"
-
     if [[ -S "${UDS_PATH}" ]]; then socket_exist="true"; fi
     verify_state "true" "${socket_exist}" "UNIX Domain Socket explicitly created"
 
-    _log "INFO" "Executing list command:"
-    bash "${RUNNER_SCRIPT}" --local list
+    local output
+    output=$(bash "${RUNNER_SCRIPT}" --local list)
+
+    local ioc_in_output="false"
+    local uds_in_output="false"
+    local divider_in_output="false"
+
+    if printf "%s" "${output}" | grep -q "${IOC_NAME}";  then ioc_in_output="true"; fi
+    if printf "%s" "${output}" | grep -q "${UDS_PATH}";  then uds_in_output="true"; fi
+    if printf "%s" "${output}" | grep -q "====";         then divider_in_output="true"; fi
+
+    verify_state "true" "${ioc_in_output}"      "IOC name appears in list output"
+    verify_state "true" "${uds_in_output}"      "UDS socket path appears in list output"
+    verify_state "true" "${divider_in_output}"  "Divider lines present in list output"
 }
+
 
 function test_console_attach {
     print_divider
-    _log "INFO" "STEP 4.5: Interactive Console Attach"
+    _log "INFO" "STEP 4.5: Automated Console Attach Verification"
     print_sub_divider
 
-    printf "${YELLOW}%s${NC}\n" ">>> The script will now attach to the IOC console for debugging."
-    printf "${YELLOW}%s${NC}\n" ">>> 1. Check if there are any iocInit errors."
-    printf "${YELLOW}%s${NC}\n" ">>> 2. Press [Enter] to display the 'epics>' prompt."
-    printf "${YELLOW}%s${NC}\n" ">>> 3. Press [Ctrl-A] when you are ready to resume the test."
-    printf "\n"
-    read -r -p "Press [Enter] to attach now..."
+    local socket_perm
+    socket_perm=$(stat -c "%A" "${UDS_PATH}")
 
-    bash "${RUNNER_SCRIPT}" --local attach "${IOC_NAME}" || true
+    local perm_ok="false"
+    if [[ "${socket_perm}" == "srw-rw----" ]]; then perm_ok="true"; fi
+    verify_state "true" "${perm_ok}" "UDS socket has correct permissions (srw-rw----)"
 
-    printf "\n"
-    _log "SUCCESS" "Detached from console. Resuming tests..."
+    local con_cmd
+    if command -v con >/dev/null 2>&1; then
+        con_cmd="con"
+    else
+        con_cmd="/usr/local/bin/con"
+    fi
+
+    local con_ok="false"
+    if "${con_cmd}" --help >/dev/null 2>&1; then con_ok="true"; fi
+    verify_state "true" "${con_ok}" "con utility exits successfully with --help"
+
+    local connect_ok="false"
+    if timeout 3 "${con_cmd}" -c "${UDS_PATH}" >/dev/null 2>&1; then connect_ok="true"; fi
+    verify_state "true" "${connect_ok}" "con connects to UDS socket without error"
 }
 
 function test_channel_access {
@@ -368,6 +448,10 @@ function run_all_tests {
     setup_environment
     test_install
     test_start
+    test_status
+    test_view
+    test_restart
+    test_stop
     test_socket_list
     test_console_attach
     test_channel_access
