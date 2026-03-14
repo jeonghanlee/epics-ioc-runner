@@ -207,8 +207,9 @@ function verify_perm {
 # ==============================================================================
 
 function _setup {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 0: Setup Test Environment"
+    _log "INFO" "STEP ${step}: Setup Test Environment"
     print_sub_divider
 
     TEST_TMPDIR=$(mktemp -d)
@@ -231,8 +232,9 @@ function _cleanup {
 # ==============================================================================
 
 function test_non_root_rejection {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 1: Non-root Rejection"
+    _log "INFO" "STEP ${step}: Non-root Rejection"
     print_sub_divider
 
     local exit_code
@@ -242,8 +244,9 @@ function test_non_root_rejection {
 }
 
 function test_missing_procserv {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 2: Missing procServ Error Path"
+    _log "INFO" "STEP ${step}: Missing procServ Error Path"
     print_sub_divider
 
     local exit_code
@@ -255,8 +258,9 @@ function test_missing_procserv {
 }
 
 function test_missing_runner_script {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3: Missing ioc-runner Source Error Path"
+    _log "INFO" "STEP ${step}: Missing ioc-runner Source Error Path"
     print_sub_divider
 
     local exit_code
@@ -267,8 +271,9 @@ function test_missing_runner_script {
 }
 
 function test_successful_install {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4: Successful Installation"
+    _log "INFO" "STEP ${step}: Successful Installation"
     print_sub_divider
 
     local exit_code
@@ -294,8 +299,9 @@ function test_successful_install {
 }
 
 function test_idempotency {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 5: Idempotency (Second Run)"
+    _log "INFO" "STEP ${step}: Idempotency (Second Run)"
     print_sub_divider
 
     local exit_code
@@ -326,8 +332,9 @@ function test_idempotency {
 }
 
 function test_backup_rotation {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 6: Backup Rotation (Keeps 3 Most Recent)"
+    _log "INFO" "STEP ${step}: Backup Rotation (Keeps 3 Most Recent)"
     print_sub_divider
 
     # Run the script multiple times to trigger backup rotation.
@@ -355,13 +362,13 @@ function test_backup_rotation {
 }
 
 function run_all_tests {
-    _setup
-    test_non_root_rejection
-    test_missing_procserv
-    test_missing_runner_script
-    test_successful_install
-    test_idempotency
-    test_backup_rotation
+    _setup                    1
+    test_non_root_rejection   2
+    test_missing_procserv     3
+    test_missing_runner_script 4
+    test_successful_install   5
+    test_idempotency          6
+    test_backup_rotation      7
 }
 
 run_all_tests

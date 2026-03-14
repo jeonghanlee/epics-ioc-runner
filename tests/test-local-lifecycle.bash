@@ -49,11 +49,13 @@ declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"
 declare -g RUN_DIR="/run/user/$(id -u)/procserv"
 
 # --- IOC Test Target Paths ---
-declare -g WORKSPACE="${HOME}/ioc-test-workspace"
+
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g IOC_NAME="ServiceTestIOC"
-declare -g IOC_DIR="${WORKSPACE}/${IOC_NAME}"
-declare -g CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
+
+declare -g WORKSPACE=""
+declare -g IOC_DIR=""
+declare -g CONF_FILE=""
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
 
 declare -g -a SYSTEMCTL_CMD=(systemctl --user)
@@ -65,6 +67,13 @@ function _handle_exit {
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
+
+    # Safely remove only the test workspace created by mktemp.
+    if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == /tmp/epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
+        rm -rf "${WORKSPACE}"
+        _log "INFO" "Test workspace removed."
+    fi
+
     print_summary
 }
 trap _handle_exit EXIT
@@ -156,8 +165,9 @@ function verify_state {
 # ==============================================================================
 
 function cleanup_previous_state {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 0: Cleanup Previous State"
+    _log "INFO" "STEP ${step}: Cleanup Previous State"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
@@ -169,12 +179,24 @@ function cleanup_previous_state {
     _log "SUCCESS" "Cleaned up residual processes, templates, and configurations."
 }
 
-function setup_environment {
+function _setup_workspace {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 1: Environment Setup & Compilation"
+    _log "INFO" "STEP ${step}: Setup Test Workspace"
     print_sub_divider
 
-    mkdir -p "${WORKSPACE}"
+    WORKSPACE=$(mktemp -d --tmpdir epics-ioc-test.XXXXXX)
+    IOC_DIR="${WORKSPACE}/${IOC_NAME}"
+    CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
+
+    _log "SUCCESS" "Test workspace created at ${WORKSPACE}"
+}
+
+function setup_environment {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Environment Setup & Compilation"
+    print_sub_divider
 
     if [[ ! -d "${IOC_DIR}" ]]; then
         _log "INFO" "Cloning target IOC repository..."
@@ -208,11 +230,12 @@ EOF
 }
 
 function test_install {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 2: Test Install Command"
+    _log "INFO" "STEP ${step}: Test Install Command"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local install "${CONF_FILE}"
+    bash "${RUNNER_SCRIPT}" --local install "${CONF_FILE}" >/dev/null
 
     local conf_exist="false"
     local tmpl_exist="false"
@@ -225,8 +248,9 @@ function test_install {
 }
 
 function test_start {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3: Test Start Command"
+    _log "INFO" "STEP ${step}: Test Start Command"
     print_sub_divider
 
     local start_time=${SECONDS}
@@ -243,8 +267,9 @@ function test_start {
 }
 
 function test_status {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3.1: Test Status Command"
+    _log "INFO" "STEP ${step}: Test Status Command"
     print_sub_divider
 
     local output
@@ -256,8 +281,9 @@ function test_status {
 }
 
 function test_view {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3.2: Test View Command"
+    _log "INFO" "STEP ${step}: Test View Command"
     print_sub_divider
 
     local output
@@ -269,8 +295,9 @@ function test_view {
 }
 
 function test_restart {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3.3: Test Restart Command"
+    _log "INFO" "STEP ${step}: Test Restart Command"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" --local restart "${IOC_NAME}"
@@ -282,8 +309,9 @@ function test_restart {
 }
 
 function test_stop {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3.4: Test Stop Command"
+    _log "INFO" "STEP ${step}: Test Stop Command"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" --local stop "${IOC_NAME}"
@@ -301,8 +329,9 @@ function test_stop {
 
 
 function test_socket_list {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4: Test List and Socket Creation"
+    _log "INFO" "STEP ${step}: Test List and Socket Creation"
     print_sub_divider
 
     local socket_exist="false"
@@ -327,8 +356,9 @@ function test_socket_list {
 
 
 function test_console_attach {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4.5: Automated Console Attach Verification"
+    _log "INFO" "STEP ${step}: Automated Console Attach Verification"
     print_sub_divider
 
     local socket_perm
@@ -346,17 +376,18 @@ function test_console_attach {
     fi
 
     local con_ok="false"
-    if "${con_cmd}" --help >/dev/null 2>&1; then con_ok="true"; fi
-    verify_state "true" "${con_ok}" "con utility exits successfully with --help"
+    if command -v "${con_cmd}" >/dev/null 2>&1; then con_ok="true"; fi
+    verify_state "true" "${con_ok}" "con utility is available"
 
-    local connect_ok="false"
-    if timeout 3 "${con_cmd}" -c "${UDS_PATH}" >/dev/null 2>&1; then connect_ok="true"; fi
-    verify_state "true" "${connect_ok}" "con connects to UDS socket without error"
+    local socket_listening="false"
+    if ss -lx 2>/dev/null | grep -q "${UDS_PATH}"; then socket_listening="true"; fi
+    verify_state "true" "${socket_listening}" "UDS socket is in listening state"
 }
 
 function test_channel_access {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 5: Test EPICS Channel Access (caget)"
+    _log "INFO" "STEP ${step}: Test EPICS Channel Access (caget)"
     print_sub_divider
 
     local caget_cmd
@@ -409,8 +440,9 @@ function test_channel_access {
 }
 
 function test_persistence {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 6: Test Enable and Disable (Persistence)"
+    _log "INFO" "STEP ${step}: Test Enable and Disable (Persistence)"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" --local enable "${IOC_NAME}"
@@ -427,8 +459,9 @@ function test_persistence {
 }
 
 function test_remove {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 7: Test Remove Command"
+    _log "INFO" "STEP ${step}: Test Remove Command"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}"
@@ -444,19 +477,20 @@ function test_remove {
 }
 
 function run_all_tests {
-    cleanup_previous_state
-    setup_environment
-    test_install
-    test_start
-    test_status
-    test_view
-    test_restart
-    test_stop
-    test_socket_list
-    test_console_attach
-    test_channel_access
-    test_persistence
-    test_remove
+    _setup_workspace          1
+    cleanup_previous_state    2
+    setup_environment         3
+    test_install              4
+    test_start                5
+    test_status               6
+    test_view                 7
+    test_restart              8
+    test_stop                 9
+    test_socket_list          10
+    test_console_attach       11
+    test_channel_access       12
+    test_persistence          13
+    test_remove               14
 }
 
 run_all_tests

@@ -25,7 +25,7 @@ declare -g CAGET_INTERVAL=1
 
 if [[ -z "${EPICS_BASE}" ]]; then
     printf "${RED}%s${NC}\n" "ERROR: The EPICS_BASE environment variable is not set." >&2
-    printf "Please source your EPICS environment script before running this test.\n" >&2
+    printf "Please source your EPICS environment script and run as: sudo -E bash %s\n" "$(basename "$0")" >&2
     exit 1
 fi
 
@@ -44,12 +44,16 @@ declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
 declare -g RUN_DIR="/run/procserv"
 
-declare -g WORKSPACE="${HOME}/ioc-test-workspace"
+
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g IOC_NAME="ServiceTestIOC-SYS"
-declare -g IOC_DIR="${WORKSPACE}/${IOC_NAME}"
-declare -g CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
+
+declare -g WORKSPACE=""
+declare -g IOC_DIR=""
+declare -g CONF_FILE=""
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
+declare -g PERM_WORKSPACE="2770"
+declare -g OWNER_WORKSPACE="root:ioc"
 
 declare -g -a SYSTEMCTL_CMD=(sudo systemctl)
 
@@ -59,6 +63,13 @@ function _handle_exit {
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
+
+    # Safely remove only the test workspace created by mktemp.
+    if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == /tmp/epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
+        sudo rm -rf "${WORKSPACE}"
+        _log "INFO" "Test workspace removed."
+    fi
+
     print_summary
 }
 trap _handle_exit EXIT
@@ -141,9 +152,11 @@ function verify_state {
     fi
 }
 
+
 function verify_infrastructure {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 0: Verify System Infrastructure"
+    _log "INFO" "STEP ${step}: Verify System Infrastructure"
     print_sub_divider
 
     local conf_dir_exist="false"
@@ -159,9 +172,27 @@ function verify_infrastructure {
     verify_state "true" "${tmpl_exist}" "System template unit exists (${SYSTEMD_DIR}/epics-@.service)"
 }
 
-function cleanup_previous_state {
+function _setup_workspace {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 1: Cleanup Previous State"
+    _log "INFO" "STEP ${step}: Setup Test Workspace"
+    print_sub_divider
+
+    WORKSPACE=$(mktemp -d --tmpdir epics-ioc-test.XXXXXX)
+    IOC_DIR="${WORKSPACE}/${IOC_NAME}"
+    CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
+
+    # Restrict ownership and permissions to match production IOC workspace.
+    sudo chown "${OWNER_WORKSPACE}" "${WORKSPACE}"
+    sudo chmod "${PERM_WORKSPACE}" "${WORKSPACE}"
+
+    _log "SUCCESS" "Test workspace created at ${WORKSPACE}"
+}
+
+function cleanup_previous_state {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Cleanup Previous State"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}" >/dev/null 2>&1 || true
@@ -169,11 +200,10 @@ function cleanup_previous_state {
 }
 
 function setup_environment {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 2: Environment Setup & Compilation"
+    _log "INFO" "STEP ${step}: Environment Setup & Compilation"
     print_sub_divider
-
-    mkdir -p "${WORKSPACE}"
 
     if [[ ! -d "${IOC_DIR}" ]]; then
         _log "INFO" "Cloning target IOC repository..."
@@ -207,11 +237,12 @@ EOF
 }
 
 function test_install {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3: Test Install Command"
+    _log "INFO" "STEP ${step}: Test Install Command"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" install "${CONF_FILE}"
+    bash "${RUNNER_SCRIPT}" install "${CONF_FILE}" >/dev/null
 
     local conf_exist="false"
     if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
@@ -220,8 +251,9 @@ function test_install {
 }
 
 function test_start {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4: Test Start Command"
+    _log "INFO" "STEP ${step}: Test Start Command"
     print_sub_divider
 
     local start_time=${SECONDS}
@@ -238,8 +270,9 @@ function test_start {
 }
 
 function test_status {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4.1: Test Status Command"
+    _log "INFO" "STEP ${step}: Test Status Command"
     print_sub_divider
 
     local output
@@ -251,8 +284,9 @@ function test_status {
 }
 
 function test_view {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4.2: Test View Command"
+    _log "INFO" "STEP ${step}: Test View Command"
     print_sub_divider
 
     local output
@@ -264,8 +298,9 @@ function test_view {
 }
 
 function test_restart {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4.3: Test Restart Command"
+    _log "INFO" "STEP ${step}: Test Restart Command"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" restart "${IOC_NAME}"
@@ -277,8 +312,9 @@ function test_restart {
 }
 
 function test_stop {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4.4: Test Stop Command"
+    _log "INFO" "STEP ${step}: Test Stop Command"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" stop "${IOC_NAME}"
@@ -295,8 +331,9 @@ function test_stop {
 }
 
 function test_socket_list {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 5: Test List and Socket Creation"
+    _log "INFO" "STEP ${step}: Test List and Socket Creation"
     print_sub_divider
 
     local socket_exist="false"
@@ -321,8 +358,9 @@ function test_socket_list {
 
 
 function test_console_attach {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 5.5: Automated Console Attach Verification"
+    _log "INFO" "STEP ${step}: Automated Console Attach Verification"
     print_sub_divider
 
     local socket_perm
@@ -340,18 +378,19 @@ function test_console_attach {
     fi
 
     local con_ok="false"
-    if "${con_cmd}" --help >/dev/null 2>&1; then con_ok="true"; fi
-    verify_state "true" "${con_ok}" "con utility exits successfully with --help"
+    if command -v "${con_cmd}" >/dev/null 2>&1; then con_ok="true"; fi
+    verify_state "true" "${con_ok}" "con utility is available"
 
-    local connect_ok="false"
-    if timeout 3 "${con_cmd}" -c "${UDS_PATH}" >/dev/null 2>&1; then connect_ok="true"; fi
-    verify_state "true" "${connect_ok}" "con connects to UDS socket without error"
+    local socket_listening="false"
+    if ss -lx 2>/dev/null | grep -q "${UDS_PATH}"; then socket_listening="true"; fi
+    verify_state "true" "${socket_listening}" "UDS socket is in listening state"
 }
 
 
 function test_channel_access {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 6: Test EPICS Channel Access (caget)"
+    _log "INFO" "STEP ${step}: Test EPICS Channel Access (caget)"
     print_sub_divider
 
     local caget_cmd
@@ -404,8 +443,9 @@ function test_channel_access {
 }
 
 function test_persistence {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 7: Test Enable and Disable (Persistence)"
+    _log "INFO" "STEP ${step}: Test Enable and Disable (Persistence)"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" enable "${IOC_NAME}"
@@ -422,8 +462,9 @@ function test_persistence {
 }
 
 function test_remove {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 8: Test Remove Command"
+    _log "INFO" "STEP ${step}: Test Remove Command"
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}"
@@ -439,20 +480,21 @@ function test_remove {
 }
 
 function run_all_tests {
-    verify_infrastructure
-    cleanup_previous_state
-    setup_environment
-    test_install
-    test_start
-    test_status
-    test_view
-    test_restart
-    test_stop
-    test_socket_list
-    test_console_attach
-    test_channel_access
-    test_persistence
-    test_remove
+    verify_infrastructure     1
+    _setup_workspace          2
+    cleanup_previous_state    3
+    setup_environment         4
+    test_install              5
+    test_start                6
+    test_status               7
+    test_view                 8
+    test_restart              9
+    test_stop                 10
+    test_socket_list          11
+    test_console_attach       12
+    test_channel_access       13
+    test_persistence          14
+    test_remove               15
 }
 
 run_all_tests

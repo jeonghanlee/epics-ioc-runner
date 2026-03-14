@@ -133,8 +133,9 @@ function _run {
 # ==============================================================================
 
 function _setup {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 0: Setup Mock Environment"
+    _log "INFO" "STEP ${step}: Setup Mock Environment"
     print_sub_divider
 
     TEST_TMPDIR=$(mktemp -d)
@@ -159,8 +160,9 @@ function _cleanup {
 # Test Steps
 # ==============================================================================
 function test_usage {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 1: Usage and Help"
+    _log "INFO" "STEP ${step}: Usage and Help"
     print_sub_divider
 
     local exit_code
@@ -179,8 +181,9 @@ function test_usage {
 }
 
 function test_missing_target {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 2: Missing Target Name Errors"
+    _log "INFO" "STEP ${step}: Missing Target Name Errors"
     print_sub_divider
 
     local exit_code
@@ -202,8 +205,9 @@ function test_missing_target {
 }
 
 function test_install_errors {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 3: Install Error Paths"
+    _log "INFO" "STEP ${step}: Install Error Paths"
     print_sub_divider
 
     local exit_code
@@ -218,8 +222,9 @@ function test_install_errors {
 }
 
 function test_attach_errors {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 4: Attach Error Paths"
+    _log "INFO" "STEP ${step}: Attach Error Paths"
     print_sub_divider
 
     local exit_code
@@ -229,8 +234,9 @@ function test_attach_errors {
 }
 
 function test_list_empty {
+    local step="$1"
     print_divider
-    _log "INFO" "STEP 5: List with No Active Sockets"
+    _log "INFO" "STEP ${step}: List with No Active Sockets"
     print_sub_divider
 
     local exit_code
@@ -240,12 +246,12 @@ function test_list_empty {
 }
 
 function run_all_tests {
-    _setup
-    test_usage
-    test_missing_target
-    test_install_errors
-    test_attach_errors
-    test_list_empty
+    _setup                  1
+    test_usage              2
+    test_missing_target     3
+    test_install_errors     4
+    test_attach_errors      5
+    test_list_empty         6
 }
 
 run_all_tests
