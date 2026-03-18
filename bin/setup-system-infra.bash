@@ -41,6 +41,9 @@ declare -g PERM_BACKUP_DIR="0700"
 declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
 
+declare -g SYSTEMCTL_BIN
+SYSTEMCTL_BIN=$(command -v systemctl)
+
 
 if [[ $EUID -ne 0 ]]; then
     printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
@@ -193,15 +196,13 @@ tmp_sudoers=$(mktemp)
 
 cat <<EOF > "${tmp_sudoers}"
 # /etc/sudoers.d/10-epics-ioc
-
-# Allow trained engineers to manage ONLY EPICS template services
-%${SYSTEM_GROUP} ALL=(root) NOPASSWD: /bin/systemctl start epics-@*.service, \\
-                          /bin/systemctl stop epics-@*.service, \\
-                          /bin/systemctl restart epics-@*.service, \\
-                          /bin/systemctl status epics-@*.service, \\
-                          /bin/systemctl enable epics-@*.service, \\
-                          /bin/systemctl disable epics-@*.service, \\
-                          /bin/systemctl daemon-reload
+${SYSTEM_USER} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
+                                    ${SYSTEMCTL_BIN} stop epics-@*.service, \\
+                                    ${SYSTEMCTL_BIN} restart epics-@*.service, \\
+                                    ${SYSTEMCTL_BIN} status epics-@*.service, \\
+                                    ${SYSTEMCTL_BIN} enable epics-@*.service, \\
+                                    ${SYSTEMCTL_BIN} disable epics-@*.service, \\
+                                    ${SYSTEMCTL_BIN} daemon-reload
 EOF
 
 if visudo -cf "${tmp_sudoers}" >/dev/null 2>&1; then
@@ -247,6 +248,7 @@ Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
 SyslogIdentifier=epics-%i
@@ -262,6 +264,8 @@ verify_path "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" "
 systemctl daemon-reload
 _log "SUCCESS" "Reloaded systemd daemon."
 
+
+
 print_divider
 _log "INFO" "STEP 5: CLI Wrapper Deployment"
 print_sub_divider
@@ -269,6 +273,20 @@ print_sub_divider
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     backup_if_exists "${RUNNER_SCRIPT_DEST}"
     cp "${RUNNER_SCRIPT_SRC}" "${RUNNER_SCRIPT_DEST}"
+
+    # Inject version and build information into the deployed script
+    current_git_hash=$(git rev-parse --short HEAD 2>/dev/null || printf "unknown")
+    
+    # Check if there are uncommitted changes and append "-dirty"
+    if command -v git >/dev/null 2>&1 && ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        current_git_hash="${current_git_hash}-dirty"
+    fi
+
+    current_build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${RUNNER_SCRIPT_DEST}"
+    sed -i "s/^declare -g RUNNER_BUILD_DATE=.*/declare -g RUNNER_BUILD_DATE=\"${current_build_date}\"/" "${RUNNER_SCRIPT_DEST}"
+
     chmod "${PERM_RUNNER_SCRIPT}" "${RUNNER_SCRIPT_DEST}"
     verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
 else
@@ -276,6 +294,7 @@ else
     _log "ERROR" "Please ensure you are running this script from the repository's bin/ directory."
     exit 1
 fi
+
 
 print_divider
 _log "INFO" "Verification Summary"

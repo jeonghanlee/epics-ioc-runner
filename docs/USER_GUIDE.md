@@ -16,15 +16,20 @@ cd myioc/iocBoot/iocmyioc
 ```
 
 **Step 2: Create the Configuration File**
-Generate the `.conf` file directly inside the target boot directory.
+Generate the `.conf` file directly inside the target boot directory. 
+*Note: You can leave `IOC_PORT` empty. The `ioc-runner` will automatically generate the standard secure UNIX Domain Socket path for the system.*
+
 ```bash
 cat <<EOF > myioc.conf
-IOC_NAME="myioc"
+IOC_USER="ioc-srv"
+IOC_GROUP="ioc"
 IOC_CHDIR="/opt/epics-iocs/myioc/iocBoot/iocmyioc"
-IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/myioc/control"
+IOC_PORT=""
 IOC_CMD="./st.cmd"
 EOF
 ```
+
+*Important: Ensure your `IOC_CMD` (e.g., `st.cmd`) has execute permissions (`chmod +x st.cmd`), otherwise the installation will be strictly rejected.*
 
 **Step 3: Install the Configuration**
 Deploy the configuration to the system manager.
@@ -92,3 +97,11 @@ To permanently stop and remove an IOC from the system:
 ioc-runner remove myioc
 ```
 *This command stops the service and removes the configuration file from `/etc/procServ.d/`. It leaves your cloned repository in `/opt/epics-iocs` untouched.*
+
+
+## 6. Version Tracking
+To verify the exact version, Git commit hash, and build timestamp of the deployment tool you are using:
+
+```bash
+ioc-runner -V
+```

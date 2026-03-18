@@ -60,7 +60,9 @@ declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
 
 declare -g -a SYSTEMCTL_CMD=(systemctl --user)
 
-# --- Interrupt & Exit Handling ---
+# Set to 1 to force retention of workspace regardless of test result
+declare -g KEEP_WORKSPACE="${KEEP_WORKSPACE:-0}"
+
 function _handle_exit {
     local exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
@@ -68,14 +70,22 @@ function _handle_exit {
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
 
-    # Safely remove only the test workspace created by mktemp.
+    # Manage workspace cleanup logic based on test results and user preference
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == /tmp/epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
-        rm -rf "${WORKSPACE}"
-        _log "INFO" "Test workspace removed."
+        if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
+            print_divider
+            _log "WARN" "DEBUG: Test workspace retained for inspection."
+            _log "WARN" "Path: ${WORKSPACE}"
+            print_divider
+        else
+            rm -rf "${WORKSPACE}"
+            _log "INFO" "Test workspace removed."
+        fi
     fi
 
     print_summary
 }
+
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
 
@@ -205,7 +215,7 @@ function setup_environment {
 
     cd "${IOC_DIR}"
     if [[ ! -d "bin" ]]; then
-        _log "INFO" "Configuring local EPICS environment..."
+        _log "INFO" "Configuring EPICS environment..."
         printf "EPICS_BASE=%s\n" "${EPICS_BASE}" > configure/RELEASE.local
 
         _log "INFO" "Compiling ServiceTestIOC..."
@@ -223,7 +233,7 @@ IOC_NAME="${IOC_NAME}"
 IOC_USER="$(id -un)"
 IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${IOC_DIR}"
-IOC_PORT="unix:$(id -un):$(id -gn):0660:${UDS_PATH}"
+IOC_PORT=""
 IOC_CMD="./cmd/st.cmd"
 EOF
     _log "SUCCESS" "Configuration generated at ${CONF_FILE}"
@@ -245,6 +255,14 @@ function test_install {
 
     verify_state "true" "${conf_exist}" "Configuration file deployed to user procServ.d"
     verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) dynamically generated in user directory"
+    
+    # Verify Auto-fill / Correction of IOC_PORT
+    local injected_port=""
+    if [[ "${conf_exist}" == "true" ]]; then
+        injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)
+    fi
+    local expected_port="unix:$(id -un):$(id -gn):0660:${UDS_PATH}"
+    verify_state "${expected_port}" "${injected_port}" "IOC_PORT auto-filled correctly in deployed conf"
 }
 
 function test_start {

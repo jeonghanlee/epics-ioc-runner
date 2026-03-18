@@ -221,6 +221,53 @@ function test_install_errors {
     verify_exit_code "1" "${exit_code}" "'install' with missing system template exits 1"
 }
 
+function test_validation_errors {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Configuration Validation Errors"
+    print_sub_divider
+
+    local exit_code
+    local bad_conf="${TEST_TMPDIR}/bad_validation.conf"
+    local dummy_dir="${TEST_TMPDIR}/dummy_ioc"
+    mkdir -p "${dummy_dir}"
+
+    # 1. Illegal characters check
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${dummy_dir}"
+IOC_CMD="rm -rf /"
+EOF
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${bad_conf}")
+    verify_exit_code "1" "${exit_code}" "Install with illegal characters in CMD exits 1"
+
+    # 2. Identity mismatch check (Wrong user)
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="fake_user_999"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${dummy_dir}"
+IOC_CMD="./st.cmd"
+EOF
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${bad_conf}")
+    verify_exit_code "1" "${exit_code}" "Install with wrong local user exits 1"
+
+    # 3. Missing execute permission check
+    chmod -x "${dummy_dir}"
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${dummy_dir}"
+IOC_CMD="./st.cmd"
+EOF
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${bad_conf}")
+    verify_exit_code "1" "${exit_code}" "Install without directory execute permission exits 1"
+    chmod +x "${dummy_dir}" # Restore for cleanup
+}
+
 function test_attach_errors {
     local step="$1"
     print_divider
@@ -250,8 +297,9 @@ function run_all_tests {
     test_usage              2
     test_missing_target     3
     test_install_errors     4
-    test_attach_errors      5
-    test_list_empty         6
+    test_validation_errors  5
+    test_attach_errors      6
+    test_list_empty         7
 }
 
 run_all_tests

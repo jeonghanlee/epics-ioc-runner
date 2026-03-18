@@ -20,18 +20,19 @@ cd tcmd/iocBoot/iocctrlslab-tcmd/
 ```
 
 ## 2. Create the Configuration File
-Create a `.conf` file for your IOC. Use absolute paths or reliable command outputs (`pwd`, `id`) to ensure the configuration is portable.
+Create a `.conf` file for your IOC. Thanks to the smart auto-fill feature, you can leave `IOC_PORT` empty. The script will automatically generate the correct runtime socket path for your specific user session.
 
 ```bash
 cat <<EOF > iocctrlslab-tcmd.conf
-IOC_NAME="iocctrlslab-tcmd"
 IOC_USER="$(id -un)"
 IOC_GROUP="$(id -gn)"
 IOC_CHDIR="$(pwd)"
-IOC_PORT="unix:$(id -un):$(id -gn):0660:/run/user/$(id -u)/procserv/iocctrlslab-tcmd/control"
+IOC_PORT=""
 IOC_CMD="./st.cmd"
 EOF
 ```
+
+*Important: The configuration is strictly validated. Make sure the current user has execute permissions for both the `IOC_CHDIR` and the `IOC_CMD`.*
 
 ## 3. Install the Configuration (Local Mode)
 Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and dynamically generate the user-level systemd template (`epics-@.service`) if it does not exist.
@@ -138,3 +139,11 @@ You can then connect directly using `con`:
 con -c /run/user/1000/procserv/iocctrlslab-tcmd/control
 ```
 * **To exit the console session**: Press `Ctrl-A`.
+
+
+## 13. Version Tracking
+To verify the version of the local runner script, including the live Git hash if executing directly from a cloned repository:
+
+```bash
+~/epics-ioc-runner/bin/ioc-runner -V
+```

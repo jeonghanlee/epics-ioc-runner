@@ -57,6 +57,9 @@ declare -g OWNER_WORKSPACE="root:ioc"
 
 declare -g -a SYSTEMCTL_CMD=(systemctl)
 
+# Set to 1 to force retention of workspace regardless of test result
+declare -g KEEP_WORKSPACE="${KEEP_WORKSPACE:-0}"
+
 function _handle_exit {
     local exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
@@ -64,14 +67,22 @@ function _handle_exit {
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
 
-    # Safely remove only the test workspace created by mktemp.
+    # Manage workspace cleanup logic based on test results and user preference
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == /tmp/epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
-        rm -rf "${WORKSPACE}"
-        _log "INFO" "Test workspace removed."
+        if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
+            print_divider
+            _log "WARN" "DEBUG: Test workspace retained for inspection."
+            _log "WARN" "Path: ${WORKSPACE}"
+            print_divider
+        else
+            rm -rf "${WORKSPACE}"
+            _log "INFO" "Test workspace removed."
+        fi
     fi
 
     print_summary
 }
+
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
 
@@ -223,14 +234,14 @@ function setup_environment {
     fi
 
     chmod +x cmd/st.cmd
-
+    
     _log "INFO" "Generating Configuration File in workspace..."
     cat <<EOF > "${CONF_FILE}"
 IOC_NAME="${IOC_NAME}"
 IOC_USER="ioc-srv"
 IOC_GROUP="ioc"
 IOC_CHDIR="${IOC_DIR}"
-IOC_PORT="unix:ioc-srv:ioc:0660:${UDS_PATH}"
+IOC_PORT=""
 IOC_CMD="./cmd/st.cmd"
 EOF
     _log "SUCCESS" "Configuration generated at ${CONF_FILE}"
@@ -248,6 +259,14 @@ function test_install {
     if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
 
     verify_state "true" "${conf_exist}" "Configuration file deployed to system procServ.d"
+    
+    # Verify Auto-fill of IOC_PORT for system mode
+    local injected_port=""
+    if [[ "${conf_exist}" == "true" ]]; then
+        injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)
+    fi
+    local expected_port="unix:ioc-srv:ioc:0660:${UDS_PATH}"
+    verify_state "${expected_port}" "${injected_port}" "IOC_PORT auto-filled correctly for system mode"
 }
 
 function test_start {

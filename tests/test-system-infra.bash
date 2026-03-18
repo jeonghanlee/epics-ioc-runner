@@ -296,6 +296,7 @@ function test_successful_install {
     verify_perm "${SUDOERS_FILE}"       "root:root"            "0440"
     verify_perm "${SYSTEMD_TEMPLATE}"   "root:root"            "0644"
     verify_perm "${RUNNER_SCRIPT_DEST}" "root:root"            "0755"
+        
 }
 
 function test_idempotency {

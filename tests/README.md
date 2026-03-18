@@ -2,31 +2,55 @@
 
 This directory contains automated integration and error handling tests to verify both local user-level and system-wide systemd management architectures.
 
-## Overview
-The scripts perform a complete end-to-end validation of the `ioc-runner` wrapper. The lifecycle tests use a real EPICS IOC (ServiceTestIOC) to ensure that the entire lifecycle functions correctly in both isolated user spaces and system-wide environments. The error handling test verifies all negative exit paths without requiring EPICS or a running systemd service. The system infra test verifies the `setup-system-infra.bash` deployment script.
+## Recommended Test Sequence (SOP)
 
-Both lifecycle tests create a temporary workspace under `/tmp` at runtime and remove it automatically upon completion or failure.
+To ensure maximum reliability and prevent unintended system-wide outages, follow this specific testing order depending on your current task.
 
-## Prerequisites
+### Phase 1: Logic & Unit Validation (Development)
+Execute these tests during the initial development phase or when modifying the internal logic of the `ioc-runner` script.
+1. **test-error-handling.bash**: Verifies that the script's input validation and error paths work as expected. No EPICS environment or root privileges are required.
 
-### Lifecycle Tests
-Ensure that your EPICS environment variables are properly loaded before execution. The scripts require `EPICS_BASE` to generate the configuration and run Channel Access utilities.
+### Phase 2: Functional Validation (User-level)
+Execute this test to verify the full IOC management lifecycle without affecting system-wide services.
+2. **test-local-lifecycle.bash**: Validates the end-to-end workflow (install, start, attach, list, stop, remove) within the current user's systemd session. Requires an active EPICS environment.
+
+### Phase 3: Infrastructure & Integration (Deployment)
+Execute these tests when deploying to a new server or when modifying the infrastructure setup script (`setup-system-infra.bash`).
+3. **test-system-infra.bash**: Verifies that the system accounts, group permissions, directory ACLs, and sudoers policies are correctly established. **Requires root privileges**.
+4. **test-system-lifecycle.bash**: The final integration test. Verifies that the architecture functions correctly under the isolated `ioc-srv` account with strict system-wide permissions. **Requires prior infrastructure setup and 'ioc' group membership**.
+
+---
+
+## Debugging and Workspace Retention
+
+By default, all lifecycle tests create a temporary workspace under `/tmp/epics-ioc-test.*` and remove it automatically upon successful completion to keep the system clean.
+
+### Automatic Retention
+If a test fails or the script terminates unexpectedly (Abort), the workspace is **automatically retained**. This allows engineers to inspect generated `.conf` files, build logs, or the compiled IOC environment immediately.
+
+### Manual Retention (`KEEP_WORKSPACE`)
+To force the script to keep the workspace regardless of the test result (e.g., for manual auditing of a successful build), set the `KEEP_WORKSPACE` environment variable to `1`:
 
 ```bash
-source /opt/epics/setEpicsEnv.bash
+# Force retention for system-wide lifecycle test
+KEEP_WORKSPACE=1 bash tests/test-system-lifecycle.bash
+
+# Force retention for local lifecycle test
+KEEP_WORKSPACE=1 bash tests/test-local-lifecycle.bash
 ```
 
-The following utilities must also be available in your system path:
-* `make`, `gcc`/`g++`
-* `git`
-* `caget`
-* `con`, `procServ`
+*Note: When a workspace is retained, you are responsible for manually removing the directory after inspection.*
 
-### Error Handling Test
-No EPICS environment is required. A mock `con` binary is created automatically by the test script via `IOC_RUNNER_CON_TOOL`.
+---
 
-### System Infra Test
-Requires `sudo` or root privileges. `procServ` must be installed on the system.
+## Test Execution Guide
+
+| Mode | Command | Requirements |
+| :--- | :--- | :--- |
+| **Local Lifecycle** | `bash tests/test-local-lifecycle.bash` | `EPICS_BASE` loaded |
+| **System Lifecycle** | `bash tests/test-system-lifecycle.bash` | `EPICS_BASE`, `ioc` group |
+| **Error Handling** | `bash tests/test-error-handling.bash` | None (Mocked) |
+| **System Infra** | `sudo bash tests/test-system-infra.bash` | Root/Sudo |
 
 ## Test Execution
 
