@@ -37,6 +37,8 @@ declare -g RUNNER_VERSION="1.0.0"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
 
+declare -g NANO_TO_SEC_DIVISOR="1000000000"
+
 
 function print_divider {
     printf "%s\n" "===================================================================================================="
@@ -554,8 +556,8 @@ function do_list {
 
             local cpu_ns
             cpu_ns=$(printf "%s" "${unit_props}" | grep "CPUUsageNSec=" | cut -d'=' -f2-)
-            if [[ -n "${cpu_ns}" && "${cpu_ns}" != "18446744073709551615" ]]; then
-                cpu=$(awk "BEGIN {printf \"%.1fs\", ${cpu_ns}/1000000000}")
+            if [[ -n "${cpu_ns}" && "${cpu_ns}" != "18446744073709551615" && "${cpu_ns}" != "[not set]" ]]; then
+                cpu=$(awk -v val="${cpu_ns}" -v div="${NANO_TO_SEC_DIVISOR}" 'BEGIN {printf "%.1fs", val/div}')
             else
                 cpu="N/A"
             fi
