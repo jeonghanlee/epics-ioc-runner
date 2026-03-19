@@ -38,7 +38,7 @@ declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
 
 declare -g NANO_TO_SEC_DIVISOR="1000000000"
-
+declare -g BYTES_TO_MB_DIVISOR="1048576"
 
 function print_divider {
     printf "%s\n" "===================================================================================================="
@@ -564,8 +564,8 @@ function do_list {
 
             local mem_bytes
             mem_bytes=$(printf "%s" "${unit_props}" | grep "MemoryCurrent=" | cut -d'=' -f2-)
-            if [[ -n "${mem_bytes}" && "${mem_bytes}" != "18446744073709551615" ]]; then
-                mem=$(awk "BEGIN {printf \"%.1fM\", ${mem_bytes}/1048576}")
+            if [[ -n "${mem_bytes}" && "${mem_bytes}" != "18446744073709551615" && "${mem_bytes}" != "[not set]" ]]; then
+                mem=$(awk -v val="${mem_bytes}" -v div="${BYTES_TO_MB_DIVISOR}" 'BEGIN {printf "%.1fM", val/div}')
             else
                 mem="N/A"
             fi

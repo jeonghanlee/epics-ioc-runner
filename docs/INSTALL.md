@@ -22,6 +22,18 @@ Once the script completes successfully, manually add your authorized engineers t
 sudo usermod -aG ioc <username>
 ```
 
+### Troubleshooting: NFS `root_squash` Error
+If you execute the setup script from an NFS-mounted directory (such as a networked home directory, common in RHEL/Rocky environments), you may encounter an error indicating that `ioc-runner` could not be found or read. 
+
+This occurs because the NFS `root_squash` security feature forcibly downgrades the `sudo` (root) execution privileges to the anonymous `nobody` user, blocking the script from reading the repository files.
+
+**Workaround:** Copy the repository to a local filesystem partition (e.g., `/tmp` or `/opt`) before running the setup script.
+```bash
+cp -r /path/to/epics-ioc-runner /tmp/
+cd /tmp/epics-ioc-runner
+sudo ./bin/setup-system-infra.bash
+```
+
 ---
 
 ## 2. Manual Setup Reference (Under the Hood)
