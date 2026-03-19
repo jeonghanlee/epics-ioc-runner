@@ -22,6 +22,11 @@ Once the script completes successfully, manually add your authorized engineers t
 sudo usermod -aG ioc <username>
 ```
 
+To apply the new group membership immediately to your current terminal session without logging out, run:
+```bash
+newgrp ioc
+```
+
 ### Troubleshooting: NFS `root_squash` Error
 If you execute the setup script from an NFS-mounted directory (such as a networked home directory, common in RHEL/Rocky environments), you may encounter an error indicating that `ioc-runner` could not be found or read. 
 

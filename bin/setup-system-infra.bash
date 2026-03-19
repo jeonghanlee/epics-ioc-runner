@@ -313,4 +313,6 @@ print_divider
 _log "SUCCESS" "Secure system infrastructure setup completed."
 _log "INFO" "Add authorized engineers to the '${SYSTEM_GROUP}' group:"
 _log "INFO" "  sudo usermod -aG ${SYSTEM_GROUP} <username>"
+_log "INFO" "After adding the user, apply the new group membership immediately:"
+_log "INFO" "  newgrp ${SYSTEM_GROUP}"
 print_divider
