@@ -25,6 +25,7 @@ SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
 declare -g INFRA_SCRIPT="${SC_TOP}/../bin/setup-system-infra.bash"
+declare -g REAL_RUNNER_SRC="${SC_TOP}/../bin/ioc-runner"
 
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"
@@ -33,6 +34,8 @@ declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
 declare -g RUNNER_SCRIPT_DEST="/usr/local/bin/ioc-runner"
 declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
+
+
 
 declare -g TEST_TMPDIR
 
@@ -214,10 +217,6 @@ function _setup {
 
     TEST_TMPDIR=$(mktemp -d)
 
-    # Create a mock ioc-runner source script.
-    printf "#!/usr/bin/env bash\n" > "${TEST_TMPDIR}/ioc-runner"
-    chmod +x "${TEST_TMPDIR}/ioc-runner"
-
     _log "SUCCESS" "Test environment ready at ${TEST_TMPDIR}"
 }
 
@@ -251,8 +250,7 @@ function test_missing_procserv {
 
     local exit_code
     exit_code=$(_run_as_root \
-        "IOC_RUNNER_PROCSERV_PATH=${TEST_TMPDIR}/nonexistent" \
-        "IOC_RUNNER_SCRIPT_SRC=${TEST_TMPDIR}/ioc-runner" \
+        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
         "${INFRA_SCRIPT}")
     verify_exit_code "1" "${exit_code}" "Missing procServ exits 1"
 }
@@ -278,7 +276,7 @@ function test_successful_install {
 
     local exit_code
     exit_code=$(_run_as_root \
-        "IOC_RUNNER_SCRIPT_SRC=${TEST_TMPDIR}/ioc-runner" \
+        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
         "${INFRA_SCRIPT}")
     verify_exit_code "0" "${exit_code}" "Successful installation exits 0"
 
@@ -307,7 +305,7 @@ function test_idempotency {
 
     local exit_code
     exit_code=$(_run_as_root \
-        "IOC_RUNNER_SCRIPT_SRC=${TEST_TMPDIR}/ioc-runner" \
+        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
         "${INFRA_SCRIPT}")
     verify_exit_code "0" "${exit_code}" "Second run exits 0"
 
@@ -344,8 +342,8 @@ function test_backup_rotation {
         _log "INFO" "Running iteration ${i}/5 to trigger backup rotation..."
         local ignored
         ignored=$(_run_as_root \
-            "IOC_RUNNER_SCRIPT_SRC=${TEST_TMPDIR}/ioc-runner" \
-            "${INFRA_SCRIPT}")
+        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
+        "${INFRA_SCRIPT}")
         sleep 1
     done
 
