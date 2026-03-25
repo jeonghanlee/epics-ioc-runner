@@ -638,6 +638,14 @@ case "${COMMAND_ACTION}" in
             printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
             exit 1
         fi
+        
+        # Workaround for NFS environments lacking inotify support.
+        # Forces systemd to refresh its template cache before starting/restarting in local mode.
+        if [[ "${EXEC_MODE}" == "local" ]] && [[ "${COMMAND_ACTION}" == "start" || "${COMMAND_ACTION}" == "restart" ]]; then
+            run_systemctl daemon-reload
+        fi
+        
+        
         run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
         ;;
     *)
