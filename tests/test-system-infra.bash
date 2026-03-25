@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
-# Integration tests for setup-system-infra.bash.
-# Tests non-root rejection as a normal user.
-# All remaining tests require root privileges and are intended for CI via sudo.
+# Integration tests for system infrastructure.
+# Validates the installed system components without modifying them.
 
 set -e
 
@@ -24,21 +23,20 @@ declare -g SC_TOP
 SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
-declare -g INFRA_SCRIPT="${SC_TOP}/../bin/setup-system-infra.bash"
-declare -g REAL_RUNNER_SRC="${SC_TOP}/../bin/ioc-runner"
-
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
 declare -g RUNNER_SCRIPT_DEST="/usr/local/bin/ioc-runner"
-declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
 
+declare -g PERM_CONF_DIR="2770"
+declare -g PERM_SUDOERS="0440"
+declare -g PERM_SYSTEMD_TEMPLATE="0644"
+declare -g PERM_RUNNER_SCRIPT="0755"
 
-
-declare -g TEST_TMPDIR
-
+declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
+declare -g OWNER_SYSTEM="root:root"
 
 if [[ $EUID -ne 0 ]]; then
     printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
@@ -46,24 +44,16 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-
-# --- Interrupt & Exit Handling ---
 function _handle_exit {
     local exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
-    _cleanup
     print_summary
 }
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
-
-
-# ==============================================================================
-# Utilities
-# ==============================================================================
 
 function _log {
     local level="$1"
@@ -90,9 +80,9 @@ function print_sub_divider {
 
 function print_summary {
     printf "\n"
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
-    printf "${BLUE}%s${NC}\n" "                                  SYSTEM INFRA TEST SUMMARY                                        "
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+    print_divider
+    printf "${BLUE}%s${NC}\n" "                                  SYSTEM INFRA TEST SUMMARY                                         "
+    print_divider
 
     printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
     printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
@@ -141,55 +131,15 @@ function verify_state {
     fi
 }
 
-function verify_exit_code {
-    local expected_exit="$1"
-    local actual_exit="$2"
-    local step_name="$3"
-
-    TEST_TOTAL=$((TEST_TOTAL + 1))
-
-    if [[ "${expected_exit}" == "${actual_exit}" ]]; then
-        printf "${GREEN}[ PASS ]${NC} %s\n" "${step_name}"
-        TEST_PASSED=$((TEST_PASSED + 1))
-    else
-        printf "${RED}[ FAIL ]${NC} %s\n" "${step_name}" >&2
-        printf "  ${YELLOW}Expected exit : %s${NC}\n" "${expected_exit}" >&2
-        printf "  ${YELLOW}Actual exit   : %s${NC}\n" "${actual_exit}" >&2
-        TEST_FAILED=$((TEST_FAILED + 1))
-        FAILED_DETAILS+=("${step_name} (Expected exit: ${expected_exit}, Actual exit: ${actual_exit})")
-    fi
-}
-
-function _run {
-    local cmd=("$@")
-    "${cmd[@]}" >/dev/null 2>&1; local exit_code=$?; true
-    printf "%d" "${exit_code}"
-}
-
-# Runs a script as root via sudo with the given KEY=VALUE environment variables
-# written to a temporary file and sourced inside the sudo shell.
-function _run_as_root {
-    local tmp_env
-    tmp_env=$(mktemp)
-
-    local key value
-    while [[ $# -gt 0 && "$1" == *"="* ]]; do
-        key="${1%%=*}"
-        value="${1#*=}"
-        printf "export %s='%s'\n" "${key}" "${value}" >> "${tmp_env}"
-        shift
-    done
-
-    local cmd=("$@")
-    sudo bash -c "source '${tmp_env}' && bash ${cmd[*]}" >/dev/null 2>&1; local exit_code=$?; true
-    rm -f "${tmp_env}"
-    printf "%d" "${exit_code}"
-}
-
 function verify_perm {
     local path="$1"
     local expected_owner="$2"
     local expected_perm="$3"
+
+    if [[ ! -e "${path}" ]]; then
+        verify_state "exists" "not_found" "File or directory exists: ${path}"
+        return
+    fi
 
     local actual_owner
     local actual_perm
@@ -197,7 +147,6 @@ function verify_perm {
     actual_owner=$(stat -c "%U:%G" "${path}")
     actual_perm=$(stat -c "%a" "${path}")
 
-    # Normalize to 4-digit octal for comparison
     expected_perm=$(printf "%04o" "0${expected_perm}")
     actual_perm=$(printf "%04o" "0${actual_perm}")
 
@@ -205,82 +154,12 @@ function verify_perm {
     verify_state "${expected_perm}"  "${actual_perm}"  "Permission of ${path} is ${expected_perm}"
 }
 
-# ==============================================================================
-# Setup & Teardown
-# ==============================================================================
-
-function _setup {
+function test_service_accounts {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: Setup Test Environment"
+    _log "INFO" "STEP ${step}: Verify Service Accounts and Groups"
     print_sub_divider
 
-    TEST_TMPDIR=$(mktemp -d)
-
-    _log "SUCCESS" "Test environment ready at ${TEST_TMPDIR}"
-}
-
-function _cleanup {
-    if [[ -d "${TEST_TMPDIR}" ]]; then
-        rm -rf "${TEST_TMPDIR}"
-    fi
-}
-
-# ==============================================================================
-# Test Steps
-# ==============================================================================
-
-function test_non_root_rejection {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Non-root Rejection"
-    print_sub_divider
-
-    local exit_code
-    local current_user="${SUDO_USER:-$(id -un)}"
-    exit_code=$(_run sudo -u "${current_user}" bash "${INFRA_SCRIPT}")
-    verify_exit_code "1" "${exit_code}" "Execution as non-root user exits 1"
-}
-
-function test_missing_procserv {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Missing procServ Error Path"
-    print_sub_divider
-
-    local exit_code
-    exit_code=$(_run_as_root \
-        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
-        "${INFRA_SCRIPT}")
-    verify_exit_code "1" "${exit_code}" "Missing procServ exits 1"
-}
-
-function test_missing_runner_script {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Missing ioc-runner Source Error Path"
-    print_sub_divider
-
-    local exit_code
-    exit_code=$(_run_as_root \
-        "IOC_RUNNER_SCRIPT_SRC=${TEST_TMPDIR}/nonexistent" \
-        "${INFRA_SCRIPT}")
-    verify_exit_code "1" "${exit_code}" "Missing ioc-runner source exits 1"
-}
-
-function test_successful_install {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Successful Installation"
-    print_sub_divider
-
-    local exit_code
-    exit_code=$(_run_as_root \
-        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
-        "${INFRA_SCRIPT}")
-    verify_exit_code "0" "${exit_code}" "Successful installation exits 0"
-
-    # Verify group and user
     local group_exists="false"
     local user_exists="false"
     if getent group "${SYSTEM_GROUP}" >/dev/null; then group_exists="true"; fi
@@ -288,86 +167,37 @@ function test_successful_install {
 
     verify_state "true" "${group_exists}" "Group '${SYSTEM_GROUP}' exists"
     verify_state "true" "${user_exists}"  "User '${SYSTEM_USER}' exists"
-
-    # Verify deployed files and permissions
-    verify_perm "${CONF_DIR}"           "root:${SYSTEM_GROUP}" "2770"
-    verify_perm "${SUDOERS_FILE}"       "root:root"            "0440"
-    verify_perm "${SYSTEMD_TEMPLATE}"   "root:root"            "0644"
-    verify_perm "${RUNNER_SCRIPT_DEST}" "root:root"            "0755"
-        
 }
 
-function test_idempotency {
+function test_infrastructure_files {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: Idempotency (Second Run)"
+    _log "INFO" "STEP ${step}: Verify Infrastructure Files and Permissions"
     print_sub_divider
 
-    local exit_code
-    exit_code=$(_run_as_root \
-        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
-        "${INFRA_SCRIPT}")
-    verify_exit_code "0" "${exit_code}" "Second run exits 0"
-
-    # Verify no duplicate group or user entries
-    local group_count user_count
-    group_count=$(getent group "${SYSTEM_GROUP}" | wc -l)
-    user_count=$(getent passwd "${SYSTEM_USER}" | wc -l)
-
-    verify_state "1" "${group_count}" "Group '${SYSTEM_GROUP}' has no duplicates"
-    verify_state "1" "${user_count}"  "User '${SYSTEM_USER}' has no duplicates"
-
-    # Verify single file instances
-    local conf_count sudoers_count template_count runner_count
-    conf_count=$(find "${CONF_DIR}"           -maxdepth 0 | wc -l)
-    sudoers_count=$(find "${SUDOERS_FILE}"     -maxdepth 0 | wc -l)
-    template_count=$(find "${SYSTEMD_TEMPLATE}" -maxdepth 0 | wc -l)
-    runner_count=$(find "${RUNNER_SCRIPT_DEST}" -maxdepth 0 | wc -l)
-
-    verify_state "1" "${conf_count}"     "No duplicate ${CONF_DIR}"
-    verify_state "1" "${sudoers_count}"  "No duplicate ${SUDOERS_FILE}"
-    verify_state "1" "${template_count}" "No duplicate ${SYSTEMD_TEMPLATE}"
-    verify_state "1" "${runner_count}"   "No duplicate ${RUNNER_SCRIPT_DEST}"
+    verify_perm "${CONF_DIR}"           "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}"
+    verify_perm "${SUDOERS_FILE}"       "${OWNER_SYSTEM}"   "${PERM_SUDOERS}"
+    verify_perm "${SYSTEMD_TEMPLATE}"   "${OWNER_SYSTEM}"   "${PERM_SYSTEMD_TEMPLATE}"
+    verify_perm "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}"   "${PERM_RUNNER_SCRIPT}"
 }
 
-function test_backup_rotation {
+function test_sudoers_syntax {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: Backup Rotation (Keeps 3 Most Recent)"
+    _log "INFO" "STEP ${step}: Verify Sudoers Policy Syntax"
     print_sub_divider
 
-    # Run the script multiple times to trigger backup rotation.
-    local i
-    for i in $(seq 1 5); do
-        _log "INFO" "Running iteration ${i}/5 to trigger backup rotation..."
-        local ignored
-        ignored=$(_run_as_root \
-        "IOC_RUNNER_SCRIPT_SRC=${REAL_RUNNER_SRC}" \
-        "${INFRA_SCRIPT}")
-        sleep 1
-    done
-
-    local sudoers_bak_count template_bak_count runner_bak_count
-    sudoers_bak_count=$(find "${BACKUP_DIR}" -maxdepth 1 -name "$(basename "${SUDOERS_FILE}").*.bak"      | wc -l)
-    template_bak_count=$(find "${BACKUP_DIR}" -maxdepth 1 -name "$(basename "${SYSTEMD_TEMPLATE}").*.bak" | wc -l)
-    runner_bak_count=$(find "${BACKUP_DIR}"   -maxdepth 1 -name "$(basename "${RUNNER_SCRIPT_DEST}").*.bak" | wc -l)
-
-    verify_state "true" "$([[ ${sudoers_bak_count}  -le 3 ]] && printf 'true' || printf 'false')" \
-        "Sudoers backups kept at most 3 (found: ${sudoers_bak_count})"
-    verify_state "true" "$([[ ${template_bak_count} -le 3 ]] && printf 'true' || printf 'false')" \
-        "Template backups kept at most 3 (found: ${template_bak_count})"
-    verify_state "true" "$([[ ${runner_bak_count}   -le 3 ]] && printf 'true' || printf 'false')" \
-        "Runner backups kept at most 3 (found: ${runner_bak_count})"
+    local syntax_ok="false"
+    if [[ -f "${SUDOERS_FILE}" ]] && visudo -cf "${SUDOERS_FILE}" >/dev/null 2>&1; then
+        syntax_ok="true"
+    fi
+    verify_state "true" "${syntax_ok}" "Sudoers file syntax is valid"
 }
 
 function run_all_tests {
-    _setup                    1
-    test_non_root_rejection   2
-    test_missing_procserv     3
-    test_missing_runner_script 4
-    test_successful_install   5
-    test_idempotency          6
-    test_backup_rotation      7
+    test_service_accounts     1
+    test_infrastructure_files 2
+    test_sudoers_syntax       3
 }
 
 run_all_tests

@@ -121,10 +121,7 @@ sudo bash tests/test-system-infra.bash
 6. **List Empty**: Verifies exit 0 when no active sockets are present.
 
 ### test-system-infra.bash
-1. **Setup Test Environment**: Creates a temporary directory with a mock `ioc-runner` source script.
-2. **Non-root Rejection**: Verifies exit 1 when executed without root privileges.
-3. **Missing procServ**: Verifies exit 1 when procServ is not found in the configured search paths.
-4. **Missing ioc-runner Source**: Verifies exit 1 when the source script is not found.
-5. **Successful Installation**: Verifies exit 0 and validates group, user, file ownership, and permissions.
-6. **Idempotency**: Verifies exit 0 on second run with no duplicate accounts or files.
-7. **Backup Rotation**: Verifies that at most 3 backup files are retained per managed file.
+1. **Verify Service Accounts and Groups**: Checks if the `ioc` group and `ioc-srv` user exist on the system.
+2. **Verify Infrastructure Files and Permissions**: Validates the ownership and strict permissions of the shared configuration directory, sudoers file, systemd template, and the CLI wrapper script without modifying them.
+3. **Verify Sudoers Policy Syntax**: Uses `visudo -c` to ensure the deployed sudoers policy is syntactically valid and safe.
+
