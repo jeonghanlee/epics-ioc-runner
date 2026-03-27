@@ -60,7 +60,6 @@ declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
 
 declare -g -a SYSTEMCTL_CMD=(systemctl --user)
 
-# Set to 1 to force retention of workspace regardless of test result
 declare -g KEEP_WORKSPACE="${KEEP_WORKSPACE:-0}"
 
 function _handle_exit {
@@ -70,8 +69,7 @@ function _handle_exit {
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
 
-    # Manage workspace cleanup logic based on test results and user preference
-    if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == /tmp/epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
+    if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
         if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
             print_divider
             _log "WARN" "DEBUG: Test workspace retained for inspection."
@@ -88,10 +86,6 @@ function _handle_exit {
 
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
-
-# ==============================================================================
-# Utilities
-# ==============================================================================
 
 function _log {
     local level="$1"
@@ -118,9 +112,9 @@ function print_sub_divider {
 
 function print_summary {
     printf "\n"
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+    print_divider
     printf "${BLUE}%s${NC}\n" "                                     LOCAL LIFECYCLE TEST SUMMARY                                   "
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+    print_divider
 
     printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
     printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
@@ -170,10 +164,6 @@ function verify_state {
     fi
 }
 
-# ==============================================================================
-# Test Steps
-# ==============================================================================
-
 function cleanup_previous_state {
     local step="$1"
     print_divider
@@ -182,7 +172,6 @@ function cleanup_previous_state {
 
     bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
 
-    # Reset local template strictly to verify 'install' creates it dynamically
     rm -f "${SYSTEMD_USER_DIR}/epics-@.service"
     systemctl --user daemon-reload || true
 
@@ -195,7 +184,12 @@ function _setup_workspace {
     _log "INFO" "STEP ${step}: Setup Test Workspace"
     print_sub_divider
 
-    WORKSPACE=$(mktemp -d --tmpdir epics-ioc-test.XXXXXX)
+    local target_tmp="${TMPDIR:-/dev/shm}"
+    if [[ ! -d "${target_tmp}" || ! -w "${target_tmp}" ]]; then
+        target_tmp="/tmp"
+    fi
+
+    WORKSPACE=$(mktemp -d -p "${target_tmp}" epics-ioc-test.XXXXXX)
     IOC_DIR="${WORKSPACE}/${IOC_NAME}"
     CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
 
@@ -256,7 +250,6 @@ function test_install {
     verify_state "true" "${conf_exist}" "Configuration file deployed to user procServ.d"
     verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) dynamically generated in user directory"
     
-    # Verify Auto-fill / Correction of IOC_PORT
     local injected_port=""
     if [[ "${conf_exist}" == "true" ]]; then
         injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)
@@ -345,7 +338,6 @@ function test_stop {
     verify_state "active" "${state}" "Service is active after restart following stop"
 }
 
-
 function test_socket_list {
     local step="$1"
     print_divider
@@ -368,7 +360,6 @@ function test_socket_list {
     verify_state "true" "${ioc_in_output}"      "IOC name appears in list output"
     verify_state "true" "${uds_in_output}"      "UDS socket path appears in list output"
 
-    # Test verbose level 1
     local output_v
     output_v=$(bash "${RUNNER_SCRIPT}" --local -v list)
 
@@ -383,7 +374,6 @@ function test_socket_list {
     verify_state "true" "${cpu_in_output}" "List -v output contains CPU column"
     verify_state "true" "${mem_in_output}" "List -v output contains MEM column"
 
-    # Test verbose level 2
     local output_vv
     output_vv=$(bash "${RUNNER_SCRIPT}" --local -vv list)
 
@@ -398,9 +388,7 @@ function test_socket_list {
     verify_state "true" "${recv_in_output}" "List -vv output contains Recv-Q column"
     verify_state "true" "${sq_in_output}" "List -vv output contains Send-Q column"
     verify_state "true" "${perm_in_output}" "List -vv output contains PERM column"
-
 }
-
 
 function test_console_attach {
     local step="$1"

@@ -44,9 +44,12 @@ declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
 declare -g RUN_DIR="/run/procserv"
 
-
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g IOC_NAME="ServiceTestIOC-SYS"
+
+# Global settings for system identity and workspace permissions
+declare -g SYSTEM_USER="ioc-srv"
+declare -g SYSTEM_GROUP="ioc"
 
 declare -g WORKSPACE=""
 declare -g IOC_DIR=""
@@ -57,7 +60,6 @@ declare -g OWNER_WORKSPACE="root:ioc"
 
 declare -g -a SYSTEMCTL_CMD=(systemctl)
 
-# Set to 1 to force retention of workspace regardless of test result
 declare -g KEEP_WORKSPACE="${KEEP_WORKSPACE:-0}"
 
 function _handle_exit {
@@ -67,8 +69,7 @@ function _handle_exit {
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
 
-    # Manage workspace cleanup logic based on test results and user preference
-    if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == /tmp/epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
+    if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
         if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
             print_divider
             _log "WARN" "DEBUG: Test workspace retained for inspection."
@@ -111,9 +112,9 @@ function print_sub_divider {
 
 function print_summary {
     printf "\n"
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+    print_divider
     printf "${BLUE}%s${NC}\n" "                                    SYSTEM LIFECYCLE TEST SUMMARY                                   "
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+    print_divider
 
     printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
     printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
@@ -163,7 +164,6 @@ function verify_state {
     fi
 }
 
-
 function verify_infrastructure {
     local step="$1"
     print_divider
@@ -189,12 +189,16 @@ function _setup_workspace {
     _log "INFO" "STEP ${step}: Setup Test Workspace"
     print_sub_divider
 
-    WORKSPACE=$(mktemp -d --tmpdir epics-ioc-test.XXXXXX)
+    local target_tmp="${TMPDIR:-/dev/shm}"
+    if [[ ! -d "${target_tmp}" || ! -w "${target_tmp}" ]]; then
+        target_tmp="/tmp"
+    fi
+
+    WORKSPACE=$(mktemp -d -p "${target_tmp}" epics-ioc-test.XXXXXX)
     IOC_DIR="${WORKSPACE}/${IOC_NAME}"
     CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
 
-    # Restrict ownership and permissions to match production IOC workspace.
-    chgrp ioc "${WORKSPACE}"
+    chgrp "${OWNER_WORKSPACE#*:}" "${WORKSPACE}"
     chmod "${PERM_WORKSPACE}" "${WORKSPACE}"
 
     _log "SUCCESS" "Test workspace created at ${WORKSPACE}"
@@ -238,8 +242,8 @@ function setup_environment {
     _log "INFO" "Generating Configuration File in workspace..."
     cat <<EOF > "${CONF_FILE}"
 IOC_NAME="${IOC_NAME}"
-IOC_USER="ioc-srv"
-IOC_GROUP="ioc"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
 IOC_CHDIR="${IOC_DIR}"
 IOC_PORT=""
 IOC_CMD="./cmd/st.cmd"
@@ -260,12 +264,11 @@ function test_install {
 
     verify_state "true" "${conf_exist}" "Configuration file deployed to system procServ.d"
     
-    # Verify Auto-fill of IOC_PORT for system mode
     local injected_port=""
     if [[ "${conf_exist}" == "true" ]]; then
         injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)
     fi
-    local expected_port="unix:ioc-srv:ioc:0660:${UDS_PATH}"
+    local expected_port="unix:${SYSTEM_USER}:${SYSTEM_GROUP}:0660:${UDS_PATH}"
     verify_state "${expected_port}" "${injected_port}" "IOC_PORT auto-filled correctly for system mode"
 }
 
@@ -371,7 +374,6 @@ function test_socket_list {
     verify_state "true" "${ioc_in_output}"      "IOC name appears in list output"
     verify_state "true" "${uds_in_output}"      "UDS socket path appears in list output"
 
-    # Test verbose level 1
     local output_v
     output_v=$(bash "${RUNNER_SCRIPT}" -v list)
 
@@ -386,7 +388,6 @@ function test_socket_list {
     verify_state "true" "${cpu_in_output}" "List -v output contains CPU column"
     verify_state "true" "${mem_in_output}" "List -v output contains MEM column"
 
-    # Test verbose level 2
     local output_vv
     output_vv=$(bash "${RUNNER_SCRIPT}" -vv list)
 
@@ -401,9 +402,7 @@ function test_socket_list {
     verify_state "true" "${recv_in_output}" "List -vv output contains Recv-Q column"
     verify_state "true" "${sq_in_output}" "List -vv output contains Send-Q column"
     verify_state "true" "${perm_in_output}" "List -vv output contains PERM column"
-
 }
-
 
 function test_console_attach {
     local step="$1"
@@ -433,7 +432,6 @@ function test_console_attach {
     if ss -lx 2>/dev/null | grep -q "${UDS_PATH}"; then socket_listening="true"; fi
     verify_state "true" "${socket_listening}" "UDS socket is in listening state"
 }
-
 
 function test_channel_access {
     local step="$1"
