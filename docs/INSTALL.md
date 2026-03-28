@@ -78,17 +78,17 @@ cat <<EOF > /etc/sudoers.d/10-epics-ioc
                           ${SYSTEMCTL_BIN} disable epics-@*.service, \\
                           ${SYSTEMCTL_BIN} daemon-reload
 EOF
-```
-Apply strict permissions to the sudoers file:
-```bash
+
 chmod 0440 /etc/sudoers.d/10-epics-ioc
 ```
 
 ### 2.4. Systemd Template Unit Deployment
-Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide.
+Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide. Resolve the `procServ` path dynamically to accommodate different installation targets (e.g., `/usr/bin` vs `/usr/local/bin`).
 
-Create `/etc/systemd/system/epics-@.service`:
-```ini
+```bash
+PROCSERV_BIN=$(command -v procServ)
+
+cat <<EOF > /etc/systemd/system/epics-@.service
 [Unit]
 Description=procServ for %i
 After=network.target remote-fs.target
@@ -100,7 +100,7 @@ User=ioc-srv
 Group=ioc
 EnvironmentFile=/etc/procServ.d/%i.conf
 RuntimeDirectory=procserv/%i
-ExecStart=/usr/bin/procServ --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=${IOC_CHDIR} --port=${IOC_PORT} ${IOC_CMD}
+ExecStart=${PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -108,10 +108,8 @@ SyslogIdentifier=epics-%i
 
 [Install]
 WantedBy=multi-user.target
-```
+EOF
 
-Reload the systemd daemon to recognize the new template:
-```bash
 systemctl daemon-reload
 ```
 

@@ -1,6 +1,8 @@
 # EPICS IOC Runner - Documentation
 
-This directory contains the complete documentation for deploying, managing, and understanding the `epics-ioc-runner` architecture. The documentation is divided into architectural overviews, system administrator guides, and end-user operational manuals.
+**The `epics-ioc-runner` is a zero-dependency, systemd-native architecture designed for securely deploying and managing EPICS IOCs in both production and isolated local environments.**
+
+This directory contains the complete documentation for deploying, managing, and understanding the architecture. The documentation is divided into architectural overviews, system administrator guides, and end-user operational manuals.
 
 ## Prerequisites and Operational Facts
 * **EPICS Environment Permissions**: When running in system-wide mode, the IOC daemon operates under the restricted `ioc-srv` user account. If your EPICS environment is dynamically linked, you must ensure that the `ioc-srv` user has directory traversal (`+x`) and read (`+r`) permissions for the entire path where EPICS Base and modules are installed. Restricted parent directories (like a user's home directory) will cause dynamic linker (`ld.so`) failures (Exit Code 127).

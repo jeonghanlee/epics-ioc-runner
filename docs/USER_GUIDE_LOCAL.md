@@ -136,7 +136,7 @@ The output will display the full path, which typically follows this pattern for 
 
 You can then connect directly using `con`:
 ```bash
-con -c /run/user/1000/procserv/iocctrlslab-tcmd/control
+con -c /run/user/$(id -u)/procserv/iocctrlslab-tcmd/control
 ```
 * **To exit the console session**: Press `Ctrl-A`.
 

@@ -23,7 +23,7 @@ Generate the `.conf` file directly inside the target boot directory.
 cat <<EOF > myioc.conf
 IOC_USER="ioc-srv"
 IOC_GROUP="ioc"
-IOC_CHDIR="/opt/epics-iocs/myioc/iocBoot/iocmyioc"
+IOC_CHDIR="$(pwd)"
 IOC_PORT=""
 IOC_CMD="./st.cmd"
 EOF
@@ -99,7 +99,34 @@ ioc-runner remove myioc
 *This command stops the service and removes the configuration file from `/etc/procServ.d/`. It leaves your cloned repository in `/opt/epics-iocs` untouched.*
 
 
-## 6. Version Tracking
+## 6. List Managed IOCs
+You can view the active UNIX Domain Sockets and statuses for all system-wide managed IOCs using the `list` command.
+
+```bash
+ioc-runner list
+```
+*(For detailed metrics including PID, CPU, and Memory, use `ioc-runner -v list`)*
+
+
+## 7. Direct Console Access (Alternative)
+While the `attach` command automatically resolves the socket path, you can also connect to the UNIX Domain Socket directly using the `con` utility.
+
+First, find the exact UDS path for your active IOCs using the `list` command:
+```bash
+ioc-runner list
+```
+
+The output will display the full path, which typically follows this pattern for system-wide sessions:
+`/run/procserv/<ioc_name>/control`
+
+You can then connect directly using `con`:
+```bash
+con -c /run/procserv/myioc/control
+```
+* **To exit the console session**: Press `Ctrl-A`.
+
+
+## 8. Version Tracking
 To verify the exact version, Git commit hash, and build timestamp of the deployment tool you are using:
 
 ```bash

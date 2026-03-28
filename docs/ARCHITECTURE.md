@@ -7,7 +7,7 @@ This architecture defines a robust, dependency-free environment for managing EPI
 ```text
 [ Trained Engineers (ioc group) ]
         |
-        |-- (1. Config) --> [ /etc/procServ.d/myioc.conf (Local config dir, 2770) ]
+        |-- (1. Config) --> [ /etc/procServ.d/myioc.conf (Shared config dir, 2770) ]
         |
         |-- (2. Control) --> [ sudo systemctl start epics-@myioc.service ]
                                                 |
@@ -21,7 +21,7 @@ This architecture defines a robust, dependency-free environment for managing EPI
                                                 |
                                                 |---> Comm --> [ UNIX Domain Socket ]
                                                                      A
-        |-- (3. Local Access) --> [ con Utility ] -------------------|
+        |-- (3. Console Access) --> [ con Utility ] -----------------|
 ```
 
 ---
@@ -33,7 +33,9 @@ This architecture defines a robust, dependency-free environment for managing EPI
 * **`ioc` group**: The management group for trained engineers. Grants passwordless write access to `/etc/procServ.d/` via strict SetGID (`2770`) permissions, ensuring other unauthorized users cannot read or modify configurations.
 
 ### 2.2. Sudoers Configuration
-Instead of relying on fragmented Polkit rules or overly broad wildcards, service control is delegated explicitly and strictly via `/etc/sudoers.d/10-epics-ioc`.
+Instead of relying on fragmented Polkit rules or overly broad wildcards, service control is delegated explicitly and strictly via `/etc/sudoers.d/10-epics-ioc`. 
+
+*Note: The absolute path to `systemctl` may vary depending on the Linux distribution (e.g., `/usr/bin/systemctl`). The deployment script resolves this automatically.*
 
 ```bash
 # Allow trained engineers to manage ONLY EPICS template services
@@ -57,6 +59,4 @@ The core of this architecture is a single, static systemd template file located 
 A pure Bash utility to manage IOC configurations. It copies user-defined `.conf` files to the target directory and issues the appropriate `systemctl` commands. It inherently supports the symmetry of this architecture by allowing both system-wide deployment (`sudo systemctl`) and isolated local testing (`systemctl --user` via the `--local` flag) using the exact same template logic.
 
 ### 3.3. con (Local Console Access)
-A C++ based terminal emulator replacing `socat` or `minicom` to provide seamless terminal session control to the UDS.
-
-
+A C++ based terminal emulator replacing `socat` or `minicom`. It provides seamless terminal session control by connecting directly to the secure UNIX Domain Sockets created by `procServ`.

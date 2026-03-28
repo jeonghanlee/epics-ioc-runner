@@ -38,18 +38,23 @@ epics-ioc-runner/
 │   ├── ARCHITECTURE.md           # Architecture overview and security model
 │   ├── EXIT_SIGNAL_HANDLING.md   # Signal propagation and systemd exit status technical note
 │   ├── INSTALL.md                # System installation and infrastructure setup guide
-│   ├── README.md                 # Documentation index for the docs directory
 │   ├── USER_GUIDE.md             # System-wide operations and IOC management guide
 │   └── USER_GUIDE_LOCAL.md       # Local isolated testing guide for engineers
 ├── policy/
-│   └── 10-epics-ioc.example      # Sudoers configuration reference/example for RBAC
+│   ├── 10-epics-ioc_debian13_example # Sudoers configuration reference for Debian 13
+│   └── 10-epics-ioc_rocky8_example   # Sudoers configuration reference for Rocky 8
+├── system-wide/                  # Integration documentation for external management tools
+│   ├── cockpit/
+│   │   └── docs/ARCHITECTURE.md  # Architecture for Cockpit web-based management
+│   └── conserver/
+│       └── docs/ARCHITECTURE.md  # Architecture for Conserver centralized console management
 ├── tests/
 │   ├── run-all-tests.bash        # Master script to execute all test suites sequentially
-│   ├── test-local-lifecycle.bash # Automated integration tests for local execution
-│   ├── test-system-lifecycle.bash# Automated integration tests for system-wide execution
 │   ├── test-error-handling.bash  # Negative-path and error handling tests for ioc-runner
+│   ├── test-local-lifecycle.bash # Automated integration tests for local execution
 │   ├── test-system-infra.bash    # Integration tests for setup-system-infra.bash
-│   └── README.md                 # Test execution guide
+│   ├── test-system-lifecycle.bash# Automated integration tests for system-wide execution
+│   └── README.md                 # Test execution guide and verified behaviors
 ├── LICENSE                       # MIT License
 └── README.md                     # Project overview and key features
 ```
