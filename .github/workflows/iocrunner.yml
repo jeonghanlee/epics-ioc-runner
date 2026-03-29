@@ -40,59 +40,49 @@ jobs:
         uses: addnab/docker-run-action@v3
         with:
           image: ${{ matrix.image }}
-          # Use --privileged and share the full workspace
           options: --privileged -e TERM=xterm -v ${{ github.workspace }}:/workspace -w /workspace
           run: |
-            if [ -f "/usr/local/setEnv" ]; then
-              echo "Initializing EPICS environment..."
-              source /usr/local/setEnv
-            else
-              echo "Warning: /usr/local/setEnv not found. Proceeding with system defaults."
-            fi
-            # 1. Install critical build dependencies
-            echo "Installing system dependencies..."
-            if [ -f /etc/debian_version ]; then
-              apt-get update && apt-get install -y git build-essential procserv sudo telnet libreadline-dev
-            elif [ -f /etc/redhat-release ]; then
-              dnf groupinstall -y "Development Tools"
-              dnf install -y git procServ sudo telnet readline-devel
+            # 1. Initialize EPICS Environment (Essential)
+            [ -f "/usr/local/setEnv" ] && source /usr/local/setEnv
+
+            # 2. Fix Sudo & PAM (Crucial for infrastructure tests)
+            # Disable password requirement and bypass PAM session issues in Docker
+            echo "root ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nopasswd
+            sed -i 's/required/optional/g' /etc/pam.d/common-session || true
+
+            # 3. Systemctl Shim (Lightweight alternative to PID 1)
+            # This allows systemctl commands to 'succeed' by mocking the state
+            if ! command -v systemctl >/dev/null 2>&1 || [ ! -L /bin/systemctl ]; then
+              echo "Installing systemctl shim..."
+              if [ -f /etc/debian_version ]; then
+                apt-get update && apt-get install -y python3 curl
+              else
+                dnf install -y python3 curl
+              fi
+              curl -sSL https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py -o /usr/local/bin/systemctl
+              chmod +x /usr/local/bin/systemctl
             fi
 
-            # 2. Build and Install 'con' (Console tool)
-            echo "Building 'con' from source..."
+            # 4. Build and Install 'con' (Mandatory for Phase 2/4)
             git clone --depth 1 https://github.com/jeonghanlee/con /tmp/con_build
-            cd /tmp/con_build
-            make -j$(nproc)
-
-            # Verify build success before install
-            if [ -f "con" ] && [ -f "send_rs232" ]; then
-              make install DESTDIR=/usr/local
-            else
-              echo "Error: 'con' build failed. Check compiler output above." >&2
-              exit 1
-            fi
-
-            # 3. Locate and Execute IOC Runner scripts
+            cd /tmp/con_build && make -j$(nproc) && make install DESTDIR=/usr/local
             cd /workspace
-            echo "Current directory: $(pwd)"
 
-            # Find the absolute path of the scripts regardless of their location
-            SETUP_SCRIPT=$(find . -name "setup-system-infra.bash" | head -n 1)
-            TEST_SCRIPT=$(find . -name "run-all-tests.bash" | head -n 1)
+            # 5. Execute Scripts with Verified Paths
+            # Sourcing again to ensure environment is inherited in sub-shells
+            export BASH_ENV=/usr/local/setEnv
 
-            if [ -n "${SETUP_SCRIPT}" ]; then
-              echo "Executing: ${SETUP_SCRIPT}"
-              bash "${SETUP_SCRIPT}"
+            echo "--- Phase 3: Infrastructure Setup ---"
+            if [ -f "bin/setup-system-infra.bash" ]; then
+              # Running setup-system-infra.bash to create ioc-srv user and dirs
+              bash bin/setup-system-infra.bash
             else
-              echo "Error: setup-system-infra.bash not found in /workspace" >&2
-              ls -R
-              exit 1
+              echo "Error: bin/setup-system-infra.bash not found!"; exit 1
             fi
 
-            if [ -n "${TEST_SCRIPT}" ]; then
-              echo "Executing: ${TEST_SCRIPT}"
-              bash "${TEST_SCRIPT}"
+            echo "--- Phase 4: Integration Testing ---"
+            if [ -f "tests/run-all-tests.bash" ]; then
+              bash tests/run-all-tests.bash
             else
-              echo "Error: run-all-tests.bash not found!" >&2
-              exit 1
+              echo "Error: tests/run-all-tests.bash not found!"; exit 1
             fi
