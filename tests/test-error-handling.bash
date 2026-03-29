@@ -238,7 +238,7 @@ IOC_NAME="test"
 IOC_USER="$(id -un)"
 IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
-IOC_CMD="rm -rf /"
+IOC_CMD="rm -rf /; echo hacked"
 EOF
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
     verify_exit_code "1" "${exit_code}" "Install with illegal characters in CMD exits 1"

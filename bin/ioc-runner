@@ -595,7 +595,7 @@ function do_list {
         connections=0
         while read -r line; do
             if [[ "${line}" == *"${sock}"* ]]; then
-                ((connections++))
+                connections=$((connections + 1))
             fi
         done <<< "${ss_output}"
 
@@ -743,7 +743,7 @@ case "${COMMAND_ACTION}" in
 
         # Health check: Verify if the service crashed immediately after starting
         sleep 0.5
-        local post_state
+
         post_state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
 
         if [[ "${post_state}" != "active" ]]; then
