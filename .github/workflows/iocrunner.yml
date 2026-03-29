@@ -36,14 +36,14 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
 
-      - name: Run tests in container
+      - name: Execute Tests in Docker
         uses: addnab/docker-run-action@v3
         with:
           image: ${{ matrix.image }}
-          # Privileged mode is required for systemd and UDS testing
-          options: --privileged -e TERM=xterm
+          # Ensure we are working from the repository root
+          options: --privileged -e TERM=xterm -w /github/workspace
           run: |
-            # 1. Install minimal system dependencies
+            # 1. Install system dependencies for 'con' build and testing
             if [ -f /etc/debian_version ]; then
               apt-get update && apt-get install -y git build-essential procserv sudo telnet libreadline-dev
             elif [ -f /etc/redhat-release ]; then
@@ -51,22 +51,36 @@ jobs:
               dnf install -y git procServ sudo telnet readline-devel
             fi
 
-            # 2. Provisioning via pkg_automation for Vanilla OS (Ubuntu)
-            if [ "${{ matrix.use_pkg_auto }}" = "true" ]; then
-              git clone --depth 1 https://github.com/jeonghanlee/pkg_automation /tmp/pkg_auto
-              bash /tmp/pkg_auto/pkg_automation.bash --yes
-            fi
-
-            # 3. Build and Install 'con' (Console tool)
-            # This tool is essential for attaching to procServ via UNIX domain sockets
-            echo "Installing 'con' from source..."
+            # 2. Build and Install 'con' (Console tool)
+            # Compilation must happen before running tests that depend on 'con'
             git clone --depth 1 https://github.com/jeonghanlee/con /tmp/con_build
             cd /tmp/con_build
             make -j$(nproc)
-            make install DESTDIR=/usr/local
-            cd - && rm -rf /tmp/con_build
+            # Verify if binaries are created before installation to avoid 'No such file' errors
+            if [ -f "con" ] && [ -f "send_rs232" ]; then
+              make install DESTDIR=/usr/local
+            else
+              echo "Error: 'con' or 'send_rs232' build failed." >&2
+              exit 1
+            fi
 
-            # 4. Infrastructure Setup and Full Test Execution
-            # Verify system-wide configuration and lifecycle (Phases 1-4)
-            bash setup-system-infra.bash
-            bash tests/run-all-tests.bash
+            # 3. Return to root and execute scripts using corrected paths
+            cd /github/workspace
+
+            # Setup infrastructure (Located in bin/ as pointed out)
+            if [ -f "bin/setup-system-infra.bash" ]; then
+              bash bin/setup-system-infra.bash
+            else
+              echo "Error: bin/setup-system-infra.bash not found. Check repository structure." >&2
+              ls -R bin/
+              exit 1
+            fi
+
+            # Run all tests
+            if [ -f "tests/run-all-tests.bash" ]; then
+              bash tests/run-all-tests.bash
+            else
+              echo "Error: tests/run-all-tests.bash not found." >&2
+              ls -R tests/
+              exit 1
+            fi
