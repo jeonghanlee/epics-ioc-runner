@@ -28,7 +28,7 @@ newgrp ioc
 ```
 
 ### Troubleshooting: NFS `root_squash` Error
-If you execute the setup script from an NFS-mounted directory (such as a networked home directory, common in RHEL/Rocky environments), you may encounter an error indicating that `ioc-runner` could not be found or read. 
+If you execute the setup script from an NFS-mounted directory (such as a networked home directory, common in RHEL/Rocky environments), you may encounter an error indicating that `ioc-runner` could not be found or read.
 
 This occurs because the NFS `root_squash` security feature forcibly downgrades the `sudo` (root) execution privileges to the anonymous `nobody` user, blocking the script from reading the repository files.
 
@@ -63,7 +63,7 @@ chmod 2770 /etc/procServ.d/
 ```
 
 ### 2.3. Sudoers Configuration (Restricted)
-Allow members of the `ioc` group to manage only specific `epics-@*.service` systemd instances securely. 
+Allow members of the `ioc` group to manage only specific `epics-@*.service` systemd instances securely.
 
 Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file:
 ```bash
@@ -85,13 +85,17 @@ chmod 0440 /etc/sudoers.d/10-epics-ioc
 ### 2.4. Systemd Template Unit Deployment
 Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide. Resolve the `procServ` path dynamically to accommodate different installation targets (e.g., `/usr/bin` vs `/usr/local/bin`).
 
+**Note on Time Synchronization:** The template explicitly requires `time-sync.target` to ensure that NTP/PTP time synchronization is fully established before the IOC daemon starts. This is critical for maintaining accurate timestamps for the Archiver Appliance and MRF timing systems.
+
+
 ```bash
 PROCSERV_BIN=$(command -v procServ)
 
 cat <<EOF > /etc/systemd/system/epics-@.service
 [Unit]
 Description=procServ for %i
-After=network.target remote-fs.target
+Wants=time-sync.target
+After=network.target remote-fs.target time-sync.target
 AssertFileNotEmpty=/etc/procServ.d/%i.conf
 
 [Service]
@@ -160,7 +164,7 @@ sudo mount /opt/epics-iocs
 ```
 
 ### 4.1. EPICS Environment and Shared Libraries Permissions
-The `ioc-srv` account must have execute (`+x`) and read (`+r`) permissions for the entire EPICS environment where the Base and modules (e.g., `asyn`, `seq`) are installed. 
+The `ioc-srv` account must have execute (`+x`) and read (`+r`) permissions for the entire EPICS environment where the Base and modules (e.g., `asyn`, `seq`) are installed.
 
 If the EPICS environment is compiled inside a restricted user directory (e.g., `/home/username/epics`), you must ensure the `ioc-srv` user can traverse the parent directories and read the shared libraries. Otherwise, the dynamic linker (`ld.so`) will fail with Exit Code 127.
 

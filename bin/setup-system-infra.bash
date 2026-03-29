@@ -239,7 +239,8 @@ backup_if_exists "${SYSTEMD_TEMPLATE}"
 cat <<EOF > "${SYSTEMD_TEMPLATE}"
 [Unit]
 Description=procServ for %i
-After=network.target remote-fs.target
+Wants=time-sync.target
+After=network.target remote-fs.target time-sync.target
 AssertFileNotEmpty=${CONF_DIR}/%i.conf
 
 [Service]
@@ -277,7 +278,7 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
 
     # Inject version and build information into the deployed script
     current_git_hash=$(git rev-parse --short HEAD 2>/dev/null || printf "unknown")
-    
+
     # Check if there are uncommitted changes and append "-dirty"
     if command -v git >/dev/null 2>&1 && ! git diff-index --quiet HEAD -- 2>/dev/null; then
         current_git_hash="${current_git_hash}-dirty"
