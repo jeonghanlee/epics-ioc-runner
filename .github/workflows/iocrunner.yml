@@ -43,6 +43,12 @@ jobs:
           # Use --privileged and share the full workspace
           options: --privileged -e TERM=xterm -v ${{ github.workspace }}:/workspace -w /workspace
           run: |
+            if [ -f "/usr/local/setEnv" ]; then
+              echo "Initializing EPICS environment..."
+              source /usr/local/setEnv
+            else
+              echo "Warning: /usr/local/setEnv not found. Proceeding with system defaults."
+            fi
             # 1. Install critical build dependencies
             echo "Installing system dependencies..."
             if [ -f /etc/debian_version ]; then
