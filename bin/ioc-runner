@@ -481,36 +481,57 @@ function do_remove {
 }
 
 function do_attach {
-
     local con_tool="${IOC_RUNNER_CON_TOOL:-}"
+    local tool_type=""
+
+    # --- 1. Identify available tool with priority: con > socat > nc ---
     if [[ -z "${con_tool}" ]]; then
+        # Check standard paths for 'con' utility [cite: 78-80]
         for path in "${CON_SEARCH_PATHS[@]}"; do
             if [[ -x "${path}" ]]; then
                 con_tool="${path}"
+                tool_type="con"
                 break
             fi
         done
+    else
+        tool_type="con"
+    fi
+
+    # Fallback to socat if 'con' is not found
+    if [[ -z "${con_tool}" ]] && command -v socat >/dev/null 2>&1; then
+        con_tool="socat"
+        tool_type="socat"
+    fi
+
+    # Fallback to nc (Check for -U support for UNIX Domain Sockets)
+    if [[ -z "${con_tool}" ]] && command -v nc >/dev/null 2>&1; then
+        if nc -h 2>&1 | grep -q "\-U"; then
+            con_tool="nc"
+            tool_type="nc"
+        fi
     fi
 
     if [[ -z "${con_tool}" ]]; then
-        printf "%s\n" "Error: con utility not found in standard paths." >&2
-        printf "%s\n" "Please install con before managing EPICS IOCs." >&2
+        printf "Error: No suitable tool (con, socat, nc) found for console attachment.\n" >&2
+        printf "Recommendation: Install 'con' for the best experience (supports Ctrl-A to detach).\n" >&2
+        printf "Source: https://github.com/jeonghanlee/con\n" >&2
         exit 1
     fi
 
+    # --- 2. Target and Configuration Validation ---
     if [[ -z "${IOC_NAME}" ]]; then
         printf "Error: Target IOC name is required to attach.\n" >&2
         exit 1
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
-
     if [[ ! -f "${target_conf}" ]]; then
         printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
         exit 1
     fi
 
-    # Check for potential zombie sockets
+    # --- 3. Check for potential zombie sockets (Original Logic Preserved)  ---
     local state
     state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
     if [[ "${state}" != "active" ]]; then
@@ -520,21 +541,38 @@ function do_attach {
         print_divider >&2
     fi
 
+    # --- 4. Socket Path Extraction (Optimized) ---
+    # Use the built-in read_conf_var to avoid redundant piping
+    local ioc_port_val
+    ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT")
 
+    # Pure Bash expansion to get the last field (UDS path)
+    local sock_path="${ioc_port_val##*:}"
 
-    local sock_path
-    sock_path=$(grep -E '^IOC_PORT=' "${target_conf}" | cut -d'=' -f2- | tr -d '"' | awk -F: '{print $NF}')
-
-
+    # --- 5. Execution based on selected tool ---
     print_divider >&2
-    printf "Attaching to %s via UNIX domain socket:\n" "${IOC_NAME}"
+    printf "Attaching to %s via %s:\n" "${IOC_NAME}" "${tool_type}"
     printf "Path: %s\n" "${sock_path}"
-    printf "Use Ctrl-A to exit the console.\n"
-    print_divider >&2
 
-    exec "${con_tool}" -c "${sock_path}" || exit
+    case "${tool_type}" in
+        con)
+            printf "Use Ctrl-A to exit the console.\n"
+            print_divider >&2
+            exec "${con_tool}" -c "${sock_path}" || exit
+            ;;
+        socat)
+            # Use Ctrl-C as socat/nc are direct data pipes
+            printf "Use Ctrl-C to exit (Fallback tool).\n"
+            print_divider >&2
+            exec socat -,raw,echo=0 UNIX-CONNECT:"${sock_path}" || exit
+            ;;
+        nc)
+            printf "Use Ctrl-C to exit (Fallback tool).\n"
+            print_divider >&2
+            exec nc -U "${sock_path}" || exit
+            ;;
+    esac
 }
-
 
 function do_list {
     if [[ ! -d "${RUN_DIR}" ]]; then
@@ -580,7 +618,8 @@ function do_list {
 
     local sock ioc_name status connections started pid cpu mem recv_q send_q perm
     for sock in "${sockets[@]}"; do
-        ioc_name=$(basename "$(dirname "${sock}")")
+        _parent_dir="${sock%/*}"
+        ioc_name="${_parent_dir##*/}"
 
         # Extract service state using bash built-ins (Zero forks)
         status="unknown"
