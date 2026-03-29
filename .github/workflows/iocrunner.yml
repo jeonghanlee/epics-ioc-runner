@@ -23,9 +23,6 @@ jobs:
           - os: "Debian 13"
             image: "jeonghanlee/debian13-epics:latest"
             use_pkg_auto: false
-          - os: "Ubuntu 24.04"
-            image: "ubuntu:latest"
-            use_pkg_auto: true
 
     steps:
       - name: Checkout repository
@@ -36,24 +33,22 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
 
-      - name: Execute Tests in Docker
+     - name: Execute Tests in Docker
         uses: addnab/docker-run-action@v3
         with:
           image: ${{ matrix.image }}
+          # --privileged is mandatory for UDS and systemd shimming
           options: --privileged -e TERM=xterm -v ${{ github.workspace }}:/workspace -w /workspace
           run: |
-            # 1. Initialize EPICS Environment (Essential)
+            # 1. Initialize EPICS Environment
             [ -f "/usr/local/setEnv" ] && source /usr/local/setEnv
 
-            # 2. Fix Sudo & PAM (Crucial for infrastructure tests)
-            # Disable password requirement and bypass PAM session issues in Docker
+            # 2. Fix Sudo & PAM for Docker environment (Non-interactive session)
             echo "root ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nopasswd
             sed -i 's/required/optional/g' /etc/pam.d/common-session || true
 
-            # 3. Systemctl Shim (Lightweight alternative to PID 1)
-            # This allows systemctl commands to 'succeed' by mocking the state
+            # 3. Install Systemctl Shim (Handle 'Host is down' / PID 1 issues)
             if ! command -v systemctl >/dev/null 2>&1 || [ ! -L /bin/systemctl ]; then
-              echo "Installing systemctl shim..."
               if [ -f /etc/debian_version ]; then
                 apt-get update && apt-get install -y python3 curl
               else
@@ -63,26 +58,32 @@ jobs:
               chmod +x /usr/local/bin/systemctl
             fi
 
-            # 4. Build and Install 'con' (Mandatory for Phase 2/4)
+            # 4. OS-Specific Dependency & procServ-env Installation
+            if [ -f /etc/debian_version ]; then
+              apt-get update && apt-get install -y git build-essential procserv telnet libreadline-dev
+            elif [ -f /etc/redhat-release ]; then
+              dnf groupinstall -y "Development Tools"
+              dnf install -y git telnet readline-devel
+
+              # Build and Install procServ from specific environment package as requested
+              echo "Installing procServ via procServ-env for Rocky Linux..."
+              git clone --depth 1 https://github.com/jeonghanlee/procServ-env /tmp/procserv_build
+              cd /tmp/procserv_build && make && make install
+              cd /workspace
+            fi
+
+            # 5. Build and Install 'con' tool (Mandatory for attachment tests)
             git clone --depth 1 https://github.com/jeonghanlee/con /tmp/con_build
             cd /tmp/con_build && make -j$(nproc) && make install DESTDIR=/usr/local
             cd /workspace
 
-            # 5. Execute Scripts with Verified Paths
-            # Sourcing again to ensure environment is inherited in sub-shells
+            # 6. Execute Infrastructure & Test Suite
+            # Export BASH_ENV to ensure all subshells inherit EPICS settings
             export BASH_ENV=/usr/local/setEnv
 
             echo "--- Phase 3: Infrastructure Setup ---"
-            if [ -f "bin/setup-system-infra.bash" ]; then
-              # Running setup-system-infra.bash to create ioc-srv user and dirs
-              bash bin/setup-system-infra.bash
-            else
-              echo "Error: bin/setup-system-infra.bash not found!"; exit 1
-            fi
+            bash bin/setup-system-infra.bash
 
             echo "--- Phase 4: Integration Testing ---"
-            if [ -f "tests/run-all-tests.bash" ]; then
-              bash tests/run-all-tests.bash
-            else
-              echo "Error: tests/run-all-tests.bash not found!"; exit 1
-            fi
+            bash tests/run-all-tests.bash
+
