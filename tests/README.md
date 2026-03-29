@@ -12,70 +12,69 @@ Execute these tests during the initial development phase or when modifying the i
 
 ### Phase 2: Functional Validation (User-level)
 Execute this test to verify the full IOC management lifecycle without affecting system-wide services.
-
 2. `test-local-lifecycle.bash`: Validates the end-to-end workflow (install, start, attach, list, stop, remove) within the current user's systemd session. Requires an active EPICS environment.
 
 ### Phase 3: Infrastructure & Integration (Deployment)
 Execute these tests when deploying to a new server or when modifying the infrastructure setup script (`setup-system-infra.bash`).
-
 3. `test-system-infra.bash`: Verifies that the system accounts, group permissions, directory ACLs, and sudoers policies are correctly established. Requires root privileges.
 
+### Phase 4: System Lifecycle (Deployment)
 4. `test-system-lifecycle.bash`: The final integration test. Verifies that the architecture functions correctly under the isolated `ioc-srv` account with strict system-wide permissions. Requires prior infrastructure setup and 'ioc' group membership.
 
 ---
 
 ## Debugging and Workspace Retention
 
-By default, all lifecycle tests create a temporary workspace in shared memory under `/dev/shm/epics-ioc-test.*` (falling back to `/tmp` if unavailable) and remove it automatically upon successful completion to keep the system clean.
+By default, all lifecycle tests create a temporary workspace in shared memory under `/dev/shm/epics-ioc-test.*` and remove it automatically upon successful completion.
 
 ### Automatic Retention
-If a test fails or the script terminates unexpectedly (Abort), the workspace is **automatically retained**. This allows engineers to inspect generated `.conf` files, build logs, or the compiled IOC environment immediately.
+If a test fails or the script terminates unexpectedly, the workspace is **automatically retained** for inspection of generated files and logs.
 
 ### Manual Retention (`KEEP_WORKSPACE`)
-To force the script to keep the workspace regardless of the test result (e.g., for manual auditing of a successful build), set the `KEEP_WORKSPACE` environment variable to `1`:
+To force retention regardless of the result, set the `KEEP_WORKSPACE` environment variable to `1`:
 
+```bash
+KEEP_WORKSPACE=1 bash tests/run-all-tests.bash --local
 ```
-# Force retention for system-wide lifecycle test
-KEEP_WORKSPACE=1 bash tests/test-system-lifecycle.bash
-
-# Force retention for local lifecycle test
-KEEP_WORKSPACE=1 bash tests/test-local-lifecycle.bash
-```
-
-*Note: When a workspace is retained, you are responsible for manually removing the directory after inspection.*
 
 ---
 
 ## Test Execution
 
-### 1. Run All Tests (Master Script - Recommended)
-Executes tests in the recommended SOP sequence. 
+### 1. Run Tests (Master Script - Recommended)
+The master script executes tests in the recommended SOP sequence and supports selective execution via arguments.
 
-```
-# Safe mode: Runs Phase 1 and 2 only (Requires EPICS_BASE)
+```bash
+# Default: Runs ALL phases (1 through 4)
+# Requires EPICS_BASE, 'ioc' group membership, and sudo access.
 bash tests/run-all-tests.bash
 
-# System mode: Runs all Phases 1 through 4 (Requires EPICS_BASE, ioc group, and sudo)
+# Local Mode: Runs Phase 1 and 2 only
+# Requires EPICS_BASE. No sudo or 'ioc' group required.
+bash tests/run-all-tests.bash --local
+
+# System Mode: Runs Phase 3 and 4 only
+# Requires EPICS_BASE, 'ioc' group, and sudo access.
 bash tests/run-all-tests.bash --system
 ```
 
 ### 2. Run Individual Test Suites
-If you need to isolate and run a specific phase instead of the master script:
+If you need to isolate and run a specific phase manually:
 
-#### Phase 1: Error Handling (No EPICS environment or root required)
-```
+#### Phase 1: Error Handling
+```bash
 bash tests/test-error-handling.bash
 ```
-#### Phase 2: Local Lifecycle (Requires `EPICS_BASE`)
-```
+#### Phase 2: Local Lifecycle
+```bash
 bash tests/test-local-lifecycle.bash
 ```
-#### Phase 3: System Infrastructure (Requires `sudo`)
-```
+#### Phase 3: System Infrastructure
+```bash
 sudo bash tests/test-system-infra.bash
 ```
-#### Phase 4: System Lifecycle (Requires `EPICS_BASE` and `ioc` group)
-```
+#### Phase 4: System Lifecycle
+```bash
 bash tests/test-system-lifecycle.bash
 ```
 
@@ -84,18 +83,18 @@ bash tests/test-system-lifecycle.bash
 ## Verified Behaviors
 
 ### Lifecycle Workflows (Local & System)
-Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate the complete end-to-end IOC management process:
-* **Setup & Build**: Compiles a test IOC (`ServiceTestIOC`) in a temporary `/dev/shm` workspace.
-* **Deployment**: Installs the `.conf` file and verifies the systemd `@.service` template generation.
-* **Service Control**: Executes and verifies `start`, `status`, `view`, `restart`, and `stop` commands.
-* **Connectivity & Monitoring**: Validates UNIX Domain Socket creation, `list` command outputs (including PID, CPU, MEM), and `con` attachability.
-* **EPICS Functionality**: Performs live PV reads using `caget` to ensure functional Channel Access.
-* **Persistence & Teardown**: Tests `enable`/`disable` boot persistence, followed by a complete `remove` and workspace cleanup.
+Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
+* **Setup & Build**: Compiles a test IOC (`ServiceTestIOC`) in a temporary workspace.
+* **Deployment**: Installs `.conf` and verifies systemd template generation.
+* **Service Control**: Verifies `start`, `status`, `view`, `restart`, and `stop`.
+* **Monitoring**: Validates UDS creation, `list` outputs (PID, CPU, MEM), and `con` attachability.
+* **EPICS Functionality**: Live PV reads via `caget` for Channel Access verification.
+* **Teardown**: Verifies `enable`/`disable` persistence and complete `remove` cleanup.
 
 ### Error Handling (`test-error-handling.bash`)
-* Validates command-line arguments, missing targets, and invalid configuration syntax.
-* Ensures safe failure paths for missing `.conf` files or missing systemd templates.
+* Validates CLI arguments, missing targets, and invalid configuration syntax.
+* Ensures safe failure paths for missing files or templates.
 
 ### Infrastructure State (`test-system-infra.bash`)
-* **Accounts & Permissions**: Confirms the existence of the `ioc-srv` user, `ioc` group, and strict `2770` SetGID directories.
-* **Security Policies**: Validates the syntax and safety of the deployed `/etc/sudoers.d/10-epics-ioc` file using `visudo`.
+* **Accounts & Permissions**: Confirms `ioc-srv` user, `ioc` group, and `2770` SetGID directories.
+* **Security Policies**: Validates `/etc/sudoers.d/10-epics-ioc` syntax using `visudo`.
