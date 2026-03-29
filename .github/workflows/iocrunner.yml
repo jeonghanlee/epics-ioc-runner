@@ -40,10 +40,11 @@ jobs:
         uses: addnab/docker-run-action@v3
         with:
           image: ${{ matrix.image }}
-          # Ensure we are working from the repository root
-          options: --privileged -e TERM=xterm -w /github/workspace
+          # Use --privileged and share the full workspace
+          options: --privileged -e TERM=xterm -v ${{ github.workspace }}:/workspace -w /workspace
           run: |
-            # 1. Install system dependencies for 'con' build and testing
+            # 1. Install critical build dependencies
+            echo "Installing system dependencies..."
             if [ -f /etc/debian_version ]; then
               apt-get update && apt-get install -y git build-essential procserv sudo telnet libreadline-dev
             elif [ -f /etc/redhat-release ]; then
@@ -52,35 +53,40 @@ jobs:
             fi
 
             # 2. Build and Install 'con' (Console tool)
-            # Compilation must happen before running tests that depend on 'con'
+            echo "Building 'con' from source..."
             git clone --depth 1 https://github.com/jeonghanlee/con /tmp/con_build
             cd /tmp/con_build
             make -j$(nproc)
-            # Verify if binaries are created before installation to avoid 'No such file' errors
+
+            # Verify build success before install
             if [ -f "con" ] && [ -f "send_rs232" ]; then
               make install DESTDIR=/usr/local
             else
-              echo "Error: 'con' or 'send_rs232' build failed." >&2
+              echo "Error: 'con' build failed. Check compiler output above." >&2
               exit 1
             fi
 
-            # 3. Return to root and execute scripts using corrected paths
-            cd /github/workspace
+            # 3. Locate and Execute IOC Runner scripts
+            cd /workspace
+            echo "Current directory: $(pwd)"
 
-            # Setup infrastructure (Located in bin/ as pointed out)
-            if [ -f "bin/setup-system-infra.bash" ]; then
-              bash bin/setup-system-infra.bash
+            # Find the absolute path of the scripts regardless of their location
+            SETUP_SCRIPT=$(find . -name "setup-system-infra.bash" | head -n 1)
+            TEST_SCRIPT=$(find . -name "run-all-tests.bash" | head -n 1)
+
+            if [ -n "${SETUP_SCRIPT}" ]; then
+              echo "Executing: ${SETUP_SCRIPT}"
+              bash "${SETUP_SCRIPT}"
             else
-              echo "Error: bin/setup-system-infra.bash not found. Check repository structure." >&2
-              ls -R bin/
+              echo "Error: setup-system-infra.bash not found in /workspace" >&2
+              ls -R
               exit 1
             fi
 
-            # Run all tests
-            if [ -f "tests/run-all-tests.bash" ]; then
-              bash tests/run-all-tests.bash
+            if [ -n "${TEST_SCRIPT}" ]; then
+              echo "Executing: ${TEST_SCRIPT}"
+              bash "${TEST_SCRIPT}"
             else
-              echo "Error: tests/run-all-tests.bash not found." >&2
-              ls -R tests/
+              echo "Error: run-all-tests.bash not found!" >&2
               exit 1
             fi

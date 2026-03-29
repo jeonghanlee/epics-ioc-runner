@@ -486,7 +486,7 @@ function do_attach {
 
     # --- 1. Identify available tool with priority: con > socat > nc ---
     if [[ -z "${con_tool}" ]]; then
-        # Check standard paths for 'con' utility [cite: 78-80]
+        # Check standard paths for 'con' utility
         for path in "${CON_SEARCH_PATHS[@]}"; do
             if [[ -x "${path}" ]]; then
                 con_tool="${path}"
@@ -531,7 +531,7 @@ function do_attach {
         exit 1
     fi
 
-    # --- 3. Check for potential zombie sockets (Original Logic Preserved)  ---
+    # --- 3. Check for potential zombie sockets ---
     local state
     state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
     if [[ "${state}" != "active" ]]; then
@@ -541,7 +541,7 @@ function do_attach {
         print_divider >&2
     fi
 
-    # --- 4. Socket Path Extraction (Optimized) ---
+    # --- 4. Socket Path Extraction ---
     # Use the built-in read_conf_var to avoid redundant piping
     local ioc_port_val
     ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT")
