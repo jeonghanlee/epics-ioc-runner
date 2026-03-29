@@ -239,7 +239,7 @@ function test_install {
     _log "INFO" "STEP ${step}: Test Install Command"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local install "${CONF_FILE}" >/dev/null
+    bash "${RUNNER_SCRIPT}" --local -f install "${CONF_FILE}" >/dev/null
 
     local conf_exist="false"
     local tmpl_exist="false"
@@ -249,7 +249,7 @@ function test_install {
 
     verify_state "true" "${conf_exist}" "Configuration file deployed to user procServ.d"
     verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) dynamically generated in user directory"
-    
+
     local injected_port=""
     if [[ "${conf_exist}" == "true" ]]; then
         injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)

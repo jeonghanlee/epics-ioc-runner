@@ -214,10 +214,10 @@ function test_install_errors {
     local fake_conf="${TEST_TMPDIR}/test.conf"
     printf "IOC_NAME=test\n" > "${fake_conf}"
 
-    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${TEST_TMPDIR}/nonexistent.conf")
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${TEST_TMPDIR}/nonexistent.conf")
     verify_exit_code "1" "${exit_code}" "'install' with missing conf file exits 1"
 
-    exit_code=$(IOC_RUNNER_SYSTEMD_DIR="${TEST_TMPDIR}" _run bash "${RUNNER_SCRIPT}" install "${fake_conf}")
+    exit_code=$(IOC_RUNNER_SYSTEMD_DIR="${TEST_TMPDIR}" _run bash "${RUNNER_SCRIPT}" -f install "${fake_conf}")
     verify_exit_code "1" "${exit_code}" "'install' with missing system template exits 1"
 }
 
@@ -240,7 +240,7 @@ IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
 IOC_CMD="rm -rf /"
 EOF
-    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${bad_conf}")
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
     verify_exit_code "1" "${exit_code}" "Install with illegal characters in CMD exits 1"
 
     # 2. Identity mismatch check (Wrong user)
@@ -251,7 +251,7 @@ IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
 IOC_CMD="./st.cmd"
 EOF
-    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${bad_conf}")
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
     verify_exit_code "1" "${exit_code}" "Install with wrong local user exits 1"
 
     # 3. Missing execute permission check
@@ -263,7 +263,7 @@ IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
 IOC_CMD="./st.cmd"
 EOF
-    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${bad_conf}")
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
     verify_exit_code "1" "${exit_code}" "Install without directory execute permission exits 1"
     chmod +x "${dummy_dir}" # Restore for cleanup
 }

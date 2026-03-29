@@ -26,6 +26,7 @@ The generated systemd templates are configured with specific `SuccessExitStatus`
 * **Strict Configuration Validation**: Enforces a "Fail-Fast" principle by strictly validating `.conf` files before deployment. It performs pure Bash syntax checks, sanitizes inputs using regex whitelists to prevent command injection, and verifies directory existence and execute permissions based on the target identity context.
 * **Smart UDS Path Management**: Automatically handles UNIX Domain Socket paths. It auto-fills missing paths with standard system conventions and dynamically corrects local user paths, eliminating human errors and port conflicts.
 * **Deployment Traceability**: Integrates build-time injection of Git hashes and installation timestamps directly into the CLI wrapper (`-V`), ensuring exact version tracking and reliable debugging across distributed accelerator hosts.
+* **Safe Deployment & CI/CD Ready**: Prevents accidental configuration overwrites with interactive `[y/N]` prompts. For automated CI/CD pipelines and batch deployments, a `-f` or `--force` flag is provided to bypass the prompt safely.
 
 ## Repository Structure
 

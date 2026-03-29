@@ -41,6 +41,14 @@ Use the `--local` flag with the `install` command. This will copy the configurat
 ~/epics-ioc-runner/bin/ioc-runner --local install iocctrlslab-tcmd.conf
 ```
 
+### CI/CD and Automated Deployments
+If you are deploying IOCs via configuration management tools (e.g., Ansible) or CI/CD pipelines, the interactive overwrite prompt will halt the process. Use the `-f` (or `--force`) flag to force installation:
+
+```bash
+ioc-runner -f install myioc.conf
+```
+
+
 ## 4. View the Service Configuration
 To verify that the unit file template is correctly loaded for your IOC, you can view its contents.
 

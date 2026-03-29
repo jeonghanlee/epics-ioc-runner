@@ -27,6 +27,7 @@ declare -g RUN_DIR="${SYSTEM_RUN_DIR}"
 declare -g CON_TOOL=""
 
 declare -g VERBOSE_LEVEL=0
+declare -g FORCE_OVERWRITE=0
 
 # --- Target Identity Settings ---
 declare -g TARGET_SYSTEM_USER="ioc-srv"
@@ -66,6 +67,7 @@ Usage: ${prog_name} [OPTIONS] COMMAND [TARGET]
 
 Options:
   --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d)
+  -f, --force    Force overwrite of existing configuration files without prompting
   -V, --version  Show version, git hash, and build date
   -h, --help     Show this help message and exit
 
@@ -97,47 +99,60 @@ Examples:
 EOF
 }
 
-
-
-if [[ "$1" == "-V" || "$1" == "--version" ]]; then
-    display_hash="${RUNNER_GIT_HASH}"
-    display_date="${RUNNER_BUILD_DATE}"
-
-    # Fallback for local users running directly from a cloned Git repository
-    if [[ "${display_hash}" == "unknown" ]]; then
-        if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-            display_hash=$(git rev-parse --short HEAD)
-            
-            # Check if there are uncommitted local changes
-            if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-                display_hash="${display_hash}-dirty"
+# --- CLI Argument Parsing ---
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --local)
+            set_local_mode
+            shift
+            ;;
+        -f|--force)
+            FORCE_OVERWRITE=1
+            shift
+            ;;
+        -vv)
+            VERBOSE_LEVEL=2
+            shift
+            ;;
+        -v)
+            VERBOSE_LEVEL=1
+            shift
+            ;;
+        -V|--version)
+            # Display version and git hash info
+            display_hash="${RUNNER_GIT_HASH}"
+            display_date="${RUNNER_BUILD_DATE}"
+            if [[ "${display_hash}" == "unknown" ]]; then
+                if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                    display_hash=$(git rev-parse --short HEAD)
+                    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+                        display_hash="${display_hash}-dirty"
+                    fi
+                    display_hash="${display_hash} (live)"
+                    display_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                fi
             fi
-            
-            display_hash="${display_hash} (live)"
-            display_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        fi
-    fi
+            printf "epics-ioc-runner version %s (%s)\n" "${RUNNER_VERSION}" "${display_hash}"
+            printf "build date: %s\n" "${display_date}"
+            exit 0
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        -*)
+            printf "Error: Unknown option '%s'\n" "$1" >&2
+            print_usage
+            exit 1
+            ;;
+        *)
+            # Break the loop when the first non-option argument (COMMAND_ACTION) is met
+            break
+            ;;
+    esac
+done
 
-    printf "epics-ioc-runner version %s (%s)\n" "${RUNNER_VERSION}" "${display_hash}"
-    printf "build date: %s\n" "${display_date}"
-    exit 0
-fi
-
-
-if [[ "$1" == "--local" ]]; then
-    set_local_mode
-    shift
-fi
-
-if [[ "$1" == "-vv" ]]; then
-    VERBOSE_LEVEL=2
-    shift
-elif [[ "$1" == "-v" ]]; then
-    VERBOSE_LEVEL=1
-    shift
-fi
-
-if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+if [[ $# -lt 1 ]]; then
     print_usage
     exit 0
 fi
@@ -236,6 +251,9 @@ function read_conf_var {
         fi
         val="${val%\"}"; val="${val#\"}"
         val="${val%\'}"; val="${val#\'}"
+        # Strip carriage returns to prevent path errors from files edited on Windows
+        val="${val%$'\r'}"
+
         printf "%s" "${val}"
         return 0
     done < "${conf_file}"
@@ -293,7 +311,7 @@ function validate_conf {
     # Extract and perform whitelist security checks
     for key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_PORT" "IOC_CMD"; do
         val=$(read_conf_var "${conf_file}" "${key}")
-        
+
         if [[ -n "${val}" && ! "${val}" =~ ^[a-zA-Z0-9_./:\ -]+$ ]]; then
             printf "Error: Illegal characters detected in variable %s\n" "${key}" >&2
             error_count=$((error_count + 1))
@@ -338,9 +356,17 @@ function validate_conf {
         printf "Error: Execute permission denied for directory: %s\n" "${chdir}" >&2
         error_count=$((error_count + 1))
     else
-        if [[ -n "${cmd}" && ! -x "${chdir}/${cmd}" ]]; then
-            printf "Error: Command not executable: %s/%s\n" "${chdir}" "${cmd}" >&2
-            error_count=$((error_count + 1))
+        if [[ -n "${cmd}" ]]; then
+            local exec_bin
+            read -r exec_bin _ <<< "${cmd}"
+
+            # Verify if the binary is executable in the target directory or available in the system PATH
+            if [[ ! -x "${chdir}/${exec_bin}" ]] && ! command -v "${exec_bin}" >/dev/null 2>&1; then
+                printf "Error: Command not executable or not found: %s\n" "${exec_bin}" >&2
+                printf "  Hint: Did you forget 'chmod +x %s'?\n" "${exec_bin}" >&2
+                printf "  Hint: Is it a valid system command in your PATH?\n" >&2
+                error_count=$((error_count + 1))
+            fi
         fi
     fi
 
@@ -391,30 +417,42 @@ function do_install {
     # Extract original port and process it through the correction logic
     local original_port
     original_port=$(read_conf_var "${source_conf}" "IOC_PORT")
-    
+
     local final_port
     final_port=$(process_ioc_port "${IOC_NAME}" "${original_port}") || exit 1
 
     if [[ ! -d "${CONF_DIR}" ]]; then
-        if [[ "${EXEC_MODE}" == "system" && $EUID -ne 0 ]]; then
-            sudo mkdir -p "${CONF_DIR}"
-        else
-            mkdir -p "${CONF_DIR}"
+        if [[ "${EXEC_MODE}" == "system" ]]; then
+            printf "Error: System configuration directory %s does not exist.\n" "${CONF_DIR}" >&2
+            printf "Please ask an administrator to run setup-system-infra.bash.\n" >&2
+            exit 1
         fi
+        mkdir -p "${CONF_DIR}"
+    elif [[ ! -w "${CONF_DIR}" ]]; then
+        printf "Error: No write permission to %s. Are you in the '%s' group?\n" "${CONF_DIR}" "${TARGET_SYSTEM_GROUP}" >&2
+        exit 1
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
 
-    # Copy the configuration and inject the corrected IOC_PORT safely
-    if [[ "${EXEC_MODE}" == "system" && $EUID -ne 0 ]]; then
-        sudo cp "${source_conf}" "${target_conf}"
-        sudo sed -i '/^IOC_PORT=/d' "${target_conf}"
-        printf "IOC_PORT=\"%s\"\n" "${final_port}" | sudo tee -a "${target_conf}" > /dev/null
-    else
-        cp "${source_conf}" "${target_conf}"
-        sed -i '/^IOC_PORT=/d' "${target_conf}"
-        printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${target_conf}"
+    if [[ -f "${target_conf}" ]]; then
+        if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
+            printf "Warning: Configuration file '%s' already exists.\n" "${target_conf}"
+            printf "Do you want to overwrite it? [y/N]: "
+            read -r confirm
+            if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
+                printf "Installation aborted by user.\n"
+                exit 0
+            fi
+        else
+            printf "Info: Overwriting existing configuration file '%s' (--force).\n" "${target_conf}"
+        fi
+        rm -f "${target_conf}" 2>/dev/null || true
     fi
+
+    cp "${source_conf}" "${target_conf}"
+    sed -i '/^IOC_PORT=/d' "${target_conf}"
+    printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${target_conf}"
 
     run_systemctl daemon-reload
 
@@ -472,6 +510,18 @@ function do_attach {
         exit 1
     fi
 
+    # Check for potential zombie sockets
+    local state
+    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+    if [[ "${state}" != "active" ]]; then
+        print_divider >&2
+        printf "WARNING: Service 'epics-@${IOC_NAME}.service' is currently '%s'.\n" "${state}" >&2
+        printf "The socket file may be stale. The console connection might fail or hang.\n" >&2
+        print_divider >&2
+    fi
+
+
+
     local sock_path
     sock_path=$(grep -E '^IOC_PORT=' "${target_conf}" | cut -d'=' -f2- | tr -d '"' | awk -F: '{print $NF}')
 
@@ -484,6 +534,7 @@ function do_attach {
 
     exec "${con_tool}" -c "${sock_path}" || exit
 }
+
 
 function do_list {
     if [[ ! -d "${RUN_DIR}" ]]; then
@@ -531,41 +582,70 @@ function do_list {
     for sock in "${sockets[@]}"; do
         ioc_name=$(basename "$(dirname "${sock}")")
 
-        # Extract service state from pre-fetched unit_states.
-        status=$(printf "%s" "${unit_states}" | grep "epics-@${ioc_name}.service" | awk '{print $3}')
-        if [[ -z "${status}" ]]; then status="unknown"; fi
+        # Extract service state using bash built-ins (Zero forks)
+        status="unknown"
+        while read -r line; do
+            if [[ "${line}" == *"epics-@${ioc_name}.service"* ]]; then
+                read -r _ _ status _ <<< "${line}"
+                break
+            fi
+        done <<< "${unit_states}"
 
-        # Extract socket data from pre-fetched ss output and stat.
-        connections=$(printf "%s" "${ss_output}" | grep -c "${sock}" || true)
-        started=$(stat -c "%y" "${sock}" 2>/dev/null | awk '{print $1, $2}' | cut -d'.' -f1 | awk '{print $1, substr($2,1,5)}')
-        if [[ -z "${started}" ]]; then started="N/A"; fi
+        # Extract connection count using bash built-ins (Zero forks)
+        connections=0
+        while read -r line; do
+            if [[ "${line}" == *"${sock}"* ]]; then
+                ((connections++))
+            fi
+        done <<< "${ss_output}"
+
+        # Extract start time natively without awk/cut
+        local raw_stat
+        raw_stat=$(stat -c "%y" "${sock}" 2>/dev/null || true)
+        if [[ -n "${raw_stat}" ]]; then
+            started="${raw_stat%%.*}"
+            started="${started%:*}"
+        else
+            started="N/A"
+        fi
 
         if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
             printf "%-20s | %-8s | %-3s | %-17s | %s\n" \
                 "${ioc_name}" "${status}" "${connections}" "${started}" "${sock}"
 
         elif [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
-            # Fetch per-service properties individually to ensure accurate parsing.
             local unit_props
             unit_props=$("${systemctl_cmd[@]}" show "epics-@${ioc_name}.service" \
                 --property=MainPID,CPUUsageNSec,MemoryCurrent \
                 2>/dev/null || true)
 
-            pid=$(printf "%s" "${unit_props}" | grep "MainPID=" | cut -d'=' -f2-)
-            if [[ -z "${pid}" || "${pid}" == "0" ]]; then pid="N/A"; fi
+            # Parse properties using pure bash string manipulation
+            pid="N/A"
+            local cpu_ns=""
+            local mem_bytes=""
 
-            local cpu_ns
-            cpu_ns=$(printf "%s" "${unit_props}" | grep "CPUUsageNSec=" | cut -d'=' -f2-)
+            while IFS='=' read -r key val; do
+                case "${key}" in
+                    MainPID) pid="${val}" ;;
+                    CPUUsageNSec) cpu_ns="${val}" ;;
+                    MemoryCurrent) mem_bytes="${val}" ;;
+                esac
+            done <<< "${unit_props}"
+
+            if [[ "${pid}" == "0" ]]; then pid="N/A"; fi
+
             if [[ -n "${cpu_ns}" && "${cpu_ns}" != "18446744073709551615" && "${cpu_ns}" != "[not set]" ]]; then
-                cpu=$(awk -v val="${cpu_ns}" -v div="${NANO_TO_SEC_DIVISOR}" 'BEGIN {printf "%.1fs", val/div}')
+                # Convert nanoseconds to seconds with 1 decimal place using pure bash integer math
+                local cpu_dec=$(( (cpu_ns + 50000000) / 100000000 ))
+                cpu="$((cpu_dec / 10)).$((cpu_dec % 10))s"
             else
                 cpu="N/A"
             fi
 
-            local mem_bytes
-            mem_bytes=$(printf "%s" "${unit_props}" | grep "MemoryCurrent=" | cut -d'=' -f2-)
             if [[ -n "${mem_bytes}" && "${mem_bytes}" != "18446744073709551615" && "${mem_bytes}" != "[not set]" ]]; then
-                mem=$(awk -v val="${mem_bytes}" -v div="${BYTES_TO_MB_DIVISOR}" 'BEGIN {printf "%.1fM", val/div}')
+                # Convert bytes to MB with 1 decimal place using pure bash integer math
+                local mem_dec=$(( (mem_bytes * 10 + 524288) / 1048576 ))
+                mem="$((mem_dec / 10)).$((mem_dec % 10))M"
             else
                 mem="N/A"
             fi
@@ -575,10 +655,16 @@ function do_list {
                     "${ioc_name}" "${status}" "${connections}" "${started}" \
                     "${pid}" "${cpu}" "${mem}" "${sock}"
             else
-                recv_q=$(printf "%s" "${ss_output}" | grep "${sock}" | awk '{print $3}')
-                send_q=$(printf "%s" "${ss_output}" | grep "${sock}" | awk '{print $4}')
-                if [[ -z "${recv_q}" ]]; then recv_q="0"; fi
-                if [[ -z "${send_q}" ]]; then send_q="0"; fi
+                # Extract network queues using bash built-ins (Zero forks)
+                recv_q="0"
+                send_q="0"
+                while read -r _ rq sq _ _ path _; do
+                    if [[ "${path}" == "${sock}" ]]; then
+                        recv_q="${rq}"
+                        send_q="${sq}"
+                        break
+                    fi
+                done <<< "${ss_output}"
 
                 perm=$(stat -c "%A" "${sock}" 2>/dev/null || printf "N/A")
 
@@ -590,6 +676,7 @@ function do_list {
         fi
     done
 }
+
 
 function do_view {
     if [[ -z "${IOC_NAME}" ]]; then
@@ -633,19 +720,44 @@ case "${COMMAND_ACTION}" in
     view)
         do_view
         ;;
-    start|stop|restart|status|enable|disable)
+    stop|status|enable|disable)
         if [[ -z "${IOC_NAME}" ]]; then
             printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
             exit 1
         fi
-        
+        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+        ;;
+    start|restart)
+        if [[ -z "${IOC_NAME}" ]]; then
+            printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
+            exit 1
+        fi
+
         # Workaround for NFS environments lacking inotify support.
         # Forces systemd to refresh its template cache before starting/restarting in local mode.
-        if [[ "${EXEC_MODE}" == "local" ]] && [[ "${COMMAND_ACTION}" == "start" || "${COMMAND_ACTION}" == "restart" ]]; then
+        if [[ "${EXEC_MODE}" == "local" ]]; then
             run_systemctl daemon-reload
         fi
 
         run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+
+        # Health check: Verify if the service crashed immediately after starting
+        sleep 0.5
+        local post_state
+        post_state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+
+        if [[ "${post_state}" != "active" ]]; then
+            printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
+            printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
+
+            if [[ "${EXEC_MODE}" == "local" ]]; then
+                printf "     journalctl --user -u epics-@${IOC_NAME}.service -n 20 --no-pager\n" >&2
+            else
+                printf "     journalctl -u epics-@${IOC_NAME}.service -n 20 --no-pager\n" >&2
+            fi
+        else
+            printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
+        fi
         ;;
     *)
         print_usage

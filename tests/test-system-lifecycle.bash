@@ -238,7 +238,7 @@ function setup_environment {
     fi
 
     chmod +x cmd/st.cmd
-    
+
     _log "INFO" "Generating Configuration File in workspace..."
     cat <<EOF > "${CONF_FILE}"
 IOC_NAME="${IOC_NAME}"
@@ -257,13 +257,13 @@ function test_install {
     _log "INFO" "STEP ${step}: Test Install Command"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" install "${CONF_FILE}" >/dev/null
+    bash "${RUNNER_SCRIPT}" -f install "${CONF_FILE}" >/dev/null
 
     local conf_exist="false"
     if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
 
     verify_state "true" "${conf_exist}" "Configuration file deployed to system procServ.d"
-    
+
     local injected_port=""
     if [[ "${conf_exist}" == "true" ]]; then
         injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)

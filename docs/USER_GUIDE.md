@@ -16,7 +16,7 @@ cd myioc/iocBoot/iocmyioc
 ```
 
 **Step 2: Create the Configuration File**
-Generate the `.conf` file directly inside the target boot directory. 
+Generate the `.conf` file directly inside the target boot directory.
 *Note: You can leave `IOC_PORT` empty. The `ioc-runner` will automatically generate the standard secure UNIX Domain Socket path for the system.*
 
 ```bash
@@ -35,6 +35,13 @@ EOF
 Deploy the configuration to the system manager.
 ```bash
 ioc-runner install myioc.conf
+```
+
+### CI/CD and Automated Deployments
+If you are deploying IOCs via configuration management tools (e.g., Ansible) or CI/CD pipelines, the interactive overwrite prompt will halt the process. Use the `-f` (or `--force`) flag to force installation:
+
+```bash
+ioc-runner -f install myioc.conf
 ```
 
 **Step 4: Start the Service**
