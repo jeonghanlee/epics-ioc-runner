@@ -436,11 +436,11 @@ function do_install {
     local state
     state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
 
-    if [[ "${state}" == "active" ]]; then
+    # Block operation immediately if the service is not completely stopped
+    if [[ "${state}" == "active" || "${state}" == "activating" || "${state}" == "deactivating" ]]; then
         print_divider >&2
-        printf "WARNING: Installation aborted.\n" >&2
-        printf "IOC '%s' is currently running.\n" "${IOC_NAME}" >&2
-        printf "Please stop the service explicitly before reinstalling to prevent data loss.\n" >&2
+        printf "Error: Operation aborted. Service '%s' is currently '%s'.\n" "${IOC_NAME}" "${state}" >&2
+        printf "Please stop the service explicitly and wait for it to become inactive.\n" >&2
         print_divider >&2
         exit 1
     fi
@@ -507,6 +507,18 @@ function do_remove {
 
     run_systemctl stop "epics-@${IOC_NAME}.service" 2>/dev/null || true
     run_systemctl disable "epics-@${IOC_NAME}.service" 2>/dev/null || true
+
+    # Verify the service has actually stopped before deleting its configuration.
+    local state
+    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+    
+    if [[ "${state}" == "active" || "${state}" == "activating" || "${state}" == "deactivating" ]]; then
+        print_divider >&2
+        printf "Error: Removal aborted. Service '%s' failed to stop cleanly (State: %s).\n" "${IOC_NAME}" "${state}" >&2
+        printf "Please forcefully terminate the process before attempting removal to prevent systemd corruption.\n" >&2
+        print_divider >&2
+        exit 1
+    fi
 
     rm -f "${target_conf}" || true
 

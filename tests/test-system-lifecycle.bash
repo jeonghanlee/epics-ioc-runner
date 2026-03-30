@@ -164,6 +164,25 @@ function verify_state {
     fi
 }
 
+function wait_for_state {
+    local expected_state="$1"
+    local max_wait="${2:-10}"
+    local attempt=0
+    
+    while [[ ${attempt} -lt ${max_wait} ]]; do
+        local current_state
+        current_state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+        if [[ "${current_state}" == "${expected_state}" ]]; then
+            return 0
+        fi
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    
+    _log "WARN" "Timeout waiting for state: ${expected_state} (Current: ${current_state})"
+    return 1
+}
+
 function verify_infrastructure {
     local step="$1"
     print_divider
@@ -281,8 +300,8 @@ function test_start {
     local start_time=${SECONDS}
 
     bash "${RUNNER_SCRIPT}" start "${IOC_NAME}"
-    _log "INFO" "Waiting for IOC to initialize (2 seconds)..."
-    sleep 2
+    _log "INFO" "Waiting for IOC to initialize (smart polling)..."
+    wait_for_state "active"
 
     local state
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
@@ -326,7 +345,7 @@ function test_restart {
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" restart "${IOC_NAME}"
-    sleep 2
+    wait_for_state "active"
 
     local state
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
@@ -346,7 +365,7 @@ function test_stop {
     verify_state "inactive" "${state}" "Service is inactive after stop"
 
     bash "${RUNNER_SCRIPT}" start "${IOC_NAME}"
-    sleep 2
+    wait_for_state "active"
 
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
     verify_state "active" "${state}" "Service is active after restart following stop"
