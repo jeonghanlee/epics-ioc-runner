@@ -254,7 +254,7 @@ EOF
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
     verify_exit_code "1" "${exit_code}" "Install with wrong local user exits 1"
 
-    # 3. Missing execute permission check
+# 3. Missing execute permission check
     chmod -x "${dummy_dir}"
     cat <<EOF > "${bad_conf}"
 IOC_NAME="test"
@@ -263,6 +263,9 @@ IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
 IOC_CMD="./st.cmd"
 EOF
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
+    verify_exit_code "1" "${exit_code}" "Install without directory execute permission exits 1"
+    chmod +x "${dummy_dir}"
 
     # 4. Missing required key check (IOC_CMD absent)
     cat <<EOF > "${bad_conf}"
@@ -271,10 +274,8 @@ IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
 IOC_PORT=""
 EOF
-
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
-    verify_exit_code "1" "${exit_code}" "Install without directory execute permission exits 1"
-    chmod +x "${dummy_dir}" # Restore for cleanup
+    verify_exit_code "1" "${exit_code}" "Install with missing required key (IOC_CMD) exits 1"
 }
 
 function test_attach_errors {

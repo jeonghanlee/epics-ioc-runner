@@ -13,7 +13,7 @@ This architecture requires the following core utilities to be installed on your 
 
 ## Key Highlights
 * **Zero External Dependencies**: Relies entirely on POSIX-standard `bash` and native `systemd` mechanisms. No Python or external packages are required.
-* **High-Performance Zero-Fork Architecture**: Utilizes pure Bash stream parsing and O(1) associative arrays to instantly fetch socket and systemd states without subprocess bottlenecks.
+* **High-Performance Minimal-Fork Architecture**: Utilizes pure Bash stream parsing and O(1) associative arrays to batch-fetch socket and systemd states, eliminating per-IOC subprocess overhead.
 * **Dual Execution Modes**: Supports both system-wide deployment (via RBAC and sudoers) and isolated local user environments for testing.
 
 ## Repository Structure

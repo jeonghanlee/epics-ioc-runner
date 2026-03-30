@@ -37,7 +37,6 @@ declare -g EXEC_MODE="system"
 declare -g CONF_DIR="${SYSTEM_CONF_DIR}"
 declare -g SYSTEMD_DIR="${SYSTEM_SYSTEMD_DIR}"
 declare -g RUN_DIR="${SYSTEM_RUN_DIR}"
-declare -g CON_TOOL=""
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
