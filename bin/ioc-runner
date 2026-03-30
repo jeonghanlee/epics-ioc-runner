@@ -481,13 +481,16 @@ function do_install {
     fi
 
     cp "${source_conf}" "${target_conf}"
-    # Restrict conf file permissions to match directory policy (setgid 2770).
-    # Owner rw, group rw, others none.
+
+    sed -i '/^IOC_PORT=/d' "${target_conf}"
+    printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${target_conf}"
+
+    # Apply strict permissions (0660) after all file modifications.
+    # Note: 'sed -i' creates a temporary file using the user's default umask,
+    # which can unintentionally loosen file permissions (e.g., to 0644).
     if [[ "${EXEC_MODE}" == "system" ]]; then
         chmod 0660 "${target_conf}"
     fi
-    sed -i '/^IOC_PORT=/d' "${target_conf}"
-    printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${target_conf}"
 
     run_systemctl daemon-reload
 
