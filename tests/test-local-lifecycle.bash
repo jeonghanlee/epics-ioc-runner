@@ -350,6 +350,9 @@ function test_stop {
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
     verify_state "inactive" "${state}" "Service is inactive after stop"
 
+    _log "INFO" "Waiting for systemd to cleanup asynchronous resources..."
+    sleep 2
+
     bash "${RUNNER_SCRIPT}" --local start "${IOC_NAME}"
     wait_for_state "active"
 
