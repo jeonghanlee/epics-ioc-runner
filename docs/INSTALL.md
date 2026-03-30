@@ -12,10 +12,13 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
 ## 1. Automated Infrastructure Setup (Recommended)
 We provide a hardened, idempotent setup script that automatically configures isolated service accounts, strict directory permissions, and validated sudoers policies.
 
-From the root of the repository, execute the following script as root:
+From the root of the repository, execute the following script as root using the `--full` flag for the initial complete setup:
 ```bash
-sudo ./bin/setup-system-infra.bash
+sudo ./bin/setup-system-infra.bash --full
 ```
+
+> **Tip for Operations:** Later, if you only need to update the `ioc-runner` CLI script to a newer version without touching the underlying systemd templates or permissions, simply run the script without any arguments:
+> `sudo ./bin/setup-system-infra.bash`
 
 Once the script completes successfully, manually add your authorized engineers to the `ioc` management group:
 ```bash
@@ -36,7 +39,7 @@ This occurs because the NFS `root_squash` security feature forcibly downgrades t
 ```bash
 cp -r /path/to/epics-ioc-runner /tmp/
 cd /tmp/epics-ioc-runner
-sudo ./bin/setup-system-infra.bash
+sudo ./bin/setup-system-infra.bash --full
 ```
 
 ---

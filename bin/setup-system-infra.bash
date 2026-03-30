@@ -13,7 +13,6 @@ declare -g GREEN='\033[0;32m'
 declare -g BLUE='\033[0;34m'
 declare -g NC='\033[0m'
 
-
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
@@ -62,6 +61,27 @@ if [[ $EUID -ne 0 ]]; then
     printf "%s\n" "Usage: sudo bash $(basename "$0")" >&2
     exit 1
 fi
+
+# --- CLI Argument Parsing ---
+declare -g FULL_SETUP_MODE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --full)
+            FULL_SETUP_MODE=1
+            shift
+            ;;
+        -h|--help)
+            printf "Usage: sudo bash %s [--full]\n" "$(basename "$0")"
+            printf "  (Running without arguments safely updates the CLI wrapper only)\n"
+            exit 0
+            ;;
+        *)
+            printf "Error: Unknown option '%s'\n" "$1" >&2
+            exit 1
+            ;;
+    esac
+done
 
 function _log {
     local level="$1"
@@ -172,82 +192,83 @@ function backup_if_exists {
     fi
 }
 
-print_divider
-_log "INFO" "STEP 1: Account and Group Setup (Hardened)"
-print_sub_divider
+if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
-if ! getent group "${SYSTEM_GROUP}" >/dev/null; then
-    groupadd "${SYSTEM_GROUP}"
-    verify_account "group" "${SYSTEM_GROUP}"
-else
-    _log "INFO" "Group ${SYSTEM_GROUP} already exists."
-fi
+    print_divider
+    _log "INFO" "STEP 1: Account and Group Setup (Hardened)"
+    print_sub_divider
 
-if ! id -u "${SYSTEM_USER}" >/dev/null 2>&1; then
-    useradd -r -M -d /nonexistent -g "${SYSTEM_GROUP}" -s /sbin/nologin -c "EPICS procServ Daemon Account" "${SYSTEM_USER}"
-    verify_account "user" "${SYSTEM_USER}"
-else
-    _log "INFO" "System user ${SYSTEM_USER} already exists."
-fi
+    if ! getent group "${SYSTEM_GROUP}" >/dev/null; then
+        groupadd "${SYSTEM_GROUP}"
+        verify_account "group" "${SYSTEM_GROUP}"
+    else
+        _log "INFO" "Group ${SYSTEM_GROUP} already exists."
+    fi
 
-print_divider
-_log "INFO" "STEP 2: Shared Configuration Directory Setup (Strict ACL)"
-print_sub_divider
+    if ! id -u "${SYSTEM_USER}" >/dev/null 2>&1; then
+        useradd -r -M -d /nonexistent -g "${SYSTEM_GROUP}" -s /sbin/nologin -c "EPICS procServ Daemon Account" "${SYSTEM_USER}"
+        verify_account "user" "${SYSTEM_USER}"
+    else
+        _log "INFO" "System user ${SYSTEM_USER} already exists."
+    fi
 
-mkdir -p "${CONF_DIR}"
-chown "${OWNER_CONF_DIR}" "${CONF_DIR}"
-chmod "${PERM_CONF_DIR}" "${CONF_DIR}"
-verify_path "${CONF_DIR}" "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}" "Configured directory: ${CONF_DIR} (${OWNER_CONF_DIR}, ${PERM_CONF_DIR})"
+    print_divider
+    _log "INFO" "STEP 2: Shared Configuration Directory Setup (Strict ACL)"
+    print_sub_divider
 
+    mkdir -p "${CONF_DIR}"
+    chown "${OWNER_CONF_DIR}" "${CONF_DIR}"
+    chmod "${PERM_CONF_DIR}" "${CONF_DIR}"
+    verify_path "${CONF_DIR}" "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}" "Configured directory: ${CONF_DIR} (${OWNER_CONF_DIR}, ${PERM_CONF_DIR})"
 
-print_divider
-_log "INFO" "STEP 3: Sudoers Configuration (Validated & Restricted)"
-print_sub_divider
+    print_divider
+    _log "INFO" "STEP 3: Sudoers Configuration (Validated & Restricted)"
+    print_sub_divider
 
-tmp_sudoers=$(mktemp)
+    tmp_sudoers=$(mktemp)
 
-cat <<EOF > "${tmp_sudoers}"
+    cat <<EOF > "${tmp_sudoers}"
 # /etc/sudoers.d/10-epics-ioc
 %${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
-                                    ${SYSTEMCTL_BIN} stop epics-@*.service, \\
-                                    ${SYSTEMCTL_BIN} restart epics-@*.service, \\
-                                    ${SYSTEMCTL_BIN} status epics-@*.service, \\
-                                    ${SYSTEMCTL_BIN} enable epics-@*.service, \\
-                                    ${SYSTEMCTL_BIN} disable epics-@*.service, \\
-                                    ${SYSTEMCTL_BIN} daemon-reload
+                                      ${SYSTEMCTL_BIN} stop epics-@*.service, \\
+                                      ${SYSTEMCTL_BIN} restart epics-@*.service, \\
+                                      ${SYSTEMCTL_BIN} status epics-@*.service, \\
+                                      ${SYSTEMCTL_BIN} enable epics-@*.service, \\
+                                      ${SYSTEMCTL_BIN} disable epics-@*.service, \\
+                                      ${SYSTEMCTL_BIN} daemon-reload
 EOF
 
-if visudo -cf "${tmp_sudoers}" >/dev/null 2>&1; then
-    chmod "${PERM_SUDOERS}" "${tmp_sudoers}"
-    backup_if_exists "${SUDOERS_FILE}"
-    mv "${tmp_sudoers}" "${SUDOERS_FILE}"
-    verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
-else
-    _log "ERROR" "Sudoers syntax validation failed. Aborting to prevent system lockout."
-    rm -f "${tmp_sudoers}"
-    exit 1
-fi
-
-print_divider
-_log "INFO" "STEP 4: Systemd Template Unit Deployment"
-print_sub_divider
-
-declare p_path
-for p_path in "${PROCSERV_SEARCH_PATHS[@]}"; do
-    if [[ -x "${p_path}" ]]; then
-        RESOLVED_PROCSERV_BIN="${p_path}"
-        break
+    if visudo -cf "${tmp_sudoers}" >/dev/null 2>&1; then
+        chmod "${PERM_SUDOERS}" "${tmp_sudoers}"
+        backup_if_exists "${SUDOERS_FILE}"
+        mv "${tmp_sudoers}" "${SUDOERS_FILE}"
+        verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
+    else
+        _log "ERROR" "Sudoers syntax validation failed. Aborting to prevent system lockout."
+        rm -f "${tmp_sudoers}"
+        exit 1
     fi
-done
 
-if [[ -z "${RESOLVED_PROCSERV_BIN}" ]]; then
-    _log "ERROR" "procServ executable not found in standard paths."
-    exit 1
-fi
+    print_divider
+    _log "INFO" "STEP 4: Systemd Template Unit Deployment"
+    print_sub_divider
 
-backup_if_exists "${SYSTEMD_TEMPLATE}"
+    declare p_path
+    for p_path in "${PROCSERV_SEARCH_PATHS[@]}"; do
+        if [[ -x "${p_path}" ]]; then
+            RESOLVED_PROCSERV_BIN="${p_path}"
+            break
+        fi
+    done
 
-cat <<EOF > "${SYSTEMD_TEMPLATE}"
+    if [[ -z "${RESOLVED_PROCSERV_BIN}" ]]; then
+        _log "ERROR" "procServ executable not found in standard paths."
+        exit 1
+    fi
+
+    backup_if_exists "${SYSTEMD_TEMPLATE}"
+
+    cat <<EOF > "${SYSTEMD_TEMPLATE}"
 [Unit]
 Description=procServ for %i
 Wants=time-sync.target
@@ -271,14 +292,13 @@ SyslogIdentifier=epics-%i
 WantedBy=multi-user.target
 EOF
 
-chmod "${PERM_SYSTEMD_TEMPLATE}" "${SYSTEMD_TEMPLATE}"
-verify_path "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" "Deployed systemd template to ${SYSTEMD_TEMPLATE} using ${RESOLVED_PROCSERV_BIN}"
+    chmod "${PERM_SYSTEMD_TEMPLATE}" "${SYSTEMD_TEMPLATE}"
+    verify_path "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" "Deployed systemd template to ${SYSTEMD_TEMPLATE} using ${RESOLVED_PROCSERV_BIN}"
 
+    systemctl daemon-reload
+    _log "SUCCESS" "Reloaded systemd daemon."
 
-systemctl daemon-reload
-_log "SUCCESS" "Reloaded systemd daemon."
-
-
+fi
 
 print_divider
 _log "INFO" "STEP 5: CLI Wrapper Deployment"
@@ -308,7 +328,6 @@ else
     _log "ERROR" "Please ensure you are running this script from the repository's bin/ directory."
     exit 1
 fi
-
 
 print_divider
 _log "INFO" "Verification Summary"
