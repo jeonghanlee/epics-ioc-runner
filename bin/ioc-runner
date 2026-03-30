@@ -15,7 +15,20 @@ declare -g SYSTEM_RUN_DIR="${IOC_RUNNER_RUN_DIR:-/run/procserv}"
 declare -g LOCAL_RUN_DIR="${IOC_RUNNER_RUN_DIR:-/run/user/$(id -u)/procserv}"
 
 # --- Base Commands & Paths ---
-declare -g SYSTEMCTL_BIN="/bin/systemctl"
+declare -g SYSTEMCTL_BIN=""
+for _path in "/usr/bin/systemctl" "/bin/systemctl"; do
+    if [[ -x "${_path}" ]]; then
+        SYSTEMCTL_BIN="${_path}"
+        break
+    fi
+done
+unset _path
+
+if [[ -z "${SYSTEMCTL_BIN}" ]]; then
+    printf "Error: systemctl binary not found. This script requires systemd to operate.\n" >&2
+    exit 1
+fi
+
 declare -g -a CON_SEARCH_PATHS=("/usr/local/bin/con" "/usr/bin/con")
 declare -g -a PROCSERV_SEARCH_PATHS=("/usr/local/bin/procServ" "/usr/bin/procServ")
 
@@ -37,9 +50,6 @@ declare -g TARGET_SYSTEM_GROUP="ioc"
 declare -g RUNNER_VERSION="1.0.0"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
-
-declare -g NANO_TO_SEC_DIVISOR="1000000000"
-declare -g BYTES_TO_MB_DIVISOR="1048576"
 
 function print_divider {
     printf "%s\n" "===================================================================================================="
@@ -224,6 +234,7 @@ AssertFileNotEmpty=${CONF_DIR}/%i.conf
 Type=simple
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
+RuntimeDirectoryMode=0770
 ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
@@ -256,6 +267,21 @@ function read_conf_var {
 
         printf "%s" "${val}"
         return 0
+    done < "${conf_file}"
+}
+
+function read_conf_all {
+    local conf_file="$1"
+    local -n result_map="$2"
+
+    local key val
+    while IFS='=' read -r key val || [[ -n "${key}" ]]; do
+        key="${key// /}"
+        [[ -z "${key}" || "${key}" =~ ^# ]] && continue
+        val="${val%\"}"; val="${val#\"}"
+        val="${val%\'}"; val="${val#\'}"
+        val="${val%$'\r'}"
+        result_map["${key}"]="${val}"
     done < "${conf_file}"
 }
 
@@ -295,6 +321,7 @@ function process_ioc_port {
 # Validate the configuration file strictly before any deployment actions
 function validate_conf {
     local conf_file="$1"
+    local -n conf_vars="$2"    # nameref to caller's map
     local error_count=0
 
     printf "Validating configuration file: %s...\n" "${conf_file}"
@@ -304,19 +331,25 @@ function validate_conf {
         return 1
     fi
 
-    declare -A conf_vars
-    local key
-    local val
+    read_conf_all "${conf_file}" conf_vars
 
-    # Extract and perform whitelist security checks
+    # Required keys presence check
+    local required_key
+    for required_key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_CMD"; do
+        if [[ -z "${conf_vars[${required_key}]}" ]]; then
+            printf "Error: Required variable %s is missing or empty.\n" "${required_key}" >&2
+            error_count=$((error_count + 1))
+        fi
+    done
+
+    # Whitelist security checks for critical variables
+    local key val
     for key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_PORT" "IOC_CMD"; do
-        val=$(read_conf_var "${conf_file}" "${key}")
-
+        val="${conf_vars[${key}]}"
         if [[ -n "${val}" && ! "${val}" =~ ^[a-zA-Z0-9_./:\ -]+$ ]]; then
             printf "Error: Illegal characters detected in variable %s\n" "${key}" >&2
             error_count=$((error_count + 1))
         fi
-        conf_vars["$key"]="${val}"
     done
 
     # Identity validation checks
@@ -379,7 +412,6 @@ function validate_conf {
     return 0
 }
 
-
 function do_install {
     local source_conf="${TARGET_ARG}"
     if [[ ! -f "${source_conf}" ]]; then
@@ -387,8 +419,8 @@ function do_install {
         exit 1
     fi
 
-    # Run validation; if it fails (returns non-zero), exit immediately
-    validate_conf "${source_conf}" || exit 1
+    local -A install_conf
+    validate_conf "${source_conf}" install_conf || exit 1
 
     local template_path="${SYSTEMD_DIR}/epics-@.service"
 
@@ -414,9 +446,7 @@ function do_install {
         exit 1
     fi
 
-    # Extract original port and process it through the correction logic
-    local original_port
-    original_port=$(read_conf_var "${source_conf}" "IOC_PORT")
+    local original_port="${install_conf[IOC_PORT]}"
 
     local final_port
     final_port=$(process_ioc_port "${IOC_NAME}" "${original_port}") || exit 1
@@ -451,6 +481,11 @@ function do_install {
     fi
 
     cp "${source_conf}" "${target_conf}"
+    # Restrict conf file permissions to match directory policy (setgid 2770).
+    # Owner rw, group rw, others none.
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        chmod 0660 "${target_conf}"
+    fi
     sed -i '/^IOC_PORT=/d' "${target_conf}"
     printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${target_conf}"
 
@@ -458,6 +493,7 @@ function do_install {
 
     printf "IOC %s installed in %s mode. Use 'start' command to run it.\n" "${IOC_NAME}" "${EXEC_MODE}"
 }
+
 
 function do_remove {
     if [[ -z "${IOC_NAME}" ]]; then
@@ -470,14 +506,18 @@ function do_remove {
     run_systemctl stop "epics-@${IOC_NAME}.service" 2>/dev/null || true
     run_systemctl disable "epics-@${IOC_NAME}.service" 2>/dev/null || true
 
-    if [[ "${EXEC_MODE}" == "system" && ! -w "${CONF_DIR}" ]]; then
-        sudo rm -f "${target_conf}" || true
-    else
-        rm -f "${target_conf}" || true
+    rm -f "${target_conf}" || true
+
+    # Clean up stale socket directory if systemd RuntimeDirectory cleanup was missed
+    local sock_dir="${RUN_DIR}/${IOC_NAME}"
+    if [[ -d "${sock_dir}" ]]; then
+        rm -rf "${sock_dir}"
     fi
 
     run_systemctl daemon-reload
     printf "IOC %s removed.\n" "${IOC_NAME}"
+
+
 }
 
 function do_attach {
@@ -536,7 +576,7 @@ function do_attach {
     state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
     if [[ "${state}" != "active" ]]; then
         print_divider >&2
-        printf "WARNING: Service 'epics-@${IOC_NAME}.service' is currently '%s'.\n" "${state}" >&2
+        printf "WARNING: Service 'epics-@%s.service' is currently '%s'.\n" "${IOC_NAME}" "${state}" >&2
         printf "The socket file may be stale. The console connection might fail or hang.\n" >&2
         print_divider >&2
     fi
@@ -549,8 +589,14 @@ function do_attach {
     # Pure Bash expansion to get the last field (UDS path)
     local sock_path="${ioc_port_val##*:}"
 
+    if [[ -z "${sock_path}" || ! -S "${sock_path}" ]]; then
+        printf "Error: Socket file not found or invalid: %s\n" "${sock_path}" >&2
+        exit 1
+    fi
+
     # --- 5. Execution based on selected tool ---
     print_divider >&2
+
     printf "Attaching to %s via %s:\n" "${IOC_NAME}" "${tool_type}"
     printf "Path: %s\n" "${sock_path}"
 
@@ -581,27 +627,62 @@ function do_list {
     fi
 
     local sockets=()
-    while IFS= read -r -d '' sock; do
-        sockets+=("$sock")
-    done < <(find "${RUN_DIR}" -type s -print0 2>/dev/null)
+    local -A ioc_started_map ioc_perm_map
+    while IFS= read -r -d '' sock && IFS= read -r -d '' ts && IFS= read -r -d '' perm; do
+        sockets+=("${sock}")
+        ioc_started_map["${sock}"]="${ts}"
+        ioc_perm_map["${sock}"]="${perm}"
+    done < <(find "${RUN_DIR}" -type s -printf '%p\0%TY-%Tm-%Td %TH:%TM\0%M\0' 2>/dev/null)
 
     if [[ ${#sockets[@]} -eq 0 ]]; then
         printf "No active IOC sockets found in %s\n" "${RUN_DIR}"
         return 0
     fi
 
-    local systemctl_cmd=("systemctl")
+    local systemctl_cmd=("${SYSTEMCTL_BIN}")
     if [[ "${EXEC_MODE}" == "local" ]]; then
-        systemctl_cmd=("systemctl" "--user")
+        systemctl_cmd=("${SYSTEMCTL_BIN}" "--user")
     fi
 
-    # Fetch all epics service states in a single systemctl call.
-    local unit_states
-    unit_states=$("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --no-pager --plain 2>/dev/null || true)
+    # --- Memory Optimization: Stream Parsing & O(1) Hash Maps ---
+    local -A ioc_status_map
+    local -A ioc_conn_map ioc_rq_map ioc_sq_map
+    local -A ioc_pid_map ioc_cpu_map ioc_mem_map
 
-    # Fetch all unix socket info in a single ss call.
-    local ss_output
-    ss_output=$(ss -lx 2>/dev/null || true)
+    # 1. Map systemd states directly to memory
+    while read -r unit _ active _ _; do
+        if [[ "${unit}" =~ epics-@(.*)\.service ]]; then
+            ioc_status_map["${BASH_REMATCH[1]}"]="${active}"
+        fi
+    done < <("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --plain 2>/dev/null || true)
+
+    # 2. Map socket statistics directly to memory
+    while read -r _ rq sq _ _ path _; do
+        if [[ "${path}" == "${RUN_DIR}"* ]]; then
+            ioc_conn_map["${path}"]=$(( ${ioc_conn_map["${path}"]:-0} + 1 ))
+            ioc_rq_map["${path}"]="${rq}"
+            ioc_sq_map["${path}"]="${sq}"
+        fi
+    done < <(ss -lx 2>/dev/null || true)
+
+    # 3. Pre-fetch verbose properties if -v or -vv is used
+    if [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
+        local current_ioc=""
+        while IFS='=' read -r key val; do
+            case "${key}" in
+                Id)
+                    if [[ "${val}" =~ epics-@(.*)\.service ]]; then
+                        current_ioc="${BASH_REMATCH[1]}"
+                    else
+                        current_ioc=""
+                    fi
+                    ;;
+                MainPID)       [[ -n "${current_ioc}" ]] && ioc_pid_map["${current_ioc}"]="${val}" ;;
+                CPUUsageNSec)  [[ -n "${current_ioc}" ]] && ioc_cpu_map["${current_ioc}"]="${val}" ;;
+                MemoryCurrent) [[ -n "${current_ioc}" ]] && ioc_mem_map["${current_ioc}"]="${val}" ;;
+            esac
+        done < <("${systemctl_cmd[@]}" show "epics-@*.service" --property=Id,MainPID,CPUUsageNSec,MemoryCurrent 2>/dev/null || true)
+    fi
 
     if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
         printf "%-20s | %-8s | %-3s | %-17s | %s\n" \
@@ -618,58 +699,22 @@ function do_list {
 
     local sock ioc_name status connections started pid cpu mem recv_q send_q perm
     for sock in "${sockets[@]}"; do
-        _parent_dir="${sock%/*}"
+        local _parent_dir="${sock%/*}"
         ioc_name="${_parent_dir##*/}"
 
-        # Extract service state using bash built-ins (Zero forks)
-        status="unknown"
-        while read -r line; do
-            if [[ "${line}" == *"epics-@${ioc_name}.service"* ]]; then
-                read -r _ _ status _ <<< "${line}"
-                break
-            fi
-        done <<< "${unit_states}"
+        status="${ioc_status_map[${ioc_name}]:-unknown}"
+        connections="${ioc_conn_map[${sock}]:-0}"
 
-        # Extract connection count using bash built-ins (Zero forks)
-        connections=0
-        while read -r line; do
-            if [[ "${line}" == *"${sock}"* ]]; then
-                connections=$((connections + 1))
-            fi
-        done <<< "${ss_output}"
-
-        # Extract start time natively without awk/cut
-        local raw_stat
-        raw_stat=$(stat -c "%y" "${sock}" 2>/dev/null || true)
-        if [[ -n "${raw_stat}" ]]; then
-            started="${raw_stat%%.*}"
-            started="${started%:*}"
-        else
-            started="N/A"
-        fi
+        started="${ioc_started_map[${sock}]:-N/A}"
 
         if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
             printf "%-20s | %-8s | %-3s | %-17s | %s\n" \
                 "${ioc_name}" "${status}" "${connections}" "${started}" "${sock}"
 
         elif [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
-            local unit_props
-            unit_props=$("${systemctl_cmd[@]}" show "epics-@${ioc_name}.service" \
-                --property=MainPID,CPUUsageNSec,MemoryCurrent \
-                2>/dev/null || true)
-
-            # Parse properties using pure bash string manipulation
-            pid="N/A"
-            local cpu_ns=""
-            local mem_bytes=""
-
-            while IFS='=' read -r key val; do
-                case "${key}" in
-                    MainPID) pid="${val}" ;;
-                    CPUUsageNSec) cpu_ns="${val}" ;;
-                    MemoryCurrent) mem_bytes="${val}" ;;
-                esac
-            done <<< "${unit_props}"
+            pid="${ioc_pid_map[${ioc_name}]:-N/A}"
+            local cpu_ns="${ioc_cpu_map[${ioc_name}]:-}"
+            local mem_bytes="${ioc_mem_map[${ioc_name}]:-}"
 
             if [[ "${pid}" == "0" ]]; then pid="N/A"; fi
 
@@ -694,18 +739,9 @@ function do_list {
                     "${ioc_name}" "${status}" "${connections}" "${started}" \
                     "${pid}" "${cpu}" "${mem}" "${sock}"
             else
-                # Extract network queues using bash built-ins (Zero forks)
-                recv_q="0"
-                send_q="0"
-                while read -r _ rq sq _ _ path _; do
-                    if [[ "${path}" == "${sock}" ]]; then
-                        recv_q="${rq}"
-                        send_q="${sq}"
-                        break
-                    fi
-                done <<< "${ss_output}"
-
-                perm=$(stat -c "%A" "${sock}" 2>/dev/null || printf "N/A")
+                recv_q="${ioc_rq_map[${sock}]:-0}"
+                send_q="${ioc_sq_map[${sock}]:-0}"
+                perm="${ioc_perm_map[${sock}]:-N/A}"
 
                 printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-10s | %s\n" \
                     "${ioc_name}" "${status}" "${connections}" "${started}" \
@@ -742,6 +778,42 @@ function do_view {
     print_divider
 }
 
+function do_start_restart {
+    local action="$1"
+
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: Target IOC name is required for %s.\n" "${action}" >&2
+        exit 1
+    fi
+
+    # Workaround for NFS environments lacking inotify support.
+    # Forces systemd to refresh its template cache before starting/restarting in local mode.
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        run_systemctl daemon-reload
+    fi
+
+    run_systemctl "${action}" "epics-@${IOC_NAME}.service"
+
+    # Health check: Verify if the service crashed immediately after starting
+    sleep 0.5
+
+    local post_state
+    post_state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+
+    if [[ "${post_state}" != "active" ]]; then
+        printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
+        printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
+
+        if [[ "${EXEC_MODE}" == "local" ]]; then
+            printf "     journalctl --user -u epics-@%s.service -n 20 --no-pager\n" "${IOC_NAME}" >&2
+        else
+            printf "     journalctl -u epics-@%s.service -n 20 --no-pager\n" "${IOC_NAME}" >&2
+        fi
+    else
+        printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
+    fi
+}
+
 
 case "${COMMAND_ACTION}" in
     install)
@@ -767,36 +839,7 @@ case "${COMMAND_ACTION}" in
         run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
         ;;
     start|restart)
-        if [[ -z "${IOC_NAME}" ]]; then
-            printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
-            exit 1
-        fi
-
-        # Workaround for NFS environments lacking inotify support.
-        # Forces systemd to refresh its template cache before starting/restarting in local mode.
-        if [[ "${EXEC_MODE}" == "local" ]]; then
-            run_systemctl daemon-reload
-        fi
-
-        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
-
-        # Health check: Verify if the service crashed immediately after starting
-        sleep 0.5
-
-        post_state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
-
-        if [[ "${post_state}" != "active" ]]; then
-            printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
-            printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
-
-            if [[ "${EXEC_MODE}" == "local" ]]; then
-                printf "     journalctl --user -u epics-@${IOC_NAME}.service -n 20 --no-pager\n" >&2
-            else
-                printf "     journalctl -u epics-@${IOC_NAME}.service -n 20 --no-pager\n" >&2
-            fi
-        else
-            printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
-        fi
+        do_start_restart "${COMMAND_ACTION}"
         ;;
     *)
         print_usage

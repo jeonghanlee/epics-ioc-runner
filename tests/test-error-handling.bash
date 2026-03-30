@@ -263,6 +263,15 @@ IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
 IOC_CMD="./st.cmd"
 EOF
+
+    # 4. Missing required key check (IOC_CMD absent)
+    cat <<EOF > "${bad_conf}"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${dummy_dir}"
+IOC_PORT=""
+EOF
+
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
     verify_exit_code "1" "${exit_code}" "Install without directory execute permission exits 1"
     chmod +x "${dummy_dir}" # Restore for cleanup

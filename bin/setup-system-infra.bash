@@ -42,9 +42,20 @@ declare -g PERM_BACKUP_DIR="0700"
 declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
 
-declare -g SYSTEMCTL_BIN
-SYSTEMCTL_BIN=$(command -v systemctl)
+# --- Base Commands & Paths ---
+declare -g SYSTEMCTL_BIN=""
+for _path in "/usr/bin/systemctl" "/bin/systemctl"; do
+    if [[ -x "${_path}" ]]; then
+        SYSTEMCTL_BIN="${_path}"
+        break
+    fi
+done
+unset _path
 
+if [[ -z "${SYSTEMCTL_BIN}" ]]; then
+    printf "Error: systemctl binary not found. This script requires systemd to operate.\n" >&2
+    exit 1
+fi
 
 if [[ $EUID -ne 0 ]]; then
     printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
@@ -197,7 +208,7 @@ tmp_sudoers=$(mktemp)
 
 cat <<EOF > "${tmp_sudoers}"
 # /etc/sudoers.d/10-epics-ioc
-${SYSTEM_USER} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
+%${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
                                     ${SYSTEMCTL_BIN} stop epics-@*.service, \\
                                     ${SYSTEMCTL_BIN} restart epics-@*.service, \\
                                     ${SYSTEMCTL_BIN} status epics-@*.service, \\
@@ -249,6 +260,7 @@ User=${SYSTEM_USER}
 Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
+RuntimeDirectoryMode=0770
 ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
