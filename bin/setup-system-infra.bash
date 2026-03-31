@@ -342,9 +342,13 @@ fi
 print_divider
 
 print_divider
-_log "SUCCESS" "Secure system infrastructure setup completed."
-_log "INFO" "Add authorized engineers to the '${SYSTEM_GROUP}' group:"
-_log "INFO" "  sudo usermod -aG ${SYSTEM_GROUP} <username>"
-_log "INFO" "After adding the user, apply the new group membership immediately:"
-_log "INFO" "  newgrp ${SYSTEM_GROUP}"
+if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
+    _log "SUCCESS" "Secure system infrastructure setup completed."
+    _log "INFO" "Add authorized engineers to the '${SYSTEM_GROUP}' group:"
+    _log "INFO" "  sudo usermod -aG ${SYSTEM_GROUP} <username>"
+    _log "INFO" "After adding the user, apply the new group membership immediately:"
+    _log "INFO" "  newgrp ${SYSTEM_GROUP}"
+else
+    _log "SUCCESS" "CLI wrapper updated successfully."
+fi
 print_divider

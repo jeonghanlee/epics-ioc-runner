@@ -46,9 +46,15 @@ declare -g TARGET_SYSTEM_USER="ioc-srv"
 declare -g TARGET_SYSTEM_GROUP="ioc"
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.0"
+declare -g RUNNER_VERSION="1.0.1-dev"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
+
+# --- Health Check Configuration ---
+# Regex pattern used to detect fatal errors or crash-loops in systemd logs immediately after startup.
+# Users can add custom error strings specific to their hardware or EPICS modules here (separated by '|').
+declare -g CRASH_LOG_PATTERNS="(Restarting child|error while loading|Connection timed out|FATAL|Segmentation fault)"
+
 
 function print_divider {
     printf "%s\n" "===================================================================================================="
@@ -511,7 +517,7 @@ function do_remove {
     # Verify the service has actually stopped before deleting its configuration.
     local state
     state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
-    
+
     if [[ "${state}" == "active" || "${state}" == "activating" || "${state}" == "deactivating" ]]; then
         print_divider >&2
         printf "Error: Removal aborted. Service '%s' failed to stop cleanly (State: %s).\n" "${IOC_NAME}" "${state}" >&2
@@ -800,16 +806,15 @@ function do_start_restart {
         exit 1
     fi
 
-    # Workaround for NFS environments lacking inotify support.
-    # Forces systemd to refresh its template cache before starting/restarting in local mode.
+    # Refresh systemd template cache for NFS environments lacking inotify support
     if [[ "${EXEC_MODE}" == "local" ]]; then
         run_systemctl daemon-reload
     fi
 
     run_systemctl "${action}" "epics-@${IOC_NAME}.service"
 
-    # Health check: Verify if the service crashed immediately after starting
-    sleep 0.5
+    # Allow time for device connection timeouts
+    sleep 2
 
     local post_state
     post_state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
@@ -817,17 +822,32 @@ function do_start_restart {
     if [[ "${post_state}" != "active" ]]; then
         printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
         printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
-
         if [[ "${EXEC_MODE}" == "local" ]]; then
             printf "     journalctl --user -u epics-@%s.service -n 20 --no-pager\n" "${IOC_NAME}" >&2
         else
             printf "     journalctl -u epics-@%s.service -n 20 --no-pager\n" "${IOC_NAME}" >&2
         fi
+        exit 1
+    fi
+
+    # Scan recent logs for fatal errors or crash-loops
+    local log_cmd=("journalctl" "-u" "epics-@${IOC_NAME}.service" "--since" "3 seconds ago" "--no-pager" "-q")
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "3 seconds ago" "--no-pager" "-q")
+    fi
+
+    # Check against the globally defined crash log patterns
+    if "${log_cmd[@]}" 2>/dev/null | grep -qE "${CRASH_LOG_PATTERNS}"; then
+        printf "\nWarning: IOC '%s' is active, but procServ may be crash-looping or reporting fatal errors.\n" "${IOC_NAME}" >&2
+        if [[ "${EXEC_MODE}" == "local" ]]; then
+            printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
+        else
+            printf "  -> Check logs: journalctl -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
+        fi
     else
         printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
     fi
 }
-
 
 case "${COMMAND_ACTION}" in
     install)
