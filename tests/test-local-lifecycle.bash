@@ -168,7 +168,7 @@ function wait_for_state {
     local expected_state="$1"
     local max_wait="${2:-10}"
     local attempt=0
-    
+
     while [[ ${attempt} -lt ${max_wait} ]]; do
         local current_state
         current_state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
@@ -178,7 +178,7 @@ function wait_for_state {
         sleep 1
         attempt=$((attempt + 1))
     done
-    
+
     _log "WARN" "Timeout waiting for state: ${expected_state} (Current: ${current_state})"
     return 1
 }
@@ -496,6 +496,53 @@ function test_channel_access {
     verify_state "true" "${pv_ok}" "Channel Access read ${MAX_CAGET_READS} times successfully (Read time: ${elapsed}s)"
 }
 
+function test_crash_detection {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Crash Detection with softIoc"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping crash detection test."
+        return 0
+    fi
+
+    local bad_ioc_name="CrashTestIOC"
+    local bad_ioc_dir="${WORKSPACE}/bad_ioc"
+    mkdir -p "${bad_ioc_dir}"
+
+    cat << EOF > "${bad_ioc_dir}/st.cmd"
+#!${softioc_bin}
+system "sleep 0.5"
+system "echo 'FATAL: Simulated softIoc crash'"
+system "kill -9 \$PPID"
+EOF
+    chmod +x "${bad_ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${bad_ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" --local -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
+
+    local output
+    output=$(bash "${RUNNER_SCRIPT}" --local start "${bad_ioc_name}" 2>&1 || true)
+
+    local warning_detected="false"
+    if printf "%s" "${output}" | grep -q "Warning"; then
+        warning_detected="true"
+    fi
+
+    bash "${RUNNER_SCRIPT}" --local remove "${bad_ioc_name}" >/dev/null 2>&1 || true
+
+    verify_state "true" "${warning_detected}" "Crash-loop warning detected for broken softIoc"
+}
+
 function test_persistence {
     local step="$1"
     print_divider
@@ -546,8 +593,9 @@ function run_all_tests {
     test_socket_list          10
     test_console_attach       11
     test_channel_access       12
-    test_persistence          13
-    test_remove               14
+    test_crash_detection      13
+    test_persistence          14
+    test_remove               15
 }
 
 run_all_tests

@@ -823,9 +823,10 @@ function do_start_restart {
         printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
         printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
         if [[ "${EXEC_MODE}" == "local" ]]; then
-            printf "     journalctl --user -u epics-@%s.service -n 20 --no-pager\n" "${IOC_NAME}" >&2
+            printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
         else
-            printf "     journalctl -u epics-@%s.service -n 20 --no-pager\n" "${IOC_NAME}" >&2
+            printf "  -> Check logs: journalctl -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
+            printf "     (Requires 'adm' or 'systemd-journal' group membership to read system logs)\n" >&2
         fi
         exit 1
     fi
@@ -843,6 +844,7 @@ function do_start_restart {
             printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
         else
             printf "  -> Check logs: journalctl -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
+            printf "     (Requires 'adm' or 'systemd-journal' group membership to read system logs)\n" >&2
         fi
     else
         printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
