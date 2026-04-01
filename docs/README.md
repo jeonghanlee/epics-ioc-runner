@@ -27,3 +27,7 @@ This directory contains the complete documentation for deploying, managing, and 
 ### 4. Local Isolated Testing (Engineers)
 * **[USER_GUIDE_LOCAL.md](USER_GUIDE_LOCAL.md)**
   A guide for running and testing IOCs completely within an isolated user space. It demonstrates how to utilize the `--local` flag to dynamically generate user-level systemd templates, allowing engineers to verify their IOC configurations safely without requiring root privileges.
+
+### 5. Operations FAQ
+* **[FAQ.md](FAQ.md)**
+  Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
