@@ -39,6 +39,7 @@ For detailed operational instructions, security models, and architectural notes,
 3. **[Local Execution Guide](docs/USER_GUIDE_LOCAL.md)**: Testing IOCs in isolated local user space.
 4. **[Architecture Overview](docs/ARCHITECTURE.md)**: Security model, SetGID policies, and system design.
 5. **[Exit Signal Handling](docs/EXIT_SIGNAL_HANDLING.md)**: Signal propagation and systemd exit status technical notes.
+6. **[Operations FAQ](docs/FAQ.md)**: Common operational questions and answers for facility engineers.
 
 ## Acknowledgments
 This project is inspired by the Python-based `procServUtils` originally contributed by Michael Davidsaver and maintained in the [ralphlange/procServ](https://github.com/ralphlange/procServ/tree/master/procServUtils) repository.
