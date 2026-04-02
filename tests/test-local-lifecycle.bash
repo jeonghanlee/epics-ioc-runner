@@ -24,6 +24,7 @@ declare -g -a FAILED_DETAILS=()
 
 # --- EPICS Test Configuration ---
 declare -g MAX_CAGET_READS=10
+declare -g CAGET_TIMEOUT=2
 declare -g CAGET_INTERVAL=1
 
 if [[ -z "${EPICS_BASE}" ]]; then
@@ -462,6 +463,9 @@ function test_channel_access {
     local test_pv="LBNL:TESTIOC:aiExample"
     _log "INFO" "Attempting to read PV: ${test_pv} (${MAX_CAGET_READS} times)"
 
+    export EPICS_CA_ADDR_LIST="127.0.0.1"
+    export EPICS_CA_AUTO_ADDR_LIST="NO"
+
     local read_start_time=${SECONDS}
     local pv_val
     local pv_ok="false"
@@ -469,7 +473,7 @@ function test_channel_access {
     local i
 
     for i in $(seq 1 "${MAX_CAGET_READS}"); do
-        pv_val=$("${caget_cmd}" -w 5 -t "${test_pv}" 2>/dev/null || true)
+        pv_val=$("${caget_cmd}" -w "${CAGET_TIMEOUT}" -t "${test_pv}" 2>/dev/null || true)
         pv_val=$(printf "%s" "${pv_val}" | tr -d '\r')
 
         if [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
