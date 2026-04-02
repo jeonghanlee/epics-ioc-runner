@@ -83,6 +83,7 @@ Usage: ${prog_name} [OPTIONS] COMMAND [TARGET]
 Options:
   --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d)
   -f, --force    Force overwrite of existing configuration files without prompting
+  -v, -vv        Verbose output (supported only for 'list' command)
   -V, --version  Show version, git hash, and build date
   -h, --help     Show this help message and exit
 
@@ -99,42 +100,44 @@ Commands:
   list           List all active IOC sockets
                    (default: name, status, connections, start time, path)
                    (-v: adds PID, CPU, memory)
-                   (-vv: adds Recv-Q, Send-Q, socket permissions)
-  attach         Attach to the IOC console via UNIX Domain Socket (use Ctrl-A to detach)
+                   (-vv: adds Recv-Q, Send-Q, kernel state, inode, permissions)
+  attach         Attach to the IOC console via UNIX Domain Socket (read/write)
+  monitor        Attach to the IOC console in read-only mode (prevents input interleaving)
+  inspect        Deep trace of socket file descriptors and client PIDs (requires sudo)
 
 Examples:
   ${prog_name} install myioc.conf      # Install system-wide IOC
   ${prog_name} start myioc             # Start the system-wide IOC
-  ${prog_name} attach myioc            # Connect to the IOC console
+  ${prog_name} attach myioc            # Connect to the IOC console (read/write)
+  ${prog_name} monitor myioc           # Connect to the IOC console (read-only)
+  sudo ${prog_name} inspect myioc      # Trace active clients on the IOC socket
   ${prog_name} --local install t.conf  # Install IOC in local user space
-  ${prog_name} list                # List all IOCs with basic info
-  ${prog_name} -v list             # List with PID, CPU, memory
-  ${prog_name} -vv list            # List with full socket details
-  ${prog_name} --local -v list     # Local mode with verbose output
+  ${prog_name} list                    # List all IOCs with basic info
+  ${prog_name} list -v                 # List with PID, CPU, memory
+  ${prog_name} list -vv                # List with full kernel and socket details
+  ${prog_name} --local list -v         # Local mode with verbose output
 EOF
 }
 
 # --- CLI Argument Parsing ---
+declare -g COMMAND_ACTION=""
+declare -g TARGET_ARG=""
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --local)
             set_local_mode
-            shift
             ;;
         -f|--force)
             FORCE_OVERWRITE=1
-            shift
             ;;
         -vv)
             VERBOSE_LEVEL=2
-            shift
             ;;
         -v)
             VERBOSE_LEVEL=1
-            shift
             ;;
         -V|--version)
-            # Display version and git hash info
             display_hash="${RUNNER_GIT_HASH}"
             display_date="${RUNNER_BUILD_DATE}"
             if [[ "${display_hash}" == "unknown" ]]; then
@@ -161,32 +164,44 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         *)
-            # Break the loop when the first non-option argument (COMMAND_ACTION) is met
-            break
+            # The first non-option argument is the command, the second is the target
+            if [[ -z "${COMMAND_ACTION}" ]]; then
+                COMMAND_ACTION="$1"
+            elif [[ -z "${TARGET_ARG}" ]]; then
+                TARGET_ARG="$1"
+            else
+                printf "Error: Unexpected argument '%s'\n" "$1" >&2
+                print_usage
+                exit 1
+            fi
             ;;
     esac
+    shift
 done
 
-if [[ $# -lt 1 ]]; then
+if [[ -z "${COMMAND_ACTION}" ]]; then
     print_usage
     exit 0
 fi
 
-declare -g COMMAND_ACTION="$1"
-shift
+# Strict validation for command-specific flags
+if [[ ${VERBOSE_LEVEL} -gt 0 && "${COMMAND_ACTION}" != "list" ]]; then
+    printf "Error: Verbose options (-v, -vv) are only supported for the 'list' command.\n" >&2
+    exit 1
+fi
 
-declare -g TARGET_ARG="$1"
 declare -g IOC_NAME=""
 
 if [[ -n "${TARGET_ARG}" ]]; then
     IOC_NAME=$(basename "${TARGET_ARG}" .conf)
+
+    # Reject IOC names containing characters outside the allowed set
+    if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
+        exit 1
+    fi
 fi
 
-# Reject IOC names containing characters outside the allowed set.
-if [[ -n "${IOC_NAME}" && ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
-    exit 1
-fi
 
 function run_systemctl {
     local action="$1"
@@ -417,6 +432,83 @@ function validate_conf {
     return 0
 }
 
+# --- Shared Console Tool Resolution ---
+declare -g CON_TOOL_PATH=""
+declare -g CON_TOOL_TYPE=""
+
+function resolve_con_tool {
+    CON_TOOL_PATH="${IOC_RUNNER_CON_TOOL:-}"
+    CON_TOOL_TYPE=""
+
+    if [[ -z "${CON_TOOL_PATH}" ]]; then
+        for path in "${CON_SEARCH_PATHS[@]}"; do
+            if [[ -x "${path}" ]]; then
+                CON_TOOL_PATH="${path}"
+                CON_TOOL_TYPE="con"
+                return 0
+            fi
+        done
+    else
+        CON_TOOL_TYPE="con"
+        return 0
+    fi
+
+    if command -v socat >/dev/null 2>&1; then
+        CON_TOOL_PATH="socat"
+        CON_TOOL_TYPE="socat"
+        return 0
+    fi
+
+    if command -v nc >/dev/null 2>&1; then
+        if nc -h 2>&1 | grep -q "\-U"; then
+            CON_TOOL_PATH="nc"
+            CON_TOOL_TYPE="nc"
+            return 0
+        fi
+    fi
+
+    printf "Error: No suitable tool (con, socat, nc) found for console attachment.\n" >&2
+    printf "Recommendation: Install 'con' for the best experience (supports Ctrl-A to detach).\n" >&2
+    printf "Source: https://github.com/jeonghanlee/con\n" >&2
+    exit 1
+}
+
+# Resolve and validate the UDS socket path for an IOC.
+# Sets RESOLVED_SOCK_PATH on success.
+declare -g RESOLVED_SOCK_PATH=""
+
+function resolve_sock_path {
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: Target IOC name is required.\n" >&2
+        exit 1
+    fi
+
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    if [[ ! -f "${target_conf}" ]]; then
+        printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
+        exit 1
+    fi
+
+    local state
+    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+    if [[ "${state}" != "active" ]]; then
+        print_divider >&2
+        printf "WARNING: Service 'epics-@%s.service' is currently '%s'.\n" "${IOC_NAME}" "${state}" >&2
+        printf "The socket file may be stale. The console connection might fail or hang.\n" >&2
+        print_divider >&2
+    fi
+
+    local ioc_port_val
+    ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT")
+    RESOLVED_SOCK_PATH="${ioc_port_val##*:}"
+
+    if [[ -z "${RESOLVED_SOCK_PATH}" || ! -S "${RESOLVED_SOCK_PATH}" ]]; then
+        printf "Error: Socket file not found or invalid: %s\n" "${RESOLVED_SOCK_PATH}" >&2
+        exit 1
+    fi
+}
+
+
 function do_install {
     local source_conf="${TARGET_ARG}"
     if [[ ! -f "${source_conf}" ]]; then
@@ -541,101 +633,76 @@ function do_remove {
 }
 
 function do_attach {
-    local con_tool="${IOC_RUNNER_CON_TOOL:-}"
-    local tool_type=""
 
-    # --- 1. Identify available tool with priority: con > socat > nc ---
-    if [[ -z "${con_tool}" ]]; then
-        # Check standard paths for 'con' utility
-        for path in "${CON_SEARCH_PATHS[@]}"; do
-            if [[ -x "${path}" ]]; then
-                con_tool="${path}"
-                tool_type="con"
-                break
-            fi
-        done
-    else
-        tool_type="con"
-    fi
+    resolve_con_tool
+    resolve_sock_path
 
-    # Fallback to socat if 'con' is not found
-    if [[ -z "${con_tool}" ]] && command -v socat >/dev/null 2>&1; then
-        con_tool="socat"
-        tool_type="socat"
-    fi
-
-    # Fallback to nc (Check for -U support for UNIX Domain Sockets)
-    if [[ -z "${con_tool}" ]] && command -v nc >/dev/null 2>&1; then
-        if nc -h 2>&1 | grep -q "\-U"; then
-            con_tool="nc"
-            tool_type="nc"
-        fi
-    fi
-
-    if [[ -z "${con_tool}" ]]; then
-        printf "Error: No suitable tool (con, socat, nc) found for console attachment.\n" >&2
-        printf "Recommendation: Install 'con' for the best experience (supports Ctrl-A to detach).\n" >&2
-        printf "Source: https://github.com/jeonghanlee/con\n" >&2
-        exit 1
-    fi
-
-    # --- 2. Target and Configuration Validation ---
-    if [[ -z "${IOC_NAME}" ]]; then
-        printf "Error: Target IOC name is required to attach.\n" >&2
-        exit 1
-    fi
-
-    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
-    if [[ ! -f "${target_conf}" ]]; then
-        printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
-        exit 1
-    fi
-
-    # --- 3. Check for potential zombie sockets ---
-    local state
-    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
-    if [[ "${state}" != "active" ]]; then
-        print_divider >&2
-        printf "WARNING: Service 'epics-@%s.service' is currently '%s'.\n" "${IOC_NAME}" "${state}" >&2
-        printf "The socket file may be stale. The console connection might fail or hang.\n" >&2
-        print_divider >&2
-    fi
-
-    # --- 4. Socket Path Extraction ---
-    # Use the built-in read_conf_var to avoid redundant piping
-    local ioc_port_val
-    ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT")
-
-    # Pure Bash expansion to get the last field (UDS path)
-    local sock_path="${ioc_port_val##*:}"
-
-    if [[ -z "${sock_path}" || ! -S "${sock_path}" ]]; then
-        printf "Error: Socket file not found or invalid: %s\n" "${sock_path}" >&2
-        exit 1
-    fi
-
-    # --- 5. Execution based on selected tool ---
     print_divider >&2
+    printf "Attaching to %s via %s:\n" "${IOC_NAME}" "${CON_TOOL_TYPE}"
+    printf "Path: %s\n" "${RESOLVED_SOCK_PATH}"
 
-    printf "Attaching to %s via %s:\n" "${IOC_NAME}" "${tool_type}"
-    printf "Path: %s\n" "${sock_path}"
-
-    case "${tool_type}" in
+    case "${CON_TOOL_TYPE}" in
         con)
             printf "Use Ctrl-A to exit the console.\n"
             print_divider >&2
-            exec "${con_tool}" -c "${sock_path}" || exit
+            exec "${CON_TOOL_PATH}" -c "${RESOLVED_SOCK_PATH}" || exit
             ;;
         socat)
-            # Use Ctrl-C as socat/nc are direct data pipes
             printf "Use Ctrl-C to exit (Fallback tool).\n"
             print_divider >&2
-            exec socat -,raw,echo=0 UNIX-CONNECT:"${sock_path}" || exit
+            exec socat -,raw,echo=0 UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" || exit
             ;;
         nc)
             printf "Use Ctrl-C to exit (Fallback tool).\n"
             print_divider >&2
-            exec nc -U "${sock_path}" || exit
+            exec nc -U "${RESOLVED_SOCK_PATH}" || exit
+            ;;
+    esac
+}
+
+
+function do_monitor {
+
+    resolve_con_tool
+    resolve_sock_path
+
+    print_divider >&2
+    printf "Monitoring %s (Read-Only Mode) via %s:\n" "${IOC_NAME}" "${CON_TOOL_TYPE}"
+    printf "Path: %s\n" "${RESOLVED_SOCK_PATH}"
+
+    case "${CON_TOOL_TYPE}" in
+        con)
+            if "${CON_TOOL_PATH}" -h 2>&1 | grep -q "\-r"; then
+                printf "Use Ctrl-A to exit.\n"
+                print_divider >&2
+                exec "${CON_TOOL_PATH}" -r -c "${RESOLVED_SOCK_PATH}" || exit
+            else
+                if command -v socat >/dev/null 2>&1; then
+                    printf "Warning: 'con' does not support -r. Falling back to socat.\n" >&2
+                    printf "Use Ctrl-C to exit.\n"
+                    print_divider >&2
+                    socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT
+                    exit
+                else
+                    printf "Warning: 'con' does not support -r. Falling back to nc.\n" >&2
+                    printf "Use Ctrl-C to exit.\n"
+                    print_divider >&2
+                    nc -U "${RESOLVED_SOCK_PATH}" < /dev/null
+                    exit
+                fi
+            fi
+            ;;
+        socat)
+            printf "Use Ctrl-C to exit.\n"
+            print_divider >&2
+            socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT
+            exit
+            ;;
+        nc)
+            printf "Use Ctrl-C to exit.\n"
+            print_divider >&2
+            nc -U "${RESOLVED_SOCK_PATH}" < /dev/null
+            exit
             ;;
     esac
 }
@@ -676,32 +743,79 @@ function do_list {
         fi
     done < <("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --plain 2>/dev/null || true)
 
-    # 2. Map socket statistics directly to memory
-    while read -r _ rq sq _ _ path _; do
+    # 2. Map socket queue statistics and connection counts using ss
+    #    For listening sockets, Recv-Q is the current pending connection count.
+    while read -r _ _ rq sq path _; do
         if [[ "${path}" == "${RUN_DIR}"* ]]; then
-            ioc_conn_map["${path}"]=$(( ${ioc_conn_map["${path}"]:-0} + 1 ))
+            ioc_conn_map["${path}"]="${rq}"
             ioc_rq_map["${path}"]="${rq}"
             ioc_sq_map["${path}"]="${sq}"
         fi
     done < <(ss -lx 2>/dev/null || true)
 
+    # 2-A. Map explicit kernel internal states from /proc/net/unix
+    local -A ioc_ref_map ioc_state_map ioc_inode_map
+
+    # Fields: Num RefCount Protocol Flags Type St Inode Path
+    {
+        read -r _  # skip header
+        while read -r _ refcnt _ flags _ st inode path; do
+            if [[ "${path}" == "${RUN_DIR}"* ]]; then
+                # Convert hex flags to decimal and check the __SO_ACCEPTCON bit (0x10000)
+                local is_listen=$(( 16#${flags} & 16#00010000 ))
+
+                if [[ ${is_listen} -ne 0 ]]; then
+                    ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
+                    ioc_state_map["${path}"]="LISTEN"
+                    ioc_inode_map["${path}"]="${inode}"
+                elif [[ -z "${ioc_state_map[${path}]}" ]]; then
+                    ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
+                    case "${st}" in
+                        "01") ioc_state_map["${path}"]="UNCONN" ;;
+                        "02") ioc_state_map["${path}"]="CONNECTING" ;;
+                        "03") ioc_state_map["${path}"]="ESTAB" ;;
+                        "04") ioc_state_map["${path}"]="DISCONN" ;;
+                        *)    ioc_state_map["${path}"]="${st}" ;;
+                    esac
+                    ioc_inode_map["${path}"]="${inode}"
+                fi
+            fi
+        done
+    } < "/proc/net/unix"
+
+
     # 3. Pre-fetch verbose properties if -v or -vv is used
     if [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
-        local current_ioc=""
-        while IFS='=' read -r key val; do
+        local b_id="" b_pid="" b_cpu="" b_mem=""
+
+        while IFS='=' read -r key val || [[ -n "${key}" ]]; do
+            if [[ -z "${key}" ]]; then
+                # Empty line marks the end of a systemd unit block
+                if [[ "${b_id}" =~ epics-@(.*)\.service ]]; then
+                    local i="${BASH_REMATCH[1]}"
+                    ioc_pid_map["${i}"]="${b_pid}"
+                    ioc_cpu_map["${i}"]="${b_cpu}"
+                    ioc_mem_map["${i}"]="${b_mem}"
+                fi
+                b_id="" b_pid="" b_cpu="" b_mem=""
+                continue
+            fi
+
             case "${key}" in
-                Id)
-                    if [[ "${val}" =~ epics-@(.*)\.service ]]; then
-                        current_ioc="${BASH_REMATCH[1]}"
-                    else
-                        current_ioc=""
-                    fi
-                    ;;
-                MainPID)       [[ -n "${current_ioc}" ]] && ioc_pid_map["${current_ioc}"]="${val}" ;;
-                CPUUsageNSec)  [[ -n "${current_ioc}" ]] && ioc_cpu_map["${current_ioc}"]="${val}" ;;
-                MemoryCurrent) [[ -n "${current_ioc}" ]] && ioc_mem_map["${current_ioc}"]="${val}" ;;
+                Id)            b_id="${val}" ;;
+                MainPID)       b_pid="${val}" ;;
+                CPUUsageNSec)  b_cpu="${val}" ;;
+                MemoryCurrent) b_mem="${val}" ;;
             esac
         done < <("${systemctl_cmd[@]}" show "epics-@*.service" --property=Id,MainPID,CPUUsageNSec,MemoryCurrent 2>/dev/null || true)
+
+        # Commit the final block in case there is no trailing empty line
+        if [[ "${b_id}" =~ epics-@(.*)\.service ]]; then
+            local i="${BASH_REMATCH[1]}"
+            ioc_pid_map["${i}"]="${b_pid}"
+            ioc_cpu_map["${i}"]="${b_cpu}"
+            ioc_mem_map["${i}"]="${b_mem}"
+        fi
     fi
 
     if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
@@ -711,20 +825,23 @@ function do_list {
         printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %s\n" \
             "IOC NAME" "STATUS" "CON" "STARTED" "PID" "CPU" "MEM" "UDS PATH"
     else
-        printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-10s | %s\n" \
-            "IOC NAME" "STATUS" "CON" "STARTED" "PID" "CPU" "MEM" "RQ" "SQ" "PERM" "UDS PATH"
+        printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-4s | %-9s | %-10s | %-10s | %s\n" \
+            "IOC NAME" "STATUS" "CON" "STARTED" "PID" "CPU" "MEM" "RQ" "SQ" "REF" "K-STATE" "INODE" "PERM" "UDS PATH"
     fi
 
     print_sub_divider
 
-    local sock ioc_name status connections started pid cpu mem recv_q send_q perm
+    local sock ioc_name status connections started
+    local pid cpu mem recv_q send_q perm
+    local cpu_ns mem_bytes cpu_dec mem_dec
+    local ref_cnt k_state inode
+
     for sock in "${sockets[@]}"; do
-        local _parent_dir="${sock%/*}"
-        ioc_name="${_parent_dir##*/}"
+        ioc_name="${sock%/*}"
+        ioc_name="${ioc_name##*/}"
 
         status="${ioc_status_map[${ioc_name}]:-unknown}"
         connections="${ioc_conn_map[${sock}]:-0}"
-
         started="${ioc_started_map[${sock}]:-N/A}"
 
         if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
@@ -733,22 +850,20 @@ function do_list {
 
         elif [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
             pid="${ioc_pid_map[${ioc_name}]:-N/A}"
-            local cpu_ns="${ioc_cpu_map[${ioc_name}]:-}"
-            local mem_bytes="${ioc_mem_map[${ioc_name}]:-}"
+            cpu_ns="${ioc_cpu_map[${ioc_name}]:-}"
+            mem_bytes="${ioc_mem_map[${ioc_name}]:-}"
 
             if [[ "${pid}" == "0" ]]; then pid="N/A"; fi
 
             if [[ -n "${cpu_ns}" && "${cpu_ns}" != "18446744073709551615" && "${cpu_ns}" != "[not set]" ]]; then
-                # Convert nanoseconds to seconds with 1 decimal place using pure bash integer math
-                local cpu_dec=$(( (cpu_ns + 50000000) / 100000000 ))
+                cpu_dec=$(( (cpu_ns + 50000000) / 100000000 ))
                 cpu="$((cpu_dec / 10)).$((cpu_dec % 10))s"
             else
                 cpu="N/A"
             fi
 
             if [[ -n "${mem_bytes}" && "${mem_bytes}" != "18446744073709551615" && "${mem_bytes}" != "[not set]" ]]; then
-                # Convert bytes to MB with 1 decimal place using pure bash integer math
-                local mem_dec=$(( (mem_bytes * 10 + 524288) / 1048576 ))
+                mem_dec=$(( (mem_bytes * 10 + 524288) / 1048576 ))
                 mem="$((mem_dec / 10)).$((mem_dec % 10))M"
             else
                 mem="N/A"
@@ -761,16 +876,20 @@ function do_list {
             else
                 recv_q="${ioc_rq_map[${sock}]:-0}"
                 send_q="${ioc_sq_map[${sock}]:-0}"
+                ref_cnt="${ioc_ref_map[${sock}]:-0}"
+                k_state="${ioc_state_map[${sock}]:-UNKNOWN}"
+                inode="${ioc_inode_map[${sock}]:-N/A}"
                 perm="${ioc_perm_map[${sock}]:-N/A}"
 
-                printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-10s | %s\n" \
+                printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-4s | %-9s | %-10s | %-10s | %s\n" \
                     "${ioc_name}" "${status}" "${connections}" "${started}" \
                     "${pid}" "${cpu}" "${mem}" "${recv_q}" "${send_q}" \
-                    "${perm}" "${sock}"
+                    "${ref_cnt}" "${k_state}" "${inode}" "${perm}" "${sock}"
             fi
         fi
     done
 }
+
 
 
 function do_view {
@@ -796,6 +915,141 @@ function do_view {
     print_sub_divider
     run_systemctl cat "epics-@${IOC_NAME}.service" || true
     print_divider
+}
+
+
+function do_inspect {
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: Target IOC name is required for inspect.\n" >&2
+        exit 1
+    fi
+
+    # Enforce root privileges to ensure complete visibility of all client file descriptors
+    if [[ $EUID -ne 0 ]]; then
+        printf "Error: 'inspect' requires root privileges to map client processes.\n" >&2
+        printf "Hint: Execute with sudo.\n" >&2
+        exit 1
+    fi
+
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    if [[ ! -f "${target_conf}" ]]; then
+        printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
+        exit 1
+    fi
+
+    local ioc_port_val
+    ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT")
+    local sock_path="${ioc_port_val##*:}"
+
+    if [[ -z "${sock_path}" || ! -S "${sock_path}" ]]; then
+        printf "Error: Socket file not found or inactive: %s\n" "${sock_path}" >&2
+        exit 1
+    fi
+
+    if ! command -v lsof >/dev/null 2>&1; then
+        printf "Error: 'lsof' utility is required but not found in PATH.\n" >&2
+        exit 1
+    fi
+
+    print_divider
+    printf "Deep Inspection: %s\n" "${IOC_NAME}"
+    printf "Target Socket: %s\n" "${sock_path}"
+    print_sub_divider
+
+    printf "1. UNIX Domain Socket FDs (lsof -U)\n"
+    printf "   [Legend]\n"
+    printf "   - FD          : File Descriptor (e.g., 'u' denotes read/write access)\n"
+    printf "   - NODE        : Inode Number (Matches the INODE column in 'list -vv')\n"
+    printf "   - (LISTEN)    : Server socket waiting for connections\n"
+    printf "   - (CONNECTED) : Server-side socket for an accepted client session\n"
+    print_sub_divider
+
+    local lsof_found=0
+    local -a server_pids
+    local -A seen_server_pids
+
+    # 1. Gather server PIDs via lsof (lsof only retains the path for the server side)
+    while IFS= read -r line; do
+        if [[ "${line}" == COMMAND* ]]; then
+            printf "%s\n" "${line}"
+        elif [[ "${line}" == *"${sock_path}"* ]]; then
+            printf "%s\n" "${line}"
+
+            read -r _ pid _ <<< "${line}"
+            if [[ -z "${seen_server_pids[${pid}]}" ]]; then
+                server_pids+=("${pid}")
+                seen_server_pids["${pid}"]=1
+            fi
+            lsof_found=1
+        fi
+    done < <(lsof -U 2>/dev/null || true)
+
+    if [[ ${lsof_found} -eq 0 ]]; then
+        printf "No active UNIX sockets detected for this path.\n"
+    fi
+    printf "\n"
+
+    # 2. Trace true client PIDs via Netlink peer inode mapping (ss -x -a -p)
+    local -a client_pids
+    local -A target_peer_inodes
+    local -A inode_to_pid
+
+    while read -r _ state _ _ loc_path loc_ino _ peer_ino proc_info; do
+        if [[ "${state}" == "ESTAB" ]]; then
+            # Identify the peer inode connected to our server socket
+            if [[ "${loc_path}" == "${sock_path}" ]]; then
+                target_peer_inodes["${peer_ino}"]=1
+            fi
+
+            # Map every local inode to its corresponding process ID
+            if [[ "${proc_info}" =~ pid=([0-9]+) ]]; then
+                inode_to_pid["${loc_ino}"]="${BASH_REMATCH[1]}"
+            fi
+        fi
+    done < <(ss -x -a -p 2>/dev/null || true)
+
+    local -A seen_client_pids
+    for p_ino in "${!target_peer_inodes[@]}"; do
+        local c_pid="${inode_to_pid[${p_ino}]}"
+        # Isolate true clients by excluding known server PIDs
+        if [[ -n "${c_pid}" && -z "${seen_server_pids[${c_pid}]}" && -z "${seen_client_pids[${c_pid}]}" ]]; then
+            client_pids+=("${c_pid}")
+            seen_client_pids["${c_pid}"]=1
+        fi
+    done
+
+    print_divider
+    printf "2. Server Process Context (procServ & IOC)\n"
+    printf "   [Description]\n"
+    printf "   - Displays the active daemon and its spawned payload processes.\n"
+    print_sub_divider
+    if [[ ${#server_pids[@]} -gt 0 ]]; then
+        # Use a subshell to temporarily alter IFS for comma-separated PID formatting
+        (
+            IFS=","
+            ps -o pid,user,tty,stat,lstart,cmd -p "${server_pids[*]}"
+        )
+    else
+        printf "No server processes found. The socket might be orphaned.\n"
+    fi
+    printf "\n"
+
+    print_divider
+    printf "3. Client Process Context (Active Connections)\n"
+    printf "   [Description]\n"
+    printf "   - Traced via Netlink peer inode mapping.\n"
+    printf "   - Displays external processes currently attached to the socket.\n"
+    print_sub_divider
+    if [[ ${#client_pids[@]} -gt 0 ]]; then
+        (
+            IFS=","
+            ps -o pid,user,tty,stat,lstart,cmd -p "${client_pids[*]}"
+        )
+    else
+        printf "No external client connections detected.\n"
+    fi
+    print_divider
+
 }
 
 function do_start_restart {
@@ -861,8 +1115,14 @@ case "${COMMAND_ACTION}" in
     attach)
         do_attach
         ;;
+    monitor)
+        do_monitor
+        ;;
     list)
         do_list
+        ;;
+    inspect)
+        do_inspect
         ;;
     view)
         do_view

@@ -13,6 +13,8 @@ This directory contains the complete documentation for deploying, managing, and 
 ### 1. Architecture and Design
 * **[ARCHITECTURE.md](ARCHITECTURE.md)**
   Describes the core design principles, the zero-dependency approach, and the native systemd template (`@.service`) architecture. It also details the security model, including Role-Based Access Control (RBAC) via traditional Unix groups and sudoers policies.
+* **[CLI_REFERENCE.md](CLI_REFERENCE.md)**
+  Provides technical specifications, kernel-level socket state mappings, and data flow architecture for the diagnostic and console access commands (`list`, `inspect`, `attach`, `monitor`).
 * **[EXIT_SIGNAL_HANDLING.md](EXIT_SIGNAL_HANDLING.md)**
   Provides a technical deep dive into the signaling mechanics between systemd and procServ. It explains why specific exit codes (e.g., 143) are whitelisted to ensure reliable service monitoring.
 
