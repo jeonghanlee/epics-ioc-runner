@@ -25,7 +25,6 @@ ioc-runner --local list   # local user mode
 |--------|--------|-------------|
 | IOC NAME | Socket path | Derived from the parent directory name under `RUN_DIR` |
 | STATUS | `systemctl list-units` | systemd active state (active, inactive, failed, unknown) |
-| CON | `ss -lx` Recv-Q | Number of pending connections on the listening socket |
 | STARTED | `find -printf %T` | Socket file modification timestamp (proxy for start time) |
 | UDS PATH | `find -type s` | Full path to the UNIX domain socket file |
 
@@ -83,11 +82,6 @@ The listener socket is identified first by checking the `__SO_ACCEPTCON` flag, w
 
 For a healthy running IOC, the expected state is `LISTEN`. Other states are transient and typically appear only during connection setup or teardown.
 
-### Connection Count (CON)
-
-The CON column shows the number of clients currently connected to the IOC console. This value comes from the `Recv-Q` field of `ss -lx` for the listening socket.
-
-For a listening UNIX domain socket, `ss` defines `Recv-Q` as the number of established connections waiting to be accepted. In the procServ architecture, this reflects how many `con` or `socat` sessions are attached to the IOC console. Connected peer sockets are typically anonymous (no path in `/proc/net/unix`), which makes `ss -lx` the definitive source for connection metrics.
 
 ### Data Collection Architecture
 

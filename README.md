@@ -20,7 +20,7 @@ This architecture requires the following core utilities to be installed on your 
 
 ## Quick Start / Usage
 
-```
+```bash
 # Install and manage a system-wide IOC
 ioc-runner install myioc.conf
 ioc-runner start myioc

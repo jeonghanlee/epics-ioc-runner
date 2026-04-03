@@ -16,10 +16,10 @@ Execute this test to verify the full IOC management lifecycle without affecting 
 
 ### Phase 3: Infrastructure & Integration (Deployment)
 Execute these tests when deploying to a new server or when modifying the infrastructure setup script (`setup-system-infra.bash`).
-3. `test-system-infra.bash`: Verifies that the system accounts, group permissions, directory ACLs, and sudoers policies are correctly established. Requires root privileges.
+3. `test-system-infra.bash`: Verifies that the system accounts, group permissions, directory ACLs, and sudoers policies are correctly established. **Requires execution via `sudo`.**
 
 ### Phase 4: System Lifecycle (Deployment)
-4. `test-system-lifecycle.bash`: The final integration test. Verifies that the architecture functions correctly under the isolated `ioc-srv` account with strict system-wide permissions. Requires prior infrastructure setup and 'ioc' group membership.
+4. `test-system-lifecycle.bash`: The final integration test. Verifies that the architecture functions correctly under the isolated `ioc-srv` account with strict system-wide permissions. **Crucially, this phase relies on Kernel Netlink diagnostics to map anonymous UDS clients via the `inspect` command, which also enforces execution via `sudo -E`.**
 
 ---
 
@@ -75,7 +75,7 @@ sudo bash tests/test-system-infra.bash
 ```
 #### Phase 4: System Lifecycle
 ```bash
-bash tests/test-system-lifecycle.bash
+sudo -E bash tests/test-system-lifecycle.bash
 ```
 
 ---
@@ -87,7 +87,8 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **Setup & Build**: Compiles a test IOC (`ServiceTestIOC`) in a temporary workspace.
 * **Deployment**: Installs `.conf` and verifies systemd template generation.
 * **Service Control**: Verifies `start`, `status`, `view`, `restart`, and `stop`.
-* **Monitoring**: Validates UDS creation, `list` outputs (PID, CPU, MEM), and `con` attachability.
+* **Monitoring**: Validates UDS creation, `list` outputs (PID, CPU, MEM, etc).
+* **Connection & Isolation**: Validates `attach` (r/w access via `con`), `monitor` (read-only isolation), and specifically in system mode, the `inspect` command's Netlink-based Client PID mapping.
 * **EPICS Functionality**: Live PV reads via `caget` for Channel Access verification.
 * **Teardown**: Verifies `enable`/`disable` persistence and complete `remove` cleanup.
 

@@ -733,7 +733,7 @@ function do_list {
 
     # --- Memory Optimization: Stream Parsing & O(1) Hash Maps ---
     local -A ioc_status_map
-    local -A ioc_conn_map ioc_rq_map ioc_sq_map
+    local -A ioc_rq_map ioc_sq_map
     local -A ioc_pid_map ioc_cpu_map ioc_mem_map
 
     # 1. Map systemd states directly to memory
@@ -743,11 +743,9 @@ function do_list {
         fi
     done < <("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --plain 2>/dev/null || true)
 
-    # 2. Map socket queue statistics and connection counts using ss
-    #    For listening sockets, Recv-Q is the current pending connection count.
+    # 2. Map socket queue statistics using ss
     while read -r _ _ rq sq path _; do
         if [[ "${path}" == "${RUN_DIR}"* ]]; then
-            ioc_conn_map["${path}"]="${rq}"
             ioc_rq_map["${path}"]="${rq}"
             ioc_sq_map["${path}"]="${sq}"
         fi
@@ -755,14 +753,14 @@ function do_list {
 
     # 2-A. Map explicit kernel internal states from /proc/net/unix
     local -A ioc_ref_map ioc_state_map ioc_inode_map
-
+    local is_listen
     # Fields: Num RefCount Protocol Flags Type St Inode Path
     {
         read -r _  # skip header
         while read -r _ refcnt _ flags _ st inode path; do
             if [[ "${path}" == "${RUN_DIR}"* ]]; then
                 # Convert hex flags to decimal and check the __SO_ACCEPTCON bit (0x10000)
-                local is_listen=$(( 16#${flags} & 16#00010000 ))
+                is_listen=$(( 16#${flags} & 16#00010000 ))
 
                 if [[ ${is_listen} -ne 0 ]]; then
                     ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
@@ -787,12 +785,12 @@ function do_list {
     # 3. Pre-fetch verbose properties if -v or -vv is used
     if [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
         local b_id="" b_pid="" b_cpu="" b_mem=""
-
+        local i
         while IFS='=' read -r key val || [[ -n "${key}" ]]; do
             if [[ -z "${key}" ]]; then
                 # Empty line marks the end of a systemd unit block
                 if [[ "${b_id}" =~ epics-@(.*)\.service ]]; then
-                    local i="${BASH_REMATCH[1]}"
+                    i="${BASH_REMATCH[1]}"
                     ioc_pid_map["${i}"]="${b_pid}"
                     ioc_cpu_map["${i}"]="${b_cpu}"
                     ioc_mem_map["${i}"]="${b_mem}"
@@ -819,19 +817,19 @@ function do_list {
     fi
 
     if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
-        printf "%-20s | %-8s | %-3s | %-17s | %s\n" \
-            "IOC NAME" "STATUS" "CON" "STARTED" "UDS PATH"
+        printf "%-20s | %-8s | %-17s | %s\n" \
+            "IOC NAME" "STATUS" "STARTED" "UDS PATH"
     elif [[ ${VERBOSE_LEVEL} -eq 1 ]]; then
-        printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %s\n" \
-            "IOC NAME" "STATUS" "CON" "STARTED" "PID" "CPU" "MEM" "UDS PATH"
+        printf "%-20s | %-8s | %-17s | %-6s | %-5s | %-6s | %s\n" \
+            "IOC NAME" "STATUS" "STARTED" "PID" "CPU" "MEM" "UDS PATH"
     else
-        printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-4s | %-9s | %-10s | %-10s | %s\n" \
-            "IOC NAME" "STATUS" "CON" "STARTED" "PID" "CPU" "MEM" "RQ" "SQ" "REF" "K-STATE" "INODE" "PERM" "UDS PATH"
+        printf "%-20s | %-8s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-4s | %-9s | %-10s | %-10s | %s\n" \
+            "IOC NAME" "STATUS" "STARTED" "PID" "CPU" "MEM" "RQ" "SQ" "REF" "K-STATE" "INODE" "PERM" "UDS PATH"
     fi
 
     print_sub_divider
 
-    local sock ioc_name status connections started
+    local sock ioc_name status started
     local pid cpu mem recv_q send_q perm
     local cpu_ns mem_bytes cpu_dec mem_dec
     local ref_cnt k_state inode
@@ -841,12 +839,11 @@ function do_list {
         ioc_name="${ioc_name##*/}"
 
         status="${ioc_status_map[${ioc_name}]:-unknown}"
-        connections="${ioc_conn_map[${sock}]:-0}"
         started="${ioc_started_map[${sock}]:-N/A}"
 
         if [[ ${VERBOSE_LEVEL} -eq 0 ]]; then
-            printf "%-20s | %-8s | %-3s | %-17s | %s\n" \
-                "${ioc_name}" "${status}" "${connections}" "${started}" "${sock}"
+            printf "%-20s | %-8s | %-17s | %s\n" \
+                "${ioc_name}" "${status}" "${started}" "${sock}"
 
         elif [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
             pid="${ioc_pid_map[${ioc_name}]:-N/A}"
@@ -870,8 +867,8 @@ function do_list {
             fi
 
             if [[ ${VERBOSE_LEVEL} -eq 1 ]]; then
-                printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %s\n" \
-                    "${ioc_name}" "${status}" "${connections}" "${started}" \
+                printf "%-20s | %-8s | %-17s | %-6s | %-5s | %-6s | %s\n" \
+                    "${ioc_name}" "${status}" "${started}" \
                     "${pid}" "${cpu}" "${mem}" "${sock}"
             else
                 recv_q="${ioc_rq_map[${sock}]:-0}"
@@ -881,15 +878,14 @@ function do_list {
                 inode="${ioc_inode_map[${sock}]:-N/A}"
                 perm="${ioc_perm_map[${sock}]:-N/A}"
 
-                printf "%-20s | %-8s | %-3s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-4s | %-9s | %-10s | %-10s | %s\n" \
-                    "${ioc_name}" "${status}" "${connections}" "${started}" \
+                printf "%-20s | %-8s | %-17s | %-6s | %-5s | %-6s | %-3s | %-3s | %-4s | %-9s | %-10s | %-10s | %s\n" \
+                    "${ioc_name}" "${status}" "${started}" \
                     "${pid}" "${cpu}" "${mem}" "${recv_q}" "${send_q}" \
                     "${ref_cnt}" "${k_state}" "${inode}" "${perm}" "${sock}"
             fi
         fi
     done
 }
-
 
 
 function do_view {
@@ -1068,7 +1064,7 @@ function do_start_restart {
     run_systemctl "${action}" "epics-@${IOC_NAME}.service"
 
     # Allow time for device connection timeouts
-    sleep 2
+    sleep 5
 
     local post_state
     post_state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)

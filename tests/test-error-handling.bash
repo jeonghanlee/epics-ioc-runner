@@ -124,7 +124,8 @@ function verify_exit_code {
 
 function _run {
     local cmd=("$@")
-    "${cmd[@]}" >/dev/null 2>&1; local exit_code=$?; true
+    local exit_code
+    "${cmd[@]}" >/dev/null 2>&1; exit_code=$?; true
     printf "%d" "${exit_code}"
 }
 
@@ -302,6 +303,18 @@ function test_list_empty {
     verify_exit_code "0" "${exit_code}" "'list' with no active sockets exits 0"
 }
 
+function test_inspect_errors {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Inspect Error Paths"
+    print_sub_divider
+
+    local exit_code
+
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" inspect "dummy_ioc")
+    verify_exit_code "1" "${exit_code}" "'inspect' without root privileges exits 1"
+}
+
 function run_all_tests {
     _setup                  1
     test_usage              2
@@ -310,6 +323,7 @@ function run_all_tests {
     test_validation_errors  5
     test_attach_errors      6
     test_list_empty         7
+    test_inspect_errors     8
 }
 
 run_all_tests

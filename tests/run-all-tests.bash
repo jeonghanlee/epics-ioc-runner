@@ -80,7 +80,7 @@ fi
 
 if [[ ${RUN_SYSTEM} -eq 1 ]]; then
     _run_test "Phase 3: System Infrastructure" sudo bash "${SC_TOP}/test-system-infra.bash"
-    _run_test "Phase 4: System Lifecycle" bash "${SC_TOP}/test-system-lifecycle.bash"
+    _run_test "Phase 4: System Lifecycle" sudo -E bash "${SC_TOP}/test-system-lifecycle.bash"
 fi
 
 print_divider
