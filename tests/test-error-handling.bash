@@ -316,14 +316,22 @@ function test_inspect_errors {
 }
 
 function run_all_tests {
-    _setup                  1
-    test_usage              2
-    test_missing_target     3
-    test_install_errors     4
-    test_validation_errors  5
-    test_attach_errors      6
-    test_list_empty         7
-    test_inspect_errors     8
+    local -a pipeline=(
+        "_setup"
+        "test_usage"
+        "test_missing_target"
+        "test_install_errors"
+        "test_validation_errors"
+        "test_attach_errors"
+        "test_list_empty"
+        "test_inspect_errors"
+    )
+    local step=1
+    local func
+    for func in "${pipeline[@]}"; do
+        "${func}" "${step}"
+        step=$((step + 1))
+    done
 }
 
 run_all_tests

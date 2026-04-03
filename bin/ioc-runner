@@ -46,7 +46,7 @@ declare -g TARGET_SYSTEM_USER="ioc-srv"
 declare -g TARGET_SYSTEM_GROUP="ioc"
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.1-dev"
+declare -g RUNNER_VERSION="1.0.1"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
 

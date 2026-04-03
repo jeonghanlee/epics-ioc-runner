@@ -195,9 +195,17 @@ function test_sudoers_syntax {
 }
 
 function run_all_tests {
-    test_service_accounts     1
-    test_infrastructure_files 2
-    test_sudoers_syntax       3
+    local -a pipeline=(
+        "test_service_accounts"
+        "test_infrastructure_files"
+        "test_sudoers_syntax"
+    )
+    local step=1
+    local func
+    for func in "${pipeline[@]}"; do
+        "${func}" "${step}"
+        step=$((step + 1))
+    done
 }
 
 run_all_tests
