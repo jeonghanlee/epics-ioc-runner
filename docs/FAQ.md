@@ -48,7 +48,7 @@ This approach lets the `.conf` file serve as the single source of truth. Externa
 **Yes.** The `list` command provides three levels of detail:
 
 ```bash
-# Basic: name, status, connections, start time, socket path
+# Basic: name, status, start time, socket path
 ioc-runner list
 
 # Verbose: adds PID, CPU time, memory usage

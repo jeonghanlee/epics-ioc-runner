@@ -98,7 +98,7 @@ Commands:
   disable        Disable the IOC service from starting on boot
   view           Print the contents of the generated systemd unit file
   list           List all active IOC sockets
-                   (default: name, status, connections, start time, path)
+                   (default: name, status, start time, path)
                    (-v: adds PID, CPU, memory)
                    (-vv: adds Recv-Q, Send-Q, kernel state, inode, permissions)
   attach         Attach to the IOC console via UNIX Domain Socket (read/write)
