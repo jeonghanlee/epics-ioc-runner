@@ -231,7 +231,7 @@ function setup_environment {
 
     if [[ ! -d "${IOC_DIR}" ]]; then
         _log "INFO" "Cloning target IOC repository..."
-        git clone "${IOC_REPO}" "${IOC_DIR}"
+        git clone -q "${IOC_REPO}" "${IOC_DIR}" >/dev/null 2>&1
     fi
 
     cd "${IOC_DIR}"
@@ -532,7 +532,8 @@ function test_monitor_isolation {
     _log "INFO" "STEP ${step}: Test Monitor Input Isolation"
     print_sub_divider
 
-    printf "test_monitor_input_blocked\\n" | bash "${RUNNER_SCRIPT}" --local monitor "${IOC_NAME}" >/dev/null 2>&1 &
+    printf "test_monitor_input_blocked\\n" | setsid bash "${RUNNER_SCRIPT}" --local monitor "${IOC_NAME}" >/dev/null 2>&1 &
+
     local monitor_pid=$!
     sleep 2
 
@@ -546,7 +547,7 @@ function test_monitor_isolation {
 
     verify_state "true" "${input_blocked}" "Input securely blocked in monitor mode"
 
-    kill "${monitor_pid}" 2>/dev/null || true
+    kill -- -"${monitor_pid}" 2>/dev/null || true
 }
 
 function test_crash_detection {
