@@ -17,7 +17,7 @@ From the root of the repository, execute the following script as root using the 
 sudo ./bin/setup-system-infra.bash --full
 ```
 
-> **Tip for Operations:** Later, if you only need to update the `ioc-runner` CLI script to a newer version without touching the underlying systemd templates or permissions, simply run the script without any arguments:
+> **Tip for Operations:** Later, if you only need to update the `ioc-runner` CLI script and its Bash completion to a newer version without touching the underlying systemd templates or permissions, simply run the script without any arguments:
 > `sudo ./bin/setup-system-infra.bash`
 
 Once the script completes successfully, manually add your authorized engineers to the `ioc` management group:
@@ -123,11 +123,11 @@ systemctl daemon-reload
 
 ---
 
-## 3. CLI Wrapper Deployment
-Deploy the frontend management script `ioc-runner` to a standard binary path. To ensure strict traceability, the current Git hash and build timestamp must be injected into the script during deployment.
+## 3. CLI Wrapper & Bash Completion Deployment
+Deploy the frontend management script `ioc-runner` to a standard binary path, and install the Bash completion script to provide context-aware suggestions. To ensure strict traceability, the current Git hash and build timestamp must be injected into the main script during deployment.
 
 ```bash
-# 1. Copy the script to the system path
+# 1. Copy the main script to the system path
 sudo cp bin/ioc-runner /usr/local/bin/ioc-runner
 
 # 2. Inject version traceability information
@@ -139,6 +139,10 @@ sudo sed -i "s/^declare -g RUNNER_BUILD_DATE=.*/declare -g RUNNER_BUILD_DATE=\"$
 
 # 3. Apply execution permissions
 sudo chmod 0755 /usr/local/bin/ioc-runner
+
+# 4. Deploy the Bash completion script
+sudo cp completion/ioc-runner-completion.bash /etc/bash_completion.d/ioc-runner
+sudo chmod 0644 /etc/bash_completion.d/ioc-runner
 ```
 
 ## 4. Shared Deployment Directory Setup (/opt/epics-iocs)

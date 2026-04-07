@@ -25,11 +25,13 @@ declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
 declare -g RUNNER_SCRIPT_DEST="/usr/local/bin/ioc-runner"
+declare -g BASH_COMPLETION_DEST="/etc/bash_completion.d/ioc-runner"
 
 declare -g PERM_CONF_DIR="2770"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
+declare -g PERM_BASH_COMPLETION="0644"
 
 declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
@@ -171,10 +173,11 @@ function test_infrastructure_files {
     _log "INFO" "STEP ${step}: Verify Infrastructure Files and Permissions"
     print_sub_divider
 
-    verify_perm "${CONF_DIR}"           "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}"
-    verify_perm "${SUDOERS_FILE}"       "${OWNER_SYSTEM}"   "${PERM_SUDOERS}"
-    verify_perm "${SYSTEMD_TEMPLATE}"   "${OWNER_SYSTEM}"   "${PERM_SYSTEMD_TEMPLATE}"
-    verify_perm "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}"   "${PERM_RUNNER_SCRIPT}"
+    verify_perm "${CONF_DIR}"             "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}"
+    verify_perm "${SUDOERS_FILE}"         "${OWNER_SYSTEM}"   "${PERM_SUDOERS}"
+    verify_perm "${SYSTEMD_TEMPLATE}"     "${OWNER_SYSTEM}"   "${PERM_SYSTEMD_TEMPLATE}"
+    verify_perm "${RUNNER_SCRIPT_DEST}"   "${OWNER_SYSTEM}"   "${PERM_RUNNER_SCRIPT}"
+    verify_perm "${BASH_COMPLETION_DEST}" "${OWNER_SYSTEM}"   "${PERM_BASH_COMPLETION}"
 }
 
 function test_sudoers_syntax {

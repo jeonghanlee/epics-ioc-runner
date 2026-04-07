@@ -27,6 +27,9 @@ SC_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 declare -g -a PROCSERV_SEARCH_PATHS=("${IOC_RUNNER_PROCSERV_PATH:-/usr/local/bin/procServ}" "${IOC_RUNNER_PROCSERV_PATH:-/usr/bin/procServ}")
 declare -g RUNNER_SCRIPT_SRC="${IOC_RUNNER_SCRIPT_SRC:-${SC_DIR}/ioc-runner}"
 declare -g RUNNER_SCRIPT_DEST="${IOC_RUNNER_SCRIPT_DEST:-/usr/local/bin/ioc-runner}"
+declare -g BASH_COMP_SRC="${IOC_RUNNER_BASH_COMP_SRC:-${SC_DIR}/ioc-runner-completion.bash}"
+declare -g BASH_COMP_DEST="${IOC_RUNNER_BASH_COMP_DEST:-/etc/bash_completion.d/ioc-runner}"
+
 
 declare -g RESOLVED_PROCSERV_BIN=""
 
@@ -37,6 +40,7 @@ declare -g PERM_CONF_DIR="2770"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
+declare -g PERM_BASH_COMP="0644"
 declare -g PERM_BACKUP_DIR="0700"
 declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
@@ -323,10 +327,21 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
 
     chmod "${PERM_RUNNER_SCRIPT}" "${RUNNER_SCRIPT_DEST}"
     verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
+
 else
     _log "ERROR" "Could not find ${RUNNER_SCRIPT_SRC}."
     _log "ERROR" "Please ensure you are running this script from the repository's bin/ directory."
     exit 1
+fi
+
+# Deploys the Bash completion script to the system directory for enhanced CLI usability and validates deployment state.
+if [[ -f "${BASH_COMP_SRC}" ]]; then
+    backup_if_exists "${BASH_COMP_DEST}"
+    cp "${BASH_COMP_SRC}" "${BASH_COMP_DEST}"
+    chmod "${PERM_BASH_COMP}" "${BASH_COMP_DEST}"
+    verify_path "${BASH_COMP_DEST}" "${OWNER_SYSTEM}" "${PERM_BASH_COMP}" "Deployed Bash completion to ${BASH_COMP_DEST} (${PERM_BASH_COMP})"
+else
+    _log "INFO" "Bash completion source not found at ${BASH_COMP_SRC}. Skipping deployment."
 fi
 
 print_divider
