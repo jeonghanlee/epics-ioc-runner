@@ -6,6 +6,13 @@
 
 set -e
 
+# Defines global ANSI color codes for terminal output formatting.
+declare -g RED='\033[0;31m'
+declare -g GREEN='\033[0;32m'
+declare -g BLUE='\033[0;34m'
+declare -g YELLOW='\033[0;33m'
+declare -g NC='\033[0m'
+
 # --- Configuration Directories ---
 declare -g SYSTEM_CONF_DIR="${IOC_RUNNER_CONF_DIR:-/etc/procServ.d}"
 declare -g LOCAL_CONF_DIR="${IOC_RUNNER_CONF_DIR:-${HOME}/.config/procServ.d}"
@@ -46,7 +53,7 @@ declare -g TARGET_SYSTEM_USER="ioc-srv"
 declare -g TARGET_SYSTEM_GROUP="ioc"
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.1"
+declare -g RUNNER_VERSION="1.0.2-dev"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
 
@@ -88,6 +95,7 @@ Options:
   -h, --help     Show this help message and exit
 
 Commands:
+  generate       Auto-generate and validate a .conf file from an iocBoot directory
   install        Install a new IOC configuration file (.conf) and reload systemd
   remove         Stop, disable, and remove an existing IOC configuration
   start          Start the specified IOC service
@@ -106,16 +114,17 @@ Commands:
   inspect        Deep trace of socket file descriptors and client PIDs (requires sudo)
 
 Examples:
-  ${prog_name} install myioc.conf      # Install system-wide IOC
-  ${prog_name} start myioc             # Start the system-wide IOC
-  ${prog_name} attach myioc            # Connect to the IOC console (read/write)
-  ${prog_name} monitor myioc           # Connect to the IOC console (read-only)
-  sudo ${prog_name} inspect myioc      # Trace active clients on the IOC socket
-  ${prog_name} --local install t.conf  # Install IOC in local user space
-  ${prog_name} list                    # List all IOCs with basic info
-  ${prog_name} list -v                 # List with PID, CPU, memory
-  ${prog_name} list -vv                # List with full kernel and socket details
-  ${prog_name} --local list -v         # Local mode with verbose output
+  ${prog_name} generate /path/to/iocBoot # Auto-generate myioc.conf in current directory
+  ${prog_name} install myioc.conf        # Install system-wide IOC
+  ${prog_name} start myioc               # Start the system-wide IOC
+  ${prog_name} attach myioc              # Connect to the IOC console (read/write)
+  ${prog_name} monitor myioc             # Connect to the IOC console (read-only)
+  sudo ${prog_name} inspect myioc        # Trace active clients on the IOC socket
+  ${prog_name} --local install t.conf    # Install IOC in local user space
+  ${prog_name} list                      # List all IOCs with basic info
+  ${prog_name} list -v                   # List with PID, CPU, memory
+  ${prog_name} list -vv                  # List with full kernel and socket details
+  ${prog_name} --local list -v           # Local mode with verbose output
 EOF
 }
 
@@ -195,10 +204,12 @@ declare -g IOC_NAME=""
 if [[ -n "${TARGET_ARG}" ]]; then
     IOC_NAME=$(basename "${TARGET_ARG}" .conf)
 
-    # Reject IOC names containing characters outside the allowed set
-    if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
-        exit 1
+    # Defers strict regex validation for commands that accept relative paths or directories.
+    if [[ "${COMMAND_ACTION}" != "generate" && "${COMMAND_ACTION}" != "install" ]]; then
+        if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
+            exit 1
+        fi
     fi
 fi
 
@@ -508,11 +519,219 @@ function resolve_sock_path {
     fi
 }
 
+# Analyzes an EPICS iocBoot directory, dynamically generates a compliant procServ configuration file,
+# validates its parameters, and outputs the result to the current working directory for review.
+# Eliminates subshell forks by utilizing native Bash parameter expansion and built-in directory traversal.
+# Provides a unified diff preview if the target configuration file already exists before overwriting.
+function do_generate {
+    local target_dir="${TARGET_ARG}"
+    local generated_conf=""
+    local tmp_conf=""
+    local confirm=""
+    local abs_dir=""
+    local saved_pwd=""
+    local cmd_file=""
+    local ioc_user=""
+    local ioc_group=""
+    local f=""
+    local i=0
+    local selection=""
+    local -a cmd_candidates=()
+    local -A validate_map
+    local mode_flag=""
+
+    if [[ ! -d "${target_dir}" ]]; then
+        printf "Error: Target '%s' is not a valid directory.\n" "${target_dir}" >&2
+        exit 1
+    fi
+
+    # Resolves absolute path natively via Bash built-ins to avoid subshell forks and external binaries.
+    saved_pwd="${PWD}"
+    cd "${target_dir}" >/dev/null 2>&1 || exit 1
+    abs_dir="${PWD}"
+    cd "${saved_pwd}" >/dev/null 2>&1 || exit 1
+
+    # Extracts the base name from the absolute path if the target is unspecified or passed as a relative dot.
+    if [[ -z "${IOC_NAME}" || "${IOC_NAME}" == "${target_dir}" || "${IOC_NAME}" == "." ]]; then
+        IOC_NAME="${abs_dir##*/}"
+    fi
+
+    # Enforces naming constraints strictly after native path expansion.
+    if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        printf "Error: Invalid IOC name '%s' derived from path. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
+        exit 1
+    fi
+
+    # Saves the generated configuration directly in the target iocBoot directory alongside the startup script.
+    generated_conf="${abs_dir}/${IOC_NAME}.conf"
+
+    # Scans the target directory for executable .cmd files.
+    # Automatically assigns the script if unique, aborts if missing, and provides an interactive
+    # selection prompt for multiple candidates. Respects the CI/CD bypass flag to prevent pipeline hangs.
+    for f in "${abs_dir}"/*.cmd; do
+        if [[ -f "${f}" && -x "${f}" ]]; then
+            cmd_candidates+=("${f##*/}")
+        fi
+    done
+
+    if [[ ${#cmd_candidates[@]} -eq 0 ]]; then
+        printf "Error: Could not resolve any executable .cmd file in %s\n" "${abs_dir}" >&2
+        exit 1
+    elif [[ ${#cmd_candidates[@]} -eq 1 ]]; then
+        cmd_file="./${cmd_candidates[0]}"
+    else
+        if [[ "${FORCE_OVERWRITE}" == "1" ]]; then
+            cmd_file="./${cmd_candidates[0]}"
+            printf "Warning: Multiple executable .cmd files found. Auto-selecting '%s' due to --force.\n" "${cmd_file}"
+        else
+            printf "Multiple executable .cmd files found in %s:\n" "${abs_dir}"
+            for ((i=0; i<${#cmd_candidates[@]}; i=$((i + 1)))); do
+                printf "  [%d] %s\n" "$((i + 1))" "${cmd_candidates[$i]}"
+            done
+            
+            while true; do
+                printf "Select the startup script [1-%d]: " "${#cmd_candidates[@]}"
+                read -r selection
+                if [[ "${selection}" =~ ^[0-9]+$ ]] && [[ ${selection} -ge 1 && ${selection} -le ${#cmd_candidates[@]} ]]; then
+                    cmd_file="./${cmd_candidates[$((selection - 1))]}"
+                    break
+                else
+                    printf "Invalid selection. Please enter a number between 1 and %d.\n" "${#cmd_candidates[@]}"
+                fi
+            done
+        fi
+    fi
+
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        ioc_user="${TARGET_SYSTEM_USER}"
+        ioc_group="${TARGET_SYSTEM_GROUP}"
+        mode_flag=""
+    else
+        ioc_user=$(id -un)
+        ioc_group=$(id -gn)
+        mode_flag="--local "
+    fi
+
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/ioc-runner-gen.XXXXXX.conf")
+
+    cat <<EOF > "${tmp_conf}"
+IOC_NAME="${IOC_NAME}"
+IOC_USER="${ioc_user}"
+IOC_GROUP="${ioc_group}"
+IOC_CHDIR="${abs_dir}"
+IOC_PORT=""
+IOC_CMD="${cmd_file}"
+EOF
+
+    if ! validate_conf "${tmp_conf}" validate_map; then
+        rm -f "${tmp_conf}"
+        exit 1
+    fi
+
+    # Compares the newly generated configuration with the existing one natively.
+    # If identical, aborts the overwrite process gracefully to prevent unnecessary disk I/O and prompts.
+    if [[ -f "${generated_conf}" ]]; then
+        if cmp -s "${generated_conf}" "${tmp_conf}"; then
+            print_divider
+            printf "Info: Existing configuration '%s' is already up-to-date (Identical).\n" "${generated_conf}"
+            printf "Skipping overwrite.\n"
+            rm -f "${tmp_conf}"
+            
+            print_sub_divider
+            cat "${generated_conf}"
+            print_divider
+            printf "Next step: %s install %s\n" "${0##*/}" "${generated_conf}"
+            exit 0
+        fi
+
+        if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
+            print_divider
+            printf "Configuration file '%s' already exists with differences.\n" "${generated_conf}"
+            print_sub_divider
+            if command -v diff >/dev/null 2>&1; then
+                printf "  ${RED}[-] Current Configuration : %s${NC}\n" "${generated_conf}"
+                printf "  ${GREEN}[+] Pending Configuration : (Auto-generated)${NC}\n"
+                print_sub_divider
+
+                # Executes a unified diff comparison, strips raw timestamp headers, and applies
+                # ANSI color coding natively via Bash to visually distinguish current vs. pending states.
+                while IFS= read -r line; do
+                    if [[ "${line}" == ---* || "${line}" == +++* ]]; then
+                        continue
+                    elif [[ "${line}" == -* ]]; then
+                        printf "${RED}%s${NC}\n" "${line}"
+                    elif [[ "${line}" == +* ]]; then
+                        printf "${GREEN}%s${NC}\n" "${line}"
+                    elif [[ "${line}" == @@* ]]; then
+                        printf "${BLUE}%s${NC}\n" "${line}"
+                    else
+                        printf "%s\n" "${line}"
+                    fi
+                done < <(diff -u "${generated_conf}" "${tmp_conf}" 2>/dev/null || true)
+            else
+                printf "Warning: diff utility not found. Cannot display changes.\n"
+            fi
+            print_divider
+            printf "Do you want to overwrite it with the new configuration? [y/N]: "
+            read -r confirm
+            if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
+                printf "Generation aborted by user.\n"
+                rm -f "${tmp_conf}"
+                exit 0
+            fi
+        fi
+    fi
+
+    mv -f "${tmp_conf}" "${generated_conf}"
+
+    print_divider
+    printf "Configuration successfully generated and validated at: %s\n" "${generated_conf}"
+    print_sub_divider
+    cat "${generated_conf}"
+    print_divider
+    printf "Next step: %s %sinstall %s\n" "${0##*/}" "${mode_flag}" "${generated_conf}"
+}
 
 function do_install {
-    local source_conf="${TARGET_ARG}"
-    if [[ ! -f "${source_conf}" ]]; then
-        printf "Error: Configuration file %s not found.\n" "${source_conf}" >&2
+    local source_target="${TARGET_ARG}"
+    local source_conf="${source_target}"
+    local abs_dir=""
+    local saved_pwd=""
+    local resolved_ioc_name=""
+    local -A install_conf
+
+    # Resolves the target configuration file natively. If a directory is provided,
+    # it locates the previously generated .conf file inside it to streamline the installation workflow.
+    if [[ -d "${source_target}" ]]; then
+        saved_pwd="${PWD}"
+        cd "${source_target}" >/dev/null 2>&1 || exit 1
+        abs_dir="${PWD}"
+        cd "${saved_pwd}" >/dev/null 2>&1 || exit 1
+
+        resolved_ioc_name="${abs_dir##*/}"
+        source_conf="${abs_dir}/${resolved_ioc_name}.conf"
+
+        if [[ ! -f "${source_conf}" ]]; then
+            printf "Error: Configuration file '%s' not found in directory '%s'.\n" "${resolved_ioc_name}.conf" "${source_target}" >&2
+            printf "Hint: Did you run '%s generate %s' first?\n" "${0##*/}" "${source_target}" >&2
+            exit 1
+        fi
+        
+        # Aligns the global IOC_NAME with the resolved directory base name and validates it.
+        if [[ -z "${IOC_NAME}" || "${IOC_NAME}" == "${source_target}" || "${IOC_NAME}" == "." ]]; then
+            IOC_NAME="${resolved_ioc_name}"
+        fi
+
+        if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            printf "Error: Invalid IOC name '%s' derived from path. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
+            exit 1
+        fi
+    elif [[ ! -f "${source_conf}" ]]; then
+        printf "Error: Target '%s' is neither a valid directory nor a configuration file.\n" "${source_target}" >&2
+        exit 1
+    fi
+
+    if ! validate_conf "${source_conf}" install_conf; then
         exit 1
     fi
 
@@ -1102,6 +1321,9 @@ function do_start_restart {
 }
 
 case "${COMMAND_ACTION}" in
+    generate)
+        do_generate
+        ;;
     install)
         do_install
         ;;

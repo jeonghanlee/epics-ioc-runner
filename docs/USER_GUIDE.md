@@ -16,25 +16,37 @@ cd myioc/iocBoot/iocmyioc
 ```
 
 **Step 2: Create the Configuration File**
-Generate the `.conf` file directly inside the target boot directory.
-*Note: You can leave `IOC_PORT` empty. The `ioc-runner` will automatically generate the standard secure UNIX Domain Socket path for the system.*
+Select either the automated generation tool or manual creation.
 
-```bash
-cat <<EOF > myioc.conf
-IOC_USER="ioc-srv"
-IOC_GROUP="ioc"
-IOC_CHDIR="$(pwd)"
-IOC_PORT=""
-IOC_CMD="./st.cmd"
-EOF
+* **Option A: Automated Generation (Recommended)**
+  Dynamically resolves absolute paths and generates the configuration based on the target `iocBoot` directory.
+  ```bash
+  ioc-runner generate .
+  ```
+
+* **Option B: Manual Creation**
+  Manually define parameters. To use directory-based installation (`install .`), the filename must exactly match the directory name.
+  ```bash
+  cat <<EOF > iocmyioc.conf
+  IOC_USER="ioc-srv"
+  IOC_GROUP="ioc"
+  IOC_CHDIR="$(pwd)"
+  IOC_PORT=""
+  IOC_CMD="./st.cmd"
+  EOF
+  ```
 ```
 
 *Important: Ensure your `IOC_CMD` (e.g., `st.cmd`) has execute permissions (`chmod +x st.cmd`), otherwise the installation will be strictly rejected.*
 
 **Step 3: Install the Configuration**
-Deploy the configuration to the system manager.
+Deploy the configuration to the system manager. Pass the explicit filename or use the current directory (`.`) if generated automatically.
 ```bash
+# For explicitly named files:
 ioc-runner install myioc.conf
+
+# For auto-generated configurations in the current directory:
+ioc-runner install .
 ```
 
 ### CI/CD and Automated Deployments

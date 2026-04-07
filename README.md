@@ -20,20 +20,36 @@ This architecture requires the following core utilities to be installed on your 
 
 ## Quick Start / Usage
 
+The `ioc-runner` provides a seamless workflow from automated configuration generation to system-wide deployment.
+
 ```bash
-# Install and manage a system-wide IOC
-ioc-runner install myioc.conf
+# 1. Generate & Review: Create a .conf file from an iocBoot directory
+# (Interactive diff preview and startup script selection included)
+ioc-runner generate /path/to/iocBoot/myioc
+
+# 2. Install: Deploy the generated .conf to system-wide procServ.d
+# (Accepts the same directory path to auto-resolve the .conf file)
+ioc-runner install /path/to/iocBoot/myioc
+
+# 3. Control: Start and manage the IOC daemon
 ioc-runner start myioc
+ioc-runner stop myioc
 
-# Console Access
-ioc-runner attach myioc            # Read/write access
-ioc-runner monitor myioc           # Read-only observation
+# Console Access: Read/Write vs. Read-Only
+ioc-runner attach myioc            # Interactive console access
+ioc-runner monitor myioc           # Safe, uni-directional observation
 
-# User Diagnostic & Tracking
+# Diagnostic & Tracking
 ioc-runner list -vv                # Full kernel socket states and inodes
+sudo ioc-runner inspect myioc      # Deep trace of active client PIDs (Admin only)
+```
 
-# Admin Diagnostic & Tracking
-sudo ioc-runner inspect myioc      # Deep trace of socket FDs and active client PIDs
+For isolated testing without root privileges, simply prepend `--local` to any command:
+```bash
+# Local user-space testing workflow
+ioc-runner generate --local .
+ioc-runner install --local .
+ioc-runner start --local myioc
 ```
 
 ## Repository Structure

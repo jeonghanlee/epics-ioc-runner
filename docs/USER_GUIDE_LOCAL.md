@@ -20,32 +20,42 @@ cd tcmd/iocBoot/iocctrlslab-tcmd/
 ```
 
 ## 2. Create the Configuration File
-Create a `.conf` file for your IOC. Thanks to the smart auto-fill feature, you can leave `IOC_PORT` empty. The script will automatically generate the correct runtime socket path for your specific user session.
+Prepare the configuration file for the local isolated environment.
 
-```bash
-cat <<EOF > iocctrlslab-tcmd.conf
-IOC_USER="$(id -un)"
-IOC_GROUP="$(id -gn)"
-IOC_CHDIR="$(pwd)"
-IOC_PORT=""
-IOC_CMD="./st.cmd"
-EOF
-```
+* **Option A: Automated Generation (Recommended)**
+  Automatically maps `IOC_USER` and `IOC_GROUP` to the current local session.
+  ```bash
+  ~/epics-ioc-runner/bin/ioc-runner generate --local .
+  ```
 
-*Important: The configuration is strictly validated. Make sure the current user has execute permissions for both the `IOC_CHDIR` and the `IOC_CMD`.*
+* **Option B: Manual Creation**
+  Ensure the user and group variables match your current local session ID.
+  ```bash
+  cat <<EOF > iocctrlslab-tcmd.conf
+  IOC_USER="$(id -un)"
+  IOC_GROUP="$(id -gn)"
+  IOC_CHDIR="$(pwd)"
+  IOC_PORT=""
+  IOC_CMD="./st.cmd"
+  EOF
+  ```
 
 ## 3. Install the Configuration (Local Mode)
-Use the `--local` flag with the `install` command. This will copy the configuration to `~/.config/procServ.d/` and dynamically generate the user-level systemd template (`epics-@.service`) if it does not exist.
+Deploy the configuration to the user-level systemd directory. The wrapper automatically generates the local `epics-@.service` template if missing.
 
 ```bash
+# For explicitly named files:
 ~/epics-ioc-runner/bin/ioc-runner --local install iocctrlslab-tcmd.conf
+
+# For auto-generated configurations in the current directory:
+~/epics-ioc-runner/bin/ioc-runner --local install .
 ```
 
 ### CI/CD and Automated Deployments
-If you are deploying IOCs via configuration management tools (e.g., Ansible) or CI/CD pipelines, the interactive overwrite prompt will halt the process. Use the `-f` (or `--force`) flag to force installation:
-
+If deploying via configuration management tools, bypass interactive overwrite prompts using the `-f` flag:
 ```bash
-ioc-runner -f install myioc.conf
+~/epics-ioc-runner/bin/ioc-runner -f generate --local .
+~/epics-ioc-runner/bin/ioc-runner -f install --local .
 ```
 
 
