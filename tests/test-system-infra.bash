@@ -18,10 +18,6 @@ declare -g TEST_FAILED=0
 declare -g SCRIPT_ERROR=0
 declare -g -a FAILED_DETAILS=()
 
-declare -g SC_RPATH
-declare -g SC_TOP
-SC_RPATH="$(realpath "$0")"
-SC_TOP="${SC_RPATH%/*}"
 
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"

@@ -6,11 +6,17 @@
 
 set -e
 
+# --- Version Information ---
+declare -g RUNNER_VERSION="1.0.2"
+declare -g RUNNER_GIT_HASH="unknown"
+declare -g RUNNER_BUILD_DATE="unreleased"
+
+
 # Defines global ANSI color codes for terminal output formatting.
 declare -g RED='\033[0;31m'
 declare -g GREEN='\033[0;32m'
 declare -g BLUE='\033[0;34m'
-declare -g YELLOW='\033[0;33m'
+# declare -g YELLOW='\033[0;33m'
 declare -g NC='\033[0m'
 
 # --- Configuration Directories ---
@@ -51,11 +57,6 @@ declare -g FORCE_OVERWRITE=0
 # --- Target Identity Settings ---
 declare -g TARGET_SYSTEM_USER="ioc-srv"
 declare -g TARGET_SYSTEM_GROUP="ioc"
-
-# --- Version Information ---
-declare -g RUNNER_VERSION="1.0.2-dev"
-declare -g RUNNER_GIT_HASH="unknown"
-declare -g RUNNER_BUILD_DATE="unreleased"
 
 # --- Health Check Configuration ---
 # Regex pattern used to detect fatal errors or crash-loops in systemd logs immediately after startup.
@@ -312,6 +313,7 @@ function read_conf_all {
         val="${val%\"}"; val="${val#\"}"
         val="${val%\'}"; val="${val#\'}"
         val="${val%$'\r'}"
+        # shellcheck disable=SC2034
         result_map["${key}"]="${val}"
     done < "${conf_file}"
 }
@@ -537,6 +539,7 @@ function do_generate {
     local i=0
     local selection=""
     local -a cmd_candidates=()
+    # shellcheck disable=SC2034
     local -A validate_map
     local mode_flag=""
 
@@ -588,10 +591,13 @@ function do_generate {
             for ((i=0; i<${#cmd_candidates[@]}; i=$((i + 1)))); do
                 printf "  [%d] %s\n" "$((i + 1))" "${cmd_candidates[$i]}"
             done
-            
+
             while true; do
                 printf "Select the startup script [1-%d]: " "${#cmd_candidates[@]}"
-                read -r selection
+                if ! read -r selection; then
+                    printf "\nError: Input stream closed (EOF). Aborting generation.\n" >&2
+                    exit 1
+                fi
                 if [[ "${selection}" =~ ^[0-9]+$ ]] && [[ ${selection} -ge 1 && ${selection} -le ${#cmd_candidates[@]} ]]; then
                     cmd_file="./${cmd_candidates[$((selection - 1))]}"
                     break
@@ -636,7 +642,7 @@ EOF
             printf "Info: Existing configuration '%s' is already up-to-date (Identical).\n" "${generated_conf}"
             printf "Skipping overwrite.\n"
             rm -f "${tmp_conf}"
-            
+
             print_sub_divider
             cat "${generated_conf}"
             print_divider
@@ -649,8 +655,8 @@ EOF
             printf "Configuration file '%s' already exists with differences.\n" "${generated_conf}"
             print_sub_divider
             if command -v diff >/dev/null 2>&1; then
-                printf "  ${RED}[-] Current Configuration : %s${NC}\n" "${generated_conf}"
-                printf "  ${GREEN}[+] Pending Configuration : (Auto-generated)${NC}\n"
+                printf "  %b[-] Current Configuration : %s%b\n" "${RED}" "${generated_conf}" "${NC}"
+                printf "  %b[+] Pending Configuration : (Auto-generated)%b\n" "${GREEN}" "${NC}"
                 print_sub_divider
 
                 # Executes a unified diff comparison, strips raw timestamp headers, and applies
@@ -673,7 +679,7 @@ EOF
             fi
             print_divider
             printf "Do you want to overwrite it with the new configuration? [y/N]: "
-            read -r confirm
+            read -r confirm || true
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Generation aborted by user.\n"
                 rm -f "${tmp_conf}"
@@ -716,7 +722,7 @@ function do_install {
             printf "Hint: Did you run '%s generate %s' first?\n" "${0##*/}" "${source_target}" >&2
             exit 1
         fi
-        
+
         # Aligns the global IOC_NAME with the resolved directory base name and validates it.
         if [[ -z "${IOC_NAME}" || "${IOC_NAME}" == "${source_target}" || "${IOC_NAME}" == "." ]]; then
             IOC_NAME="${resolved_ioc_name}"
@@ -785,7 +791,7 @@ function do_install {
         if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
             printf "Warning: Configuration file '%s' already exists.\n" "${target_conf}"
             printf "Do you want to overwrite it? [y/N]: "
-            read -r confirm
+            read -r confirm || true
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Installation aborted by user.\n"
                 exit 0

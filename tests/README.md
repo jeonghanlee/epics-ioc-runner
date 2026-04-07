@@ -79,23 +79,33 @@ sudo -E bash tests/test-system-lifecycle.bash
 ```
 
 ---
-
 ## Verified Behaviors
 
-### Lifecycle Workflows (Local & System)
+### 1. Zero-Config & Automation Pipeline
+* **Auto-Generation (`generate .`)**: Validates dynamic configuration creation by scanning native EPICS directory structures (`iocBoot/iocName/st.cmd`) without requiring manual file authoring.
+* **Directory-based Routing (`install .`)**: Verifies that the runner can implicitly resolve and install configuration artifacts based on the current working directory's basename.
+* **2x2 Cross-Validation Matrix**: Ensures absolute routing stability by testing all four deployment combinations:
+  1. Manual Gen $\rightarrow$ Explicit Install
+  2. Manual Gen $\rightarrow$ Directory Install
+  3. Auto Gen $\rightarrow$ Explicit Install
+  4. Auto Gen $\rightarrow$ Directory Install
+
+### 2. Lifecycle Workflows (Local & System)
 Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
-* **Setup & Build**: Compiles a test IOC (`ServiceTestIOC`) in a temporary workspace.
-* **Deployment**: Installs `.conf` and verifies systemd template generation.
-* **Service Control**: Verifies `start`, `status`, `view`, `restart`, and `stop`.
-* **Monitoring**: Validates UDS creation, `list` outputs (PID, CPU, MEM, etc).
-* **Connection & Isolation**: Validates `attach` (r/w access via `con`), `monitor` (read-only isolation), and specifically in system mode, the `inspect` command's Netlink-based Client PID mapping.
-* **EPICS Functionality**: Live PV reads via `caget` for Channel Access verification.
-* **Teardown**: Verifies `enable`/`disable` persistence and complete `remove` cleanup.
+* **Setup & Build**: Clones and compiles a test IOC (`ServiceTestIOC`) natively matching standard EPICS layouts (`TOP_DIR` and `BOOT_DIR`).
+* **Deployment**: Installs `.conf` and verifies systemd template generation (`@.service`).
+* **Service Control**: Verifies state transitions via `start`, `status`, `view`, `restart`, and `stop`.
+* **Monitoring**: Validates UNIX Domain Socket (UDS) creation and `list` outputs (PID, CPU, MEM, Recv-Q, Send-Q).
+* **Connection & Isolation**: Validates `attach` (r/w access via `con`), `monitor` (read-only isolation securely blocking stdin).
+* **Netlink Diagnostics**: In system mode, validates the `inspect` command mapping anonymous UDS clients via Kernel Netlink contexts.
+* **EPICS Functionality**: Live PV reads via `caget` ensuring actual Channel Access (CA) broadcasting.
+* **Teardown**: Verifies `enable`/`disable` persistence in systemd `.wants` and complete `remove` cleanup.
 
-### Error Handling (`test-error-handling.bash`)
-* Validates CLI arguments, missing targets, and invalid configuration syntax.
-* Ensures safe failure paths for missing files or templates.
+### 3. Error Handling (`test-error-handling.bash`)
+* **Interactive Protections**: Verifies safe aborts and infinite-loop prevention (EOF handling) during non-interactive piping (`< /dev/null`).
+* **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
+* **Diff Engine**: Evaluates ANSI-colored diff output prompting and force-overwrite (`-f`) bypass mechanisms.
 
-### Infrastructure State (`test-system-infra.bash`)
-* **Accounts & Permissions**: Confirms `ioc-srv` user, `ioc` group, and `2770` SetGID directories.
-* **Security Policies**: Validates `/etc/sudoers.d/10-epics-ioc` syntax using `visudo`.
+### 4. Infrastructure State (`test-system-infra.bash`)
+* **Accounts & Permissions**: Confirms `ioc-srv` user, `ioc` group, and `2770` SetGID collaborative directories.
+* **Security Policies**: Validates `/etc/sudoers.d/10-epics-ioc` syntax natively using `visudo`.

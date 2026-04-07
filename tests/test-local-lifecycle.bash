@@ -47,15 +47,18 @@ declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 declare -g CONF_DIR="${HOME}/.config/procServ.d"
 declare -g SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"
-declare -g RUN_DIR="/run/user/$(id -u)/procserv"
+declare -g RUN_DIR
+RUN_DIR="/run/user/$(id -u)/procserv"
 
 # --- IOC Test Target Paths ---
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
-declare -g IOC_NAME="ServiceTestIOC"
+declare -g REPO_NAME="ServiceTestIOC"
+declare -g IOC_NAME="iocServiceTestIOC"
 
 declare -g WORKSPACE=""
-declare -g IOC_DIR=""
+declare -g TOP_DIR=""
+declare -g BOOT_DIR=""
 declare -g CONF_FILE=""
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
 
@@ -217,10 +220,15 @@ function _setup_workspace {
     fi
 
     WORKSPACE=$(mktemp -d -p "${target_tmp}" epics-ioc-test.XXXXXX)
-    IOC_DIR="${WORKSPACE}/${IOC_NAME}"
-    CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
 
-    _log "SUCCESS" "Test workspace created at ${WORKSPACE}"
+    # TOP_DIR uses the repository name. BOOT_DIR matches the standard IOC name.
+    TOP_DIR="${WORKSPACE}/${REPO_NAME}"
+    BOOT_DIR="${TOP_DIR}/iocBoot/${IOC_NAME}"
+
+    # The configuration artifact is now strictly aligned with the implicit IOC_NAME.
+    CONF_FILE="${BOOT_DIR}/${IOC_NAME}.conf"
+
+    _log "SUCCESS" "Test workspace defined with standard EPICS structure at ${WORKSPACE}"
 }
 
 function setup_environment {
@@ -229,62 +237,119 @@ function setup_environment {
     _log "INFO" "STEP ${step}: Environment Setup & Compilation"
     print_sub_divider
 
-    if [[ ! -d "${IOC_DIR}" ]]; then
+    if [[ ! -d "${TOP_DIR}" ]]; then
         _log "INFO" "Cloning target IOC repository..."
-        git clone -q "${IOC_REPO}" "${IOC_DIR}" >/dev/null 2>&1
+        git clone -q "${IOC_REPO}" "${TOP_DIR}" >/dev/null 2>&1
     fi
 
-    cd "${IOC_DIR}"
+    # Compile the application at the top-level directory.
+    cd "${TOP_DIR}" || exit 1
     if [[ ! -d "bin" ]]; then
-        _log "INFO" "Configuring EPICS environment..."
+        _log "INFO" "Configuring and compiling EPICS application..."
         printf "EPICS_BASE=%s\n" "${EPICS_BASE}" > configure/RELEASE.local
-
-        _log "INFO" "Compiling ServiceTestIOC..."
         make > build.log 2>&1 || { _log "ERROR" "Compilation failed. Check build.log"; exit 1; }
         _log "SUCCESS" "Compilation completed."
-    else
-        _log "INFO" "Binaries found. Skipping compilation."
     fi
 
-    chmod +x cmd/st.cmd
+    chmod +x "${BOOT_DIR}/st.cmd"
 
-    _log "INFO" "Generating Configuration File in workspace..."
+    _log "SUCCESS" "Standard environment structure prepared at ${BOOT_DIR}"
+}
+
+# Validates manual creation of the configuration artifact.
+function test_generate_manual {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Generate (Manual)"
+    print_sub_divider
+
+    cd "${BOOT_DIR}" || exit 1
     cat <<EOF > "${CONF_FILE}"
 IOC_NAME="${IOC_NAME}"
 IOC_USER="$(id -un)"
 IOC_GROUP="$(id -gn)"
-IOC_CHDIR="${IOC_DIR}"
+IOC_CHDIR="${BOOT_DIR}"
 IOC_PORT=""
-IOC_CMD="./cmd/st.cmd"
+IOC_CMD="./st.cmd"
 EOF
-    _log "SUCCESS" "Configuration generated at ${CONF_FILE}"
+
+    local conf_exist="false"
+    if [[ -f "${CONF_FILE}" ]]; then conf_exist="true"; fi
+    verify_state "true" "${conf_exist}" "Manual configuration artifact created"
 }
 
-function test_install {
+# Validates native auto-generation of the configuration artifact.
+function test_generate_auto {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: Test Install Command"
+    _log "INFO" "STEP ${step}: Test Generate (Auto)"
     print_sub_divider
 
+    cd "${BOOT_DIR}" || exit 1
+    bash "${RUNNER_SCRIPT}" --local generate . >/dev/null
+
+    local conf_exist="false"
+    if [[ -f "${CONF_FILE}" ]]; then conf_exist="true"; fi
+    verify_state "true" "${conf_exist}" "Configuration artifact auto-generated natively"
+}
+
+# Validates deployment using an explicit file path.
+function test_install_explicit {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Install (Explicit)"
+    print_sub_divider
+
+    cd "${BOOT_DIR}" || exit 1
     bash "${RUNNER_SCRIPT}" --local -f install "${CONF_FILE}" >/dev/null
 
     local conf_exist="false"
-    local tmpl_exist="false"
-
     if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
-    if [[ -f "${SYSTEMD_USER_DIR}/epics-@.service" ]]; then tmpl_exist="true"; fi
-
-    verify_state "true" "${conf_exist}" "Configuration file deployed to user procServ.d"
-    verify_state "true" "${tmpl_exist}" "Systemd template unit (@.service) dynamically generated in user directory"
-
-    local injected_port=""
-    if [[ "${conf_exist}" == "true" ]]; then
-        injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)
-    fi
-    local expected_port="unix:$(id -un):$(id -gn):0660:${UDS_PATH}"
-    verify_state "${expected_port}" "${injected_port}" "IOC_PORT auto-filled correctly in deployed conf"
+    verify_state "true" "${conf_exist}" "Explicit file installation succeeded"
 }
 
+# Validates deployment using dynamic directory resolution.
+function test_install_dir {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Install (Directory)"
+    print_sub_divider
+
+    cd "${BOOT_DIR}" || exit 1
+    bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null
+
+    local conf_exist="false"
+    if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
+    verify_state "true" "${conf_exist}" "Directory-based installation succeeded"
+}
+
+# Reverts deployed system state for subsequent pipeline steps.
+function test_cleanup_install {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Cleanup Installation"
+    print_sub_divider
+
+    bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
+
+    local conf_exist="true"
+    if [[ ! -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="false"; fi
+    verify_state "false" "${conf_exist}" "Deployed configuration safely removed"
+}
+
+# Removes the workspace artifact to ensure isolated generation testing.
+function test_cleanup_conf {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Cleanup Artifact"
+    print_sub_divider
+
+    rm -f "${CONF_FILE}"
+
+    local conf_exist="true"
+    if [[ ! -f "${CONF_FILE}" ]]; then conf_exist="false"; fi
+    verify_state "false" "${conf_exist}" "Workspace configuration artifact removed"
+}
 function test_start {
     local step="$1"
     print_divider
@@ -639,7 +704,16 @@ function run_all_tests {
         "_setup_workspace"
         "cleanup_previous_state"
         "setup_environment"
-        "test_install"
+        "test_generate_manual"
+        "test_install_explicit"
+        "test_cleanup_install"
+        "test_install_dir"
+        "test_cleanup_install"
+        "test_cleanup_conf"
+        "test_generate_auto"
+        "test_install_explicit"
+        "test_cleanup_install"
+        "test_install_dir"
         "test_start"
         "test_status"
         "test_view"

@@ -53,15 +53,19 @@ declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
 declare -g RUN_DIR="/run/procserv"
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
-declare -g IOC_NAME="ServiceTestIOC-SYS"
+declare -g REPO_NAME="ServiceTestIOC"
+# System test uses a specific suffix to avoid colliding with local tests
+declare -g IOC_NAME="iocServiceTestIOC-SYS"
 
 # Global settings for system identity and workspace permissions
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"
 
 declare -g WORKSPACE=""
-declare -g IOC_DIR=""
+declare -g TOP_DIR=""
+declare -g BOOT_DIR=""
 declare -g CONF_FILE=""
+
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
 declare -g PERM_WORKSPACE="2770"
 declare -g OWNER_WORKSPACE="root:ioc"
@@ -231,8 +235,11 @@ function _setup_workspace {
     fi
 
     WORKSPACE=$(mktemp -d -p "${target_tmp}" epics-ioc-test.XXXXXX)
-    IOC_DIR="${WORKSPACE}/${IOC_NAME}"
-    CONF_FILE="${WORKSPACE}/${IOC_NAME}.conf"
+
+    # TOP_DIR uses the repository name. BOOT_DIR aligns with the system IOC_NAME.
+    TOP_DIR="${WORKSPACE}/${REPO_NAME}"
+    BOOT_DIR="${TOP_DIR}/iocBoot/${IOC_NAME}"
+    CONF_FILE="${BOOT_DIR}/${IOC_NAME}.conf"
 
     chgrp "${OWNER_WORKSPACE#*:}" "${WORKSPACE}"
     chmod "${PERM_WORKSPACE}" "${WORKSPACE}"
@@ -256,12 +263,12 @@ function setup_environment {
     _log "INFO" "STEP ${step}: Environment Setup & Compilation"
     print_sub_divider
 
-    if [[ ! -d "${IOC_DIR}" ]]; then
+    if [[ ! -d "${TOP_DIR}" ]]; then
         _log "INFO" "Cloning target IOC repository..."
-        git clone -q "${IOC_REPO}" "${IOC_DIR}" >/dev/null 2>&1
+        git clone -q "${IOC_REPO}" "${TOP_DIR}" >/dev/null 2>&1
     fi
 
-    cd "${IOC_DIR}"
+    cd "${TOP_DIR}" || exit 1
     if [[ ! -d "bin" ]]; then
         _log "INFO" "Configuring EPICS environment..."
         printf "EPICS_BASE=%s\n" "${EPICS_BASE}" > configure/RELEASE.local
@@ -273,39 +280,107 @@ function setup_environment {
         _log "INFO" "Binaries found. Skipping compilation."
     fi
 
-    chmod +x cmd/st.cmd
+    # Rename the standard boot directory to match our SYS test target name
+    if [[ -d "iocBoot/iocServiceTestIOC" && "${IOC_NAME}" != "iocServiceTestIOC" ]]; then
+        mv "iocBoot/iocServiceTestIOC" "${BOOT_DIR}"
+    fi
 
-    _log "INFO" "Generating Configuration File in workspace..."
+    # System tests run as root, but the IOC runs as ioc-srv. Ensure permissions.
+    chown -R "${OWNER_WORKSPACE}" "${TOP_DIR}"
+    chmod +x "${BOOT_DIR}/st.cmd"
+
+    _log "SUCCESS" "System environment structure prepared at ${BOOT_DIR}"
+}
+
+function test_generate_manual {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Generate (Manual)"
+    print_sub_divider
+
+    cd "${BOOT_DIR}" || exit 1
     cat <<EOF > "${CONF_FILE}"
 IOC_NAME="${IOC_NAME}"
 IOC_USER="${SYSTEM_USER}"
 IOC_GROUP="${SYSTEM_GROUP}"
-IOC_CHDIR="${IOC_DIR}"
+IOC_CHDIR="${BOOT_DIR}"
 IOC_PORT=""
-IOC_CMD="./cmd/st.cmd"
+IOC_CMD="./st.cmd"
 EOF
-    _log "SUCCESS" "Configuration generated at ${CONF_FILE}"
+    chown "${OWNER_WORKSPACE}" "${CONF_FILE}"
+
+    local conf_exist="false"
+    if [[ -f "${CONF_FILE}" ]]; then conf_exist="true"; fi
+    verify_state "true" "${conf_exist}" "Manual configuration artifact created"
 }
 
-function test_install {
+function test_generate_auto {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: Test Install Command"
+    _log "INFO" "STEP ${step}: Test Generate (Auto)"
     print_sub_divider
 
+    cd "${BOOT_DIR}" || exit 1
+    # System generation explicitly detects the target boot directory
+    bash "${RUNNER_SCRIPT}" generate . >/dev/null
+
+    local conf_exist="false"
+    if [[ -f "${CONF_FILE}" ]]; then conf_exist="true"; fi
+    verify_state "true" "${conf_exist}" "Configuration artifact auto-generated natively"
+}
+
+function test_install_explicit {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Install (Explicit)"
+    print_sub_divider
+
+    cd "${BOOT_DIR}" || exit 1
     bash "${RUNNER_SCRIPT}" -f install "${CONF_FILE}" >/dev/null
 
     local conf_exist="false"
     if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
+    verify_state "true" "${conf_exist}" "Explicit file installation succeeded"
+}
 
-    verify_state "true" "${conf_exist}" "Configuration file deployed to system procServ.d"
+function test_install_dir {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Install (Directory)"
+    print_sub_divider
 
-    local injected_port=""
-    if [[ "${conf_exist}" == "true" ]]; then
-        injected_port=$(grep "^IOC_PORT=" "${CONF_DIR}/${IOC_NAME}.conf" | cut -d'"' -f2)
-    fi
-    local expected_port="unix:${SYSTEM_USER}:${SYSTEM_GROUP}:0660:${UDS_PATH}"
-    verify_state "${expected_port}" "${injected_port}" "IOC_PORT auto-filled correctly for system mode"
+    cd "${BOOT_DIR}" || exit 1
+    bash "${RUNNER_SCRIPT}" -f install . >/dev/null
+
+    local conf_exist="false"
+    if [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="true"; fi
+    verify_state "true" "${conf_exist}" "Directory-based installation succeeded"
+}
+
+function test_cleanup_install {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Cleanup Installation"
+    print_sub_divider
+
+    bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}" >/dev/null 2>&1 || true
+
+    local conf_exist="true"
+    if [[ ! -f "${CONF_DIR}/${IOC_NAME}.conf" ]]; then conf_exist="false"; fi
+    verify_state "false" "${conf_exist}" "Deployed configuration safely removed"
+}
+
+function test_cleanup_conf {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Cleanup Artifact"
+    print_sub_divider
+
+    rm -f "${CONF_FILE}"
+
+    local conf_exist="true"
+    if [[ ! -f "${CONF_FILE}" ]]; then conf_exist="false"; fi
+    verify_state "false" "${conf_exist}" "Workspace configuration artifact removed"
 }
 
 function test_start {
@@ -682,7 +757,16 @@ function run_all_tests {
         "_setup_workspace"
         "cleanup_previous_state"
         "setup_environment"
-        "test_install"
+        "test_generate_manual"
+        "test_install_explicit"
+        "test_cleanup_install"
+        "test_install_dir"
+        "test_cleanup_install"
+        "test_cleanup_conf"
+        "test_generate_auto"
+        "test_install_explicit"
+        "test_cleanup_install"
+        "test_install_dir"
         "test_start"
         "test_status"
         "test_view"

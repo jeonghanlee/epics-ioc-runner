@@ -103,6 +103,26 @@ function print_summary {
     printf "${BLUE}%s${NC}\n\n" "===================================================================================================="
 }
 
+# Validates string equality between expected and actual states, tracking aggregate test metrics.
+function verify_state {
+    local expected="$1"
+    local actual="$2"
+    local step_name="$3"
+
+    TEST_TOTAL=$((TEST_TOTAL + 1))
+
+    if [[ "${expected}" == "${actual}" ]]; then
+        printf "${GREEN}[ PASS ]${NC} %s\n" "${step_name}"
+        TEST_PASSED=$((TEST_PASSED + 1))
+    else
+        printf "${RED}[ FAIL ]${NC} %s\n" "${step_name}" >&2
+        printf "  ${YELLOW}Expected : %s${NC}\n" "${expected}" >&2
+        printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
+        TEST_FAILED=$((TEST_FAILED + 1))
+        FAILED_DETAILS+=("${step_name} (Expected: ${expected}, Actual: ${actual})")
+    fi
+}
+
 function verify_exit_code {
     local expected_exit="$1"
     local actual_exit="$2"
@@ -205,6 +225,120 @@ function test_missing_target {
     verify_exit_code "1" "${exit_code}" "'view' without target exits 1"
 }
 
+# Validates the zero-fork path expansion, interactive overwrite protections, and CI/CD bypass mechanisms.
+function test_generate_logic {
+    local step="$1"
+    local exit_code
+    local test_dir="${TEST_TMPDIR}/valid_ioc"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Generate Logic and Diff Engine"
+    print_sub_divider
+
+    mkdir -p "${test_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    local conf_file="${test_dir}/valid_ioc.conf"
+
+    # Evaluates relative path expansion and automatic startup script resolution.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local generate .)
+        verify_exit_code "0" "${exit_code}" "Generate native dot path resolves successfully"
+    )
+
+    local conf_exists="false"
+    if [[ -f "${conf_file}" ]]; then conf_exists="true"; fi
+    verify_state "true" "${conf_exists}" "Configuration artifact created dynamically"
+
+    # Evaluates the internal cmp -s integration bypassing identical configuration files.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local generate .)
+        verify_exit_code "0" "${exit_code}" "Identical artifact natively bypasses overwrite and exits 0"
+    )
+
+    # Evaluates the ANSI diff engine and interactive prompt behavior using a mocked non-interactive shell.
+    printf "\n# Modified\n" >> "${conf_file}"
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate . < /dev/null")
+        verify_exit_code "0" "${exit_code}" "Differential artifact prompts user and exits gracefully"
+    )
+
+    # Evaluates the forced overwrite bypass mechanism for automation pipelines.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f generate .)
+        verify_exit_code "0" "${exit_code}" "Forced overwrite ignores diff constraint and exits 0"
+    )
+}
+
+function test_generate_errors {
+    local step="$1"
+    local exit_code
+    local dummy_dir="${TEST_TMPDIR}/dummy_gen"
+    local bad_name_dir="${TEST_TMPDIR}/bad name ioc"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Generate Error Paths"
+    print_sub_divider
+
+    mkdir -p "${dummy_dir}"
+    mkdir -p "${bad_name_dir}"
+
+    # Validates path resolution rejecting illegal characters before native evaluation
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local generate "${bad_name_dir}")
+    verify_exit_code "1" "${exit_code}" "Generate with invalid directory name exits 1"
+
+    # Validates script discovery aborting when zero executables exist
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local generate "${dummy_dir}")
+    verify_exit_code "1" "${exit_code}" "Generate with no executable scripts exits 1"
+
+    # Validates interactive prompt aborting safely under non-interactive stdin
+    touch "${dummy_dir}/st1.cmd" "${dummy_dir}/st2.cmd"
+    chmod +x "${dummy_dir}/st1.cmd" "${dummy_dir}/st2.cmd"
+    exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate \"${dummy_dir}\" < /dev/null")
+    verify_exit_code "1" "${exit_code}" "Generate with multiple candidates aborts interactively"
+
+    # Validates CI/CD bypass flag safely handling multiple candidates
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f generate "${dummy_dir}")
+    verify_exit_code "0" "${exit_code}" "Generate with force flag resolves multiple candidates and exits 0"
+}
+
+# Validates directory-based artifact resolution and target routing functionality.
+function test_install_logic {
+    local step="$1"
+    local exit_code
+    local test_dir="${TEST_TMPDIR}/install_ioc"
+    local mock_conf_dir="${TEST_TMPDIR}/mock_etc"
+    local mock_sysd_dir="${TEST_TMPDIR}/mock_sysd"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Install Routing and Resolution"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    # Pre-generates the artifact for the installation pipeline evaluation.
+    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+
+    # Evaluates implicit artifact location and syntax validation prior to routing.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" _run bash "${RUNNER_SCRIPT}" --local -f install .)
+        verify_exit_code "0" "${exit_code}" "Directory-based installation resolves artifact correctly"
+    )
+
+    local installed_conf="${mock_conf_dir}/install_ioc.conf"
+    local install_exists="false"
+    if [[ -f "${installed_conf}" ]]; then install_exists="true"; fi
+    verify_state "true" "${install_exists}" "Artifact successfully routed to configuration directory"
+}
+
 function test_install_errors {
     local step="$1"
     print_divider
@@ -220,6 +354,15 @@ function test_install_errors {
 
     exit_code=$(IOC_RUNNER_SYSTEMD_DIR="${TEST_TMPDIR}" _run bash "${RUNNER_SCRIPT}" -f install "${fake_conf}")
     verify_exit_code "1" "${exit_code}" "'install' with missing system template exits 1"
+
+    local dummy_dir="${TEST_TMPDIR}/dummy_install"
+    mkdir -p "${dummy_dir}"
+    touch "${dummy_dir}/wrong_name.conf"
+
+    # Validates strict naming constraint mapping during directory-based installation
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${dummy_dir}")
+    verify_exit_code "1" "${exit_code}" "Install directory with mismatched conf name exits 1"
+
 }
 
 function test_validation_errors {
@@ -320,6 +463,9 @@ function run_all_tests {
         "_setup"
         "test_usage"
         "test_missing_target"
+        "test_generate_logic"
+        "test_install_logic"
+        "test_generate_errors"
         "test_install_errors"
         "test_validation_errors"
         "test_attach_errors"
