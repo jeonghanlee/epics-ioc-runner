@@ -35,8 +35,6 @@ Select either the automated generation tool or manual creation.
   IOC_CMD="./st.cmd"
   EOF
   ```
-```
-
 *Important: Ensure your `IOC_CMD` (e.g., `st.cmd`) has execute permissions (`chmod +x st.cmd`), otherwise the installation will be strictly rejected.*
 
 **Step 3: Install the Configuration**
