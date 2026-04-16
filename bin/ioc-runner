@@ -7,7 +7,7 @@
 set -e
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.2"
+declare -g RUNNER_VERSION="1.0.3-dev"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
 
@@ -20,12 +20,12 @@ declare -g BLUE='\033[0;34m'
 declare -g NC='\033[0m'
 
 # --- Configuration Directories ---
-declare -g SYSTEM_CONF_DIR="${IOC_RUNNER_CONF_DIR:-/etc/procServ.d}"
-declare -g LOCAL_CONF_DIR="${IOC_RUNNER_CONF_DIR:-${HOME}/.config/procServ.d}"
-declare -g SYSTEM_SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-/etc/systemd/system}"
-declare -g LOCAL_SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${HOME}/.config/systemd/user}"
-declare -g SYSTEM_RUN_DIR="${IOC_RUNNER_RUN_DIR:-/run/procserv}"
-declare -g LOCAL_RUN_DIR="${IOC_RUNNER_RUN_DIR:-/run/user/$(id -u)/procserv}"
+declare -g SYSTEM_CONF_DIR="${IOC_RUNNER_SYSTEM_CONF_DIR:-/etc/procServ.d}"
+declare -g LOCAL_CONF_DIR="${IOC_RUNNER_LOCAL_CONF_DIR:-${HOME}/.config/procServ.d}"
+declare -g SYSTEM_SYSTEMD_DIR="${IOC_RUNNER_SYSTEM_SYSTEMD_DIR:-/etc/systemd/system}"
+declare -g LOCAL_SYSTEMD_DIR="${IOC_RUNNER_LOCAL_SYSTEMD_DIR:-${HOME}/.config/systemd/user}"
+declare -g SYSTEM_RUN_DIR="${IOC_RUNNER_SYSTEM_RUN_DIR:-/run/procserv}"
+declare -g LOCAL_RUN_DIR="${IOC_RUNNER_LOCAL_RUN_DIR:-/run/user/$(id -u)/procserv}"
 
 # --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN=""
@@ -45,11 +45,10 @@ fi
 declare -g -a CON_SEARCH_PATHS=("/usr/local/bin/con" "/usr/bin/con")
 declare -g -a PROCSERV_SEARCH_PATHS=("/usr/local/bin/procServ" "/usr/bin/procServ")
 
-# --- Active State Variables ---
 declare -g EXEC_MODE="system"
-declare -g CONF_DIR="${SYSTEM_CONF_DIR}"
-declare -g SYSTEMD_DIR="${SYSTEM_SYSTEMD_DIR}"
-declare -g RUN_DIR="${SYSTEM_RUN_DIR}"
+declare -g CONF_DIR="${IOC_RUNNER_CONF_DIR:-${SYSTEM_CONF_DIR}}"
+declare -g SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${SYSTEM_SYSTEMD_DIR}}"
+declare -g RUN_DIR="${IOC_RUNNER_RUN_DIR:-${SYSTEM_RUN_DIR}}"
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
@@ -61,7 +60,7 @@ declare -g TARGET_SYSTEM_GROUP="ioc"
 # --- Health Check Configuration ---
 # Regex pattern used to detect fatal errors or crash-loops in systemd logs immediately after startup.
 # Users can add custom error strings specific to their hardware or EPICS modules here (separated by '|').
-declare -g CRASH_LOG_PATTERNS="(Restarting child|error while loading|Connection timed out|FATAL|Segmentation fault)"
+declare -g CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault)"
 
 
 function print_divider {
@@ -74,9 +73,9 @@ function print_sub_divider {
 
 function set_local_mode {
     EXEC_MODE="local"
-    CONF_DIR="${LOCAL_CONF_DIR}"
-    SYSTEMD_DIR="${LOCAL_SYSTEMD_DIR}"
-    RUN_DIR="${LOCAL_RUN_DIR}"
+    CONF_DIR="${IOC_RUNNER_CONF_DIR:-${LOCAL_CONF_DIR}}"
+    SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${LOCAL_SYSTEMD_DIR}}"
+    RUN_DIR="${IOC_RUNNER_RUN_DIR:-${LOCAL_RUN_DIR}}"
 }
 
 function print_usage {
@@ -151,9 +150,10 @@ while [[ $# -gt 0 ]]; do
             display_hash="${RUNNER_GIT_HASH}"
             display_date="${RUNNER_BUILD_DATE}"
             if [[ "${display_hash}" == "unknown" ]]; then
-                if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-                    display_hash=$(git rev-parse --short HEAD)
-                    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+                script_dir="$(dirname "$(readlink -f "$0")")"
+                if command -v git >/dev/null 2>&1 && git -C "${script_dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                    display_hash=$(git -C "${script_dir}" rev-parse --short HEAD)
+                    if ! git -C "${script_dir}" diff-index --quiet HEAD -- 2>/dev/null; then
                         display_hash="${display_hash}-dirty"
                     fi
                     display_hash="${display_hash} (live)"
@@ -327,12 +327,11 @@ function process_ioc_port {
     if [[ "${EXEC_MODE}" == "system" ]]; then
         target_user="${TARGET_SYSTEM_USER}"
         target_group="${TARGET_SYSTEM_GROUP}"
-        run_base_dir="${SYSTEM_RUN_DIR}"
     else
         target_user=$(id -un)
         target_group=$(id -gn)
-        run_base_dir="${LOCAL_RUN_DIR}"
     fi
+    run_base_dir="${RUN_DIR}"
 
     local std_path="${run_base_dir}/${ioc_name}/control"
     local std_port="unix:${target_user}:${target_group}:0660:${std_path}"
@@ -356,6 +355,7 @@ function validate_conf {
     local conf_file="$1"
     local -n conf_vars="$2"    # nameref to caller's map
     local error_count=0
+    local current_user current_group exec_bin
 
     printf "Validating configuration file: %s...\n" "${conf_file}"
 
@@ -396,8 +396,6 @@ function validate_conf {
             error_count=$((error_count + 1))
         fi
     else
-        local current_user
-        local current_group
         current_user=$(id -un)
         current_group=$(id -gn)
 
@@ -423,7 +421,6 @@ function validate_conf {
         error_count=$((error_count + 1))
     else
         if [[ -n "${cmd}" ]]; then
-            local exec_bin
             read -r exec_bin _ <<< "${cmd}"
 
             # Verify if the binary is executable in the target directory or available in the system PATH
@@ -542,6 +539,7 @@ function do_generate {
     # shellcheck disable=SC2034
     local -A validate_map
     local mode_flag=""
+    local line=""
 
     if [[ ! -d "${target_dir}" ]]; then
         printf "Error: Target '%s' is not a valid directory.\n" "${target_dir}" >&2
@@ -665,11 +663,11 @@ EOF
                     if [[ "${line}" == ---* || "${line}" == +++* ]]; then
                         continue
                     elif [[ "${line}" == -* ]]; then
-                        printf "${RED}%s${NC}\n" "${line}"
+                        printf "%b%s%b\n" "${RED}" "${line}" "${NC}"
                     elif [[ "${line}" == +* ]]; then
-                        printf "${GREEN}%s${NC}\n" "${line}"
+                        printf "%b%s%b\n" "${GREEN}" "${line}" "${NC}"
                     elif [[ "${line}" == @@* ]]; then
-                        printf "${BLUE}%s${NC}\n" "${line}"
+                        printf "%b%s%b\n" "${BLUE}" "${line}" "${NC}"
                     else
                         printf "%s\n" "${line}"
                     fi
@@ -679,7 +677,11 @@ EOF
             fi
             print_divider
             printf "Do you want to overwrite it with the new configuration? [y/N]: "
-            read -r confirm || true
+            if ! read -r confirm; then
+                printf "\nInfo: Input stream closed (EOF). Aborting generation.\n"
+                rm -f "${tmp_conf}"
+                exit 0
+            fi
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Generation aborted by user.\n"
                 rm -f "${tmp_conf}"
@@ -741,9 +743,6 @@ function do_install {
         exit 1
     fi
 
-    local -A install_conf
-    validate_conf "${source_conf}" install_conf || exit 1
-
     local template_path="${SYSTEMD_DIR}/epics-@.service"
 
     if [[ "${EXEC_MODE}" == "system" ]]; then
@@ -791,7 +790,10 @@ function do_install {
         if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
             printf "Warning: Configuration file '%s' already exists.\n" "${target_conf}"
             printf "Do you want to overwrite it? [y/N]: "
-            read -r confirm || true
+            if ! read -r confirm; then
+                printf "\nInfo: Input stream closed (EOF). Aborting installation.\n"
+                exit 0
+            fi
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Installation aborted by user.\n"
                 exit 0
@@ -906,28 +908,24 @@ function do_monitor {
                     printf "Warning: 'con' does not support -r. Falling back to socat.\n" >&2
                     printf "Use Ctrl-C to exit.\n"
                     print_divider >&2
-                    socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT
-                    exit
+                    exec socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT || exit
                 else
                     printf "Warning: 'con' does not support -r. Falling back to nc.\n" >&2
                     printf "Use Ctrl-C to exit.\n"
                     print_divider >&2
-                    nc -U "${RESOLVED_SOCK_PATH}" < /dev/null
-                    exit
+                    exec nc -U "${RESOLVED_SOCK_PATH}" < /dev/null || exit
                 fi
             fi
             ;;
         socat)
             printf "Use Ctrl-C to exit.\n"
             print_divider >&2
-            socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT
-            exit
+            exec socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT || exit
             ;;
         nc)
             printf "Use Ctrl-C to exit.\n"
             print_divider >&2
-            nc -U "${RESOLVED_SOCK_PATH}" < /dev/null
-            exit
+            exec nc -U "${RESOLVED_SOCK_PATH}" < /dev/null || exit
             ;;
     esac
 }
@@ -940,6 +938,7 @@ function do_list {
 
     local sockets=()
     local -A ioc_started_map ioc_perm_map
+    local sock ts perm unit active rq sq path refcnt flags st inode key val b_id b_pid b_cpu b_mem i
     while IFS= read -r -d '' sock && IFS= read -r -d '' ts && IFS= read -r -d '' perm; do
         sockets+=("${sock}")
         ioc_started_map["${sock}"]="${ts}"
@@ -957,6 +956,7 @@ function do_list {
     fi
 
     # --- Memory Optimization: Stream Parsing & O(1) Hash Maps ---
+    local b_id b_pid b_cpu b_mem i
     local -A ioc_status_map
     local -A ioc_rq_map ioc_sq_map
     local -A ioc_pid_map ioc_cpu_map ioc_mem_map
@@ -1009,8 +1009,8 @@ function do_list {
 
     # 3. Pre-fetch verbose properties if -v or -vv is used
     if [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
-        local b_id="" b_pid="" b_cpu="" b_mem=""
-        local i
+        b_id="" b_pid="" b_cpu="" b_mem=""
+
         while IFS='=' read -r key val || [[ -n "${key}" ]]; do
             if [[ -z "${key}" ]]; then
                 # Empty line marks the end of a systemd unit block
@@ -1034,7 +1034,7 @@ function do_list {
 
         # Commit the final block in case there is no trailing empty line
         if [[ "${b_id}" =~ epics-@(.*)\.service ]]; then
-            local i="${BASH_REMATCH[1]}"
+            i="${BASH_REMATCH[1]}"
             ioc_pid_map["${i}"]="${b_pid}"
             ioc_cpu_map["${i}"]="${b_cpu}"
             ioc_mem_map["${i}"]="${b_mem}"
@@ -1054,10 +1054,10 @@ function do_list {
 
     print_sub_divider
 
-    local sock ioc_name status started
-    local pid cpu mem recv_q send_q perm
+    local ioc_name status started
+    local pid cpu mem recv_q send_q
     local cpu_ns mem_bytes cpu_dec mem_dec
-    local ref_cnt k_state inode
+    local ref_cnt k_state
 
     for sock in "${sockets[@]}"; do
         ioc_name="${sock%/*}"
@@ -1145,9 +1145,10 @@ function do_inspect {
         exit 1
     fi
 
-    # Enforce root privileges to ensure complete visibility of all client file descriptors
-    if [[ $EUID -ne 0 ]]; then
-        printf "Error: 'inspect' requires root privileges to map client processes.\n" >&2
+    # Enforce root privileges in system mode to ensure complete visibility of all client file descriptors.
+    # Local mode allows execution as the standard user since they own both the socket and the client processes.
+    if [[ "${EXEC_MODE}" == "system" && $EUID -ne 0 ]]; then
+        printf "Error: 'inspect' requires root privileges in system mode to map client processes.\n" >&2
         printf "Hint: Execute with sudo.\n" >&2
         exit 1
     fi
@@ -1188,6 +1189,7 @@ function do_inspect {
     local lsof_found=0
     local -a server_pids
     local -A seen_server_pids
+    local line pid state loc_path loc_ino peer_ino proc_info p_ino c_pid
 
     # 1. Gather server PIDs via lsof (lsof only retains the path for the server side)
     while IFS= read -r line; do
@@ -1231,7 +1233,7 @@ function do_inspect {
 
     local -A seen_client_pids
     for p_ino in "${!target_peer_inodes[@]}"; do
-        local c_pid="${inode_to_pid[${p_ino}]}"
+        c_pid="${inode_to_pid[${p_ino}]}"
         # Isolate true clients by excluding known server PIDs
         if [[ -n "${c_pid}" && -z "${seen_server_pids[${c_pid}]}" && -z "${seen_client_pids[${c_pid}]}" ]]; then
             client_pids+=("${c_pid}")

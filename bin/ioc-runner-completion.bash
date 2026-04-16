@@ -4,7 +4,7 @@
 # Provides context-aware suggestions for commands, options, and IOC targets.
 
 _ioc_runner_completions() {
-    local cur prev opts commands ioc_names conf_dir has_local cmd_found word
+    local cur prev opts commands ioc_names conf_dir has_local cmd_found word f name
 
     # Initialize completion variables
     cur="${COMP_WORDS[COMP_CWORD]}"
@@ -25,9 +25,9 @@ _ioc_runner_completions() {
 
     # Resolve configuration directory based on the execution mode
     if [[ ${has_local} -eq 1 ]]; then
-        conf_dir="${HOME}/.config/procServ.d"
+        conf_dir="${IOC_RUNNER_CONF_DIR:-${IOC_RUNNER_LOCAL_CONF_DIR:-${HOME}/.config/procServ.d}}"
     else
-        conf_dir="/etc/procServ.d"
+        conf_dir="${IOC_RUNNER_CONF_DIR:-${IOC_RUNNER_SYSTEM_CONF_DIR:-/etc/procServ.d}}"
     fi
 
     # Handle global options starting with a dash
@@ -54,11 +54,14 @@ _ioc_runner_completions() {
     # Generate context-specific completions based on the identified command
     case "${cmd_found}" in
         start|stop|restart|status|enable|disable|view|remove|attach|monitor|inspect)
-            # Fetch valid IOC names by parsing .conf files in the resolved directory
+            # Fetch valid IOC names using zero-fork native Bash globbing for maximum performance
+            ioc_names=""
             if [[ -d "${conf_dir}" ]]; then
-                ioc_names=$(find "${conf_dir}" -maxdepth 1 -name "*.conf" -exec basename {} .conf \; 2>/dev/null)
-            else
-                ioc_names=""
+                for f in "${conf_dir}"/*.conf; do
+                    [[ -e "${f}" ]] || continue
+                    name="${f##*/}"
+                    ioc_names+=" ${name%.conf}"
+                done
             fi
             COMPREPLY=( $(compgen -W "${ioc_names}" -- "${cur}") )
             ;;

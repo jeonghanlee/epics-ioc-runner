@@ -199,6 +199,18 @@ function test_usage {
 
     exit_code=$(_run bash "${RUNNER_SCRIPT}" unknown_command)
     verify_exit_code "1" "${exit_code}" "unknown command exits 1"
+
+    # Validates that -V reports the script's own repo identity regardless of CWD.
+    local version_out
+    local cwd_unrelated="${TEST_TMPDIR}/unrelated_dir"
+    mkdir -p "${cwd_unrelated}"
+    version_out=$(cd "${cwd_unrelated}" && bash "${RUNNER_SCRIPT}" -V 2>/dev/null)
+    exit_code=$?
+    verify_exit_code "0" "${exit_code}" "'-V' exits 0 from unrelated CWD"
+
+    local has_version="false"
+    if [[ "${version_out}" == *"epics-ioc-runner version"* ]]; then has_version="true"; fi
+    verify_state "true" "${has_version}" "'-V' produces valid version output from unrelated CWD"
 }
 
 function test_missing_target {
@@ -305,6 +317,15 @@ function test_generate_errors {
     # Validates CI/CD bypass flag safely handling multiple candidates
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f generate "${dummy_dir}")
     verify_exit_code "0" "${exit_code}" "Generate with force flag resolves multiple candidates and exits 0"
+
+    # Validates that multi-candidate cmd selection refuses to proceed on EOF.
+    local multi_cmd_dir="${TEST_TMPDIR}/multi_cmd_ioc"
+    mkdir -p "${multi_cmd_dir}"
+    touch "${multi_cmd_dir}/st.cmd" "${multi_cmd_dir}/alt.cmd"
+    chmod +x "${multi_cmd_dir}/st.cmd" "${multi_cmd_dir}/alt.cmd"
+
+    exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate \"${multi_cmd_dir}\" < /dev/null")
+    verify_exit_code "1" "${exit_code}" "Multiple cmd candidates without input exits 1 (no default)"
 }
 
 # Validates directory-based artifact resolution and target routing functionality.
@@ -337,6 +358,13 @@ function test_install_logic {
     local install_exists="false"
     if [[ -f "${installed_conf}" ]]; then install_exists="true"; fi
     verify_state "true" "${install_exists}" "Artifact successfully routed to configuration directory"
+    # Validates EOF path on install overwrite prompt (non-interactive piping).
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            _run bash -c "bash \"${RUNNER_SCRIPT}\" --local install . < /dev/null")
+        verify_exit_code "0" "${exit_code}" "Install overwrite prompt aborts gracefully on EOF"
+    )
 }
 
 function test_install_errors {

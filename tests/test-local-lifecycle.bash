@@ -397,6 +397,21 @@ function test_view {
     verify_state "true" "${conf_in_output}" "View output contains IOC name"
 }
 
+function test_inspect {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Inspect (Local Mode)"
+    print_sub_divider
+
+    local exit_code=0
+
+    # Validates that the Netlink socket diagnostic tool runs successfully
+    # without root privileges when the target process is owned by the current user.
+    bash "${RUNNER_SCRIPT}" --local inspect "${IOC_NAME}" >/dev/null 2>&1 || exit_code=$?
+
+    verify_state "0" "${exit_code}" "Inspect executes successfully as standard user in local mode"
+}
+
 function test_restart {
     local step="$1"
     print_divider
@@ -717,6 +732,7 @@ function run_all_tests {
         "test_start"
         "test_status"
         "test_view"
+        "test_inspect"
         "test_restart"
         "test_stop"
         "test_socket_list"
