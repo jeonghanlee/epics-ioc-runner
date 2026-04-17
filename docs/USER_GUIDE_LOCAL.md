@@ -165,3 +165,44 @@ To verify the version of the local runner script, including the live Git hash if
 ```bash
 ~/epics-ioc-runner/bin/ioc-runner -V
 ```
+
+
+## 14. Advanced: Environment Variable Overrides
+
+For isolated testing, CI pipelines, or multi-tenant workstations, the runner supports environment variable overrides that redirect the configuration, systemd, and runtime directories without touching the installed script.
+
+### Namespaced variables (per execution mode)
+
+| Variable | Default | Affects |
+|---|---|---|
+| `IOC_RUNNER_LOCAL_CONF_DIR`    | `${HOME}/.config/procServ.d`     | `--local` conf storage |
+| `IOC_RUNNER_LOCAL_SYSTEMD_DIR` | `${HOME}/.config/systemd/user`   | `--local` unit template |
+| `IOC_RUNNER_LOCAL_RUN_DIR`     | `/run/user/$(id -u)/procserv`   | `--local` socket path in `IOC_PORT` |
+| `IOC_RUNNER_SYSTEM_CONF_DIR`    | `/etc/procServ.d`              | system-mode conf storage |
+| `IOC_RUNNER_SYSTEM_SYSTEMD_DIR` | `/etc/systemd/system`          | system-mode unit template |
+| `IOC_RUNNER_SYSTEM_RUN_DIR`     | `/run/procserv`                | system-mode socket path in `IOC_PORT` |
+
+### Unified runtime overrides (take precedence over both)
+
+| Variable | Behavior |
+|---|---|
+| `IOC_RUNNER_CONF_DIR`    | Overrides both `LOCAL_CONF_DIR` and `SYSTEM_CONF_DIR` |
+| `IOC_RUNNER_SYSTEMD_DIR` | Overrides both `LOCAL_SYSTEMD_DIR` and `SYSTEM_SYSTEMD_DIR` |
+| `IOC_RUNNER_RUN_DIR`     | Overrides both `LOCAL_RUN_DIR` and `SYSTEM_RUN_DIR` |
+| `IOC_RUNNER_CON_TOOL`    | Absolute path to a custom `con`-compatible binary |
+
+Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}_<VAR>` > built-in default.
+
+### Example: sandboxed local run
+
+```bash
+export IOC_RUNNER_LOCAL_CONF_DIR="/tmp/sandbox/conf"
+export IOC_RUNNER_LOCAL_SYSTEMD_DIR="/tmp/sandbox/systemd"
+
+~/epics-ioc-runner/bin/ioc-runner --local generate .
+~/epics-ioc-runner/bin/ioc-runner --local install .
+```
+
+**Caveat: `IOC_RUNNER_RUN_DIR`** in system mode
+
+This variable changes the socket path written into `IOC_PORT`, but the deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, redirecting `RUN_DIR` will cause the `IOC_PORT` path and the actual socket location to diverge. Use this override only in --local mode or for test scaffolding.

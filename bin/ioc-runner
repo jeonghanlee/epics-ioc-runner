@@ -7,7 +7,7 @@
 set -e
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.3-dev"
+declare -g RUNNER_VERSION="1.0.3"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
 
@@ -192,6 +192,19 @@ done
 if [[ -z "${COMMAND_ACTION}" ]]; then
     print_usage
     exit 0
+fi
+
+# Foot-gun guard: IOC_RUNNER_RUN_DIR overrides the socket path written into
+# IOC_PORT, but the system-mode systemd template hardcodes
+# RuntimeDirectory=procserv/%i (resolves under /run/procserv). In system mode
+# this override causes divergence between the declared socket path and where
+# the kernel actually creates the UDS. Safe in --local mode (runtime dir is
+# user-scoped and the template is regenerated per-user).
+if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_RUN_DIR:-}" \
+      && "${IOC_RUNNER_RUN_DIR}" != "/run/procserv" ]]; then
+    printf "Warning: IOC_RUNNER_RUN_DIR is honored in IOC_PORT, but the system-mode\n" >&2
+    printf "         systemd RuntimeDirectory is fixed at /run/procserv. The socket\n" >&2
+    printf "         may not appear where IOC_PORT claims. Use --local for custom paths.\n" >&2
 fi
 
 # Strict validation for command-specific flags
@@ -956,7 +969,6 @@ function do_list {
     fi
 
     # --- Memory Optimization: Stream Parsing & O(1) Hash Maps ---
-    local b_id b_pid b_cpu b_mem i
     local -A ioc_status_map
     local -A ioc_rq_map ioc_sq_map
     local -A ioc_pid_map ioc_cpu_map ioc_mem_map

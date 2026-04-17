@@ -141,7 +141,7 @@ sudo sed -i "s/^declare -g RUNNER_BUILD_DATE=.*/declare -g RUNNER_BUILD_DATE=\"$
 sudo chmod 0755 /usr/local/bin/ioc-runner
 
 # 4. Deploy the Bash completion script
-sudo cp completion/ioc-runner-completion.bash /etc/bash_completion.d/ioc-runner
+sudo cp bin/ioc-runner-completion.bash /etc/bash_completion.d/ioc-runner
 sudo chmod 0644 /etc/bash_completion.d/ioc-runner
 ```
 

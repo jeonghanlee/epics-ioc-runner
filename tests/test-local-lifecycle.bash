@@ -404,12 +404,23 @@ function test_inspect {
     print_sub_divider
 
     local exit_code=0
+    local inspect_out=""
 
     # Validates that the Netlink socket diagnostic tool runs successfully
     # without root privileges when the target process is owned by the current user.
-    bash "${RUNNER_SCRIPT}" --local inspect "${IOC_NAME}" >/dev/null 2>&1 || exit_code=$?
+    inspect_out=$(bash "${RUNNER_SCRIPT}" --local inspect "${IOC_NAME}" 2>&1) || exit_code=$?
 
     verify_state "0" "${exit_code}" "Inspect executes successfully as standard user in local mode"
+
+    # Validates that the three diagnostic sections actually render, catching
+    # regressions where the command exits 0 but produces truncated output.
+    local has_sockets="false" has_server="false" has_client="false"
+    [[ "${inspect_out}" == *"UNIX Domain Socket FDs"* ]]      && has_sockets="true"
+    [[ "${inspect_out}" == *"Server Process Context"* ]]      && has_server="true"
+    [[ "${inspect_out}" == *"Client Process Context"* ]]      && has_client="true"
+    verify_state "true" "${has_sockets}" "Inspect renders UDS section"
+    verify_state "true" "${has_server}"  "Inspect renders server process section"
+    verify_state "true" "${has_client}"  "Inspect renders client process section"
 }
 
 function test_restart {

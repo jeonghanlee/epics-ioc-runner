@@ -122,9 +122,9 @@ ioc-runner attach myioc
 **Layer 2 — ioc-runner health checks (startup verification):**
 When `ioc-runner start` is executed, it performs a two-stage health check:
 
-1. **Primary check:** After a 2-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with a `journalctl` command for troubleshooting.
+1. **Primary check:** After a 5-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with a `journalctl` command for troubleshooting.
 
-2. **Secondary check:** If the service appears active, it scans the recent system journal for crash-loop indicators including `Restarting child`, `FATAL`, `Segmentation fault`, and `Connection timed out`. If any pattern matches, it warns the engineer:
+2. **Secondary check:** If the service appears active, it scans the recent system journal for crash-loop indicators including `Restarting child`, `error while loading`, `FATAL`, and `Segmentation fault`. If any pattern matches, it warns the engineer:
 
    *"Warning: IOC is active, but procServ may be crash-looping or reporting fatal errors."*
 
@@ -138,7 +138,7 @@ When `ioc-runner start` is executed, it performs a two-stage health check:
 The patterns used by the secondary health check are defined as a global variable at the top of the `ioc-runner` script:
 
 ```bash
-CRASH_LOG_PATTERNS="(Restarting child|error while loading|Connection timed out|FATAL|Segmentation fault)"
+CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault)"
 ```
 
 Site operators can extend this pattern with additional strings specific to their hardware or EPICS modules (separated by `|`) without modifying any internal logic.

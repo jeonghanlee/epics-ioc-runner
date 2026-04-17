@@ -326,6 +326,28 @@ function test_generate_errors {
 
     exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate \"${multi_cmd_dir}\" < /dev/null")
     verify_exit_code "1" "${exit_code}" "Multiple cmd candidates without input exits 1 (no default)"
+    # Validates EOF path on the overwrite prompt when an existing, differing
+    # .conf forces the interactive diff-preview branch (not the identical-bypass).
+    local overwrite_dir="${TEST_TMPDIR}/overwrite_eof_ioc"
+    mkdir -p "${overwrite_dir}"
+    touch "${overwrite_dir}/st.cmd"
+    chmod +x "${overwrite_dir}/st.cmd"
+
+    # Seed an initial conf, then tamper with it so regeneration hits the diff path.
+    ( cd "${overwrite_dir}" && bash "${RUNNER_SCRIPT}" --local -f generate . >/dev/null 2>&1 )
+    local existing_conf="${overwrite_dir}/overwrite_eof_ioc.conf"
+    printf "# tampered marker\n" >> "${existing_conf}"
+
+    local pre_sum post_sum preserved="false"
+    pre_sum=$(md5sum "${existing_conf}" | awk '{print $1}')
+
+    exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate \"${overwrite_dir}\" < /dev/null")
+    verify_exit_code "0" "${exit_code}" "Generate overwrite prompt aborts gracefully on EOF"
+
+    post_sum=$(md5sum "${existing_conf}" | awk '{print $1}')
+    [[ "${pre_sum}" == "${post_sum}" ]] && preserved="true"
+    verify_state "true" "${preserved}" "Generate EOF abort preserves existing conf unchanged"
+
 }
 
 # Validates directory-based artifact resolution and target routing functionality.
@@ -358,13 +380,25 @@ function test_install_logic {
     local install_exists="false"
     if [[ -f "${installed_conf}" ]]; then install_exists="true"; fi
     verify_state "true" "${install_exists}" "Artifact successfully routed to configuration directory"
-    # Validates EOF path on install overwrite prompt (non-interactive piping).
+    # Validates EOF path on install overwrite prompt: exits 0 AND preserves
+    # the existing conf. A tamper marker is injected BEFORE the EOF attempt so
+    # that even a byte-identical reinstall would be detectable (cp+sed-strip+
+    # append would drop the marker).
+    local eof_marker="# T5_EOF_PRESERVE_MARKER"
+    printf "%s\n" "${eof_marker}" >> "${installed_conf}"
+
     (
         cd "${test_dir}" || exit 1
         exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
             _run bash -c "bash \"${RUNNER_SCRIPT}\" --local install . < /dev/null")
         verify_exit_code "0" "${exit_code}" "Install overwrite prompt aborts gracefully on EOF"
     )
+
+    local preserved="false"
+    if [[ -f "${installed_conf}" ]] && grep -qF "${eof_marker}" "${installed_conf}" 2>/dev/null; then
+        preserved="true"
+    fi
+    verify_state "true" "${preserved}" "Install EOF abort preserves existing conf (marker retained)"
 }
 
 function test_install_errors {
@@ -392,6 +426,232 @@ function test_install_errors {
     verify_exit_code "1" "${exit_code}" "Install directory with mismatched conf name exits 1"
 
 }
+
+# Validates that the new namespaced env vars (IOC_RUNNER_LOCAL_*) route install
+# targets independently of the legacy unified IOC_RUNNER_*_DIR overrides.
+function test_env_var_namespacing {
+    local step="$1"
+    local exit_code
+    local test_dir="${TEST_TMPDIR}/ns_ioc"
+    local ns_conf_dir="${TEST_TMPDIR}/ns_conf"
+    local ns_sysd_dir="${TEST_TMPDIR}/ns_sysd"
+    local legacy_conf_dir="${TEST_TMPDIR}/legacy_conf"
+    local legacy_sysd_dir="${TEST_TMPDIR}/legacy_sysd"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Env Var Namespacing and Precedence"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${ns_conf_dir}" "${ns_sysd_dir}" \
+             "${legacy_conf_dir}" "${legacy_sysd_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+
+    # Case 1: Namespaced IOC_RUNNER_LOCAL_* variables route install to ns dirs.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf_dir}" \
+                    IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd_dir}" \
+                    _run bash "${RUNNER_SCRIPT}" --local -f install .)
+        verify_exit_code "0" "${exit_code}" "IOC_RUNNER_LOCAL_* routes --local install"
+    )
+
+    local ns_installed="${ns_conf_dir}/ns_ioc.conf"
+    local ns_exists="false"
+    [[ -f "${ns_installed}" ]] && ns_exists="true"
+    verify_state "true" "${ns_exists}" "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
+
+}
+
+# Validates that unified legacy IOC_RUNNER_*_DIR vars consistently
+# override their namespaced IOC_RUNNER_{LOCAL,SYSTEM}_*_DIR counterparts
+# for CONF_DIR, SYSTEMD_DIR, and RUN_DIR (via IOC_PORT path resolution).
+function test_env_var_precedence {
+    local step="$1"
+    local exit_code
+    local test_dir="${TEST_TMPDIR}/prec_ioc"
+    local unified_conf="${TEST_TMPDIR}/prec_unified_conf"
+    local unified_sysd="${TEST_TMPDIR}/prec_unified_sysd"
+    local unified_run="${TEST_TMPDIR}/prec_unified_run"
+    local ns_conf="${TEST_TMPDIR}/prec_ns_conf"
+    local ns_sysd="${TEST_TMPDIR}/prec_ns_sysd"
+    local ns_run="${TEST_TMPDIR}/prec_ns_run"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Env Var Precedence (unified > namespaced)"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${unified_conf}" "${unified_sysd}" "${unified_run}" \
+             "${ns_conf}" "${ns_sysd}" "${ns_run}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+
+    # Install with contradicting unified + namespaced vars across all three pairs.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(IOC_RUNNER_CONF_DIR="${unified_conf}" \
+                    IOC_RUNNER_SYSTEMD_DIR="${unified_sysd}" \
+                    IOC_RUNNER_RUN_DIR="${unified_run}" \
+                    IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf}" \
+                    IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd}" \
+                    IOC_RUNNER_LOCAL_RUN_DIR="${ns_run}" \
+                    _run bash "${RUNNER_SCRIPT}" --local -f install .)
+        verify_exit_code "0" "${exit_code}" "Install succeeds with full precedence matrix"
+    )
+
+    # CONF_DIR precedence: conf file lands in unified, not namespaced.
+    local conf_in_unified="false" conf_in_ns="false"
+    [[ -f "${unified_conf}/prec_ioc.conf" ]] && conf_in_unified="true"
+    [[ -f "${ns_conf}/prec_ioc.conf" ]] && conf_in_ns="true"
+    verify_state "true"  "${conf_in_unified}" "CONF_DIR: unified var wins"
+    verify_state "false" "${conf_in_ns}"      "CONF_DIR: namespaced var ignored"
+
+    # RUN_DIR precedence: installed conf's IOC_PORT path points into unified_run,
+    # not ns_run (process_ioc_port composes the path from RUN_DIR).
+    local port_line="" port_in_unified="false" port_in_ns="false"
+    port_line=$(grep '^IOC_PORT=' "${unified_conf}/prec_ioc.conf" 2>/dev/null || true)
+    [[ "${port_line}" == *"${unified_run}/prec_ioc/control"* ]] && port_in_unified="true"
+    [[ "${port_line}" == *"${ns_run}/prec_ioc/control"* ]] && port_in_ns="true"
+    verify_state "true"  "${port_in_unified}" "RUN_DIR: unified var wins in IOC_PORT"
+    verify_state "false" "${port_in_ns}"      "RUN_DIR: namespaced var ignored in IOC_PORT"
+
+    # SYSTEMD_DIR precedence: local template landed in unified, not namespaced.
+    local tpl_in_unified="false" tpl_in_ns="false"
+    [[ -f "${unified_sysd}/epics-@.service" ]] && tpl_in_unified="true"
+    [[ -f "${ns_sysd}/epics-@.service" ]] && tpl_in_ns="true"
+    verify_state "true"  "${tpl_in_unified}" "SYSTEMD_DIR: unified var wins"
+    verify_state "false" "${tpl_in_ns}"      "SYSTEMD_DIR: namespaced var ignored"
+}
+
+# Validates the bash completion script by sourcing it in isolated subshells
+# and invoking _ioc_runner_completions with synthesized COMP_WORDS/COMP_CWORD.
+# Targets the env-var refactor to ensure completion picks up namespaced vars.
+function test_completion {
+    local step="$1"
+    local comp_script="${SC_TOP}/../bin/ioc-runner-completion.bash"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Bash Completion Smoke Tests"
+    print_sub_divider
+
+    if [[ ! -f "${comp_script}" ]]; then
+        _log "ERROR" "Completion script not found at ${comp_script}"
+        (( TEST_FAILED++ )) || true
+        return
+    fi
+
+    local sys_conf="${TEST_TMPDIR}/comp_sys"
+    local loc_conf="${TEST_TMPDIR}/comp_loc"
+    local unified_conf="${TEST_TMPDIR}/comp_unified"
+    mkdir -p "${sys_conf}" "${loc_conf}" "${unified_conf}"
+    touch "${sys_conf}/sys_ioc.conf" \
+          "${loc_conf}/loc_ioc.conf" \
+          "${unified_conf}/unified_ioc.conf"
+
+    local got
+
+    # S1: bare "ioc-runner <TAB>" -> top-level commands are offered.
+    got=$(
+        # shellcheck source=/dev/null
+        source "${comp_script}"
+        COMP_WORDS=(ioc-runner "")
+        COMP_CWORD=1
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s\n" "${COMPREPLY[@]}" | grep -cxE '(generate|install|list)' || true
+    )
+    verify_state "3" "${got}" "Bare invocation offers generate/install/list"
+
+    # S2: "ioc-runner -<TAB>" -> global options are offered.
+    got=$(
+        source "${comp_script}"
+        COMP_WORDS=(ioc-runner "-")
+        COMP_CWORD=1
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s\n" "${COMPREPLY[@]}" | grep -cxE '(--local|-V|--version|-h)' || true
+    )
+    verify_state "4" "${got}" "Dash prefix offers global options"
+
+    # S3: system mode reads IOC_RUNNER_SYSTEM_CONF_DIR.
+    got=$(
+        source "${comp_script}"
+        unset IOC_RUNNER_CONF_DIR
+        export IOC_RUNNER_SYSTEM_CONF_DIR="${sys_conf}"
+        COMP_WORDS=(ioc-runner start "")
+        COMP_CWORD=2
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s\n" "${COMPREPLY[@]}"
+    )
+    verify_state "sys_ioc" "${got}" "System mode reads IOC_RUNNER_SYSTEM_CONF_DIR"
+
+    # S4: --local mode reads IOC_RUNNER_LOCAL_CONF_DIR.
+    got=$(
+        source "${comp_script}"
+        unset IOC_RUNNER_CONF_DIR
+        export IOC_RUNNER_LOCAL_CONF_DIR="${loc_conf}"
+        COMP_WORDS=(ioc-runner --local start "")
+        COMP_CWORD=3
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s\n" "${COMPREPLY[@]}"
+    )
+    verify_state "loc_ioc" "${got}" "--local mode reads IOC_RUNNER_LOCAL_CONF_DIR"
+
+    # S5: unified IOC_RUNNER_CONF_DIR overrides LOCAL_CONF_DIR in completion.
+    got=$(
+        source "${comp_script}"
+        export IOC_RUNNER_CONF_DIR="${unified_conf}"
+        export IOC_RUNNER_LOCAL_CONF_DIR="${loc_conf}"
+        COMP_WORDS=(ioc-runner --local start "")
+        COMP_CWORD=3
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s\n" "${COMPREPLY[@]}"
+    )
+    verify_state "unified_ioc" "${got}" "IOC_RUNNER_CONF_DIR overrides LOCAL var in completion"
+
+    # S6: "list <TAB>" -> verbosity flags.
+    got=$(
+        source "${comp_script}"
+        COMP_WORDS=(ioc-runner list "")
+        COMP_CWORD=2
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s\n" "${COMPREPLY[@]}" | grep -cxE '(-v|-vv)' || true
+    )
+    verify_state "2" "${got}" "'list' command suggests -v and -vv"
+
+    # S7: prefix filter "st<TAB>" narrows to start/stop/status.
+    got=$(
+        source "${comp_script}"
+        COMP_WORDS=(ioc-runner "st")
+        COMP_CWORD=1
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s\n" "${COMPREPLY[@]}" | grep -cxE '(start|stop|status)' || true
+    )
+    verify_state "3" "${got}" "'st' prefix narrows to start/stop/status"
+
+    # S8: nonexistent conf dir yields empty completion, not an error.
+    got=$(
+        source "${comp_script}"
+        unset IOC_RUNNER_CONF_DIR
+        export IOC_RUNNER_SYSTEM_CONF_DIR="${TEST_TMPDIR}/does_not_exist"
+        COMP_WORDS=(ioc-runner start "")
+        COMP_CWORD=2
+        COMPREPLY=()
+        _ioc_runner_completions
+        printf "%s" "${#COMPREPLY[@]}"
+    )
+    verify_state "0" "${got}" "Missing conf_dir yields empty COMPREPLY"
+}
+
 
 function test_validation_errors {
     local step="$1"
@@ -495,6 +755,9 @@ function run_all_tests {
         "test_install_logic"
         "test_generate_errors"
         "test_install_errors"
+        "test_env_var_namespacing"
+        "test_env_var_precedence"
+        "test_completion"
         "test_validation_errors"
         "test_attach_errors"
         "test_list_empty"
