@@ -26,6 +26,20 @@ SC_TOP="${SC_RPATH%/*}"
 
 declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 
+# Extract CRASH_LOG_PATTERNS from runner script via zero-fork parameter expansion.
+# Source-and-execute is not viable: the runner auto-dispatches commands at module bottom.
+declare -g CRASH_LOG_PATTERNS=""
+declare _line
+while IFS= read -r _line; do
+    if [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS='* ]]; then
+        CRASH_LOG_PATTERNS="${_line#*\"}"
+        CRASH_LOG_PATTERNS="${CRASH_LOG_PATTERNS%\"}"
+        break
+    fi
+done < "${RUNNER_SCRIPT}"
+unset _line
+
+
 declare -g MOCK_CON_BIN
 declare -g TEST_TMPDIR
 
@@ -147,6 +161,20 @@ function _run {
     local exit_code
     "${cmd[@]}" >/dev/null 2>&1; exit_code=$?; true
     printf "%d" "${exit_code}"
+}
+
+# Asserts whether a fixture string matches CRASH_LOG_PATTERNS under the same
+# flags used by do_start_restart in ioc-runner (grep -qiE).
+function verify_match {
+    local expected="$1"
+    local fixture="$2"
+    local step_name="$3"
+    local actual="nomatch"
+
+    if printf "%s\n" "${fixture}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
+        actual="match"
+    fi
+    verify_state "${expected}" "${actual}" "${step_name}"
 }
 
 # ==============================================================================
@@ -746,6 +774,40 @@ function test_inspect_errors {
     verify_exit_code "1" "${exit_code}" "'inspect' without root privileges exits 1"
 }
 
+
+function test_crash_pattern_matching {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Crash Log Pattern Matching"
+    print_sub_divider
+
+    # Issue #4: iocsh parser, dynamic linker, and startup path failures
+    verify_match "match"   "ERROR st.cmd line 52: Unbalanced quote."             "Pattern: Unbalanced quote"
+    verify_match "match"   "Invalid directory path: /opt/ioc/missing"            "Pattern: Invalid directory path"
+    verify_match "match"   "Can't open db/example.db"                            "Pattern: Can't open"
+    verify_match "match"   "iocsh: cannot open '/etc/protocol/foo.proto'"        "Pattern: cannot open"
+    verify_match "match"   "symbol lookup error: undefined symbol: epicsRingNew" "Pattern: undefined symbol"
+    verify_match "match"   "/opt/ioc/iocBoot/iocX/st.cmd: No such file or directory" "Pattern: No such file or directory"
+
+    # Issue #5: case-insensitive matching across casing variants
+    verify_match "match"   "ERROR: device timeout"                  "Case-insensitive: ERROR (upper)"
+    verify_match "match"   "Error: cannot allocate"                 "Case-insensitive: Error (title)"
+    verify_match "match"   "error: nullptr deref"                   "Case-insensitive: error (lower)"
+    verify_match "match"   "FATAL: aborting"                        "Case-insensitive: FATAL (upper)"
+    verify_match "match"   "fatal allocation failure"               "Case-insensitive: fatal (lower)"
+
+    # Regression: pre-existing patterns continue to match
+    verify_match "match"   "procServ: Restarting child"             "Regression: Restarting child"
+    verify_match "match"   "Segmentation fault (core dumped)"       "Regression: Segmentation fault"
+
+    # Negative: routine startup lines must not trigger crash detection
+    verify_match "nomatch" "iocInit: All initialization complete"   "Negative: iocInit complete line"
+    verify_match "nomatch" "## EPICS R7.0.7 banner"                 "Negative: EPICS banner"
+    verify_match "nomatch" "Starting iocsh.bash"                    "Negative: startup banner"
+}
+
+
+
 function run_all_tests {
     local -a pipeline=(
         "_setup"
@@ -762,6 +824,7 @@ function run_all_tests {
         "test_attach_errors"
         "test_list_empty"
         "test_inspect_errors"
+        "test_crash_pattern_matching"
     )
     local step=1
     local func
