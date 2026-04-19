@@ -124,7 +124,7 @@ When `ioc-runner start` is executed, it performs a two-stage health check:
 
 1. **Primary check:** After a 5-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with a `journalctl` command for troubleshooting.
 
-2. **Secondary check:** If the service appears active, it scans the recent system journal for crash-loop indicators including `Restarting child`, `error while loading`, `FATAL`, and `Segmentation fault`. If any pattern matches, it warns the engineer:
+2. **Secondary check:** If the service appears active, it scans the recent system journal (case-insensitive) for crash-loop indicators across four categories: process supervision (`Restarting child`, `Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). If any pattern matches, it warns the engineer:
 
    *"Warning: IOC is active, but procServ may be crash-looping or reporting fatal errors."*
 
@@ -138,7 +138,7 @@ When `ioc-runner start` is executed, it performs a two-stage health check:
 The patterns used by the secondary health check are defined as a global variable at the top of the `ioc-runner` script:
 
 ```bash
-CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault)"
+CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 ```
 
 Site operators can extend this pattern with additional strings specific to their hardware or EPICS modules (separated by `|`) without modifying any internal logic.
