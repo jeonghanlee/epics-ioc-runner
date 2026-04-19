@@ -3,11 +3,15 @@
 # A front-end CLI manager for EPICS IOCs.
 # Utilizes systemd template units (@.service) for zero-dependency management.
 # Supports both system-wide deployment and local user-level testing.
+#
+# Jeong Han Lee, Dr.rer.nat.
+# jeonghan.lee@gmail.com
+#
 
 set -e
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.3"
+declare -g RUNNER_VERSION="1.0.4"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_BUILD_DATE="unreleased"
 
@@ -60,7 +64,7 @@ declare -g TARGET_SYSTEM_GROUP="ioc"
 # --- Health Check Configuration ---
 # Regex pattern used to detect fatal errors or crash-loops in systemd logs immediately after startup.
 # Users can add custom error strings specific to their hardware or EPICS modules here (separated by '|').
-declare -g CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault)"
+declare -g CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 
 
 function print_divider {
@@ -1300,7 +1304,11 @@ function do_start_restart {
         run_systemctl daemon-reload
     fi
 
+    # Journal scan lower bound; must be captured before service start
+    local start_ts
+    start_ts=$(date +%s)
     run_systemctl "${action}" "epics-@${IOC_NAME}.service"
+
 
     # Allow time for device connection timeouts
     sleep 5
@@ -1320,14 +1328,13 @@ function do_start_restart {
         exit 1
     fi
 
-    # Scan recent logs for fatal errors or crash-loops
-    local log_cmd=("journalctl" "-u" "epics-@${IOC_NAME}.service" "--since" "3 seconds ago" "--no-pager" "-q")
+    # Scans journal from start_ts forward against CRASH_LOG_PATTERNS (case-insensitive)
+    local log_cmd=("journalctl" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
     if [[ "${EXEC_MODE}" == "local" ]]; then
-        log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "3 seconds ago" "--no-pager" "-q")
+        log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
     fi
 
-    # Check against the globally defined crash log patterns
-    if "${log_cmd[@]}" 2>/dev/null | grep -qE "${CRASH_LOG_PATTERNS}"; then
+    if "${log_cmd[@]}" 2>/dev/null | grep -qiE "${CRASH_LOG_PATTERNS}"; then
         printf "\nWarning: IOC '%s' is active, but procServ may be crash-looping or reporting fatal errors.\n" "${IOC_NAME}" >&2
         if [[ "${EXEC_MODE}" == "local" ]]; then
             printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
