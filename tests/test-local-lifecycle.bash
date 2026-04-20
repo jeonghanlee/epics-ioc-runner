@@ -751,7 +751,7 @@ function run_all_tests {
         "test_console_attach"
         "test_channel_access"
         "test_monitor_isolation"
-#        "test_crash_detection"  # requires adm or systemd-journal group membership to read system logs
+        "test_crash_detection"
         "test_persistence"
         "test_remove"
     )

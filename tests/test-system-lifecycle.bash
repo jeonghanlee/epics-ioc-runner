@@ -666,7 +666,8 @@ function test_monitor_isolation {
 }
 
 
-# test_crash_detection — requires 'systemd-journal' group to read system logs
+# test_crash_detection — disabled; blocked by #7 (v1.1.0 log file redirect).
+# Requires 'adm' or 'systemd-journal' group to read the system journal under ioc-srv.
 function test_crash_detection {
     local step="$1"
     print_divider
@@ -778,7 +779,7 @@ function run_all_tests {
         "test_channel_access"
         "test_inspect_and_multiple_connections"
         "test_monitor_isolation"
-#        "test_crash_detection"  # requires adm or systemd-journal group membership to read system logs
+#        "test_crash_detection"  # blocked by #7 (v1.1.0 log file redirect); system journal requires adm or systemd-journal group
         "test_persistence"
         "test_remove"
     )
