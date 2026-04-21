@@ -70,7 +70,8 @@ Allow members of the `ioc` group to manage only specific `epics-@*.service` syst
 
 Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file:
 ```bash
-SYSTEMCTL_BIN=$(command -v systemctl)
+
+SYSTEMCTL_BIN="/usr/bin/systemctl"
 
 cat <<EOF > /etc/sudoers.d/10-epics-ioc
 %ioc ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
@@ -149,12 +150,17 @@ sudo chmod 0644 /etc/bash_completion.d/ioc-runner
 Before engineers can deploy IOCs, a shared payload directory must be established. This directory must be accessible and writable by the `ioc` group.
 
 ### Option A: Local Disk
-If the IOCs will reside on the local server's filesystem:
+If the IOCs will reside on the local server's filesystem, you must configure the directory with POSIX ACLs (Access Control Lists). This ensures that when individual engineers run `git clone`, the resulting directories and files automatically inherit the `ioc` group ownership and appropriate read/write permissions, overriding their personal `umask` settings.
 
 ```bash
 sudo mkdir -p /opt/epics-iocs
 sudo chown root:ioc /opt/epics-iocs
 sudo chmod 2775 /opt/epics-iocs
+
+# Force default ACLs: All newly created files/directories inside will inherit the 'ioc' group
+# Directories will be 2775 (rwxrwsr-x), Files will be 0664 (rw-rw-r--)
+sudo setfacl -d -m g:ioc:rwx /opt/epics-iocs
+sudo setfacl -d -m o::rx /opt/epics-iocs
 ```
 
 ### Option B: NFS Mount (Centralized Storage)

@@ -46,14 +46,12 @@ declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
 
 # --- Base Commands & Paths ---
-declare -g SYSTEMCTL_BIN=""
-for _path in "/usr/bin/systemctl" "/bin/systemctl"; do
-    if [[ -x "${_path}" ]]; then
-        SYSTEMCTL_BIN="${_path}"
-        break
-    fi
-done
-unset _path
+declare -g SYSTEMCTL_BIN="/usr/bin/systemctl"
+
+if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
+    printf "Error: %s not found or not executable. This script requires systemd.\n" "${SYSTEMCTL_BIN}" >&2
+    exit 1
+fi
 
 if [[ -z "${SYSTEMCTL_BIN}" ]]; then
     printf "Error: systemctl binary not found. This script requires systemd to operate.\n" >&2
