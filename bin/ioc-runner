@@ -709,6 +709,15 @@ EOF
 
     mv -f "${tmp_conf}" "${generated_conf}"
 
+    # Pre-allocates the EPICS shell history file and enforces group-writable permissions.
+    # Allows the restricted system daemon (ioc-srv) to append command history by leveraging 
+    # its membership in the shared management group, bypassing the need for root ownership.
+    local hist_file="${abs_dir}/.iocsh_history"
+    if [[ ! -f "${hist_file}" ]]; then
+        touch "${hist_file}" 2>/dev/null || true
+    fi
+    chmod 664 "${hist_file}" 2>/dev/null || true
+
     print_divider
     printf "Configuration successfully generated and validated at: %s\n" "${generated_conf}"
     print_sub_divider
