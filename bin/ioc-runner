@@ -866,17 +866,13 @@ function do_install {
         rm -f "${target_conf}" 2>/dev/null || true
     fi
 
-    cp "${source_conf}" "${target_conf}"
-
-    sed -i '/^IOC_PORT=/d' "${target_conf}"
-    printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${target_conf}"
-
-    # Apply strict permissions (0660) after all file modifications.
-    # Note: 'sed -i' creates a temporary file using the user's default umask,
-    # which can unintentionally loosen file permissions (e.g., to 0644).
-    if [[ "${EXEC_MODE}" == "system" ]]; then
-        chmod 0660 "${target_conf}"
-    fi
+    local tmp
+    tmp=$(mktemp "${target_conf}.XXXXXX")
+    trap 'rm -f "${tmp:-}"' EXIT
+    grep -v '^IOC_PORT=' "${source_conf}" > "${tmp}"
+    printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${tmp}"
+    [[ "${EXEC_MODE}" == "system" ]] && chmod 0660 "${tmp}"
+    mv -f "${tmp}" "${target_conf}"
 
     run_systemctl daemon-reload
 
