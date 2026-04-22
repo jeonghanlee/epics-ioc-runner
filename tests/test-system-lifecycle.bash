@@ -20,9 +20,8 @@ declare -g TEST_FAILED=0
 declare -g SCRIPT_ERROR=0
 declare -g -a FAILED_DETAILS=()
 
-declare -g MAX_CAGET_READS=10
-declare -g CAGET_TIMEOUT=2
-declare -g CAGET_INTERVAL=1
+declare -g CAMONITOR_COUNT=5
+declare -g CAMONITOR_TIMEOUT=10
 
 if [[ -z "${EPICS_BASE}" ]]; then
     printf "${RED}%s${NC}\n" "ERROR: The EPICS_BASE environment variable is not set." >&2
@@ -550,59 +549,55 @@ function test_console_attach {
 function test_channel_access {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: Test EPICS Channel Access (caget)"
+    _log "INFO" "STEP ${step}: Test EPICS Channel Access (camonitor)"
     print_sub_divider
 
-    local caget_cmd
-    if command -v caget >/dev/null 2>&1; then
-        caget_cmd="caget"
+    local camonitor_cmd
+    if command -v camonitor >/dev/null 2>&1; then
+        camonitor_cmd="camonitor"
     else
-        caget_cmd="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/caget"
+        camonitor_cmd="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/camonitor"
     fi
 
-    if [[ ! -x "${caget_cmd}" ]] && ! command -v "${caget_cmd}" >/dev/null 2>&1; then
-        _log "ERROR" "caget utility not found. Cannot verify PV."
-        verify_state "found" "not_found" "caget executable availability"
+    if [[ ! -x "${camonitor_cmd}" ]] && ! command -v "${camonitor_cmd}" >/dev/null 2>&1; then
+        _log "ERROR" "camonitor utility not found. Cannot verify PV."
+        verify_state "found" "not_found" "camonitor executable availability"
     fi
 
     local test_pv="LBNL:TESTIOC:aiExample"
-    _log "INFO" "Attempting to read PV: ${test_pv} (${MAX_CAGET_READS} times)"
+    _log "INFO" "Monitoring PV: ${test_pv} (${CAMONITOR_COUNT} updates)"
 
     export EPICS_CA_ADDR_LIST="127.0.0.1"
     export EPICS_CA_AUTO_ADDR_LIST="NO"
 
     local read_start_time=${SECONDS}
-    local pv_val
     local pv_ok="false"
     local success_count=0
-    local i
 
-    for i in $(seq 1 "${MAX_CAGET_READS}"); do
-        pv_val=$("${caget_cmd}" -w "${CAGET_TIMEOUT}" -t "${test_pv}" 2>/dev/null || true)
-        pv_val=$(printf "%s" "${pv_val}" | tr -d '\r')
-
+    local line pv_val i=0
+    while IFS= read -r line; do
+        [[ -z "${line}" ]] && continue
+        i=$((i + 1))
+        pv_val=$(printf "%s" "${line}" | awk '{print $NF}' | tr -d '\r')
         if [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            _log "SUCCESS" "Read [${i}/${MAX_CAGET_READS}] PV ${test_pv} = ${pv_val}"
+            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
             success_count=$((success_count + 1))
         elif [[ -n "${pv_val}" ]]; then
-            _log "SUCCESS" "Read [${i}/${MAX_CAGET_READS}] PV ${test_pv} = ${pv_val} (Non-numeric fallback)"
+            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val} (Non-numeric)"
             success_count=$((success_count + 1))
         else
-            _log "WARN" "Read [${i}/${MAX_CAGET_READS}] Failed to read PV or empty value returned."
+            _log "WARN" "Update [${i}/${CAMONITOR_COUNT}] Failed to read PV or empty value."
         fi
-
-        if [[ ${i} -lt ${MAX_CAGET_READS} ]]; then
-            sleep "${CAGET_INTERVAL}"
-        fi
-    done
+        [[ ${i} -ge ${CAMONITOR_COUNT} ]] && break
+    done < <("${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" "${test_pv}" 2>/dev/null || true)
 
     local elapsed=$((SECONDS - read_start_time))
 
-    if [[ ${success_count} -eq ${MAX_CAGET_READS} ]]; then
+    if [[ ${success_count} -eq ${CAMONITOR_COUNT} ]]; then
         pv_ok="true"
     fi
 
-    verify_state "true" "${pv_ok}" "Channel Access read ${MAX_CAGET_READS} times successfully (Read time: ${elapsed}s)"
+    verify_state "true" "${pv_ok}" "Channel Access monitored ${CAMONITOR_COUNT} updates successfully (Time: ${elapsed}s)"
 }
 
 function test_list_options {

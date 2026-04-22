@@ -239,6 +239,16 @@ function test_usage {
     local has_version="false"
     if [[ "${version_out}" == *"epics-ioc-runner version"* ]]; then has_version="true"; fi
     verify_state "true" "${has_version}" "'-V' produces valid version output from unrelated CWD"
+
+    # Validates that -v/-vv are rejected when paired with any command other than list.
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" -v start dummy_ioc)
+    verify_exit_code "1" "${exit_code}" "'-v start' exits 1 (verbose restricted to list)"
+
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" -vv status dummy_ioc)
+    verify_exit_code "1" "${exit_code}" "'-vv status' exits 1 (verbose restricted to list)"
+
+    exit_code=$(IOC_RUNNER_LOCAL_RUN_DIR="${TEST_TMPDIR}/empty_run" _run bash "${RUNNER_SCRIPT}" --local -v list)
+    verify_exit_code "0" "${exit_code}" "'--local -v list' exits 0 (verbose valid for list)"
 }
 
 function test_missing_target {
