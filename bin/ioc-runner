@@ -1252,13 +1252,21 @@ function do_inspect {
     local -A seen_server_pids
     local line pid state loc_path loc_ino peer_ino proc_info p_ino c_pid
 
-    # 1. Gather server PIDs via lsof (lsof only retains the path for the server side)
+    # 1. Gather server PIDs via lsof, restricted to the target socket path.
+    # Passing the path to lsof -U avoids enumerating all UDS on hosts with many
+    # unrelated sockets (browsers, D-Bus, containers), reducing scan time from
+    # several seconds to under one second. lsof only retains the path for the
+    # server side of the connection, so client-side discovery is handled by the
+    # Netlink peer-inode mapping in section 2 (ss -x -a -p).
+    # Fallback: if the installed lsof does not accept path arguments with -U,
+    # drop "${sock_path}" from the invocation and restore the bash-level filter
+    # "elif [[ "${line}" == *"${sock_path}"* ]]". Section 2 covers client PIDs
+    # independently via ss, so output completeness is preserved either way.
     while IFS= read -r line; do
         if [[ "${line}" == COMMAND* ]]; then
             printf "%s\n" "${line}"
-        elif [[ "${line}" == *"${sock_path}"* ]]; then
+        else
             printf "%s\n" "${line}"
-
             read -r _ pid _ <<< "${line}"
             if [[ -z "${seen_server_pids[${pid}]}" ]]; then
                 server_pids+=("${pid}")
@@ -1266,7 +1274,7 @@ function do_inspect {
             fi
             lsof_found=1
         fi
-    done < <(lsof -U 2>/dev/null || true)
+    done < <(lsof -U -- "${sock_path}" 2>/dev/null || true)
 
     if [[ ${lsof_found} -eq 0 ]]; then
         printf "No active UNIX sockets detected for this path.\n"
