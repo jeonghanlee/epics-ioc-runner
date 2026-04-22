@@ -18,7 +18,6 @@ declare -g TEST_FAILED=0
 declare -g SCRIPT_ERROR=0
 declare -g -a FAILED_DETAILS=()
 
-
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
@@ -193,11 +192,46 @@ function test_sudoers_syntax {
     verify_state "true" "${syntax_ok}" "Sudoers file syntax is valid"
 }
 
+function test_sudoers_includedir_order {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Sudoers Include Directive Ordering"
+    print_sub_divider
+
+    local main_sudoers="/etc/sudoers"
+    local idr_line
+    local trailing
+    local ordering_ok="false"
+
+    idr_line=$(grep -nE '^[[:space:]]*[#@]includedir[[:space:]]+/etc/sudoers\.d' "${main_sudoers}" | tail -1 | cut -d: -f1)
+
+    if [[ -z "${idr_line}" ]]; then
+        verify_state "true" "false" "includedir directive exists in ${main_sudoers}"
+        return
+    fi
+
+    trailing=$(tail -n +$((idr_line + 1)) "${main_sudoers}" | grep -E '^[[:space:]]*([^#[:space:]]|[#@]include)' || true)
+
+    if [[ -z "${trailing}" ]]; then
+        ordering_ok="true"
+    else
+        _log "ERROR" "Active rules follow the includedir directive in ${main_sudoers}."
+        _log "ERROR" "Drop-in policies (e.g. ${SUDOERS_FILE}) will be overridden."
+        _log "ERROR" "Move the includedir directive to the END of ${main_sudoers} using visudo."
+        printf "%s\n" "${trailing}" | while IFS= read -r line; do
+            _log "ERROR" "  offending: ${line}"
+        done
+    fi
+
+    verify_state "true" "${ordering_ok}" "includedir is the final active directive in ${main_sudoers}"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "test_service_accounts"
         "test_infrastructure_files"
         "test_sudoers_syntax"
+        "test_sudoers_includedir_order"
     )
     local step=1
     local func

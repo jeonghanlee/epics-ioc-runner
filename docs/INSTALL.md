@@ -86,6 +86,8 @@ EOF
 chmod 0440 /etc/sudoers.d/10-epics-ioc
 ```
 
+> **Important:** The `@includedir /etc/sudoers.d` (or legacy `#includedir`) directive in `/etc/sudoers` must be the final active line. Any user-specific rules placed after it (e.g., `alice ALL=(ALL) ALL`) will be evaluated *after* the drop-in policies and silently override the NOPASSWD rule installed above. Verify with `sudo -l` on a group member account: the `(root) NOPASSWD: /usr/bin/systemctl ...` entry must appear last.
+
 ### 2.4. Systemd Template Unit Deployment
 Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide. Resolve the `procServ` path dynamically to accommodate different installation targets (e.g., `/usr/bin` vs `/usr/local/bin`).
 

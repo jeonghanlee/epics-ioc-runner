@@ -53,11 +53,6 @@ if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
     exit 1
 fi
 
-if [[ -z "${SYSTEMCTL_BIN}" ]]; then
-    printf "Error: systemctl binary not found. This script requires systemd to operate.\n" >&2
-    exit 1
-fi
-
 if [[ $EUID -ne 0 ]]; then
     printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
     printf "%s\n" "Usage: sudo bash $(basename "$0")" >&2
@@ -134,6 +129,42 @@ function verify_path {
     if [[ -n "${success_message}" ]]; then
         _log "SUCCESS" "${success_message}"
     fi
+}
+
+function verify_sudoers_includedir_order {
+    local sudoers_file="$1"
+    local idr_line
+    local trailing
+
+    if [[ ! -f "${sudoers_file}" ]]; then
+        _log "ERROR" "Verify FAILED : ${sudoers_file} not found"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    idr_line=$(grep -nE '^[[:space:]]*[#@]includedir[[:space:]]+/etc/sudoers\.d' "${sudoers_file}" | tail -1 | cut -d: -f1)
+
+    if [[ -z "${idr_line}" ]]; then
+        _log "ERROR" "Verify FAILED : no includedir /etc/sudoers.d directive in ${sudoers_file}"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    trailing=$(tail -n +$((idr_line + 1)) "${sudoers_file}" | grep -E '^[[:space:]]*([^#[:space:]]|[#@]include)' || true)
+
+    if [[ -n "${trailing}" ]]; then
+        _log "ERROR" "Verify FAILED : active rules follow includedir in ${sudoers_file}"
+        _log "ERROR" "The NOPASSWD policy in ${SUDOERS_FILE} will be overridden by trailing rules."
+        _log "ERROR" "Fix with visudo: move the includedir directive to the END of ${sudoers_file}"
+        printf "%s\n" "${trailing}" | while IFS= read -r line; do
+            _log "ERROR" "  offending: ${line}"
+        done
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    _log "SUCCESS" "Verify PASSED : includedir is the final active directive in ${sudoers_file}"
+    (( VERIFY_PASS++ )) || true
 }
 
 function verify_account {
@@ -245,6 +276,7 @@ EOF
         backup_if_exists "${SUDOERS_FILE}"
         mv "${tmp_sudoers}" "${SUDOERS_FILE}"
         verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
+        verify_sudoers_includedir_order "/etc/sudoers"
     else
         _log "ERROR" "Sudoers syntax validation failed. Aborting to prevent system lockout."
         rm -f "${tmp_sudoers}"

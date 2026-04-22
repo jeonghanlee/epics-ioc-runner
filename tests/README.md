@@ -109,3 +109,4 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 ### 4. Infrastructure State (`test-system-infra.bash`)
 * **Accounts & Permissions**: Confirms `ioc-srv` user, `ioc` group, and `2770` SetGID collaborative directories.
 * **Security Policies**: Validates `/etc/sudoers.d/10-epics-ioc` syntax natively using `visudo`.
+* **Policy Ordering**: Confirms the `includedir` directive is the final active line in `/etc/sudoers`, ensuring drop-in NOPASSWD policies are not overridden by trailing user-specific rules.
