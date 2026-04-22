@@ -579,6 +579,41 @@ EOF
     verify_state "true" "${installed5_exists}" "Precheck: probe passes → conf installed"
 }
 
+# Validates that ss -lx failure aborts do_list under set -eo pipefail.
+# find is replaced by a PATH stub that emits one fake socket entry in the
+# null-delimited format expected by do_list, ensuring ss -lx is actually
+# reached. ss is replaced by a stub that exits 1 to simulate unavailability.
+function test_ss_failure_aborts_list {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: ss Failure Aborts list Under pipefail"
+    print_sub_divider
+
+    local mock_bin="${TEST_TMPDIR}/ss_fail_bin"
+    local mock_run="${TEST_TMPDIR}/ss_fail_run"
+    local fake_sock="${mock_run}/test_ioc/control"
+
+    mkdir -p "${mock_bin}" "${mock_run}/test_ioc"
+
+    # Stub find: outputs one null-delimited socket entry regardless of arguments,
+    # bypassing the -type s filesystem check without requiring a real socket file.
+    cat > "${mock_bin}/find" <<STUB
+#!/usr/bin/env bash
+printf '%s\0%s\0%s\0' "${fake_sock}" "2024-01-01 12:00" "srwxrwxr-x"
+STUB
+    chmod +x "${mock_bin}/find"
+
+    # Stub ss: always exits 1 to simulate the utility being absent or broken.
+    printf '#!/usr/bin/env bash\nexit 1\n' > "${mock_bin}/ss"
+    chmod +x "${mock_bin}/ss"
+
+    local exit_code
+    exit_code=$(PATH="${mock_bin}:${PATH}" \
+        IOC_RUNNER_LOCAL_RUN_DIR="${mock_run}" \
+        _run bash "${RUNNER_SCRIPT}" --local list)
+    verify_exit_code "1" "${exit_code}" "ss -lx failure aborts list (exit 1 under pipefail)"
+}
+
 # Validates that the new namespaced env vars (IOC_RUNNER_LOCAL_*) route install
 # targets independently of the legacy unified IOC_RUNNER_*_DIR overrides.
 function test_env_var_namespacing {
@@ -942,6 +977,7 @@ function run_all_tests {
         "test_generate_errors"
         "test_install_errors"
         "test_chdir_precheck"
+        "test_ss_failure_aborts_list"
         "test_env_var_namespacing"
         "test_env_var_precedence"
         "test_completion"

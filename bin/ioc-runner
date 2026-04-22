@@ -8,7 +8,7 @@
 # jeonghan.lee@gmail.com
 #
 
-set -e
+set -eo pipefail
 
 # --- Version Information ---
 declare -g RUNNER_VERSION="1.0.5-dev"
@@ -1001,7 +1001,7 @@ function do_list {
         sockets+=("${sock}")
         ioc_started_map["${sock}"]="${ts}"
         ioc_perm_map["${sock}"]="${perm}"
-    done < <(find "${RUN_DIR}" -type s -printf '%p\0%TY-%Tm-%Td %TH:%TM\0%M\0' 2>/dev/null)
+    done < <(find "${RUN_DIR}" -type s -printf '%p\0%TY-%Tm-%Td %TH:%TM\0%M\0' 2>/dev/null || true)
 
     if [[ ${#sockets[@]} -eq 0 ]]; then
         printf "No active IOC sockets found in %s\n" "${RUN_DIR}"
@@ -1025,13 +1025,17 @@ function do_list {
         fi
     done < <("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --plain 2>/dev/null || true)
 
-    # 2. Map socket queue statistics using ss
+    # 2. Map socket queue statistics using ss.
+    # Command substitution propagates ss exit code to set -e; a missing or
+    # broken ss aborts do_list rather than silently producing an empty map.
+    local ss_lx_out
+    ss_lx_out=$(ss -lx 2>/dev/null)
     while read -r _ _ rq sq path _; do
         if [[ "${path}" == "${RUN_DIR}"* ]]; then
             ioc_rq_map["${path}"]="${rq}"
             ioc_sq_map["${path}"]="${sq}"
         fi
-    done < <(ss -lx 2>/dev/null || true)
+    done <<< "${ss_lx_out}"
 
     # 2-A. Map explicit kernel internal states from /proc/net/unix
     local -A ioc_ref_map ioc_state_map ioc_inode_map
