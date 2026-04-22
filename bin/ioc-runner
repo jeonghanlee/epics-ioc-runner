@@ -695,7 +695,7 @@ EOF
             if ! read -r confirm; then
                 printf "\nInfo: Input stream closed (EOF). Aborting generation.\n"
                 rm -f "${tmp_conf}"
-                exit 0
+                exit 1
             fi
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Generation aborted by user.\n"
@@ -708,7 +708,7 @@ EOF
     mv -f "${tmp_conf}" "${generated_conf}"
 
     # Pre-allocates the EPICS shell history file and enforces group-writable permissions.
-    # Allows the restricted system daemon (ioc-srv) to append command history by leveraging 
+    # Allows the restricted system daemon (ioc-srv) to append command history by leveraging
     # its membership in the shared management group, bypassing the need for root ownership.
     local hist_file="${abs_dir}/.iocsh_history"
     if [[ ! -f "${hist_file}" ]]; then
@@ -767,6 +767,44 @@ function do_install {
         exit 1
     fi
 
+    # System-mode write-access precheck for IOC_CHDIR.
+    # Verifies that TARGET_SYSTEM_USER can write to the deployment directory so
+    # runtime artifacts (iocsh history, autosave, save/restore state) do not
+    # fail on startup. The documented convention deploys system-mode IOCs under
+    # a shared, group-writable tree (typically /opt/epics-iocs/, mode 2775,
+    # group TARGET_SYSTEM_GROUP). Non-interactive sudo probe avoids blocking
+    # CI pipelines; when sudo itself is unavailable the precheck is skipped.
+    # FORCE_OVERWRITE bypasses the confirmation prompt but never suppresses
+    # the warning emitted to stderr.
+    if [[ "${EXEC_MODE}" == "system" ]] && command -v sudo >/dev/null 2>&1; then
+        local chdir_target="${install_conf[IOC_CHDIR]}"
+        local precheck_confirm
+        if ! sudo -n -u "${TARGET_SYSTEM_USER}" test -w "${chdir_target}" 2>/dev/null; then
+            printf "Warning: IOC_CHDIR '%s' is not writable by '%s'.\n" "${chdir_target}" "${TARGET_SYSTEM_USER}" >&2
+            printf "         System-mode IOCs should be deployed under /opt/epics-iocs/\n" >&2
+            printf "         (or another 'root:%s' 2775 tree) so that %s can write\n" "${TARGET_SYSTEM_GROUP}" "${TARGET_SYSTEM_USER}" >&2
+            printf "         runtime artifacts such as .iocsh_history and autosave files.\n" >&2
+            printf "         Continuing will install the configuration, but the IOC may\n" >&2
+            printf "         emit permission errors on startup that trigger crash detection\n" >&2
+            printf "         false positives.\n" >&2
+            printf "\n" >&2
+            printf "         Hint: To silence only the .iocsh_history error, add\n" >&2
+            printf "         epicsEnvSet(\"IOCSH_HISTSIZE\",\"0\") to st.cmd. This does not\n" >&2
+            printf "         address autosave or save/restore write failures.\n" >&2
+            if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
+                printf "         Proceed anyway? [y/N]: " >&2
+                if ! read -r precheck_confirm; then
+                    printf "\nInfo: Input stream closed (EOF). Aborting installation.\n" >&2
+                    exit 1
+                fi
+                if [[ ! "${precheck_confirm}" =~ ^[Yy]$ ]]; then
+                    printf "Installation aborted by user.\n"
+                    exit 0
+                fi
+            fi
+        fi
+    fi
+
     local template_path="${SYSTEMD_DIR}/epics-@.service"
 
     if [[ "${EXEC_MODE}" == "system" ]]; then
@@ -816,7 +854,7 @@ function do_install {
             printf "Do you want to overwrite it? [y/N]: "
             if ! read -r confirm; then
                 printf "\nInfo: Input stream closed (EOF). Aborting installation.\n"
-                exit 0
+                exit 1
             fi
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Installation aborted by user.\n"

@@ -304,7 +304,7 @@ function test_generate_logic {
     (
         cd "${test_dir}" || exit 1
         exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate . < /dev/null")
-        verify_exit_code "0" "${exit_code}" "Differential artifact prompts user and exits gracefully"
+        verify_exit_code "1" "${exit_code}" "Differential artifact prompt exits 1 on EOF"
     )
 
     # Evaluates the forced overwrite bypass mechanism for automation pipelines.
@@ -370,7 +370,7 @@ function test_generate_errors {
     pre_sum=$(md5sum "${existing_conf}" | awk '{print $1}')
 
     exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate \"${overwrite_dir}\" < /dev/null")
-    verify_exit_code "0" "${exit_code}" "Generate overwrite prompt aborts gracefully on EOF"
+    verify_exit_code "1" "${exit_code}" "Generate overwrite prompt exits 1 on EOF"
 
     post_sum=$(md5sum "${existing_conf}" | awk '{print $1}')
     [[ "${pre_sum}" == "${post_sum}" ]] && preserved="true"
@@ -408,6 +408,7 @@ function test_install_logic {
     local install_exists="false"
     if [[ -f "${installed_conf}" ]]; then install_exists="true"; fi
     verify_state "true" "${install_exists}" "Artifact successfully routed to configuration directory"
+
     # Validates EOF path on install overwrite prompt: exits 0 AND preserves
     # the existing conf. A tamper marker is injected BEFORE the EOF attempt so
     # that even a byte-identical reinstall would be detectable (cp+sed-strip+
@@ -418,8 +419,8 @@ function test_install_logic {
     (
         cd "${test_dir}" || exit 1
         exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
-            _run bash -c "bash \"${RUNNER_SCRIPT}\" --local install . < /dev/null")
-        verify_exit_code "0" "${exit_code}" "Install overwrite prompt aborts gracefully on EOF"
+        _run bash -c "bash \"${RUNNER_SCRIPT}\" --local install . < /dev/null")
+        verify_exit_code "1" "${exit_code}" "Install overwrite prompt exits 1 on EOF"
     )
 
     local preserved="false"
@@ -453,6 +454,129 @@ function test_install_errors {
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${dummy_dir}")
     verify_exit_code "1" "${exit_code}" "Install directory with mismatched conf name exits 1"
 
+}
+
+# Validates the IOC_CHDIR write-access precheck inserted in do_install for system mode.
+# Uses a PATH-injected stub sudo to control probe exit codes without requiring a real
+# ioc-srv account or elevated privileges. Five paths are covered:
+#   1. Probe fails + EOF       → exit 1
+#   2. Probe fails + explicit N → exit 0
+#   3. Probe fails + explicit Y → install proceeds (exit 0)
+#   4. Probe fails + FORCE_OVERWRITE → warning on stderr, install proceeds (exit 0)
+#   5. Probe passes            → no warning emitted, install proceeds (exit 0)
+function test_chdir_precheck {
+    local step="$1"
+    local exit_code
+
+    print_divider
+    _log "INFO" "STEP ${step}: IOC_CHDIR Write-Access Precheck"
+    print_sub_divider
+
+    local mock_bin_fail="${TEST_TMPDIR}/precheck_bin_fail"
+    local mock_bin_pass="${TEST_TMPDIR}/precheck_bin_pass"
+    local test_dir="${TEST_TMPDIR}/precheck_ioc"
+    local test_conf="${test_dir}/precheck_ioc.conf"
+    local stderr_cap="${TEST_TMPDIR}/precheck_stderr"
+
+    mkdir -p "${mock_bin_fail}" "${mock_bin_pass}" "${test_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    # Stub sudo: returns 1 for "-n -u <user> test -w <path>" probe, 0 for all other
+    # invocations (e.g. daemon-reload). The -n flag is stripped before pattern matching
+    # because it is a non-interactive marker, not part of the command identity.
+    cat > "${mock_bin_fail}/sudo" <<'STUB'
+#!/usr/bin/env bash
+filtered=()
+for arg in "$@"; do
+    [[ "${arg}" == "-n" ]] && continue
+    filtered+=("${arg}")
+done
+if [[ "${filtered[0]}" == "-u" && "${filtered[2]}" == "test" && "${filtered[3]}" == "-w" ]]; then
+    exit 1
+fi
+exit 0
+STUB
+    chmod +x "${mock_bin_fail}/sudo"
+
+    # Stub sudo that always exits 0 (simulates: TARGET_SYSTEM_USER can write to chdir).
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${mock_bin_pass}/sudo"
+    chmod +x "${mock_bin_pass}/sudo"
+
+    # Valid system-mode conf. IOC_USER and IOC_GROUP match TARGET_SYSTEM_USER/GROUP
+    # literals hardcoded in ioc-runner. IOC_PORT must match process_ioc_port output
+    # for the default SYSTEM_RUN_DIR (/run/procserv).
+    cat > "${test_conf}" <<EOF
+IOC_NAME="precheck_ioc"
+IOC_USER="ioc-srv"
+IOC_GROUP="ioc"
+IOC_CHDIR="${test_dir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/precheck_ioc/control"
+IOC_CMD="./st.cmd"
+EOF
+
+    # Each test case uses its own sysd/conf pair to avoid triggering the overwrite
+    # prompt (which would consume the stdin token intended for the precheck prompt).
+    local sysd conf
+
+    # Case 1: probe fails, EOF → exit 1
+    sysd="${TEST_TMPDIR}/precheck_s1"; conf="${TEST_TMPDIR}/precheck_c1"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    exit_code=$(PATH="${mock_bin_fail}:${PATH}" \
+        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        _run bash -c "bash \"${RUNNER_SCRIPT}\" install \"${test_conf}\" < /dev/null")
+    verify_exit_code "1" "${exit_code}" "Precheck: probe fails, EOF → exit 1"
+
+    # Case 2: probe fails, explicit N → exit 0
+    sysd="${TEST_TMPDIR}/precheck_s2"; conf="${TEST_TMPDIR}/precheck_c2"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    exit_code=$(PATH="${mock_bin_fail}:${PATH}" \
+        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        _run bash -c "printf 'n\n' | bash \"${RUNNER_SCRIPT}\" install \"${test_conf}\"")
+    verify_exit_code "0" "${exit_code}" "Precheck: probe fails, explicit N → exit 0"
+
+    # Case 3: probe fails, explicit Y → install proceeds and conf is deployed
+    sysd="${TEST_TMPDIR}/precheck_s3"; conf="${TEST_TMPDIR}/precheck_c3"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    exit_code=$(PATH="${mock_bin_fail}:${PATH}" \
+        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        _run bash -c "printf 'y\n' | bash \"${RUNNER_SCRIPT}\" install \"${test_conf}\"")
+    verify_exit_code "0" "${exit_code}" "Precheck: probe fails, explicit Y → install proceeds (exit 0)"
+    local installed3_exists="false"
+    [[ -f "${conf}/precheck_ioc.conf" ]] && installed3_exists="true"
+    verify_state "true" "${installed3_exists}" "Precheck: Y path installs conf file"
+
+    # Case 4: probe fails, FORCE_OVERWRITE → warning on stderr, no prompt, install proceeds
+    sysd="${TEST_TMPDIR}/precheck_s4"; conf="${TEST_TMPDIR}/precheck_c4"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    local ec4=0
+    PATH="${mock_bin_fail}:${PATH}" \
+        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${test_conf}" >/dev/null 2>"${stderr_cap}" \
+        || ec4=$?
+    verify_exit_code "0" "${ec4}" "Precheck: FORCE_OVERWRITE → exit 0"
+    local has_warning4="false"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && has_warning4="true"
+    verify_state "true" "${has_warning4}" "Precheck: FORCE_OVERWRITE emits warning to stderr"
+    local installed4_exists="false"
+    [[ -f "${conf}/precheck_ioc.conf" ]] && installed4_exists="true"
+    verify_state "true" "${installed4_exists}" "Precheck: FORCE_OVERWRITE installs conf"
+
+    # Case 5: probe passes → no warning emitted, install proceeds silently
+    sysd="${TEST_TMPDIR}/precheck_s5"; conf="${TEST_TMPDIR}/precheck_c5"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    local ec5=0
+    PATH="${mock_bin_pass}:${PATH}" \
+        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${test_conf}" >/dev/null 2>"${stderr_cap}" \
+        || ec5=$?
+    verify_exit_code "0" "${ec5}" "Precheck: probe passes → exit 0"
+    local has_warning5="false"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && has_warning5="true"
+    verify_state "false" "${has_warning5}" "Precheck: probe passes → no warning emitted"
+    local installed5_exists="false"
+    [[ -f "${conf}/precheck_ioc.conf" ]] && installed5_exists="true"
+    verify_state "true" "${installed5_exists}" "Precheck: probe passes → conf installed"
 }
 
 # Validates that the new namespaced env vars (IOC_RUNNER_LOCAL_*) route install
@@ -817,6 +941,7 @@ function run_all_tests {
         "test_install_logic"
         "test_generate_errors"
         "test_install_errors"
+        "test_chdir_precheck"
         "test_env_var_namespacing"
         "test_env_var_precedence"
         "test_completion"

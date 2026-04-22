@@ -15,6 +15,14 @@ git clone https://your_git_url/myioc.git
 cd myioc/iocBoot/iocmyioc
 ```
 
+**Deployment Directory Requirement**
+
+In system mode, the IOC process runs as `ioc-srv` and writes runtime artifacts (`.iocsh_history`, autosave files, save/restore snapshots) to its working directory. `IOC_CHDIR` must therefore be writable by `ioc-srv`.
+
+The shared `/opt/epics-iocs` tree (`root:ioc`, mode `2775`, default ACLs) satisfies this requirement automatically. Personal home directories and NFS mounts without `ioc` group access do not, and will cause silent runtime failures under `procServ`.
+
+During `install`, the runner performs a non-interactive write probe as `ioc-srv`. If the probe fails, a warning is emitted and confirmation is required before proceeding.
+
 **Step 2: Create the Configuration File**
 Select either the automated generation tool or manual creation.
 

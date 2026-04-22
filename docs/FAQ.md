@@ -145,7 +145,28 @@ Site operators can extend this pattern with additional strings specific to their
 
 ---
 
-### Q8: Can we read system logs for IOCs running in system-wide mode?
+### Q8: Can I deploy IOCs from my home directory or a personal NFS mount?
+
+**No, not in system mode.** `procServ` runs as the `ioc-srv` service account, and the IOC payload inherits `IOC_CHDIR` as its working directory. At runtime, the IOC writes `.iocsh_history`, autosave files, save/restore snapshots, and any site-specific artifacts created by `st.cmd` to this directory. If the directory is not writable by `ioc-srv`, these writes fail silently.
+
+Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure emits two `ERROR` lines into the system journal, which match the crash detection pattern (Q7) and cause `ioc-runner start` to report a crash-loop false positive.
+
+The correct location is `/opt/epics-iocs/` (or any tree configured with `root:ioc`, mode `2775`, and default ACLs — see `INSTALL.md` Section 4).
+
+**Detection:** During `install`, the runner performs a non-interactive write probe as `ioc-srv`:
+
+```bash
+sudo -n -u ioc-srv test -w "${IOC_CHDIR}"
+```
+
+If the probe fails, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains.
+
+**Partial mitigation:** Adding `epicsEnvSet("IOCSH_HISTSIZE", "0")` to `st.cmd` suppresses only the history error. Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
+
+**Local mode:** `--local` deployments run as the invoking user, so this constraint does not apply.
+
+
+### Q9: Can we read system logs for IOCs running in system-wide mode?
 
 Reading system journal logs for `ioc-srv` services requires membership in the `adm` or `systemd-journal` group. Without this, commands like `journalctl -u epics-@myioc.service` may return empty results.
 
