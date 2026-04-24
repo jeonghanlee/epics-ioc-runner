@@ -29,6 +29,8 @@ declare -g RUNNER_SCRIPT_SRC="${IOC_RUNNER_SCRIPT_SRC:-${SC_DIR}/ioc-runner}"
 declare -g RUNNER_SCRIPT_DEST="${IOC_RUNNER_SCRIPT_DEST:-/usr/local/bin/ioc-runner}"
 declare -g BASH_COMP_SRC="${IOC_RUNNER_BASH_COMP_SRC:-${SC_DIR}/ioc-runner-completion.bash}"
 declare -g BASH_COMP_DEST="${IOC_RUNNER_BASH_COMP_DEST:-/etc/bash_completion.d/ioc-runner}"
+declare -g RUNNER_SCRIPT_SYMLINK="${IOC_RUNNER_SCRIPT_SYMLINK:-/usr/bin/ioc-runner}"
+declare -g OS_RELEASE_FILE="/etc/os-release"
 
 
 declare -g RESOLVED_PROCSERV_BIN=""
@@ -102,6 +104,20 @@ function print_sub_divider {
     printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
 }
 
+function is_rhel_family {
+    [[ -f "${OS_RELEASE_FILE}" ]] || return 1
+
+    # Execute in subshell so sourced variables do not leak to caller
+    (
+        . "${OS_RELEASE_FILE}"
+        [[ "${ID:-}" == "rhel" ]] && exit 0
+        case " ${ID_LIKE:-} " in
+            *" rhel "*) exit 0 ;;
+        esac
+        exit 1
+    )
+}
+
 function verify_path {
     local path="$1"
     local expected_owner="$2"
@@ -125,6 +141,33 @@ function verify_path {
     fi
 
     _log "SUCCESS" "Verify PASSED : ${path} (${actual_owner}, ${actual_perm})"
+    (( VERIFY_PASS++ )) || true
+    if [[ -n "${success_message}" ]]; then
+        _log "SUCCESS" "${success_message}"
+    fi
+}
+
+function verify_symlink {
+    local link_path="$1"
+    local expected_target="$2"
+    local success_message="$3"
+
+    if [[ ! -L "${link_path}" ]]; then
+        _log "ERROR" "Verify FAILED : ${link_path} is not a symbolic link"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    local actual_target
+    actual_target=$(readlink "${link_path}")
+
+    if [[ "${actual_target}" != "${expected_target}" ]]; then
+        _log "ERROR" "Verify FAILED : ${link_path} -> ${actual_target} (expected ${expected_target})"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    _log "SUCCESS" "Verify PASSED : ${link_path} -> ${actual_target}"
     (( VERIFY_PASS++ )) || true
     if [[ -n "${success_message}" ]]; then
         _log "SUCCESS" "${success_message}"
@@ -357,6 +400,15 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
 
     chmod "${PERM_RUNNER_SCRIPT}" "${RUNNER_SCRIPT_DEST}"
     verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
+
+    # On RHEL-family systems, sudo's secure_path excludes /usr/local/bin,
+    # so 'sudo ioc-runner inspect' fails to resolve the CLI. Add a symlink
+    # under /usr/bin (always in secure_path) to restore the invocation path.
+    if is_rhel_family; then
+        ln -sfn "${RUNNER_SCRIPT_DEST}" "${RUNNER_SCRIPT_SYMLINK}"
+        verify_symlink "${RUNNER_SCRIPT_SYMLINK}" "${RUNNER_SCRIPT_DEST}" \
+            "Created ${RUNNER_SCRIPT_SYMLINK} -> ${RUNNER_SCRIPT_DEST} for sudo secure_path"
+    fi
 
 else
     _log "ERROR" "Could not find ${RUNNER_SCRIPT_SRC}."
