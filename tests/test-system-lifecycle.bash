@@ -264,7 +264,12 @@ function setup_environment {
 
     if [[ ! -d "${TOP_DIR}" ]]; then
         _log "INFO" "Cloning target IOC repository..."
-        git clone -q "${IOC_REPO}" "${TOP_DIR}" >/dev/null 2>&1
+        # Bypass the user's global git config for this clone so any
+        # url.<...>.insteadOf rewrite (e.g. https -> ssh) does not apply.
+        # The target repo is public, so anonymous HTTPS avoids SSH key and
+        # known_hosts complications when the test runs under sudo (where
+        # OpenSSH resolves ~ via getpwuid, not $HOME).
+        GIT_CONFIG_GLOBAL=/dev/null git clone -q "${IOC_REPO}" "${TOP_DIR}" >/dev/null 2>&1
     fi
 
     cd "${TOP_DIR}" || exit 1
@@ -635,6 +640,22 @@ function test_inspect_and_multiple_connections {
     fi
 
     verify_state "true" "${server_pid_detected}" "Inspect command successfully retrieved server Netlink context"
+
+    # Regression guard: lsof must scope to the target socket via -a (AND).
+    # Without -a, lsof's default OR semantics would dump every UNIX socket
+    # on the host (systemd PID 1, journal, D-Bus, etc.).
+    local has_target_sock="false"
+    local has_systemd_noise="false"
+
+    if printf "%s" "${inspect_out}" | grep -qF "${UDS_PATH}"; then
+        has_target_sock="true"
+    fi
+    if printf "%s" "${inspect_out}" | grep -qE "^systemd[[:space:]]+[0-9]+[[:space:]]+root[[:space:]]+.+/run/systemd/"; then
+        has_systemd_noise="true"
+    fi
+
+    verify_state "true"  "${has_target_sock}"   "Inspect section 1 references the target socket path"
+    verify_state "false" "${has_systemd_noise}" "Inspect section 1 excludes unrelated systemd UDS entries"
 }
 
 function test_monitor_isolation {
