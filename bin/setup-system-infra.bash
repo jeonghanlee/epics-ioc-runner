@@ -24,7 +24,11 @@ declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
 declare -g SC_DIR
 SC_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 
-declare -g -a PROCSERV_SEARCH_PATHS=("${IOC_RUNNER_PROCSERV_PATH:-/usr/local/bin/procServ}" "${IOC_RUNNER_PROCSERV_PATH:-/usr/bin/procServ}")
+if [[ -n "${IOC_RUNNER_PROCSERV_PATH:-}" ]]; then
+    declare -g -a PROCSERV_SEARCH_PATHS=("${IOC_RUNNER_PROCSERV_PATH}")
+else
+    declare -g -a PROCSERV_SEARCH_PATHS=(/usr/local/bin/procServ /usr/bin/procServ)
+fi
 declare -g RUNNER_SCRIPT_SRC="${IOC_RUNNER_SCRIPT_SRC:-${SC_DIR}/ioc-runner}"
 declare -g RUNNER_SCRIPT_DEST="${IOC_RUNNER_SCRIPT_DEST:-/usr/local/bin/ioc-runner}"
 declare -g BASH_COMP_SRC="${IOC_RUNNER_BASH_COMP_SRC:-${SC_DIR}/ioc-runner-completion.bash}"
