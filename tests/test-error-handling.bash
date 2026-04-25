@@ -464,6 +464,14 @@ function test_install_errors {
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${dummy_dir}")
     verify_exit_code "1" "${exit_code}" "Install directory with mismatched conf name exits 1"
 
+    # Regression guard: IOC name validation must also apply when a .conf
+    # file is supplied directly (not via its parent directory). Without
+    # the convergence-point check, names like 'myioc@' would propagate
+    # into systemd unit names where '@' is reserved.
+    local invalid_named_conf="${TEST_TMPDIR}/myioc@.conf"
+    touch "${invalid_named_conf}"
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${invalid_named_conf}")
+    verify_exit_code "1" "${exit_code}" "Install file-direct with invalid IOC name exits 1"
 }
 
 # Validates the IOC_CHDIR write-access precheck inserted in do_install for system mode.

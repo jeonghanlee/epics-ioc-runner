@@ -753,13 +753,16 @@ function do_install {
         if [[ -z "${IOC_NAME}" || "${IOC_NAME}" == "${source_target}" || "${IOC_NAME}" == "." ]]; then
             IOC_NAME="${resolved_ioc_name}"
         fi
-
-        if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-            printf "Error: Invalid IOC name '%s' derived from path. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
-            exit 1
-        fi
     elif [[ ! -f "${source_conf}" ]]; then
         printf "Error: Target '%s' is neither a valid directory nor a configuration file.\n" "${source_target}" >&2
+        exit 1
+    fi
+
+    # Validate IOC_NAME at the convergence point so both directory and
+    # file-direct invocations pass through the same regex guard before
+    # any systemd unit name or filesystem path is constructed.
+    if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
         exit 1
     fi
 
