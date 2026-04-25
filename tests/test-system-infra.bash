@@ -226,12 +226,36 @@ function test_sudoers_includedir_order {
     verify_state "true" "${ordering_ok}" "includedir is the final active directive in ${main_sudoers}"
 }
 
+function test_git_context_resolution {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Git Context Resolution for Version Injection"
+    print_sub_divider
+
+    # Locate the source repo's bin/ directory relative to this test file.
+    local script_dir
+    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    local repo_bin="${script_dir}/../bin"
+
+    # Baseline: the repo's actual short HEAD obtained via -C.
+    local expected_hash
+    expected_hash=$(git -C "${repo_bin}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
+
+    # Mimic setup-system-infra.bash: call git -C from an unrelated CWD.
+    # Without -C the call would consult /tmp's (non-)git context and fail.
+    local resolved_hash
+    resolved_hash=$(cd /tmp && git -C "${repo_bin}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
+
+    verify_state "${expected_hash}" "${resolved_hash}" "git -C resolves repo hash from unrelated CWD"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "test_service_accounts"
         "test_infrastructure_files"
         "test_sudoers_syntax"
         "test_sudoers_includedir_order"
+        "test_git_context_resolution"
     )
     local step=1
     local func
