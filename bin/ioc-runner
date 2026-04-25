@@ -315,6 +315,7 @@ function read_conf_var {
         printf "%s" "${val}"
         return 0
     done < "${conf_file}"
+    return 1
 }
 
 function read_conf_all {
@@ -524,7 +525,10 @@ function resolve_sock_path {
     fi
 
     local ioc_port_val
-    ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT")
+    if ! ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT"); then
+        printf "Error: IOC_PORT not configured in %s.\n" "${target_conf}" >&2
+        exit 1
+    fi
     RESOLVED_SOCK_PATH="${ioc_port_val##*:}"
 
     if [[ -z "${RESOLVED_SOCK_PATH}" || ! -S "${RESOLVED_SOCK_PATH}" ]]; then
@@ -1224,7 +1228,10 @@ function do_inspect {
     fi
 
     local ioc_port_val
-    ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT")
+    if ! ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT"); then
+        printf "Error: IOC_PORT not configured in %s.\n" "${target_conf}" >&2
+        exit 1
+    fi
     local sock_path="${ioc_port_val##*:}"
 
     if [[ -z "${sock_path}" || ! -S "${sock_path}" ]]; then

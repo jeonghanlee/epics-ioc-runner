@@ -925,6 +925,24 @@ function test_attach_errors {
 
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local attach "nonexistent_ioc")
     verify_exit_code "1" "${exit_code}" "'attach' with missing conf exits 1"
+
+    # Regression guard: a conf file with no IOC_PORT key should yield a
+    # distinct 'not configured' error rather than the generic socket-file
+    # error, exercising read_conf_var's missing-vs-empty signal.
+    local missing_port_dir="${TEST_TMPDIR}/missing_port_conf"
+    mkdir -p "${missing_port_dir}"
+    printf "IOC_NAME=missing_port\nIOC_USER=%s\n" "$(id -un)" > "${missing_port_dir}/missing_port.conf"
+
+    local stderr_cap="${TEST_TMPDIR}/missing_port_stderr"
+    local ec=0
+    IOC_RUNNER_LOCAL_CONF_DIR="${missing_port_dir}" \
+        bash "${RUNNER_SCRIPT}" --local attach "missing_port" >/dev/null 2>"${stderr_cap}" \
+        || ec=$?
+    verify_exit_code "1" "${ec}" "'attach' with missing IOC_PORT key exits 1"
+
+    local has_port_msg="false"
+    grep -q "IOC_PORT not configured" "${stderr_cap}" 2>/dev/null && has_port_msg="true"
+    verify_state "true" "${has_port_msg}" "'attach' error references missing IOC_PORT key"
 }
 
 function test_list_empty {
