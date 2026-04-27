@@ -20,9 +20,8 @@ declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
 declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
 
-# Get the absolute directory path of the current script, resolving symlinks
 declare -g SC_DIR
-SC_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+SC_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
 if [[ -n "${IOC_RUNNER_PROCSERV_PATH:-}" ]]; then
     declare -g -a PROCSERV_SEARCH_PATHS=("${IOC_RUNNER_PROCSERV_PATH}")

@@ -249,6 +249,54 @@ function test_git_context_resolution {
     verify_state "${expected_hash}" "${resolved_hash}" "git -C resolves repo hash from unrelated CWD"
 }
 
+function test_setup_script_dir_resolution {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Setup Script Directory Resolution"
+    print_sub_divider
+
+    local script_dir
+    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    local setup_script="${script_dir}/../bin/setup-system-infra.bash"
+    local repo_bin
+    repo_bin="$(cd "${script_dir}/../bin" && pwd)"
+
+    if [[ ! -f "${setup_script}" ]]; then
+        verify_state "exists" "not_found" "setup-system-infra.bash exists at expected location"
+        return
+    fi
+
+    # Regression guard: SC_DIR must not be derived via 'readlink -f'.
+    # Under NFS root_squash, sudo cannot canonicalize parent directories,
+    # so readlink -f silently returns an empty string and SC_DIR falls
+    # back to the caller's CWD. STEPS 1-4 do not consume SC_DIR, so the
+    # script proceeds to mutate /etc state and only fails at STEP 5,
+    # leaving the host partially configured.
+    local readlink_in_sc_dir="false"
+    if grep -qE '^[[:space:]]*SC_DIR=.*readlink[[:space:]]+-f' "${setup_script}"; then
+        readlink_in_sc_dir="true"
+    fi
+    verify_state "false" "${readlink_in_sc_dir}" "SC_DIR resolution does not depend on 'readlink -f'"
+
+    # Behavioral: replicate the script's SC_DIR strategy
+    # ('dirname "${BASH_SOURCE[0]}"') across plausible invocation forms
+    # and confirm the resolved directory locates the sibling ioc-runner.
+    # For a directly invoked (non-sourced) script, $0 equals BASH_SOURCE[0].
+    local probe='sc_dir="$(dirname "$0")"; [[ -f "${sc_dir}/ioc-runner" ]] && printf found || printf missing'
+
+    local check_a
+    check_a=$(cd "${repo_bin}/.." && bash -c "${probe}" "bin/setup-system-infra.bash")
+    verify_state "found" "${check_a}" "SC_DIR locates ioc-runner when invoked as bin/... from repo root"
+
+    local check_b
+    check_b=$(cd "${repo_bin}" && bash -c "${probe}" "./setup-system-infra.bash")
+    verify_state "found" "${check_b}" "SC_DIR locates ioc-runner when invoked as ./... from bin/"
+
+    local check_c
+    check_c=$(cd /tmp && bash -c "${probe}" "${repo_bin}/setup-system-infra.bash")
+    verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "test_service_accounts"
@@ -256,6 +304,7 @@ function run_all_tests {
         "test_sudoers_syntax"
         "test_sudoers_includedir_order"
         "test_git_context_resolution"
+        "test_setup_script_dir_resolution"
     )
     local step=1
     local func
