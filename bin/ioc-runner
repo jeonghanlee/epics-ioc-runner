@@ -395,7 +395,11 @@ function validate_conf {
 
     read_conf_all "${conf_file}" conf_vars
 
-    # Required keys presence check
+    # Required keys must be present and non-empty. The empty-string check
+    # below intentionally conflates missing key and empty value: both
+    # states are invalid for required keys (not a regression of #36's
+    # read_conf_var distinction, which still applies to callers that
+    # need to tell the two apart).
     local required_key
     for required_key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_CMD"; do
         if [[ -z "${conf_vars[${required_key}]}" ]]; then
