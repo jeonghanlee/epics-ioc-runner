@@ -297,6 +297,33 @@ function test_setup_script_dir_resolution {
     verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
 }
 
+function test_runner_version_path_resolution {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Runner -V Live-Hash Path Resolution"
+    print_sub_divider
+
+    local script_dir
+    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    local runner_script="${script_dir}/../bin/ioc-runner"
+
+    if [[ ! -f "${runner_script}" ]]; then
+        verify_state "exists" "not_found" "ioc-runner exists at expected location"
+        return
+    fi
+
+    # Regression guard: the -V live-hash branch must not derive script_dir
+    # via 'readlink -f'. realpath silently returns empty under NFS
+    # root_squash + sudo, falling back to '.' (caller's CWD), which then
+    # makes 'git -C "."' fail and the live-hash output regress to
+    # 'unknown'. Same assumption as #38; tracked as #39.
+    local readlink_in_v_handler="false"
+    if grep -qE '^[[:space:]]*script_dir=.*readlink[[:space:]]+-f' "${runner_script}"; then
+        readlink_in_v_handler="true"
+    fi
+    verify_state "false" "${readlink_in_v_handler}" "ioc-runner -V handler does not derive script_dir via 'readlink -f'"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "test_service_accounts"
@@ -305,6 +332,7 @@ function run_all_tests {
         "test_sudoers_includedir_order"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
+        "test_runner_version_path_resolution"
     )
     local step=1
     local func

@@ -152,7 +152,7 @@ while [[ $# -gt 0 ]]; do
             display_hash="${RUNNER_GIT_HASH}"
             display_date="${RUNNER_BUILD_DATE}"
             if [[ "${display_hash}" == "unknown" ]]; then
-                script_dir="$(dirname "$(readlink -f "$0")")"
+                script_dir="$(dirname "${BASH_SOURCE[0]}")"
                 if command -v git >/dev/null 2>&1 && git -C "${script_dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
                     display_hash=$(git -C "${script_dir}" rev-parse --short HEAD)
                     if ! git -C "${script_dir}" diff-index --quiet HEAD -- 2>/dev/null; then
