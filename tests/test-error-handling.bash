@@ -883,7 +883,10 @@ function test_ioc_name_validation {
     # Verify the error message format remains 'Invalid IOC name ...' so
     # log scrapers and regression observers can rely on the contract.
     local err_out
-    err_out=$(bash "${RUNNER_SCRIPT}" view 'bad@name' 2>&1 >/dev/null)
+    # Suffix '|| true' so that the validation rejection (exit 1) does not
+    # propagate through command substitution and trip 'set -e' in this
+    # test driver.
+    err_out=$(bash "${RUNNER_SCRIPT}" view 'bad@name' 2>&1 >/dev/null || true)
     local has_phrase="false"
     if [[ "${err_out}" == *"Invalid IOC name"* ]]; then has_phrase="true"; fi
     verify_state "true" "${has_phrase}" "view 'bad@name' produces 'Invalid IOC name' error message"
