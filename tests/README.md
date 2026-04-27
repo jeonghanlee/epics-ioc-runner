@@ -110,3 +110,5 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **Accounts & Permissions**: Confirms `ioc-srv` user, `ioc` group, and `2770` SetGID collaborative directories.
 * **Security Policies**: Validates `/etc/sudoers.d/10-epics-ioc` syntax natively using `visudo`.
 * **Policy Ordering**: Confirms the `includedir` directive is the final active line in `/etc/sudoers`, ensuring drop-in NOPASSWD policies are not overridden by trailing user-specific rules.
+* **Version Metadata Injection**: Verifies that `git -C` resolves the source repository's HEAD hash regardless of the caller's working directory, ensuring the `RUNNER_GIT_HASH` injection reflects the source repository.
+* **Setup Script Path Resolution**: Confirms `SC_DIR` in `setup-system-infra.bash` resolves to the script's directory across plausible invocation forms (from the repository root, from `bin/`, or via absolute path) without depending on absolute-path canonicalization.
