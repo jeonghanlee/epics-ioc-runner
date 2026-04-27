@@ -874,8 +874,11 @@ function test_ioc_name_validation {
     exit_code=$(_run bash "${RUNNER_SCRIPT}" view 'bad@name')
     verify_exit_code "1" "${exit_code}" "view 'bad@name' (special char) exits 1 via name validation"
 
-    exit_code=$(_run bash "${RUNNER_SCRIPT}" view 'bad/name')
-    verify_exit_code "1" "${exit_code}" "view 'bad/name' (path separator) exits 1 via name validation"
+    # Path-separator inputs cannot reach the regex: 'basename' strips the
+    # path before the regex check. Use period instead, which survives
+    # basename and is rejected by [a-zA-Z0-9_-].
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" view 'bad.name')
+    verify_exit_code "1" "${exit_code}" "view 'bad.name' (period) exits 1 via name validation"
 
     # Verify the error message format remains 'Invalid IOC name ...' so
     # log scrapers and regression observers can rely on the contract.
