@@ -130,6 +130,22 @@ Examples:
 EOF
 }
 
+function validate_ioc_name {
+    local name="$1"
+    local context="${2:-}"
+
+    if [[ "${name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        return 0
+    fi
+
+    if [[ -n "${context}" ]]; then
+        printf "Error: Invalid IOC name '%s' %s. Only alphanumeric characters, '-', and '_' are allowed.\n" "${name}" "${context}" >&2
+    else
+        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${name}" >&2
+    fi
+    return 1
+}
+
 # --- CLI Argument Parsing ---
 declare -g COMMAND_ACTION=""
 declare -g TARGET_ARG=""
@@ -222,10 +238,7 @@ if [[ -n "${TARGET_ARG}" ]]; then
 
     # Defers strict regex validation for commands that accept relative paths or directories.
     if [[ "${COMMAND_ACTION}" != "generate" && "${COMMAND_ACTION}" != "install" ]]; then
-        if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-            printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
-            exit 1
-        fi
+        validate_ioc_name "${IOC_NAME}" || exit 1
     fi
 fi
 
@@ -577,10 +590,7 @@ function do_generate {
     fi
 
     # Enforces naming constraints strictly after native path expansion.
-    if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        printf "Error: Invalid IOC name '%s' derived from path. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
-        exit 1
-    fi
+    validate_ioc_name "${IOC_NAME}" "derived from path" || exit 1
 
     # Saves the generated configuration directly in the target iocBoot directory alongside the startup script.
     generated_conf="${abs_dir}/${IOC_NAME}.conf"
@@ -765,10 +775,7 @@ function do_install {
     # Validate IOC_NAME at the convergence point so both directory and
     # file-direct invocations pass through the same regex guard before
     # any systemd unit name or filesystem path is constructed.
-    if [[ ! "${IOC_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${IOC_NAME}" >&2
-        exit 1
-    fi
+    validate_ioc_name "${IOC_NAME}" || exit 1
 
     if ! validate_conf "${source_conf}" install_conf; then
         exit 1

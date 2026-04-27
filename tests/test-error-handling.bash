@@ -858,6 +858,34 @@ function test_completion {
 }
 
 
+function test_ioc_name_validation {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: IOC Name Validation Helper"
+    print_sub_divider
+
+    # Site 1 (early validation): non-generate/non-install commands route
+    # the regex via 'view'. Names with characters outside [a-zA-Z0-9_-]
+    # must be rejected before the dispatcher reaches do_view.
+    local exit_code
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" view 'bad name')
+    verify_exit_code "1" "${exit_code}" "view 'bad name' (whitespace) exits 1 via name validation"
+
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" view 'bad@name')
+    verify_exit_code "1" "${exit_code}" "view 'bad@name' (special char) exits 1 via name validation"
+
+    exit_code=$(_run bash "${RUNNER_SCRIPT}" view 'bad/name')
+    verify_exit_code "1" "${exit_code}" "view 'bad/name' (path separator) exits 1 via name validation"
+
+    # Verify the error message format remains 'Invalid IOC name ...' so
+    # log scrapers and regression observers can rely on the contract.
+    local err_out
+    err_out=$(bash "${RUNNER_SCRIPT}" view 'bad@name' 2>&1 >/dev/null)
+    local has_phrase="false"
+    if [[ "${err_out}" == *"Invalid IOC name"* ]]; then has_phrase="true"; fi
+    verify_state "true" "${has_phrase}" "view 'bad@name' produces 'Invalid IOC name' error message"
+}
+
 function test_validation_errors {
     local step="$1"
     print_divider
@@ -1017,6 +1045,7 @@ function run_all_tests {
         "test_env_var_namespacing"
         "test_env_var_precedence"
         "test_completion"
+        "test_ioc_name_validation"
         "test_validation_errors"
         "test_attach_errors"
         "test_list_empty"
