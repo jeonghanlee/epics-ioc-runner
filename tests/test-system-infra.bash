@@ -232,10 +232,13 @@ function test_git_context_resolution {
     _log "INFO" "STEP ${step}: Verify Git Context Resolution for Version Injection"
     print_sub_divider
 
-    # Locate the source repo's bin/ directory relative to this test file.
+    # Locate the source repo's bin/ directory. Build an absolute form
+    # from ${PWD} (no syscall on the user-owned NFS path) so the
+    # unrelated-CWD probe below stays meaningful even after we drop the
+    # cd ... && pwd canonicalization that fails under sudo+NFS root_squash.
     local script_dir
-    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-    local repo_bin="${script_dir}/../bin"
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    local repo_bin="${PWD}/${script_dir}/../bin"
 
     # Baseline: the repo's actual short HEAD obtained via -C.
     local expected_hash
@@ -256,10 +259,13 @@ function test_setup_script_dir_resolution {
     print_sub_divider
 
     local script_dir
-    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
     local setup_script="${script_dir}/../bin/setup-system-infra.bash"
-    local repo_bin
-    repo_bin="$(cd "${script_dir}/../bin" && pwd)"
+    # Keep repo_bin relative; an absolute form built from ${PWD} below
+    # is used only for the unrelated-CWD probe. cd ... && pwd would
+    # require root traversal of the user-owned NFS path under sudo.
+    local repo_bin="${script_dir}/../bin"
+    local repo_bin_abs="${PWD}/${repo_bin}"
 
     if [[ ! -f "${setup_script}" ]]; then
         verify_state "exists" "not_found" "setup-system-infra.bash exists at expected location"
@@ -278,6 +284,17 @@ function test_setup_script_dir_resolution {
     fi
     verify_state "false" "${readlink_in_sc_dir}" "SC_DIR resolution does not depend on 'readlink -f'"
 
+    # Regression guard: test files run under sudo (test-system-infra.bash,
+    # test-system-lifecycle.bash) must not derive their own script_dir via
+    # readlink -f, realpath, or cd ... && pwd. Same NFS root_squash failure
+    # mode applies when root sudo's into a user-owned test file. Tracked
+    # as #44.
+    local test_canonicalize="false"
+    if grep -qE '="\$\([^)]*(readlink -f|realpath)|="\$\(cd[^)]*&& pwd' "${BASH_SOURCE[0]}" "${script_dir}/test-system-lifecycle.bash" 2>/dev/null; then
+        test_canonicalize="true"
+    fi
+    verify_state "false" "${test_canonicalize}" "sudo-mode test files do not depend on readlink -f, realpath, or cd ... && pwd"
+
     # Behavioral: replicate the script's SC_DIR strategy
     # ('dirname "${BASH_SOURCE[0]}"') across plausible invocation forms
     # and confirm the resolved directory locates the sibling ioc-runner.
@@ -293,7 +310,7 @@ function test_setup_script_dir_resolution {
     verify_state "found" "${check_b}" "SC_DIR locates ioc-runner when invoked as ./... from bin/"
 
     local check_c
-    check_c=$(cd /tmp && bash -c "${probe}" "${repo_bin}/setup-system-infra.bash")
+    check_c=$(cd /tmp && bash -c "${probe}" "${repo_bin_abs}/setup-system-infra.bash")
     verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
 }
 
@@ -304,7 +321,7 @@ function test_setup_version_injection_guards {
     print_sub_divider
 
     local script_dir
-    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
     local setup_script="${script_dir}/../bin/setup-system-infra.bash"
 
     if [[ ! -f "${setup_script}" ]]; then
@@ -344,7 +361,7 @@ function test_metadata_field_naming {
     print_sub_divider
 
     local script_dir
-    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
     local runner_script="${script_dir}/../bin/ioc-runner"
     local setup_script="${script_dir}/../bin/setup-system-infra.bash"
 
@@ -401,7 +418,7 @@ function test_runner_version_path_resolution {
     print_sub_divider
 
     local script_dir
-    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
     local runner_script="${script_dir}/../bin/ioc-runner"
 
     if [[ ! -f "${runner_script}" ]]; then

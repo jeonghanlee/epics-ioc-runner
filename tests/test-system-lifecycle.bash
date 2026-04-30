@@ -40,10 +40,13 @@ if [[ "${EUID}" -ne 0 ]]; then
     exit 1
 fi
 
-declare -g SC_RPATH
 declare -g SC_TOP
-SC_RPATH="$(realpath "$0")"
-SC_TOP="${SC_RPATH%/*}"
+# Capture an absolute SC_TOP without readlink/realpath/cd-pwd; later
+# steps cd into a workspace, so a relative path would fail to resolve
+# back to the source tree. ${PWD} reflects the invoker's CWD at script
+# start, set by the kernel and not subject to NFS root_squash.
+SC_TOP="$(dirname "${BASH_SOURCE[0]}")"
+[[ "${SC_TOP}" != /* ]] && SC_TOP="${PWD}/${SC_TOP}"
 
 declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 declare -g CONF_DIR="/etc/procServ.d"
