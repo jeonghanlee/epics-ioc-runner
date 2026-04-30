@@ -299,18 +299,28 @@ function test_setup_script_dir_resolution {
     # ('dirname "${BASH_SOURCE[0]}"') across plausible invocation forms
     # and confirm the resolved directory locates the sibling ioc-runner.
     # For a directly invoked (non-sourced) script, $0 equals BASH_SOURCE[0].
+    #
+    # Run the probe as the invoking user (the repo owner). On NFS
+    # root_squash mounts the probe would otherwise stat the user-owned
+    # path as nobody and report missing even when the file exists.
+    # Same SUDO_USER drop pattern as #42.
     local probe='sc_dir="$(dirname "$0")"; [[ -f "${sc_dir}/ioc-runner" ]] && printf found || printf missing'
+    local invoker="${SUDO_USER:-$(id -un)}"
+    local runner=(bash -c "${probe}")
+    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
+        runner=(sudo -u "${invoker}" -n bash -c "${probe}")
+    fi
 
     local check_a
-    check_a=$(cd "${repo_bin}/.." && bash -c "${probe}" "bin/setup-system-infra.bash")
+    check_a=$(cd "${repo_bin}/.." && "${runner[@]}" "bin/setup-system-infra.bash")
     verify_state "found" "${check_a}" "SC_DIR locates ioc-runner when invoked as bin/... from repo root"
 
     local check_b
-    check_b=$(cd "${repo_bin}" && bash -c "${probe}" "./setup-system-infra.bash")
+    check_b=$(cd "${repo_bin}" && "${runner[@]}" "./setup-system-infra.bash")
     verify_state "found" "${check_b}" "SC_DIR locates ioc-runner when invoked as ./... from bin/"
 
     local check_c
-    check_c=$(cd /tmp && bash -c "${probe}" "${repo_bin_abs}/setup-system-infra.bash")
+    check_c=$(cd /tmp && "${runner[@]}" "${repo_bin_abs}/setup-system-infra.bash")
     verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
 }
 
