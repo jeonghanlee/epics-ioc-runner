@@ -337,6 +337,63 @@ function test_setup_version_injection_guards {
     verify_state "true" "${unknown_guard}" "dirty marker is gated on non-unknown current_git_hash"
 }
 
+function test_metadata_field_naming {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Version Metadata Field Naming"
+    print_sub_divider
+
+    local script_dir
+    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    local runner_script="${script_dir}/../bin/ioc-runner"
+    local setup_script="${script_dir}/../bin/setup-system-infra.bash"
+
+    if [[ ! -f "${runner_script}" ]] || [[ ! -f "${setup_script}" ]]; then
+        verify_state "exists" "not_found" "ioc-runner and setup-system-infra.bash exist at expected locations"
+        return
+    fi
+
+    # Regression guard: ioc-runner must declare the renamed metadata
+    # fields. The legacy RUNNER_BUILD_DATE is dropped because its value
+    # was the install moment, not the commit moment. Tracked as #43.
+    local commit_decl="false"
+    if grep -qE '^declare -g RUNNER_COMMIT_DATE=' "${runner_script}"; then
+        commit_decl="true"
+    fi
+    verify_state "true" "${commit_decl}" "ioc-runner declares RUNNER_COMMIT_DATE"
+
+    local install_decl="false"
+    if grep -qE '^declare -g RUNNER_INSTALL_DATE=' "${runner_script}"; then
+        install_decl="true"
+    fi
+    verify_state "true" "${install_decl}" "ioc-runner declares RUNNER_INSTALL_DATE"
+
+    # Negative guard: no residue of the deprecated RUNNER_BUILD_DATE
+    # name in either source. A sed line in setup-system-infra.bash that
+    # still targets RUNNER_BUILD_DATE would silently no-op against the
+    # renamed declaration and leave install date as 'unreleased'.
+    local build_residue="false"
+    if grep -qE 'RUNNER_BUILD_DATE|build date:' "${runner_script}" "${setup_script}"; then
+        build_residue="true"
+    fi
+    verify_state "false" "${build_residue}" "no RUNNER_BUILD_DATE or build date label residue in source"
+
+    # Regression guard: setup-system-infra.bash must inject both new
+    # fields via sed; otherwise the deployed CLI keeps 'unreleased'
+    # placeholders.
+    local commit_inject="false"
+    if grep -qE 'sed.*RUNNER_COMMIT_DATE' "${setup_script}"; then
+        commit_inject="true"
+    fi
+    verify_state "true" "${commit_inject}" "setup-system-infra.bash injects RUNNER_COMMIT_DATE via sed"
+
+    local install_inject="false"
+    if grep -qE 'sed.*RUNNER_INSTALL_DATE' "${setup_script}"; then
+        install_inject="true"
+    fi
+    verify_state "true" "${install_inject}" "setup-system-infra.bash injects RUNNER_INSTALL_DATE via sed"
+}
+
 function test_runner_version_path_resolution {
     local step="$1"
     print_divider
@@ -373,6 +430,7 @@ function run_all_tests {
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
         "test_setup_version_injection_guards"
+        "test_metadata_field_naming"
         "test_runner_version_path_resolution"
     )
     local step=1

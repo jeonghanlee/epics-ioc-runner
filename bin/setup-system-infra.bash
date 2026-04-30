@@ -411,10 +411,21 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
         current_git_hash="${current_git_hash}-dirty"
     fi
 
-    current_build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    # Commit date of the deployed hash; install date of this run. The two
+    # answer different operational questions: which revision is on this
+    # host vs how long the artefact has been in place. Both are normalized
+    # to UTC to keep -V output free of mixed timezone offsets.
+    commit_ts=$("${git_cmd[@]}" show -s --format=%ct HEAD 2>/dev/null || printf "")
+    if [[ -n "${commit_ts}" ]]; then
+        current_commit_date=$(date -u -d "@${commit_ts}" +"%Y-%m-%dT%H:%M:%SZ")
+    else
+        current_commit_date="unknown"
+    fi
+    current_install_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${RUNNER_SCRIPT_DEST}"
-    sed -i "s/^declare -g RUNNER_BUILD_DATE=.*/declare -g RUNNER_BUILD_DATE=\"${current_build_date}\"/" "${RUNNER_SCRIPT_DEST}"
+    sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${current_commit_date}\"/" "${RUNNER_SCRIPT_DEST}"
+    sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${current_install_date}\"/" "${RUNNER_SCRIPT_DEST}"
 
     chmod "${PERM_RUNNER_SCRIPT}" "${RUNNER_SCRIPT_DEST}"
     verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
