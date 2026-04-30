@@ -312,14 +312,21 @@ function test_setup_version_injection_guards {
         return
     fi
 
-    # Regression guard: both git invocations in the version-injection block
-    # must carry '-c safe.directory=*' (wildcard trust) so sudo installs
-    # against a user-owned repo do not trip git 2.35.2+ dubious-ownership
-    # refusal. A scoped path entry (e.g. SC_DIR) does not match the work
-    # tree root that the check evaluates against. Tracked as #42.
-    local safe_dir_count
-    safe_dir_count=$(grep -cE "git[[:space:]]+-c[[:space:]]+safe\.directory='\*'" "${setup_script}")
-    verify_state "2" "${safe_dir_count}" "version injection carries -c safe.directory=* on both git calls"
+    # Regression guard: version-injection block must drop privileges to
+    # the invoking user (SUDO_USER) when running under sudo. safe.directory
+    # does not help on NFS root_squash mounts where root cannot even stat
+    # the work tree (failure precedes git's ownership check). Tracked as #42.
+    local sudo_user_ref="false"
+    if grep -qE 'SUDO_USER' "${setup_script}"; then
+        sudo_user_ref="true"
+    fi
+    verify_state "true" "${sudo_user_ref}" "version injection references SUDO_USER for privilege drop"
+
+    local sudo_u_drop="false"
+    if grep -qE 'sudo[[:space:]]+-u[[:space:]]' "${setup_script}"; then
+        sudo_u_drop="true"
+    fi
+    verify_state "true" "${sudo_u_drop}" "version injection uses sudo -u for privilege drop"
 
     # Regression guard: the dirty marker must be gated on a real hash so a
     # failed diff-index does not yield 'unknown-dirty'. Tracked as #42.

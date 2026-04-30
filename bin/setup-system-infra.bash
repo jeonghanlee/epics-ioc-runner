@@ -391,16 +391,23 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # Inject version and build information into the deployed script.
     # Use -C "${SC_DIR}" so the metadata reflects the epics-ioc-runner repo
     # regardless of the caller's working directory.
-    # safe.directory='*' accepts any path: SC_DIR is the bin/ subdir,
-    # not the work tree root that git's dubious-ownership check evaluates.
-    # Resolving the absolute root would reintroduce the sudo+NFS path
-    # canonicalization fragility behind #38 and #39; under sudo install
-    # the caller is already root so the wildcard trust is acceptable.
-    current_git_hash=$(git -c safe.directory='*' -C "${SC_DIR}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
+    # Run git as the invoking user (the repo owner). On NFS root_squash
+    # mounts (Rocky 8 autofs), root maps to nobody and cannot even stat
+    # the work tree, so safe.directory does not help: the failure happens
+    # before git's dubious-ownership check runs. Dropping privileges via
+    # SUDO_USER lets git read the user's home normally. Falls back to
+    # direct invocation when SUDO_USER is unset (no sudo, direct root).
+    invoker="${SUDO_USER:-$(id -un)}"
+    git_cmd=(git -C "${SC_DIR}")
+    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
+        git_cmd=(sudo -u "${invoker}" -n git -C "${SC_DIR}")
+    fi
+
+    current_git_hash=$("${git_cmd[@]}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
 
     # Append "-dirty" only when we have a real hash; otherwise a failed
     # diff-index (git missing, repo absent) would yield "unknown-dirty".
-    if [[ "${current_git_hash}" != "unknown" ]] && command -v git >/dev/null 2>&1 && ! git -c safe.directory='*' -C "${SC_DIR}" diff-index --quiet HEAD -- 2>/dev/null; then
+    if [[ "${current_git_hash}" != "unknown" ]] && ! "${git_cmd[@]}" diff-index --quiet HEAD -- 2>/dev/null; then
         current_git_hash="${current_git_hash}-dirty"
     fi
 
