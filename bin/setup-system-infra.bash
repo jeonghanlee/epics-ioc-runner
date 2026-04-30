@@ -391,10 +391,13 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # Inject version and build information into the deployed script.
     # Use -C "${SC_DIR}" so the metadata reflects the epics-ioc-runner repo
     # regardless of the caller's working directory.
-    current_git_hash=$(git -C "${SC_DIR}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
+    # safe.directory keeps git working when sudo runs against a repo
+    # owned by the invoking user (git 2.35.2+ dubious-ownership guard).
+    current_git_hash=$(git -c safe.directory="${SC_DIR}" -C "${SC_DIR}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
 
-    # Check if there are uncommitted changes and append "-dirty"
-    if command -v git >/dev/null 2>&1 && ! git -C "${SC_DIR}" diff-index --quiet HEAD -- 2>/dev/null; then
+    # Append "-dirty" only when we have a real hash; otherwise a failed
+    # diff-index (git missing, repo absent) would yield "unknown-dirty".
+    if [[ "${current_git_hash}" != "unknown" ]] && command -v git >/dev/null 2>&1 && ! git -c safe.directory="${SC_DIR}" -C "${SC_DIR}" diff-index --quiet HEAD -- 2>/dev/null; then
         current_git_hash="${current_git_hash}-dirty"
     fi
 

@@ -297,6 +297,37 @@ function test_setup_script_dir_resolution {
     verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
 }
 
+function test_setup_version_injection_guards {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Setup Version Injection Guards"
+    print_sub_divider
+
+    local script_dir
+    script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+    local setup_script="${script_dir}/../bin/setup-system-infra.bash"
+
+    if [[ ! -f "${setup_script}" ]]; then
+        verify_state "exists" "not_found" "setup-system-infra.bash exists at expected location"
+        return
+    fi
+
+    # Regression guard: both git invocations in the version-injection block
+    # must carry '-c safe.directory=' so sudo installs against a user-owned
+    # repo do not trip git 2.35.2+ dubious-ownership refusal. Tracked as #42.
+    local safe_dir_count
+    safe_dir_count=$(grep -cE 'git[[:space:]]+-c[[:space:]]+safe\.directory=' "${setup_script}")
+    verify_state "2" "${safe_dir_count}" "version injection carries -c safe.directory= on both git calls"
+
+    # Regression guard: the dirty marker must be gated on a real hash so a
+    # failed diff-index does not yield 'unknown-dirty'. Tracked as #42.
+    local unknown_guard="false"
+    if grep -qE '\[\[[[:space:]]*"\$\{current_git_hash\}"[[:space:]]*!=[[:space:]]*"unknown"' "${setup_script}"; then
+        unknown_guard="true"
+    fi
+    verify_state "true" "${unknown_guard}" "dirty marker is gated on non-unknown current_git_hash"
+}
+
 function test_runner_version_path_resolution {
     local step="$1"
     print_divider
@@ -332,6 +363,7 @@ function run_all_tests {
         "test_sudoers_includedir_order"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
+        "test_setup_version_injection_guards"
         "test_runner_version_path_resolution"
     )
     local step=1
