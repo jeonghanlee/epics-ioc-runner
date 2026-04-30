@@ -313,11 +313,13 @@ function test_setup_version_injection_guards {
     fi
 
     # Regression guard: both git invocations in the version-injection block
-    # must carry '-c safe.directory=' so sudo installs against a user-owned
-    # repo do not trip git 2.35.2+ dubious-ownership refusal. Tracked as #42.
+    # must carry '-c safe.directory=*' (wildcard trust) so sudo installs
+    # against a user-owned repo do not trip git 2.35.2+ dubious-ownership
+    # refusal. A scoped path entry (e.g. SC_DIR) does not match the work
+    # tree root that the check evaluates against. Tracked as #42.
     local safe_dir_count
-    safe_dir_count=$(grep -cE 'git[[:space:]]+-c[[:space:]]+safe\.directory=' "${setup_script}")
-    verify_state "2" "${safe_dir_count}" "version injection carries -c safe.directory= on both git calls"
+    safe_dir_count=$(grep -cE "git[[:space:]]+-c[[:space:]]+safe\.directory='\*'" "${setup_script}")
+    verify_state "2" "${safe_dir_count}" "version injection carries -c safe.directory=* on both git calls"
 
     # Regression guard: the dirty marker must be gated on a real hash so a
     # failed diff-index does not yield 'unknown-dirty'. Tracked as #42.
