@@ -23,24 +23,6 @@ Execute these tests when deploying to a new server or when modifying the infrast
 
 ---
 
-## Known Limitations
-
-### NFS root_squash homes (Rocky 8 with autofs)
-
-Phase 4 (`test-system-lifecycle.bash`) cannot run under `sudo` when the
-source tree lives on an NFS export with `root_squash`. The test invokes
-the source-tree `bin/ioc-runner`, but root maps to `nobody` on the NFS
-server and cannot `execve` a user-owned file, aborting at exit code 126
-(Permission denied). Phases 1-3 are unaffected: Phase 1 and 2 run as the
-invoking user, and Phase 3 was hardened in #44 to drop privileges via
-`SUDO_USER` for any access to the user-owned source tree.
-
-To run Phase 4 on such a host, clone the repository onto a local (non-NFS)
-filesystem, for example `/opt/<user>/epics-ioc-runner`, and invoke the
-test from there. See issue #45 for the full diagnosis.
-
----
-
 ## Debugging and Workspace Retention
 
 By default, all lifecycle tests create a temporary workspace in shared memory under `/dev/shm/epics-ioc-test.*` and remove it automatically upon successful completion.

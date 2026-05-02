@@ -48,14 +48,16 @@ declare -g SC_TOP
 SC_TOP="$(dirname "${BASH_SOURCE[0]}")"
 [[ "${SC_TOP}" != /* ]] && SC_TOP="${PWD}/${SC_TOP}"
 
-# Known limitation: this test cannot run under sudo when the source
-# tree lives on an NFS export with root_squash. Root maps to nobody
-# and cannot execve the user-owned ${SC_TOP}/../bin/ioc-runner; Phase
-# 4 aborts with exit 126 (Permission denied) at the first invocation.
-# Confirmed on alsucl-psrv3 (Rocky 8 + autofs NFS home). Run the
-# lifecycle test from a local (non-NFS) clone of the repository on
-# such hosts. See issue #45 for context.
-declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
+# Prefer the deployed copy: under sudo + NFS root_squash, root maps to
+# nobody and cannot execve a user-owned source-tree binary. Source-tree
+# fallback covers fresh checkouts where setup-system-infra.bash has not
+# run yet. See issue #45.
+declare -g RUNNER_SCRIPT
+if [[ -x /usr/local/bin/ioc-runner ]]; then
+    RUNNER_SCRIPT="/usr/local/bin/ioc-runner"
+else
+    RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
+fi
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
