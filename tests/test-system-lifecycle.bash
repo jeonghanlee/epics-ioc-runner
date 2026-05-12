@@ -29,6 +29,12 @@ if [[ -z "${EPICS_BASE}" ]]; then
     exit 1
 fi
 
+if ! command -v lsof >/dev/null 2>&1; then
+    printf "${RED}%s${NC}\n" "ERROR: The 'lsof' utility is required for the inspect test (STEP 24) but was not found in PATH." >&2
+    printf "Hint: install lsof via your package manager (apt install lsof / dnf install lsof).\n" >&2
+    exit 1
+fi
+
 if [[ -z "${EPICS_HOST_ARCH}" ]]; then
     export EPICS_HOST_ARCH="linux-x86_64"
 fi
