@@ -46,11 +46,11 @@ The master script executes tests in the recommended SOP sequence and supports se
 
 ```bash
 # Default: Runs ALL phases (1 through 4)
-# Requires EPICS_BASE, 'ioc' group membership, sudo access, and lsof.
+# Requires EPICS_BASE, 'ioc' group membership, sudo access, lsof, and a persistent user journal.
 bash tests/run-all-tests.bash
 
 # Local Mode: Runs Phase 1 and 2 only
-# Requires EPICS_BASE and lsof. No sudo or 'ioc' group required.
+# Requires EPICS_BASE, lsof, and a persistent user journal. No sudo or 'ioc' group required.
 bash tests/run-all-tests.bash --local
 
 # System Mode: Runs Phase 3 and 4 only
