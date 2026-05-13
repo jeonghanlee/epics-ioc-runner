@@ -1036,6 +1036,46 @@ function test_crash_pattern_matching {
 }
 
 
+# Validates the install-time CRASH_LOG_PATTERNS_EXTRA contract from #25:
+# valid extras are accepted, illegal characters and invalid regex syntax
+# are rejected before the conf reaches the runtime grep call.
+function test_crash_pattern_extra {
+    local step="$1"
+    local exit_code
+    local test_dir="${TEST_TMPDIR}/extra_pattern_ioc"
+    local mock_conf_dir="${TEST_TMPDIR}/extra_pattern_etc"
+    local mock_sysd_dir="${TEST_TMPDIR}/extra_pattern_sysd"
+    local conf_file="${test_dir}/extra_pattern_ioc.conf"
+
+    print_divider
+    _log "INFO" "STEP ${step}: CRASH_LOG_PATTERNS_EXTRA Validation"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    local base_conf
+    base_conf=$(printf "IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_CMD=./st.cmd\n" \
+        "$(id -un)" "$(id -gn)" "${test_dir}")
+
+    printf "%s\nCRASH_LOG_PATTERNS_EXTRA=\"Bergoz link lost|NPCT overrange\"\n" "${base_conf}" > "${conf_file}"
+    exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
+    verify_exit_code "0" "${exit_code}" "Valid CRASH_LOG_PATTERNS_EXTRA accepted at install"
+
+    printf "%s\nCRASH_LOG_PATTERNS_EXTRA=\"foo;rm -rf /\"\n" "${base_conf}" > "${conf_file}"
+    exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
+    verify_exit_code "1" "${exit_code}" "Illegal characters in CRASH_LOG_PATTERNS_EXTRA rejected at install"
+
+    printf "%s\nCRASH_LOG_PATTERNS_EXTRA=\"unclosed(group\"\n" "${base_conf}" > "${conf_file}"
+    exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
+    verify_exit_code "1" "${exit_code}" "Invalid regex in CRASH_LOG_PATTERNS_EXTRA rejected at install"
+}
+
+
 
 function run_all_tests {
     local -a pipeline=(
@@ -1057,6 +1097,7 @@ function run_all_tests {
         "test_list_empty"
         "test_inspect_errors"
         "test_crash_pattern_matching"
+        "test_crash_pattern_extra"
     )
     local step=1
     local func

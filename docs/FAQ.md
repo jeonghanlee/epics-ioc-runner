@@ -141,7 +141,14 @@ The patterns used by the secondary health check are defined as a global variable
 CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 ```
 
-Site operators can extend this pattern with additional strings specific to their hardware or EPICS modules (separated by `|`) without modifying any internal logic.
+For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script:
+
+```bash
+# In the IOC conf
+CRASH_LOG_PATTERNS_EXTRA="Bergoz link lost|NPCT overrange|Keithley buffer full"
+```
+
+Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Invalid regex syntax is rejected at install time, not at runtime.
 
 ---
 

@@ -427,6 +427,25 @@ function validate_conf {
         fi
     done
 
+    # Optional CRASH_LOG_PATTERNS_EXTRA: per-IOC pattern extension validated
+    # with a wider whitelist (regex metacharacters | ( ) \ allowed) and a
+    # grep -E compile probe to catch invalid regex at install time.
+    local extra_patterns="${conf_vars[CRASH_LOG_PATTERNS_EXTRA]:-}"
+    if [[ -n "${extra_patterns}" ]]; then
+        local extra_re='^[a-zA-Z0-9_./: |()\\-]+$'
+        if [[ ! "${extra_patterns}" =~ ${extra_re} ]]; then
+            printf "Error: Illegal characters in CRASH_LOG_PATTERNS_EXTRA.\n" >&2
+            error_count=$((error_count + 1))
+        else
+            local grep_rc=0
+            printf "" | grep -qE "${extra_patterns}" 2>/dev/null || grep_rc=$?
+            if [[ ${grep_rc} -eq 2 ]]; then
+                printf "Error: Invalid regex syntax in CRASH_LOG_PATTERNS_EXTRA.\n" >&2
+                error_count=$((error_count + 1))
+            fi
+        fi
+    fi
+
     # Identity validation checks
     if [[ "${EXEC_MODE}" == "system" ]]; then
         if [[ "${conf_vars[IOC_USER]:-}" != "${TARGET_SYSTEM_USER}" ]]; then
@@ -1419,7 +1438,18 @@ function do_start_restart {
         log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
     fi
 
-    if "${log_cmd[@]}" 2>/dev/null | grep -qiE "${CRASH_LOG_PATTERNS}"; then
+    # Issue #25: append per-IOC CRASH_LOG_PATTERNS_EXTRA when present.
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    local extra_patterns=""
+    if [[ -f "${target_conf}" ]]; then
+        extra_patterns=$(read_conf_var "${target_conf}" "CRASH_LOG_PATTERNS_EXTRA" 2>/dev/null || printf "")
+    fi
+    local effective_patterns="${CRASH_LOG_PATTERNS}"
+    if [[ -n "${extra_patterns}" ]]; then
+        effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}"
+    fi
+
+    if "${log_cmd[@]}" 2>/dev/null | grep -qiE "${effective_patterns}"; then
         printf "\nWarning: IOC '%s' is active, but procServ may be crash-looping or reporting fatal errors.\n" "${IOC_NAME}" >&2
         if [[ "${EXEC_MODE}" == "local" ]]; then
             printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
