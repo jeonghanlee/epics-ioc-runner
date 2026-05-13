@@ -8,7 +8,7 @@
 # jeonghan.lee@gmail.com
 #
 
-set -eo pipefail
+set -euo pipefail
 
 # --- Version Information ---
 declare -g RUNNER_VERSION="1.0.8-dev"
@@ -324,7 +324,7 @@ function read_conf_var {
     local key
     local val
 
-    while IFS='=' read -r key val || [[ -n "${key}" ]]; do
+    while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
         key="${key// /}"
         if [[ -z "${key}" || "${key}" =~ ^# || "${key}" != "${target_key}" ]]; then
             continue
@@ -345,7 +345,7 @@ function read_conf_all {
     local -n result_map="$2"
 
     local key val
-    while IFS='=' read -r key val || [[ -n "${key}" ]]; do
+    while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
         key="${key// /}"
         [[ -z "${key}" || "${key}" =~ ^# ]] && continue
         val="${val%\"}"; val="${val#\"}"
@@ -411,7 +411,7 @@ function validate_conf {
     # need to tell the two apart).
     local required_key
     for required_key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_CMD"; do
-        if [[ -z "${conf_vars[${required_key}]}" ]]; then
+        if [[ -z "${conf_vars[${required_key}]:-}" ]]; then
             printf "Error: Required variable %s is missing or empty.\n" "${required_key}" >&2
             error_count=$((error_count + 1))
         fi
@@ -420,7 +420,7 @@ function validate_conf {
     # Whitelist security checks for critical variables
     local key val
     for key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_PORT" "IOC_CMD"; do
-        val="${conf_vars[${key}]}"
+        val="${conf_vars[${key}]:-}"
         if [[ -n "${val}" && ! "${val}" =~ ^[a-zA-Z0-9_./:\ -]+$ ]]; then
             printf "Error: Illegal characters detected in variable %s\n" "${key}" >&2
             error_count=$((error_count + 1))
@@ -429,11 +429,11 @@ function validate_conf {
 
     # Identity validation checks
     if [[ "${EXEC_MODE}" == "system" ]]; then
-        if [[ "${conf_vars[IOC_USER]}" != "${TARGET_SYSTEM_USER}" ]]; then
+        if [[ "${conf_vars[IOC_USER]:-}" != "${TARGET_SYSTEM_USER}" ]]; then
             printf "Error: System IOCs must run as %s\n" "${TARGET_SYSTEM_USER}" >&2
             error_count=$((error_count + 1))
         fi
-        if [[ "${conf_vars[IOC_GROUP]}" != "${TARGET_SYSTEM_GROUP}" ]]; then
+        if [[ "${conf_vars[IOC_GROUP]:-}" != "${TARGET_SYSTEM_GROUP}" ]]; then
             printf "Error: System IOCs must run under group %s\n" "${TARGET_SYSTEM_GROUP}" >&2
             error_count=$((error_count + 1))
         fi
@@ -441,19 +441,19 @@ function validate_conf {
         current_user=$(id -un)
         current_group=$(id -gn)
 
-        if [[ "${conf_vars[IOC_USER]}" != "${current_user}" ]]; then
+        if [[ "${conf_vars[IOC_USER]:-}" != "${current_user}" ]]; then
             printf "Error: Local IOCs must run as %s\n" "${current_user}" >&2
             error_count=$((error_count + 1))
         fi
-        if [[ "${conf_vars[IOC_GROUP]}" != "${current_group}" ]]; then
+        if [[ "${conf_vars[IOC_GROUP]:-}" != "${current_group}" ]]; then
             printf "Error: Local IOCs must run under group %s\n" "${current_group}" >&2
             error_count=$((error_count + 1))
         fi
     fi
 
     # Path and execution permission validation checks
-    local chdir="${conf_vars[IOC_CHDIR]}"
-    local cmd="${conf_vars[IOC_CMD]}"
+    local chdir="${conf_vars[IOC_CHDIR]:-}"
+    local cmd="${conf_vars[IOC_CMD]:-}"
 
     if [[ -z "${chdir}" || ! -d "${chdir}" ]]; then
         printf "Error: Invalid or missing directory: %s\n" "${chdir}" >&2
@@ -582,7 +582,7 @@ function do_generate {
     local selection=""
     local -a cmd_candidates=()
     # shellcheck disable=SC2034
-    local -A validate_map
+    local -A validate_map=()
     local mode_flag=""
     local line=""
 
@@ -757,7 +757,7 @@ function do_install {
     local abs_dir=""
     local saved_pwd=""
     local resolved_ioc_name=""
-    local -A install_conf
+    local -A install_conf=()
 
     # Resolves the target configuration file natively. If a directory is provided,
     # it locates the previously generated .conf file inside it to streamline the installation workflow.
@@ -804,7 +804,7 @@ function do_install {
     # FORCE_OVERWRITE bypasses the confirmation prompt but never suppresses
     # the warning emitted to stderr.
     if [[ "${EXEC_MODE}" == "system" ]] && command -v sudo >/dev/null 2>&1; then
-        local chdir_target="${install_conf[IOC_CHDIR]}"
+        local chdir_target="${install_conf[IOC_CHDIR]:-}"
         local precheck_confirm
         if ! sudo -n -u "${TARGET_SYSTEM_USER}" test -w "${chdir_target}" 2>/dev/null; then
             printf "Warning: IOC_CHDIR '%s' is not writable by '%s'.\n" "${chdir_target}" "${TARGET_SYSTEM_USER}" >&2
@@ -856,7 +856,7 @@ function do_install {
         exit 1
     fi
 
-    local original_port="${install_conf[IOC_PORT]}"
+    local original_port="${install_conf[IOC_PORT]:-}"
 
     local final_port
     final_port=$(process_ioc_port "${IOC_NAME}" "${original_port}") || exit 1
@@ -1022,7 +1022,7 @@ function do_list {
     fi
 
     local sockets=()
-    local -A ioc_started_map ioc_perm_map
+    local -A ioc_started_map=() ioc_perm_map=()
     local sock ts perm unit active rq sq path refcnt flags st inode key val b_id b_pid b_cpu b_mem i
     while IFS= read -r -d '' sock && IFS= read -r -d '' ts && IFS= read -r -d '' perm; do
         sockets+=("${sock}")
@@ -1041,9 +1041,9 @@ function do_list {
     fi
 
     # --- Memory Optimization: Stream Parsing & O(1) Hash Maps ---
-    local -A ioc_status_map
-    local -A ioc_rq_map ioc_sq_map
-    local -A ioc_pid_map ioc_cpu_map ioc_mem_map
+    local -A ioc_status_map=()
+    local -A ioc_rq_map=() ioc_sq_map=()
+    local -A ioc_pid_map=() ioc_cpu_map=() ioc_mem_map=()
 
     # 1. Map systemd states directly to memory
     while read -r unit _ active _ _; do
@@ -1065,7 +1065,7 @@ function do_list {
     done <<< "${ss_lx_out}"
 
     # 2-A. Map explicit kernel internal states from /proc/net/unix
-    local -A ioc_ref_map ioc_state_map ioc_inode_map
+    local -A ioc_ref_map=() ioc_state_map=() ioc_inode_map=()
     local is_listen
     # Fields: Num RefCount Protocol Flags Type St Inode Path
     {
@@ -1079,7 +1079,7 @@ function do_list {
                     ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
                     ioc_state_map["${path}"]="LISTEN"
                     ioc_inode_map["${path}"]="${inode}"
-                elif [[ -z "${ioc_state_map[${path}]}" ]]; then
+                elif [[ -z "${ioc_state_map[${path}]:-}" ]]; then
                     ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
                     case "${st}" in
                         "01") ioc_state_map["${path}"]="UNCONN" ;;
@@ -1099,7 +1099,7 @@ function do_list {
     if [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
         b_id="" b_pid="" b_cpu="" b_mem=""
 
-        while IFS='=' read -r key val || [[ -n "${key}" ]]; do
+        while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
             if [[ -z "${key}" ]]; then
                 # Empty line marks the end of a systemd unit block
                 if [[ "${b_id}" =~ epics-@(.*)\.service ]]; then
@@ -1278,8 +1278,8 @@ function do_inspect {
     print_sub_divider
 
     local lsof_found=0
-    local -a server_pids
-    local -A seen_server_pids
+    local -a server_pids=()
+    local -A seen_server_pids=()
     local line pid state loc_path loc_ino peer_ino proc_info p_ino c_pid
 
     # 1. Gather server PIDs via lsof, restricted to the target socket path.
@@ -1300,7 +1300,7 @@ function do_inspect {
         else
             printf "%s\n" "${line}"
             read -r _ pid _ <<< "${line}"
-            if [[ -z "${seen_server_pids[${pid}]}" ]]; then
+            if [[ -z "${seen_server_pids[${pid}]:-}" ]]; then
                 server_pids+=("${pid}")
                 seen_server_pids["${pid}"]=1
             fi
@@ -1314,9 +1314,9 @@ function do_inspect {
     printf "\n"
 
     # 2. Trace true client PIDs via Netlink peer inode mapping (ss -x -a -p)
-    local -a client_pids
-    local -A target_peer_inodes
-    local -A inode_to_pid
+    local -a client_pids=()
+    local -A target_peer_inodes=()
+    local -A inode_to_pid=()
 
     while read -r _ state _ _ loc_path loc_ino _ peer_ino proc_info; do
         if [[ "${state}" == "ESTAB" ]]; then
@@ -1332,11 +1332,11 @@ function do_inspect {
         fi
     done < <(ss -x -a -p 2>/dev/null || true)
 
-    local -A seen_client_pids
+    local -A seen_client_pids=()
     for p_ino in "${!target_peer_inodes[@]}"; do
-        c_pid="${inode_to_pid[${p_ino}]}"
+        c_pid="${inode_to_pid[${p_ino}]:-}"
         # Isolate true clients by excluding known server PIDs
-        if [[ -n "${c_pid}" && -z "${seen_server_pids[${c_pid}]}" && -z "${seen_client_pids[${c_pid}]}" ]]; then
+        if [[ -n "${c_pid}" && -z "${seen_server_pids[${c_pid}]:-}" && -z "${seen_client_pids[${c_pid}]:-}" ]]; then
             client_pids+=("${c_pid}")
             seen_client_pids["${c_pid}"]=1
         fi
