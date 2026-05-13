@@ -38,6 +38,20 @@ if ! command -v lsof >/dev/null 2>&1; then
     exit 1
 fi
 
+# STEP 25 crash detection greps journalctl --user output. Hosts where the
+# user-scope journal is empty (no linger, missing /var/log/journal/<machine-id>)
+# fail STEP 25 with a "Crash-loop warning not detected" assertion when the
+# real cause is upstream environment. See issue #50.
+journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
+if [[ "${journal_probe}" == *"No journal files were found"* ]]; then
+    printf "${RED}%s${NC}\n" "ERROR: User-scope journal is empty/inactive on this host." >&2
+    printf "Hint: enable linger and ensure persistent journal exists:\n" >&2
+    printf "  sudo loginctl enable-linger %s\n" "$(id -un)" >&2
+    printf "  sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald\n" >&2
+    printf "STEP 25 (crash detection) requires user journal capture. See issue #50.\n" >&2
+    exit 1
+fi
+
 if [[ -z "${EPICS_HOST_ARCH}" ]]; then
     export EPICS_HOST_ARCH="linux-x86_64"
 fi
