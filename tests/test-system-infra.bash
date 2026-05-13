@@ -324,6 +324,33 @@ function test_setup_script_dir_resolution {
     verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
 }
 
+function test_runner_script_deployed_preference {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Lifecycle Test RUNNER_SCRIPT Deployed Preference"
+    print_sub_divider
+
+    local script_dir
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    local lifecycle_test="${script_dir}/test-system-lifecycle.bash"
+
+    if [[ ! -f "${lifecycle_test}" ]]; then
+        verify_state "exists" "not_found" "test-system-lifecycle.bash exists at expected location"
+        return
+    fi
+
+    # Regression guard: test-system-lifecycle.bash must prefer the
+    # deployed /usr/local/bin/ioc-runner over the source-tree copy.
+    # Reverting to a hard-coded source-tree assignment silently
+    # re-introduces the NFS+root_squash exit-126 abort (root maps to
+    # nobody, cannot execve a user-owned binary). Tracked as #45/#48.
+    local deployed_assignment="false"
+    if grep -qE '^[[:space:]]*RUNNER_SCRIPT="/usr/local/bin/ioc-runner"' "${lifecycle_test}"; then
+        deployed_assignment="true"
+    fi
+    verify_state "true" "${deployed_assignment}" "test-system-lifecycle.bash retains deployed-runner assignment for RUNNER_SCRIPT"
+}
+
 function test_setup_version_injection_guards {
     local step="$1"
     print_divider
@@ -456,6 +483,7 @@ function run_all_tests {
         "test_sudoers_includedir_order"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
+        "test_runner_script_deployed_preference"
         "test_setup_version_injection_guards"
         "test_metadata_field_naming"
         "test_runner_version_path_resolution"
