@@ -31,6 +31,8 @@ declare -g SYSTEM_SYSTEMD_DIR="${IOC_RUNNER_SYSTEM_SYSTEMD_DIR:-/etc/systemd/sys
 declare -g LOCAL_SYSTEMD_DIR="${IOC_RUNNER_LOCAL_SYSTEMD_DIR:-${HOME}/.config/systemd/user}"
 declare -g SYSTEM_RUN_DIR="${IOC_RUNNER_SYSTEM_RUN_DIR:-/run/procserv}"
 declare -g LOCAL_RUN_DIR="${IOC_RUNNER_LOCAL_RUN_DIR:-/run/user/$(id -u)/procserv}"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
+declare -g LOCAL_LOG_DIR="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
 
 # --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN="/usr/bin/systemctl"
@@ -52,6 +54,7 @@ declare -g EXEC_MODE="system"
 declare -g CONF_DIR="${IOC_RUNNER_CONF_DIR:-${SYSTEM_CONF_DIR}}"
 declare -g SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${SYSTEM_SYSTEMD_DIR}}"
 declare -g RUN_DIR="${IOC_RUNNER_RUN_DIR:-${SYSTEM_RUN_DIR}}"
+declare -g LOG_DIR="${IOC_RUNNER_LOG_DIR:-${SYSTEM_LOG_DIR}}"
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
@@ -79,6 +82,7 @@ function set_local_mode {
     CONF_DIR="${IOC_RUNNER_CONF_DIR:-${LOCAL_CONF_DIR}}"
     SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${LOCAL_SYSTEMD_DIR}}"
     RUN_DIR="${IOC_RUNNER_RUN_DIR:-${LOCAL_RUN_DIR}}"
+    LOG_DIR="${IOC_RUNNER_LOG_DIR:-${LOCAL_LOG_DIR}}"
 }
 
 function print_usage {
@@ -232,6 +236,20 @@ if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_RUN_DIR:-}" \
     printf "Warning: IOC_RUNNER_RUN_DIR is honored in IOC_PORT, but the system-mode\n" >&2
     printf "         systemd RuntimeDirectory is fixed at /run/procserv. The socket\n" >&2
     printf "         may not appear where IOC_PORT claims. Use --local for custom paths.\n" >&2
+fi
+
+# Foot-gun guard: IOC_RUNNER_LOG_DIR shifts where the runner scans for crash
+# patterns. In system mode, procServ writes through the system systemd template
+# under SYSTEM_LOG_DIR; if IOC_RUNNER_LOG_DIR diverges from SYSTEM_LOG_DIR the
+# runner scans a path procServ never writes to. Safe in --local mode
+# (LOCAL_LOG_DIR governs both ends).
+if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_LOG_DIR:-}" \
+      && "${IOC_RUNNER_LOG_DIR}" != "${SYSTEM_LOG_DIR}" ]]; then
+    printf "Warning: IOC_RUNNER_LOG_DIR (%s) differs from SYSTEM_LOG_DIR (%s).\n" \
+           "${IOC_RUNNER_LOG_DIR}" "${SYSTEM_LOG_DIR}" >&2
+    printf "         The runner will scan the override path, but procServ writes to\n" >&2
+    printf "         SYSTEM_LOG_DIR per the system systemd template. Use --local for\n" >&2
+    printf "         custom paths.\n" >&2
 fi
 
 # Strict validation for command-specific flags

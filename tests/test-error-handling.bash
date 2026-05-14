@@ -169,6 +169,28 @@ function _run {
     printf "%d" "${exit_code}"
 }
 
+# Extracts LOG_DIR-related declarations and the set_local_mode function
+# from RUNNER_SCRIPT, sources them in a clean subshell, and prints the
+# resolved LOG_DIR for the requested mode. Use to validate Phase A LOG_DIR
+# routing without requiring Phase B file-system side effects.
+#
+# Usage: _probe_log_dir <system|local> [env_modifier...]
+#   env_modifier is any argument accepted by env(1), e.g.,
+#   "IOC_RUNNER_LOG_DIR=/tmp/x" or "-u XDG_STATE_HOME".
+function _probe_log_dir {
+    local mode="$1"
+    shift
+    local probe
+    probe=$(mktemp)
+    {
+        sed -n '/^declare -g SYSTEM_CONF_DIR=/,/^declare -g LOCAL_LOG_DIR=/p' "${RUNNER_SCRIPT}"
+        sed -n '/^declare -g EXEC_MODE=/,/^declare -g LOG_DIR=/p' "${RUNNER_SCRIPT}"
+        sed -n '/^function set_local_mode {/,/^}/p' "${RUNNER_SCRIPT}"
+    } > "${probe}"
+    env "$@" bash -c "source '${probe}'; if [[ '${mode}' == 'local' ]]; then set_local_mode; fi; printf '%s' \"\${LOG_DIR}\""
+    rm -f "${probe}"
+}
+
 # Asserts whether a fixture string matches CRASH_LOG_PATTERNS under the same
 # flags used by do_start_restart in ioc-runner (grep -qiE).
 function verify_match {
@@ -646,6 +668,7 @@ function test_env_var_namespacing {
     local test_dir="${TEST_TMPDIR}/ns_ioc"
     local ns_conf_dir="${TEST_TMPDIR}/ns_conf"
     local ns_sysd_dir="${TEST_TMPDIR}/ns_sysd"
+    local ns_log_dir="${TEST_TMPDIR}/ns_log"
     local legacy_conf_dir="${TEST_TMPDIR}/legacy_conf"
     local legacy_sysd_dir="${TEST_TMPDIR}/legacy_sysd"
 
@@ -653,7 +676,7 @@ function test_env_var_namespacing {
     _log "INFO" "STEP ${step}: Env Var Namespacing and Precedence"
     print_sub_divider
 
-    mkdir -p "${test_dir}" "${ns_conf_dir}" "${ns_sysd_dir}" \
+    mkdir -p "${test_dir}" "${ns_conf_dir}" "${ns_sysd_dir}" "${ns_log_dir}" \
              "${legacy_conf_dir}" "${legacy_sysd_dir}"
     touch "${test_dir}/st.cmd"
     chmod +x "${test_dir}/st.cmd"
@@ -673,6 +696,11 @@ function test_env_var_namespacing {
     local ns_exists="false"
     [[ -f "${ns_installed}" ]] && ns_exists="true"
     verify_state "true" "${ns_exists}" "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
+
+    # Case 2: Namespaced IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local mode.
+    local actual_log_dir
+    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log_dir}")
+    verify_state "${ns_log_dir}" "${actual_log_dir}" "IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local"
 
 }
 
@@ -736,6 +764,80 @@ function test_env_var_precedence {
     [[ -f "${ns_sysd}/epics-@.service" ]] && tpl_in_ns="true"
     verify_state "true"  "${tpl_in_unified}" "SYSTEMD_DIR: unified var wins"
     verify_state "false" "${tpl_in_ns}"      "SYSTEMD_DIR: namespaced var ignored"
+
+    # LOG_DIR precedence: unified IOC_RUNNER_LOG_DIR wins over namespaced
+    # IOC_RUNNER_LOCAL_LOG_DIR in --local mode; namespaced honored when no unified.
+    local unified_log="${TEST_TMPDIR}/prec_unified_log"
+    local ns_log="${TEST_TMPDIR}/prec_ns_log"
+    local actual_log_dir
+    actual_log_dir=$(_probe_log_dir "local" \
+                       "IOC_RUNNER_LOG_DIR=${unified_log}" \
+                       "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
+    verify_state "${unified_log}" "${actual_log_dir}" "LOG_DIR: unified var wins"
+    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
+    verify_state "${ns_log}" "${actual_log_dir}" "LOG_DIR: namespaced var honored when no unified"
+}
+
+# Validates the system-mode foot-gun warning for IOC_RUNNER_LOG_DIR:
+# warning fires when IOC_RUNNER_LOG_DIR diverges from SYSTEM_LOG_DIR in
+# system mode; suppressed when they match; suppressed in --local mode.
+function test_log_dir_guard {
+    local step="$1"
+    local stderr_cap
+    stderr_cap=$(mktemp)
+    local has_warn
+
+    print_divider
+    _log "INFO" "STEP ${step}: LOG_DIR Foot-Gun Guard"
+    print_sub_divider
+
+    # Case 1: system mode + IOC_RUNNER_LOG_DIR differs from default SYSTEM_LOG_DIR.
+    IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_diff \
+        bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
+    has_warn="false"
+    grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
+    verify_state "true" "${has_warn}" "system + differing IOC_RUNNER_LOG_DIR triggers warning"
+
+    # Case 2: system mode + IOC_RUNNER_LOG_DIR matches overridden SYSTEM_LOG_DIR.
+    IOC_RUNNER_SYSTEM_LOG_DIR=/tmp/log_dir_guard_test_match \
+    IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_match \
+        bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
+    has_warn="false"
+    grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
+    verify_state "false" "${has_warn}" "system + matching IOC_RUNNER_LOG_DIR suppresses warning"
+
+    # Case 3: --local mode + IOC_RUNNER_LOG_DIR set to non-default.
+    IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_local \
+        bash "${RUNNER_SCRIPT}" --local status fake-ioc >/dev/null 2>"${stderr_cap}" || true
+    has_warn="false"
+    grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
+    verify_state "false" "${has_warn}" "--local mode suppresses LOG_DIR guard"
+
+    rm -f "${stderr_cap}"
+}
+
+# Validates XDG_STATE_HOME fallback semantics for LOCAL_LOG_DIR:
+# when XDG_STATE_HOME is unset, LOCAL_LOG_DIR falls back to
+# $HOME/.local/state/procserv; when set, LOCAL_LOG_DIR uses
+# $XDG_STATE_HOME/procserv.
+function test_log_dir_xdg_fallback {
+    local step="$1"
+    local actual
+
+    print_divider
+    _log "INFO" "STEP ${step}: LOG_DIR XDG_STATE_HOME Fallback"
+    print_sub_divider
+
+    # Case 1: XDG_STATE_HOME unset → $HOME/.local/state/procserv.
+    actual=$(_probe_log_dir "local" "-u" "XDG_STATE_HOME" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR")
+    verify_state "${HOME}/.local/state/procserv" "${actual}" \
+        "XDG_STATE_HOME unset: LOCAL_LOG_DIR falls back to \$HOME/.local/state/procserv"
+
+    # Case 2: XDG_STATE_HOME set → <XDG_STATE_HOME>/procserv.
+    # env(1) requires options before VAR=value pairs.
+    actual=$(_probe_log_dir "local" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR" "XDG_STATE_HOME=/tmp/xdg_fallback_test")
+    verify_state "/tmp/xdg_fallback_test/procserv" "${actual}" \
+        "XDG_STATE_HOME set: LOCAL_LOG_DIR uses <XDG_STATE_HOME>/procserv"
 }
 
 # Validates the bash completion script by sourcing it in isolated subshells
@@ -1096,6 +1198,8 @@ function run_all_tests {
         "test_ss_failure_aborts_list"
         "test_env_var_namespacing"
         "test_env_var_precedence"
+        "test_log_dir_guard"
+        "test_log_dir_xdg_fallback"
         "test_completion"
         "test_ioc_name_validation"
         "test_validation_errors"
