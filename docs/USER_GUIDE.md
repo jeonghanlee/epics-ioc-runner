@@ -152,8 +152,18 @@ con -c /run/procserv/myioc/control
 
 
 ## 8. Version Tracking
-To verify the exact version, Git commit hash, and build timestamp of the deployment tool you are using:
+To verify the exact version, Git commit hash, commit date, and install date of the deployment tool you are using:
 
 ```bash
 ioc-runner -V
 ```
+
+Example output:
+
+```text
+epics-ioc-runner version 1.0.8 (4a8bba0)
+commit date:  2026-05-13T20:00:00Z
+install date: 2026-05-13T21:30:00Z
+```
+
+The commit date answers which revision is on this host; the install date answers how long the deployed artefact has been in place.

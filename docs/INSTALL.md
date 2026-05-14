@@ -127,7 +127,7 @@ systemctl daemon-reload
 ---
 
 ## 3. CLI Wrapper & Bash Completion Deployment
-Deploy the frontend management script `ioc-runner` to a standard binary path, and install the Bash completion script to provide context-aware suggestions. To ensure strict traceability, the current Git hash and build timestamp must be injected into the main script during deployment.
+Deploy the frontend management script `ioc-runner` to a standard binary path, and install the Bash completion script to provide context-aware suggestions. The automated setup in Section 1 (`setup-system-infra.bash`) performs the steps below, including injecting the Git hash, commit date, and install date for traceability. The manual procedure is documented for reference.
 
 ```bash
 # 1. Copy the main script to the system path
@@ -135,10 +135,17 @@ sudo cp bin/ioc-runner /usr/local/bin/ioc-runner
 
 # 2. Inject version traceability information
 GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || printf "unknown")
-BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+COMMIT_TS=$(git show -s --format=%ct HEAD 2>/dev/null || printf "")
+if [[ -n "${COMMIT_TS}" ]]; then
+    COMMIT_DATE=$(date -u -d "@${COMMIT_TS}" +"%Y-%m-%dT%H:%M:%SZ")
+else
+    COMMIT_DATE="unknown"
+fi
+INSTALL_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 sudo sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${GIT_HASH}\"/" /usr/local/bin/ioc-runner
-sudo sed -i "s/^declare -g RUNNER_BUILD_DATE=.*/declare -g RUNNER_BUILD_DATE=\"${BUILD_DATE}\"/" /usr/local/bin/ioc-runner
+sudo sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${COMMIT_DATE}\"/" /usr/local/bin/ioc-runner
+sudo sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${INSTALL_DATE}\"/" /usr/local/bin/ioc-runner
 
 # 3. Apply execution permissions
 sudo chmod 0755 /usr/local/bin/ioc-runner
