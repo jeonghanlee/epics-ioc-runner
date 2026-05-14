@@ -177,6 +177,6 @@ If the probe fails, a warning is emitted and confirmation is required before pro
 
 Reading system journal logs for `ioc-srv` services requires membership in the `adm` or `systemd-journal` group. Without this, commands like `journalctl -u epics-@myioc.service` may return empty results.
 
-`ioc-runner` handles this gracefully: if journal access is unavailable, the secondary crash-loop check silently skips without producing false results. The primary health check (`systemctl is-active`) always works regardless of journal permissions.
+`ioc-runner`'s secondary crash-loop detection greps `journalctl --user -u <unit>` (system mode reads the equivalent system journal) for fatal log patterns. If the journal returns no data — missing group membership, no persistent journal, or linger disabled — the warning never fires; the runner does not flag this state, it simply has no signal to act on. The primary health check (`systemctl is-active`) is unaffected.
 
-For local mode (`--local`), journal access is always available since the user owns their own session logs.
+For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout — useful when journal-dependent coverage is needed outside a live session. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24/25 with a WARN.
