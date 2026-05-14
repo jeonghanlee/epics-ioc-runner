@@ -38,18 +38,21 @@ if ! command -v lsof >/dev/null 2>&1; then
     exit 1
 fi
 
-# STEP 25 crash detection greps journalctl --user output. Hosts where the
-# user-scope journal is empty (no linger, missing /var/log/journal/<machine-id>)
-# fail STEP 25 with a "Crash-loop warning not detected" assertion when the
-# real cause is upstream environment. See issue #50.
+# STEP 24 (monitor isolation) and STEP 25 (crash detection) read journalctl
+# --user output. Hosts without a working user-scope journal (no linger,
+# missing /var/log/journal/<machine-id>, or user not in systemd-journal
+# group) cannot verify these steps. Detect both common failure messages
+# and mark the journal unavailable so dependent steps skip with a WARN.
+# See issue #50.
+declare -g JOURNAL_AVAILABLE="true"
 journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
-if [[ "${journal_probe}" == *"No journal files were found"* ]]; then
-    printf "${RED}%s${NC}\n" "ERROR: User-scope journal is empty/inactive on this host." >&2
-    printf "Hint: enable linger and ensure persistent journal exists:\n" >&2
+if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}" == *"insufficient permissions"* ]]; then
+    JOURNAL_AVAILABLE="false"
+    printf "${YELLOW}%s${NC}\n" "WARN: User-scope journal unavailable on this host." >&2
+    printf "STEP 24 (monitor isolation) and STEP 25 (crash detection) will be skipped.\n" >&2
+    printf "Hint: enable linger and persistent journal to enable these steps:\n" >&2
     printf "  sudo loginctl enable-linger %s\n" "$(id -un)" >&2
     printf "  sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald\n" >&2
-    printf "STEP 25 (crash detection) requires user journal capture. See issue #50.\n" >&2
-    exit 1
 fi
 
 if [[ -z "${EPICS_HOST_ARCH}" ]]; then
@@ -638,6 +641,11 @@ function test_monitor_isolation {
     _log "INFO" "STEP ${step}: Test Monitor Input Isolation"
     print_sub_divider
 
+    if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "User-scope journal unavailable, skipping monitor isolation test."
+        return 0
+    fi
+
     printf "test_monitor_input_blocked\\n" | setsid bash "${RUNNER_SCRIPT}" --local monitor "${IOC_NAME}" >/dev/null 2>&1 &
 
     local monitor_pid=$!
@@ -661,6 +669,11 @@ function test_crash_detection {
     print_divider
     _log "INFO" "STEP ${step}: Test Crash Detection with softIoc"
     print_sub_divider
+
+    if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "User-scope journal unavailable, skipping crash detection test."
+        return 0
+    fi
 
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then

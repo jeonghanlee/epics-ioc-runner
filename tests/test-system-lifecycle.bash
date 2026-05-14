@@ -46,6 +46,16 @@ if [[ "${EUID}" -ne 0 ]]; then
     exit 1
 fi
 
+# Monitor isolation reads system journal output. Mark unavailable so the
+# dependent step skips with a WARN rather than aborting the run.
+declare -g JOURNAL_AVAILABLE="true"
+journal_probe=$(journalctl --no-pager -n 1 2>&1 || true)
+if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}" == *"insufficient permissions"* ]]; then
+    JOURNAL_AVAILABLE="false"
+    printf "${YELLOW}%s${NC}\n" "WARN: System journal unavailable on this host." >&2
+    printf "Monitor isolation step will be skipped.\n" >&2
+fi
+
 declare -g SC_TOP
 # Capture an absolute SC_TOP without readlink/realpath/cd-pwd; later
 # steps cd into a workspace, so a relative path would fail to resolve
@@ -681,6 +691,11 @@ function test_monitor_isolation {
     print_divider
     _log "INFO" "STEP ${step}: Test Monitor Input Isolation"
     print_sub_divider
+
+    if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "System journal unavailable, skipping monitor isolation test."
+        return 0
+    fi
 
     printf "test_monitor_input_blocked\\n" | setsid bash "${RUNNER_SCRIPT}" monitor "${IOC_NAME}" >/dev/null 2>&1 &
     local monitor_pid=$!
