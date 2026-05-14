@@ -610,7 +610,7 @@ function test_channel_access {
     while IFS= read -r line; do
         [[ -z "${line}" ]] && continue
         i=$((i + 1))
-        pv_val=$(printf "%s" "${line}" | awk '{print $NF}' | tr -d '\r')
+        pv_val=$(printf "%s" "${line}" | awk '{print $4}' | tr -d '\r')
         if [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
             _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
             success_count=$((success_count + 1))
