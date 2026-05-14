@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.8-dev"
+declare -g RUNNER_VERSION="1.0.8"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
@@ -94,7 +94,7 @@ Options:
   --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d)
   -f, --force    Force overwrite of existing configuration files without prompting
   -v, -vv        Verbose output (supported only for 'list' command)
-  -V, --version  Show version, git hash, and build date
+  -V, --version  Show version, git hash, commit date, and install date
   -h, --help     Show this help message and exit
 
 Commands:
