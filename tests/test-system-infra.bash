@@ -244,7 +244,12 @@ function test_git_context_resolution {
     # cd ... && pwd canonicalization that fails under sudo+NFS root_squash.
     local script_dir
     script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    local repo_bin="${PWD}/${script_dir}/../bin"
+    local repo_bin
+    if [[ "${script_dir}" = /* ]]; then
+        repo_bin="${script_dir}/../bin"
+    else
+        repo_bin="${PWD}/${script_dir}/../bin"
+    fi
 
     # Baseline: the repo's actual short HEAD obtained via -C.
     local expected_hash
@@ -271,7 +276,12 @@ function test_setup_script_dir_resolution {
     # is used only for the unrelated-CWD probe. cd ... && pwd would
     # require root traversal of the user-owned NFS path under sudo.
     local repo_bin="${script_dir}/../bin"
-    local repo_bin_abs="${PWD}/${repo_bin}"
+    local repo_bin_abs
+    if [[ "${repo_bin}" = /* ]]; then
+        repo_bin_abs="${repo_bin}"
+    else
+        repo_bin_abs="${PWD}/${repo_bin}"
+    fi
 
     if [[ ! -f "${setup_script}" ]]; then
         verify_state "exists" "not_found" "setup-system-infra.bash exists at expected location"
