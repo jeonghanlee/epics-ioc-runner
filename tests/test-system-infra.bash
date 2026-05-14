@@ -48,6 +48,12 @@ function _handle_exit {
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
     print_summary
+
+    # System Requirement: Propagate aggregate failure state to CI/CD pipeline
+    if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 ]]; then
+        exit 1
+    fi
+    exit 0
 }
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
