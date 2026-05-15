@@ -19,6 +19,7 @@ declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
 declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 
 declare -g SC_DIR
 SC_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -42,12 +43,14 @@ declare -g VERIFY_PASS=0
 declare -g VERIFY_FAIL=0
 
 declare -g PERM_CONF_DIR="2770"
+declare -g PERM_LOG_DIR="2770"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
 declare -g PERM_BASH_COMP="0644"
 declare -g PERM_BACKUP_DIR="0700"
 declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
+declare -g OWNER_LOG_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
 
 # --- Base Commands & Paths ---
@@ -273,6 +276,20 @@ function backup_if_exists {
 
 if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
+    # Preflight: required tools for the system-mode permission model.
+    # The log directory STEP relies on setfacl/getfacl to install default
+    # ACLs that enforce group=ioc:rw on procServ-created and engineer-
+    # created log files alike.
+    for required_tool in setfacl getfacl; do
+        if ! command -v "${required_tool}" >/dev/null 2>&1; then
+            _log "ERROR" "Required tool '${required_tool}' not found in PATH."
+            _log "INFO"  "Install the 'acl' package and re-run:"
+            _log "INFO"  "  Debian/Ubuntu: sudo apt install acl"
+            _log "INFO"  "  RHEL/Rocky/CentOS: sudo dnf install acl"
+            exit 1
+        fi
+    done
+
     print_divider
     _log "INFO" "STEP 1: Account and Group Setup (Hardened)"
     print_sub_divider
@@ -330,7 +347,35 @@ EOF
     fi
 
     print_divider
-    _log "INFO" "STEP 4: Systemd Template Unit Deployment"
+    _log "INFO" "STEP 4: System Log Directory Setup"
+    print_sub_divider
+
+    if [[ ! -e "${SYSTEM_LOG_DIR}" ]]; then
+        install -d -o "root" -g "${SYSTEM_GROUP}" -m "${PERM_LOG_DIR}" "${SYSTEM_LOG_DIR}"
+        _log "INFO" "Created ${SYSTEM_LOG_DIR}"
+    else
+        _log "INFO" "${SYSTEM_LOG_DIR} already exists."
+    fi
+
+    # Re-assert ownership and mode unconditionally so a re-run of setup
+    # restores the canonical state if it has drifted.
+    chown "${OWNER_LOG_DIR}" "${SYSTEM_LOG_DIR}"
+    chmod "${PERM_LOG_DIR}" "${SYSTEM_LOG_DIR}"
+
+    # Default ACLs enforce group=ioc:rw on every newly created file in
+    # this directory, regardless of the creating process's umask. setgid
+    # alone propagates group identity but not the rw bits, so an engineer
+    # touching a file under default umask 0022 would otherwise create a
+    # 0644 entry that ioc-srv cannot append to. Site canonical pattern;
+    # see docs/LOG_PERMISSIONS.md.
+    setfacl -d -m g:"${SYSTEM_GROUP}":rw "${SYSTEM_LOG_DIR}"
+    setfacl -d -m o::r-- "${SYSTEM_LOG_DIR}"
+    setfacl -d -m m::rw "${SYSTEM_LOG_DIR}"
+
+    verify_path "${SYSTEM_LOG_DIR}" "${OWNER_LOG_DIR}" "${PERM_LOG_DIR}" "System log directory ready: ${SYSTEM_LOG_DIR} (${OWNER_LOG_DIR}, ${PERM_LOG_DIR})"
+
+    print_divider
+    _log "INFO" "STEP 5: Systemd Template Unit Deployment"
     print_sub_divider
 
     declare p_path
@@ -362,7 +407,7 @@ Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -381,7 +426,7 @@ EOF
 fi
 
 print_divider
-_log "INFO" "STEP 5: CLI Wrapper Deployment"
+_log "INFO" "STEP 6: CLI Wrapper Deployment"
 print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then

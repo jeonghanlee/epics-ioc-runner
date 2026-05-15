@@ -28,10 +28,16 @@ It covers:
 | CC1 | Two-mode parity (system + `--local`) | B, C, D |
 | CC2 | Distribution parity (Debian 13 + Rocky 8.10) | B, C, D, D+, E |
 | CC3 | NFS root_squash compatibility | B, C |
-| CC4 | systemd >= 235 (`LogsDirectory=` available) | B-1, F-1 (LOG_LAYOUT prerequisites) |
+| CC4 | POSIX ACL support (`setfacl`, `getfacl` from the `acl` package) | B-1, C2 |
 
-CC4 is satisfied by both supported distributions: Debian 13 ships
-systemd 256, Rocky 8.10 ships systemd 239.
+CC4 is satisfied by both supported distributions: Debian 13 and
+Rocky 8.10 ship `acl` as a default package on minimal installs.
+`setup-system-infra.bash` runs a `command -v setfacl getfacl`
+preflight in `--full` mode and exits with an install hint if the
+binaries are missing. The 1.1.0 unit text does NOT use systemd's
+`LogsDirectory=` directive — it would chown the log directory to
+the unit `User=`/`Group=` on every activation, overriding the
+`root:ioc` ownership the permission model requires.
 
 ## Phase Acceptance Matrix
 
@@ -49,12 +55,24 @@ matrix. Cells reference test IDs defined later in this document.
 
 ### Phase C2 — `#12` Permission model
 
+System mode targets `root:ioc 2770` directory + `ioc-srv:ioc 0644`
+procServ-created files (procServ's hardcoded `open(O_CREAT, 0644)`
+mode_arg is preserved; system unit does NOT set `UMask=`). Default
+ACLs raise engineer-created files in the same directory to
+`<engineer>:ioc 0664` for cross-creator group consistency. Local
+mode targets `<user>:<user> 0750` directory + `<user>:<user> 0640`
+files (single principal, user-mode unit keeps `UMask=0027`).
+Access boundary for `ioc-runner` system operations is enforced by
+the sudoers policy (`%ioc` group). See `docs/LOG_PERMISSIONS.md`.
+
 | Aspect | Local | System | Debian 13 | Rocky 8 | NFS root_squash | Negative perm |
 | --- | --- | --- | --- | --- | --- | --- |
-| Directory mode 0750 at install | T-C2a-L | T-C2a-S | required | required | NFS-aware | n/a |
-| Log file mode 0640 after start | T-C2b-L | T-C2b-S | required | required | NFS-aware | n/a |
-| `ioc` group member reads log | n/a | T-C2c-S | required | required | NFS-aware | n/a |
-| Non-`ioc` user cannot read log | n/a | T-C2d-S | required | required | n/a | required |
+| Directory mode at install (system: `2770` setgid; local: `0750`) | T-C2a-L | T-C2a-S | required | required | NFS-aware | n/a |
+| Default ACLs present on system log dir (`g:ioc:rw`, `o::r--`, `m::rw`) | n/a | T-C2a2-S | required | required | NFS-aware | n/a |
+| Log file mode after start (system: `0644`; local: `0640`) | T-C2b-L | T-C2b-S | required | required | NFS-aware | n/a |
+| `ioc` group member reads log (system) | n/a | T-C2c-S | required | required | NFS-aware | n/a |
+| Engineer-created file inside dir lands at `*:ioc 0664` (default ACL effect on engineer's `open(0666)` mode_arg) | n/a | T-C2c2-S | required | required | NFS-aware | n/a |
+| Privileged `systemctl` verbs (`start`/`stop`/`restart`/`enable`/`disable`/`daemon-reload`) on `epics-@*.service` gated by sudoers to `%ioc`; non-`ioc` `sudo systemctl start epics-@<name>.service` rejected | n/a | T-C2d-S | required | required | n/a | required |
 | No `systemd-journal` membership required | T-C2e-L | T-C2e-S | required | required | n/a | n/a |
 
 ## Per-Phase Verification Commands
@@ -67,11 +85,11 @@ artifacts.
 | Phase | ID | Representative command |
 | --- | --- | --- |
 | A | V-A | `tests/test-error-handling.bash` STEP 10, 11, 12, 13 |
-| B-1 | V-B-1 | `systemctl cat epics-@<name>.service \| grep -E '(--logfile=\|LogsDirectory=)'` |
-| B-2 | V-B-2 | `ioc-runner --local install <conf>; stat ${LOCAL_LOG_DIR}; systemctl --user cat epics-@<name>.service` |
+| B-1 | V-B-1 | `systemctl cat epics-@<name>.service \| grep -E '^(User\|Group)='` returns `User=ioc-srv`, `Group=ioc`; `grep '^UMask='` returns nothing (system unit relies on systemd default `0022` to preserve procServ's `0644` mode_arg); `grep -E '^ExecStart='` contains `--logfile=${SYSTEM_LOG_DIR}/%i.log`; `grep LogsDirectory` returns nothing; `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}` returns `root:ioc 2770`; `getfacl ${SYSTEM_LOG_DIR}` shows default entries `g:ioc:rw-`, `o::r--`, `m::rw-` |
+| B-2 | V-B-2 | `ioc-runner --local install <conf>`; `grep -E '^(UMask\|ExecStart)' ~/.config/systemd/user/epics-@.service` shows `UMask=0027` and `--logfile=${LOCAL_LOG_DIR}/%i.log`; `stat ${LOCAL_LOG_DIR}` returns `<user>:<user> 750`; repeated install in same second produces two distinct `~/.config/systemd/user/epics-@.service.bak.*` files |
 | B-3 | V-B-3 | `logrotate -d /etc/logrotate.d/procserv`; `logrotate -f /etc/logrotate.d/procserv`; `ioc-runner restart <ioc>` |
 | C1 | V-C1 | `ioc-runner --local start <bad-ioc>` under operator without `systemd-journal`; expect crash warning |
-| C2 | V-C2 | post-install `stat`; `sudo -u <ioc-member> cat <log>` succeeds; `sudo -u <non-ioc> cat <log>` denied |
+| C2 | V-C2 | Case 1 (procServ-created): `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}/<ioc>.log` returns `ioc-srv:ioc 644`; `sudo -u <ioc-member> cat <log>` succeeds; `getfacl` shows `mask::r--` (procServ's `0644` mode_arg restricts mask to `r--`). Case 2 (engineer-created, default ACL effect): engineer in `ioc` runs `touch ${SYSTEM_LOG_DIR}/probe.log` under shell `umask 0022`; `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}/probe.log` returns `<engineer>:ioc 664` (`touch` uses `open(0666)` mode_arg; default ACL `g:ioc:rw` + `m::rw` preserves group write); `sudo -u ioc-srv test -w <probe.log>` exits 0. sudoers gate (narrow): as a non-`ioc` user, `sudo /usr/bin/systemctl start epics-@<name>.service` exits with `not allowed to execute`. Non-`ioc` `ioc-runner` invocation and read-only `ioc-runner status`/`is-active` are not gated by sudoers |
 | D | V-D-1 / V-D-2 | `id <operator>` shows `systemd-journal` absent; `chmod 000 <log>; ioc-runner restart` falls back to journal or informs |
 | D+ | V-Dplus | `bash tests/run-all-tests.bash --local` STEP 17 on Rocky 8; `sudo -E bash tests/test-system-lifecycle.bash` STEP 24 on Rocky 8 |
 | E | V-E | `bash tests/run-all-tests.bash --local` clean PASS on 1.1.0 HEAD; T1-T5 FAIL on `1.0.8` tag |

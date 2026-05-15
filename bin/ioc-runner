@@ -295,6 +295,7 @@ function run_systemctl {
 function deploy_local_template {
     local procserv_bin=""
     local template_path="${SYSTEMD_DIR}/epics-@.service"
+    local backup_path=""
 
     # Resolve procServ binary path
     for path in "${PROCSERV_SEARCH_PATHS[@]}"; do
@@ -309,20 +310,39 @@ function deploy_local_template {
         exit 1
     fi
 
-    if [[ ! -f "${template_path}" ]]; then
-        printf "Deploying user-level systemd template to %s...\n" "${template_path}"
-        mkdir -p "${SYSTEMD_DIR}"
-        cat > "${template_path}" <<EOF
+    mkdir -p "${SYSTEMD_DIR}"
+
+    # Always emit the template. Back up any prior file atomically via
+    # mktemp so repeated installs in the same second do not collide,
+    # including on shared (NFS-backed) home directories. mktemp creates
+    # an empty placeholder at a unique path; the subsequent mv -f swaps
+    # in the prior template.
+    if [[ -f "${template_path}" ]]; then
+        if ! backup_path=$(mktemp "${template_path}.bak.XXXXXXXX" 2>/dev/null); then
+            printf "Error: Unable to create backup of existing user template.\n" >&2
+            printf "  template: %s\n" "${template_path}" >&2
+            printf "  Possible causes: %s is read-only, the home directory is\n" "${SYSTEMD_DIR}" >&2
+            printf "    full, or the filesystem does not allow file creation here.\n" >&2
+            printf "  Resolve the underlying condition and re-run 'ioc-runner --local install'.\n" >&2
+            exit 1
+        fi
+        mv -f "${template_path}" "${backup_path}"
+        printf "Backed up existing user template to %s\n" "${backup_path}"
+    fi
+
+    printf "Deploying user-level systemd template to %s...\n" "${template_path}"
+    cat > "${template_path}" <<EOF
 [Unit]
 Description=procServ for %i (Local User)
 AssertFileNotEmpty=${CONF_DIR}/%i.conf
 
 [Service]
 Type=simple
+UMask=0027
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${procserv_bin} --foreground --logfile=${LOCAL_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -331,8 +351,7 @@ SyslogIdentifier=epics-%i
 [Install]
 WantedBy=default.target
 EOF
-        run_systemctl daemon-reload
-    fi
+    run_systemctl daemon-reload
 }
 
 # Parse a specific key from a configuration file using only bash built-ins
@@ -878,6 +897,10 @@ function do_install {
             exit 1
         fi
     else
+        # Ensure the per-user log directory exists before the template is
+        # emitted, so the rendered ExecStart= --logfile= path is valid on
+        # the first systemctl --user start.
+        install -d -m 0750 "${LOCAL_LOG_DIR}"
         deploy_local_template
     fi
 
