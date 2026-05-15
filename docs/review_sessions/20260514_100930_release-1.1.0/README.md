@@ -12,7 +12,7 @@ Welcome Message: `02_welcome_reviewer1.md`
 Additional Reviewer Welcome: `03_welcome_additional_reviewer.md`
 Workflow Size: L
 Commit Cadence: (a) per-milestone
-Last Updated At: 2026-05-14 23:44:12
+Last Updated At: 2026-05-15 01:53:12
 Last Updated By Agent: claudecode_claude_opus_4_7
 Last Updated By Acting As Role: Facilitator
 
@@ -170,9 +170,23 @@ traceability via revision history above.
 | comment | cmt20260514_231659_002 | `comments/cmt20260514_231659_claudecode_claude_opus_4_7_to_codex_gpt5_plan20260514_231659_review_request.md` | final | yes (Facilitator requests holistic Reviewer 1 review of plan20260514_231659; Step 0-R gate for the new plan) |
 | review_followup | fup20260514_232444 | `reviews/fup20260514_232444_codex_gpt5_on_plan20260514_231659_holistic.md` | final | yes (F-PLAN2-1 setgid insufficient, F-PLAN2-2 backup name collision — revision required) |
 | comment | cmt20260514_233353 | `comments/cmt20260514_233353_claudecode_claude_opus_4_7_to_codex_gpt5_fup232444_ack.md` | final | yes (Facilitator acks fup20260514_232444; option (i) `o::---` adopted; new `docs/LOG_PERMISSIONS.md` introduced) |
-| development_plan | plan20260514_233353 | `plan/plan20260514_233353_claudecode_claude_opus_4_7_supersedes_plan20260514_231659.md` | final | yes (delta plan: F-PLAN2-1 default-ACL fix + F-PLAN2-2 mktemp backup + `docs/LOG_PERMISSIONS.md` deliverable; supersedes plan20260514_231659) |
+| development_plan | plan20260514_233353 | `plan/plan20260514_233353_claudecode_claude_opus_4_7_supersedes_plan20260514_231659.md` | final | superseded by plan20260515_010907 (in-implementation discovery: procServ open(0644) makes "all three rw" non-achievable; User direction "B로 가자" chose sudoers-boundary model) |
 | comment | cmt20260514_233353_002 | `comments/cmt20260514_233353_claudecode_claude_opus_4_7_to_codex_gpt5_plan233353_review_request.md` | final | yes (Step 0-R review request on plan20260514_233353; R-PLAN3-1..R-PLAN3-6) |
 | comment | cmt20260514_234412 | `comments/cmt20260514_234412_codex_gpt5_to_claudecode_claude_opus_4_7_plan20260514_233353_ack.md` | final | yes (Reviewer 1 Step 0-R blanket ack — R-PLAN3-1..R-PLAN3-6 accepted; non-blocking implementation refinements noted for R-PLAN3-2 and R-PLAN3-5) |
+| phase_commit | `9f569ea` | `release-1.1.0`: Snapshot 1.1.0 session — permission model finalized through Step 0-R | committed 2026-05-14 | yes (Step 1 snapshot for UD006 milestone) |
+| execution_authorization | auth20260514_235635 | `plan/auth20260514_235635_claudecode_claude_opus_4_7_for_user.md` | final | yes (UD006 scope — combined P-B-1 + P-B-2 + P-C2 against plan20260514_233353) |
+| comment | cmt20260514_235907 | `comments/cmt20260514_235907_codex_gpt5_to_claudecode_claude_opus_4_7_auth20260514_235635_ack.md` | final | yes (Reviewer 1 Step 3-R ack — authorization scope accepted; R-PLAN3-2 and R-PLAN3-5 carried into Step 4 handoff as conditions) |
+| execution_handoff | hand20260515_003138 | `handoff/hand20260515_003138_claudecode_claude_opus_4_7.md` | final | superseded by hand20260515_010907 (contained false inference on V-C2 Case 1; live re-run produced 0640 not 0660) |
+| development_plan | plan20260515_010907 | `plan/plan20260515_010907_claudecode_claude_opus_4_7_supersedes_plan20260514_233353.md` | final | superseded by plan20260515_014254 |
+| execution_handoff | hand20260515_010907 | `handoff/hand20260515_010907_claudecode_claude_opus_4_7_supersedes_hand20260515_003138.md` | final | superseded by hand20260515_014254 |
+| comment | cmt20260515_010907 | `comments/cmt20260515_010907_claudecode_claude_opus_4_7_to_codex_gpt5_plan_and_handoff_review_request.md` | final | yes (combined Step 0-R + Step 4-R review request for plan20260515_010907 + hand20260515_010907; R-PLAN4-1..3 + R-HAND-1..7) |
+| review_followup | fup20260515_011628 | `reviews/fup20260515_011628_codex_gpt5_on_plan20260515_010907.md` | final | yes (F-PLAN4-1 blocking — sudoers boundary wording overstated; R-PLAN4-1/2/3 + R-HAND-2/3/4/5 otherwise accepted) |
+| development_plan | plan20260515_014254 | `plan/plan20260515_014254_claudecode_claude_opus_4_7_supersedes_plan20260515_010907.md` | final | yes (delta plan: F-PLAN4-1 wording correction only — sudoers gates privileged systemctl verbs, not ioc-runner execution; supersedes plan20260515_010907) |
+| execution_handoff | hand20260515_014254 | `handoff/hand20260515_014254_claudecode_claude_opus_4_7_supersedes_hand20260515_010907.md` | final | yes (handoff against plan20260515_014254; V-* evidence carries forward; sudoers boundary verification narrowed; F-PLAN4-1 resolved) |
+| comment | cmt20260515_014254 | `comments/cmt20260515_014254_claudecode_claude_opus_4_7_to_codex_gpt5_fup011628_correction.md` | final | yes (re-review request after F-PLAN4-1 wording correction; carry-over of R-PLAN4-2/3 and R-HAND-* points accepted in fup20260515_011628) |
+| review_followup | fup20260515_014821 | `reviews/fup20260515_014821_codex_gpt5_on_hand20260515_014254.md` | final | yes (F-HAND4-1 — two residual LOG_PERMISSIONS.md overstatements; plan/handoff/TEST_PLAN accepted; doc-only fix expected) |
+| comment | cmt20260515_015051 | `comments/cmt20260515_015051_claudecode_claude_opus_4_7_to_codex_gpt5_fup014821_correction.md` | final | yes (F-HAND4-1 resolved via doc-only edits in LOG_PERMISSIONS.md; no plan/handoff supersession; awaiting final ack) |
+| comment | cmt20260515_015312 | `comments/cmt20260515_015312_codex_gpt5_to_claudecode_claude_opus_4_7_final_ack.md` | final | yes (Reviewer 1 FINAL ACK — Step 4-R + Step 7 final-form recheck accepted; F-HAND4-1 resolved; session may proceed to Step 8 User commit) |
 | review_followup | fup20260514_113205 | `reviews/fup20260514_113205_codex_gpt5_on_conv20260514_112923.md` | final | historical (early convergence acceptance; consistent with cmt20260514_113543) |
 | comment | cmt20260514_150322 | `comments/cmt20260514_150322_codex_gpt5_to_claudecode_claude_opus_4_7_phase_a_ack.md` | final | yes (Phase A ack) |
 | comment | cmt20260514_153130 | `comments/cmt20260514_153130_claudecode_claude_opus_4_7_self_phase_a_regression.md` | final | yes (Phase A regression evidence) |
@@ -185,7 +199,7 @@ traceability via revision history above.
 | UD002 | Confirm #49 phase placement (D+ or independent track) | Phase D+ start | closed 2026-05-14 (D+ standalone) |
 | UD003 | Confirm whether #26 (Backlog) is referenced from 1.1.0 docs | Closure scope | closed 2026-05-14 (excluded — no reference in 1.1.0 docs) |
 | UD005 | Confirm Phase F cross-check granularity (#18 cross-check required despite SKIP-allowed default) | Phase F handoff | closed 2026-05-14 (#18 YES, #19/#20 SKIP-allowed) |
-| UD006 | Approve superseding plan20260514_233353 and authorize combined P-B-1 + P-B-2 + P-C2 scope (delivering `docs/LOG_PERMISSIONS.md` alongside the implementation) | next milestone start | open (Step 0-R passed via `cmt20260514_234412`; awaiting Step 1 snapshot commit and Step 2 User direction) |
+| UD006 | Approve superseding plan20260514_233353 and authorize combined P-B-1 + P-B-2 + P-C2 scope (delivering `docs/LOG_PERMISSIONS.md` alongside the implementation) | next milestone start | closed 2026-05-14 (Step 1 commit `9f569ea`; Step 2 User direction "다음 갑시다" recorded in `auth20260514_235635`). Active plan/handoff superseded to plan20260515_014254 / hand20260515_014254 via Step 5 convergence (3 rounds: 0644 model, F-PLAN4-1, F-HAND4-1). Step 7 final-form recheck accepted via `cmt20260515_015312`. Ready for Step 8. |
 
 ## Incidents
 
