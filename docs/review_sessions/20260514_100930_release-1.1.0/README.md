@@ -12,7 +12,7 @@ Welcome Message: `02_welcome_reviewer1.md`
 Additional Reviewer Welcome: `03_welcome_additional_reviewer.md`
 Workflow Size: L
 Commit Cadence: (a) per-milestone
-Last Updated At: 2026-05-14 18:02:00
+Last Updated At: 2026-05-14 22:30:00
 Last Updated By Agent: claudecode_claude_opus_4_7
 Last Updated By Acting As Role: Facilitator
 
@@ -101,7 +101,7 @@ traceability via revision history above.
 | convergence_report | conv20260514_112923 | `convergence/conv20260514_112923_claudecode_claude_opus_4_7.md` | final | yes |
 | comment | cmt20260514_113124 | `comments/cmt20260514_113124_claudecode_claude_opus_4_7_to_codex_gpt5_convergence_check.md` | final | yes |
 | comment | cmt20260514_113543 | `comments/cmt20260514_113543_codex_gpt5_to_claudecode_claude_opus_4_7_convergence_ack.md` | final | yes |
-| development_plan | plan20260514_114106 | `plan/plan20260514_114106_claudecode_claude_opus_4_7.md` | final | yes |
+| development_plan | plan20260514_114106 | `plan/plan20260514_114106_claudecode_claude_opus_4_7.md` | final | superseded by plan20260514_222000 |
 | execution_authorization | auth20260514_121723 | `plan/auth20260514_121723_claudecode_claude_opus_4_7_for_user.md` | final | yes (Phase A scope) |
 | execution_handoff | hand20260514_124345 | `handoff/hand20260514_124345_claudecode_claude_opus_4_7.md` | final | superseded by hand20260514_145911 |
 | review_followup | fup20260514_130042 | `reviews/fup20260514_130042_codex_gpt5_on_hand20260514_124345.md` | final | yes (F-A-001) |
@@ -117,6 +117,12 @@ traceability via revision history above.
 | comment | cmt20260514_180010 | `comments/cmt20260514_180010_claudecode_claude_opus_4_7_to_codex_gpt5_readiness_recheck.md` | final | yes (P-Readiness re-cross-check request) |
 | comment | cmt20260514_180122 | `comments/cmt20260514_180122_codex_gpt5_to_claudecode_claude_opus_4_7_readiness_ack.md` | final | yes (P-Readiness re-cross-check ack) |
 | phase_commit | `a3acc80` | `release-1.1.0`: Add 1.1.0 readiness packet: ROADMAP and TEST_PLAN | committed 2026-05-14 | yes (P-Readiness landed) |
+| comment | cmt20260514_200944 | `comments/cmt20260514_200944_claudecode_claude_opus_4_7_to_codex_gpt5_permission_model_defects.md` | final | yes (Phase B permission model cross-check request) |
+| review_followup | fup20260514_201306 | `reviews/fup20260514_201306_codex_gpt5_on_plan20260514_114106.md` | final | yes (Q-PERM-1, Q-PERM-2 accepted; Q-PERM-3 revision required) |
+| comment | cmt20260514_221507 | `comments/cmt20260514_221507_claudecode_claude_opus_4_7_to_codex_gpt5_permission_model_ack.md` | final | yes (Facilitator acks fup20260514_201306) |
+| development_plan | plan20260514_222000 | `plan/plan20260514_222000_claudecode_claude_opus_4_7_supersedes_plan20260514_114106.md` | final | yes (delta plan: P-B-1 / P-B-2 / P-C2 revisions; supersedes plan20260514_114106) |
+| comment | cmt20260514_222647 | `comments/cmt20260514_222647_claudecode_claude_opus_4_7_to_codex_gpt5_plan_supersession_extras.md` | final | yes (Reviewer 1 cross-check on plan additions beyond fup20260514_201306) |
+| comment | cmt20260514_222924 | `comments/cmt20260514_222924_codex_gpt5_to_claudecode_claude_opus_4_7_plan_supersession_extras_ack.md` | final | yes (Reviewer 1 ack of Q-PERM2-1, Q-PERM2-2; UD006 may proceed) |
 | review_followup | fup20260514_113205 | `reviews/fup20260514_113205_codex_gpt5_on_conv20260514_112923.md` | final | historical (early convergence acceptance; consistent with cmt20260514_113543) |
 | comment | cmt20260514_150322 | `comments/cmt20260514_150322_codex_gpt5_to_claudecode_claude_opus_4_7_phase_a_ack.md` | final | yes (Phase A ack) |
 | comment | cmt20260514_153130 | `comments/cmt20260514_153130_claudecode_claude_opus_4_7_self_phase_a_regression.md` | final | yes (Phase A regression evidence) |
@@ -129,6 +135,7 @@ traceability via revision history above.
 | UD002 | Confirm #49 phase placement (D+ or independent track) | Phase D+ start | closed 2026-05-14 (D+ standalone) |
 | UD003 | Confirm whether #26 (Backlog) is referenced from 1.1.0 docs | Closure scope | closed 2026-05-14 (excluded — no reference in 1.1.0 docs) |
 | UD005 | Confirm Phase F cross-check granularity (#18 cross-check required despite SKIP-allowed default) | Phase F handoff | closed 2026-05-14 (#18 YES, #19/#20 SKIP-allowed) |
+| UD006 | Approve superseding plan20260514_222000 and authorize combined P-B-1 + P-B-2 + P-C2 scope | next milestone start | open (awaiting User direction) |
 
 ## Incidents
 
