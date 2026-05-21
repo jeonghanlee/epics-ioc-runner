@@ -43,7 +43,7 @@ declare -g VERIFY_PASS=0
 declare -g VERIFY_FAIL=0
 
 declare -g PERM_CONF_DIR="2770"
-declare -g PERM_LOG_DIR="2770"
+declare -g PERM_LOG_DIR="2775"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
@@ -367,7 +367,7 @@ EOF
     # alone propagates group identity but not the rw bits, so an engineer
     # touching a file under default umask 0022 would otherwise create a
     # 0644 entry that ioc-srv cannot append to. Site canonical pattern;
-    # see docs/LOG_PERMISSIONS.md.
+    # see docs/PERMISSION_MODEL.md.
     setfacl -d -m g:"${SYSTEM_GROUP}":rw "${SYSTEM_LOG_DIR}"
     setfacl -d -m o::r-- "${SYSTEM_LOG_DIR}"
     setfacl -d -m m::rw "${SYSTEM_LOG_DIR}"

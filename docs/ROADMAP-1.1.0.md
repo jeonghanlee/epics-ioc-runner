@@ -39,7 +39,7 @@ privilege in multi-tenant lab environments.
 IOC stdout
   -> procServ --logfile=${LOG_DIR}/${IOC_NAME}.log
     -> filesystem
-       system mode:  /var/log/procserv/<name>.log  (0640, ioc-srv:ioc)
+       system mode:  /var/log/procserv/<name>.log  (0644, ioc-srv:ioc)
        --local mode: ${XDG_STATE_HOME:-${HOME}/.local/state}/procserv/<name>.log (0640, user)
       -> ioc-runner direct read
          byte-offset scan from the start-of-call cursor
@@ -60,6 +60,21 @@ These satisfy `Depends On` references in #11, #12, and #21:
 | [#13](https://github.com/jeonghanlee/epics-ioc-runner/issues/13) | Enable `set -o pipefail` | 1.0.5 |
 | [#23](https://github.com/jeonghanlee/epics-ioc-runner/issues/23) | Adopt `set -u` with full variable audit | 1.0.8 |
 | [#25](https://github.com/jeonghanlee/epics-ioc-runner/issues/25) | Per-IOC `CRASH_LOG_PATTERNS` override | 1.0.8 |
+
+## Acceptance Amendments
+
+Adopted during the 1.1.0 readiness session and recorded
+2026-05-21 after the permission-model consolidation into
+[`PERMISSION_MODEL.md`](PERMISSION_MODEL.md). Phase-section
+acceptance text below is preserved verbatim for traceability; the
+items listed here override it. `PERMISSION_MODEL.md` is the
+authoritative source for the resulting end state.
+
+| Phase | Original acceptance item | Amended end state | Reason |
+| --- | --- | --- | --- |
+| B-1 (#9) | `LogsDirectory=procserv`, `LogsDirectoryMode=0750` in system unit | `LogsDirectory=` NOT used; directory created by `setup-system-infra.bash` via `install -d -o root -g ioc -m 2775` + default ACLs | `LogsDirectory=` chowns the directory to `User=/Group=` on every activation, overriding the `root:ioc` ownership that the three-principal model requires |
+| B-1 (#9) | Log file mode `0640` | Log file mode `0644` | procServ uses hardcoded `open(O_CREAT, 0644)` (`procServ.cc:924`); system unit carries no `UMask=` so the default `0022` preserves `0644` |
+| C2 (#12) | System log directory mode `2770`; non-`ioc` user read denied | System log directory mode `2775`; non-`ioc` user read permitted at file-mode layer (sudoers gate still restricts state-changing `systemctl` verbs) | Site policy requires every host user to read every log file at minimum; access boundary for IOC state changes remains the `%ioc` sudoers gate, not file mode |
 
 ## Phase Plan
 
@@ -222,7 +237,7 @@ Site administrators upgrading from 1.0.x will:
    systemd template and the logrotate config.
 3. `systemctl daemon-reload` and restart each IOC; `procServ` will
    begin writing to `/var/log/procserv/<name>.log`.
-4. Verify mode 0640 owned by `ioc-srv:ioc`.
+4. Verify mode 0644 owned by `ioc-srv:ioc`.
 5. Remove `systemd-journal` supplementary group from IOC operator
    accounts.
 

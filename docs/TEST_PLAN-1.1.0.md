@@ -55,7 +55,7 @@ matrix. Cells reference test IDs defined later in this document.
 
 ### Phase C2 — `#12` Permission model
 
-System mode targets `root:ioc 2770` directory + `ioc-srv:ioc 0644`
+System mode targets `root:ioc 2775` directory + `ioc-srv:ioc 0644`
 procServ-created files (procServ's hardcoded `open(O_CREAT, 0644)`
 mode_arg is preserved; system unit does NOT set `UMask=`). Default
 ACLs raise engineer-created files in the same directory to
@@ -63,11 +63,11 @@ ACLs raise engineer-created files in the same directory to
 mode targets `<user>:<user> 0750` directory + `<user>:<user> 0640`
 files (single principal, user-mode unit keeps `UMask=0027`).
 Access boundary for `ioc-runner` system operations is enforced by
-the sudoers policy (`%ioc` group). See `docs/LOG_PERMISSIONS.md`.
+the sudoers policy (`%ioc` group). See `docs/PERMISSION_MODEL.md`.
 
 | Aspect | Local | System | Debian 13 | Rocky 8 | NFS root_squash | Negative perm |
 | --- | --- | --- | --- | --- | --- | --- |
-| Directory mode at install (system: `2770` setgid; local: `0750`) | T-C2a-L | T-C2a-S | required | required | NFS-aware | n/a |
+| Directory mode at install (system: `2775` setgid; local: `0750`) | T-C2a-L | T-C2a-S | required | required | NFS-aware | n/a |
 | Default ACLs present on system log dir (`g:ioc:rw`, `o::r--`, `m::rw`) | n/a | T-C2a2-S | required | required | NFS-aware | n/a |
 | Log file mode after start (system: `0644`; local: `0640`) | T-C2b-L | T-C2b-S | required | required | NFS-aware | n/a |
 | `ioc` group member reads log (system) | n/a | T-C2c-S | required | required | NFS-aware | n/a |
@@ -85,7 +85,7 @@ artifacts.
 | Phase | ID | Representative command |
 | --- | --- | --- |
 | A | V-A | `tests/test-error-handling.bash` STEP 10, 11, 12, 13 |
-| B-1 | V-B-1 | `systemctl cat epics-@<name>.service \| grep -E '^(User\|Group)='` returns `User=ioc-srv`, `Group=ioc`; `grep '^UMask='` returns nothing (system unit relies on systemd default `0022` to preserve procServ's `0644` mode_arg); `grep -E '^ExecStart='` contains `--logfile=${SYSTEM_LOG_DIR}/%i.log`; `grep LogsDirectory` returns nothing; `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}` returns `root:ioc 2770`; `getfacl ${SYSTEM_LOG_DIR}` shows default entries `g:ioc:rw-`, `o::r--`, `m::rw-` |
+| B-1 | V-B-1 | `systemctl cat epics-@<name>.service \| grep -E '^(User\|Group)='` returns `User=ioc-srv`, `Group=ioc`; `grep '^UMask='` returns nothing (system unit relies on systemd default `0022` to preserve procServ's `0644` mode_arg); `grep -E '^ExecStart='` contains `--logfile=${SYSTEM_LOG_DIR}/%i.log`; `grep LogsDirectory` returns nothing; `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}` returns `root:ioc 2775`; `getfacl ${SYSTEM_LOG_DIR}` shows default entries `g:ioc:rw-`, `o::r--`, `m::rw-` |
 | B-2 | V-B-2 | `ioc-runner --local install <conf>`; `grep -E '^(UMask\|ExecStart)' ~/.config/systemd/user/epics-@.service` shows `UMask=0027` and `--logfile=${LOCAL_LOG_DIR}/%i.log`; `stat ${LOCAL_LOG_DIR}` returns `<user>:<user> 750`; repeated install in same second produces two distinct `~/.config/systemd/user/epics-@.service.bak.*` files |
 | B-3 | V-B-3 | `logrotate -d /etc/logrotate.d/procserv`; `logrotate -f /etc/logrotate.d/procserv`; `ioc-runner restart <ioc>` |
 | C1 | V-C1 | `ioc-runner --local start <bad-ioc>` under operator without `systemd-journal`; expect crash warning |
