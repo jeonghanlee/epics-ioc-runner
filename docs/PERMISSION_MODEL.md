@@ -13,7 +13,7 @@ Scope:
   EPICS base, `/opt/epics-iocs/`)
 - Local-mode paths created by `ioc-runner --local install`
 - Three-principal model and end-state targets for the log directory
-- Permission lifecycle (생성 / 관리 / 추적) per principal
+- Permission lifecycle (Create / Manage / Track) per principal
 
 ## Filesystem Layout
 
@@ -142,32 +142,32 @@ but other users on the same host cannot read the user's logs.
 ## Permission Lifecycle
 
 The lifecycle of every log object covers three operational phases:
-생성 (create), 관리 (manage), and 추적 (track / read).
+Create, Manage, and Track (read).
 
 ### System mode
 
 | Phase | Action | Principal | Object | Mechanism | Resulting state / Gate |
 | --- | --- | --- | --- | --- | --- |
-| 생성 | install log directory | `root` (via sudo) | `${SYSTEM_LOG_DIR}/` | `setup-system-infra.bash`: `install -d -o root -g ioc -m 2775` + `setfacl -d` | `root:ioc 2775` + default ACL `g:ioc:rw, o::r--, m::rw` |
-| 생성 | open log file | `ioc-srv` | `${SYSTEM_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` at IOC start; system unit umask `0022` | `ioc-srv:ioc 0644` |
-| 생성 | adhoc file (probe, manual archive) | engineer ∈ `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | `<engineer>:ioc 0664` |
-| 관리 | append log records | `ioc-srv` | `<ioc>.log` | procServ `write(logFileFD, ...)` during IOC runtime | owner `w` bit |
-| 관리 | start / stop / restart IOC | engineer ∈ `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` → `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ... epics-@*.service` |
-| 관리 | rotate (Phase B-3 #15, pending) | `root` (cron) | `<ioc>.log` | `logrotate -f /etc/logrotate.d/procserv` with `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
-| 추적 | crash detection scan | engineer ∈ `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
-| 추적 | manual read | engineer ∈ `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |
-| 추적 | read-only inspection | engineer ∉ `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |
-| 추적 | directory listing | any user | `${SYSTEM_LOG_DIR}/` | `ls` | dir `o+rx` |
-| 추적 | `ioc-runner status` / `is-active` | any user | service state | systemd query (no sudo) | systemd query ACL (permissive) |
+| Create | install log directory | `root` (via sudo) | `${SYSTEM_LOG_DIR}/` | `setup-system-infra.bash`: `install -d -o root -g ioc -m 2775` + `setfacl -d` | `root:ioc 2775` + default ACL `g:ioc:rw, o::r--, m::rw` |
+| Create | open log file | `ioc-srv` | `${SYSTEM_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` at IOC start; system unit umask `0022` | `ioc-srv:ioc 0644` |
+| Create | adhoc file (probe, manual archive) | engineer ∈ `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | `<engineer>:ioc 0664` |
+| Manage | append log records | `ioc-srv` | `<ioc>.log` | procServ `write(logFileFD, ...)` during IOC runtime | owner `w` bit |
+| Manage | start / stop / restart IOC | engineer ∈ `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` → `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ... epics-@*.service` |
+| Manage | rotate (Phase B-3 #15, pending) | `root` (cron) | `<ioc>.log` | `logrotate -f /etc/logrotate.d/procserv` with `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
+| Track | crash detection scan | engineer ∈ `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
+| Track | manual read | engineer ∈ `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |
+| Track | read-only inspection | engineer ∉ `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |
+| Track | directory listing | any user | `${SYSTEM_LOG_DIR}/` | `ls` | dir `o+rx` |
+| Track | `ioc-runner status` / `is-active` | any user | service state | systemd query (no sudo) | systemd query ACL (permissive) |
 
 ### Local mode
 
 | Phase | Action | Principal | Object | Mechanism | Resulting state |
 | --- | --- | --- | --- | --- | --- |
-| 생성 | install log directory | `<user>` | `${LOCAL_LOG_DIR}/` | `ioc-runner --local install`: `install -d -m 0750` | `<user>:<user> 0750` |
-| 생성 | open log file | `<user>` (via `systemd --user`) | `${LOCAL_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` + user unit `UMask=0027` | `<user>:<user> 0640` |
-| 관리 | append / IOC lifecycle | `<user>` | log file, user unit | `systemctl --user ...` (no sudo) | self-managed |
-| 추적 | crash scan / shell read | `<user>` | `<ioc>.log` | `ioc-runner --local`, `cat`, `tail` | owner `r` |
+| Create | install log directory | `<user>` | `${LOCAL_LOG_DIR}/` | `ioc-runner --local install`: `install -d -m 0750` | `<user>:<user> 0750` |
+| Create | open log file | `<user>` (via `systemd --user`) | `${LOCAL_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` + user unit `UMask=0027` | `<user>:<user> 0640` |
+| Manage | append / IOC lifecycle | `<user>` | log file, user unit | `systemctl --user ...` (no sudo) | self-managed |
+| Track | crash scan / shell read | `<user>` | `<ioc>.log` | `ioc-runner --local`, `cat`, `tail` | owner `r` |
 
 ## Why Default ACLs Are Still Set
 

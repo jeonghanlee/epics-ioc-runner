@@ -22,7 +22,7 @@ This directory contains the complete documentation for deploying, managing, and 
 * **[INSTALL.md](INSTALL.md)**
   Provides step-by-step instructions for the initial server setup. It covers creating dedicated service accounts, setting up shared configuration directories with SetGID permissions, configuring sudoers, and deploying the static system-wide systemd template unit.
 * **[PERMISSION_MODEL.md](PERMISSION_MODEL.md)**
-  Filesystem permission model covering every directory and file the runner installs, references, or creates: setup-managed paths, site-provisioned paths, three-principal model, end-state targets, and permission lifecycle (생성 / 관리 / 추적) per principal across system and local modes.
+  Filesystem permission model covering every directory and file the runner installs, references, or creates: setup-managed paths, site-provisioned paths, three-principal model, end-state targets, and permission lifecycle (Create / Manage / Track) per principal across system and local modes.
 
 ### 3. System-Wide Operations (Engineers)
 * **[USER_GUIDE.md](USER_GUIDE.md)**
