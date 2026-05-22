@@ -64,9 +64,9 @@ declare -g TARGET_SYSTEM_USER="ioc-srv"
 declare -g TARGET_SYSTEM_GROUP="ioc"
 
 # --- Health Check Configuration ---
-# Regex pattern used to detect fatal errors or crash-loops in systemd logs immediately after startup.
+# Regex pattern used to detect fatal errors or crash-loops in procServ logs immediately after startup.
 # Users can add custom error strings specific to their hardware or EPICS modules here (separated by '|').
-declare -g CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
+declare -g CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 
 
 function print_divider {
@@ -391,6 +391,71 @@ function read_conf_all {
         # shellcheck disable=SC2034
         result_map["${key}"]="${val}"
     done < "${conf_file}"
+}
+
+function get_file_size {
+    local path="$1"
+    local size="0"
+
+    if [[ -e "${path}" ]]; then
+        size=$(stat -c '%s' "${path}" 2>/dev/null || printf "0")
+        if [[ ! "${size}" =~ ^[0-9]+$ ]]; then
+            size="0"
+        fi
+    fi
+
+    printf "%s" "${size}"
+}
+
+function scan_file_for_crash_patterns {
+    local log_file="$1"
+    local start_offset="$2"
+    local patterns="$3"
+    local current_size
+    local scan_offset
+
+    if [[ ! -r "${log_file}" ]]; then
+        return 2
+    fi
+
+    current_size=$(get_file_size "${log_file}")
+    scan_offset="${start_offset}"
+    if [[ "${current_size}" -lt "${scan_offset}" ]]; then
+        scan_offset=0
+    fi
+
+    if tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null | grep -qiE "${patterns}"; then
+        return 0
+    fi
+
+    return 1
+}
+
+function scan_journal_for_crash_patterns {
+    local start_ts="$1"
+    local patterns="$2"
+    local journal_output
+    local -a log_cmd=("journalctl" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
+
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
+    fi
+
+    if ! journal_output=$("${log_cmd[@]}" 2>/dev/null); then
+        return 2
+    fi
+
+    if printf "%s\n" "${journal_output}" | grep -qiE "${patterns}"; then
+        return 0
+    fi
+
+    return 1
+}
+
+function print_log_file_hint {
+    local log_file="$1"
+
+    printf "  -> Check logs: tail -f %s\n" "${log_file}" >&2
 }
 
 # Generate or correct the UNIX domain socket path based on the execution mode
@@ -1449,7 +1514,11 @@ function do_start_restart {
         run_systemctl daemon-reload
     fi
 
-    # Journal scan lower bound; must be captured before service start
+    local log_file="${LOG_DIR}/${IOC_NAME}.log"
+    local log_start_offset
+    log_start_offset=$(get_file_size "${log_file}")
+
+    # Journal fallback lower bound; must be captured before service start.
     local start_ts
     start_ts=$(date +%s)
     run_systemctl "${action}" "epics-@${IOC_NAME}.service"
@@ -1464,19 +1533,8 @@ function do_start_restart {
     if [[ "${post_state}" != "active" ]]; then
         printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
         printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
-        if [[ "${EXEC_MODE}" == "local" ]]; then
-            printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
-        else
-            printf "  -> Check logs: journalctl -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
-            printf "     (Requires 'adm' or 'systemd-journal' group membership to read system logs)\n" >&2
-        fi
+        print_log_file_hint "${log_file}"
         exit 1
-    fi
-
-    # Scans journal from start_ts forward against CRASH_LOG_PATTERNS (case-insensitive)
-    local log_cmd=("journalctl" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
-    if [[ "${EXEC_MODE}" == "local" ]]; then
-        log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
     fi
 
     # Issue #25: append per-IOC CRASH_LOG_PATTERNS_EXTRA when present.
@@ -1490,14 +1548,27 @@ function do_start_restart {
         effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}"
     fi
 
-    if "${log_cmd[@]}" 2>/dev/null | grep -qiE "${effective_patterns}"; then
-        printf "\nWarning: IOC '%s' is active, but procServ may be crash-looping or reporting fatal errors.\n" "${IOC_NAME}" >&2
-        if [[ "${EXEC_MODE}" == "local" ]]; then
-            printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
+    local scan_status=0
+    if scan_file_for_crash_patterns "${log_file}" "${log_start_offset}" "${effective_patterns}"; then
+        scan_status=0
+    else
+        scan_status=$?
+    fi
+
+    if [[ ${scan_status} -eq 2 ]]; then
+        if scan_journal_for_crash_patterns "${start_ts}" "${effective_patterns}"; then
+            scan_status=0
         else
-            printf "  -> Check logs: journalctl -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
-            printf "     (Requires 'adm' or 'systemd-journal' group membership to read system logs)\n" >&2
+            scan_status=$?
         fi
+    fi
+
+    if [[ ${scan_status} -eq 0 ]]; then
+        printf "\nWarning: IOC '%s' is active, but procServ may be crash-looping or reporting fatal errors.\n" "${IOC_NAME}" >&2
+        print_log_file_hint "${log_file}"
+    elif [[ ${scan_status} -eq 2 ]]; then
+        printf "\nWarning: IOC '%s' is active, but startup logs could not be scanned.\n" "${IOC_NAME}" >&2
+        print_log_file_hint "${log_file}"
     else
         printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
     fi

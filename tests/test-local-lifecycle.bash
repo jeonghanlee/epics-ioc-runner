@@ -38,18 +38,18 @@ if ! command -v lsof >/dev/null 2>&1; then
     exit 1
 fi
 
-# STEP 24 (monitor isolation) and STEP 25 (crash detection) read journalctl
-# --user output. Hosts without a working user-scope journal (no linger,
-# missing /var/log/journal/<machine-id>, or user not in systemd-journal
-# group) cannot verify these steps. Detect both common failure messages
-# and mark the journal unavailable so dependent steps skip with a WARN.
+# STEP 24 (monitor isolation) reads journalctl --user output. Hosts
+# without a working user-scope journal (no linger, missing
+# /var/log/journal/<machine-id>, or user not in systemd-journal group)
+# cannot verify that step. Detect both common failure messages and mark
+# the journal unavailable so dependent steps skip with a WARN.
 # See issue #50.
 declare -g JOURNAL_AVAILABLE="true"
 journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
 if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}" == *"insufficient permissions"* ]]; then
     JOURNAL_AVAILABLE="false"
     printf "${YELLOW}%s${NC}\n" "WARN: User-scope journal unavailable on this host." >&2
-    printf "STEP 24 (monitor isolation) and STEP 25 (crash detection) will be skipped.\n" >&2
+    printf "STEP 24 (monitor isolation) will be skipped.\n" >&2
     printf "Hint: enable linger and persistent journal to enable these steps:\n" >&2
     printf "  sudo loginctl enable-linger %s\n" "$(id -un)" >&2
     printf "  sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald\n" >&2
@@ -664,16 +664,86 @@ function test_monitor_isolation {
     kill -- -"${monitor_pid}" 2>/dev/null || true
 }
 
+function _install_crash_probe {
+    local ioc_name="$1"
+    local ioc_dir="$2"
+
+    cat << EOF > "${WORKSPACE}/${ioc_name}.conf"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" --local -f install "${WORKSPACE}/${ioc_name}.conf" >/dev/null
+}
+
+function _remove_crash_probe {
+    local ioc_name="$1"
+    local dropin_dir="${SYSTEMD_USER_DIR}/epics-@${ioc_name}.service.d"
+
+    bash "${RUNNER_SCRIPT}" --local remove "${ioc_name}" >/dev/null 2>&1 || true
+    rm -f "${dropin_dir}/override.conf"
+    rmdir "${dropin_dir}" 2>/dev/null || true
+    "${SYSTEMCTL_CMD[@]}" daemon-reload >/dev/null 2>&1 || true
+}
+
+function _run_crash_probe {
+    local ioc_name="$1"
+    local expected_warning="$2"
+    local assertion_name="$3"
+    local output
+    local exit_code=0
+    local start_ok="true"
+    local warning_detected="false"
+
+    output=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || exit_code=$?
+    if [[ ${exit_code} -ne 0 ]]; then
+        start_ok="false"
+    fi
+    if printf "%s" "${output}" | grep -q "procServ may be crash-looping"; then
+        warning_detected="true"
+    fi
+
+    _remove_crash_probe "${ioc_name}"
+    if [[ "${expected_warning}" == "false" ]]; then
+        verify_state "true" "${start_ok}" "${assertion_name}: start completed"
+    fi
+    verify_state "${expected_warning}" "${warning_detected}" "${assertion_name}"
+}
+
+function _write_journal_fallback_dropin {
+    local ioc_name="$1"
+    local dropin_dir="${SYSTEMD_USER_DIR}/epics-@${ioc_name}.service.d"
+    local procserv_bin=""
+    local path
+
+    for path in "/usr/local/bin/procServ" "/usr/bin/procServ"; do
+        if [[ -x "${path}" ]]; then
+            procserv_bin="${path}"
+            break
+        fi
+    done
+
+    if [[ -z "${procserv_bin}" ]]; then
+        return 1
+    fi
+
+    mkdir -p "${dropin_dir}"
+    cat << EOF > "${dropin_dir}/override.conf"
+[Service]
+ExecStart=
+ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+EOF
+    "${SYSTEMCTL_CMD[@]}" daemon-reload
+}
+
 function test_crash_detection {
     local step="$1"
     print_divider
     _log "INFO" "STEP ${step}: Test Crash Detection with softIoc"
     print_sub_divider
-
-    if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
-        _log "WARN" "User-scope journal unavailable, skipping crash detection test."
-        return 0
-    fi
 
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then
@@ -681,39 +751,105 @@ function test_crash_detection {
         return 0
     fi
 
-    local bad_ioc_name="CrashTestIOC"
-    local bad_ioc_dir="${WORKSPACE}/bad_ioc"
-    mkdir -p "${bad_ioc_dir}"
+    local local_log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
+    local fatal_ioc_name="CrashTestFatal"
+    local fatal_ioc_dir="${WORKSPACE}/crash_fatal_ioc"
+    mkdir -p "${fatal_ioc_dir}"
 
-    cat << EOF > "${bad_ioc_dir}/st.cmd"
+    cat << EOF > "${fatal_ioc_dir}/st.cmd"
 #!${softioc_bin}
 system "sleep 0.5"
 system "echo 'FATAL: Simulated softIoc crash'"
 system "kill -9 \$PPID"
 EOF
-    chmod +x "${bad_ioc_dir}/st.cmd"
+    chmod +x "${fatal_ioc_dir}/st.cmd"
+    _install_crash_probe "${fatal_ioc_name}" "${fatal_ioc_dir}"
+    _run_crash_probe "${fatal_ioc_name}" "true" "Crash detection: FATAL softIoc child kill warning"
 
-    cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
-IOC_USER="$(id -un)"
-IOC_GROUP="$(id -gn)"
-IOC_CHDIR="${bad_ioc_dir}"
-IOC_PORT=""
-IOC_CMD="./st.cmd"
+    local parse_ioc_name="CrashTestParse"
+    local parse_ioc_dir="${WORKSPACE}/crash_parse_ioc"
+    mkdir -p "${parse_ioc_dir}"
+
+    cat << EOF > "${parse_ioc_dir}/st.cmd"
+#!${softioc_bin}
+dbLoadRecords("missing.db
 EOF
+    chmod +x "${parse_ioc_dir}/st.cmd"
+    _install_crash_probe "${parse_ioc_name}" "${parse_ioc_dir}"
+    _run_crash_probe "${parse_ioc_name}" "true" "Crash detection: iocsh parse error warning"
 
-    bash "${RUNNER_SCRIPT}" --local -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
+    local history_ioc_name="CrashTestHistory"
+    local history_ioc_dir="${WORKSPACE}/crash_history_ioc"
+    mkdir -p "${history_ioc_dir}" "${local_log_dir}"
 
-    local output
-    output=$(bash "${RUNNER_SCRIPT}" --local start "${bad_ioc_name}" 2>&1 || true)
+    cat << EOF > "${history_ioc_dir}/st.cmd"
+#!${softioc_bin}
+iocInit()
+EOF
+    chmod +x "${history_ioc_dir}/st.cmd"
+    _install_crash_probe "${history_ioc_name}" "${history_ioc_dir}"
+    printf "%s\n" "FATAL: historical startup failure before current start" > "${local_log_dir}/${history_ioc_name}.log"
+    _run_crash_probe "${history_ioc_name}" "false" "Crash detection: historical fatal log ignored for healthy start"
 
-    local warning_detected="false"
-    if printf "%s" "${output}" | grep -q "Warning"; then
-        warning_detected="true"
+    local truncate_bin
+    truncate_bin=$(command -v truncate || true)
+    if [[ -n "${truncate_bin}" ]]; then
+        local truncate_ioc_name="CrashTestTruncate"
+        local truncate_ioc_dir="${WORKSPACE}/crash_truncate_ioc"
+        local truncate_log="${local_log_dir}/${truncate_ioc_name}.log"
+        local i
+        mkdir -p "${truncate_ioc_dir}" "${local_log_dir}"
+
+        : > "${truncate_log}"
+        for i in {1..40}; do
+            printf "%s %02d\n" "FATAL: stale failure before truncation" "${i}" >> "${truncate_log}"
+        done
+
+        cat << EOF > "${truncate_ioc_dir}/st.cmd"
+#!${softioc_bin}
+system "${truncate_bin} -s 0 ${truncate_log}"
+system "sleep 0.5"
+system "echo 'FATAL: new failure after truncation'"
+system "kill -9 \$PPID"
+EOF
+        chmod +x "${truncate_ioc_dir}/st.cmd"
+        _install_crash_probe "${truncate_ioc_name}" "${truncate_ioc_dir}"
+        _run_crash_probe "${truncate_ioc_name}" "true" "Crash detection: truncated log scans new fatal content"
+    else
+        _log "WARN" "truncate not found, skipping truncated log crash detection test."
     fi
 
-    bash "${RUNNER_SCRIPT}" --local remove "${bad_ioc_name}" >/dev/null 2>&1 || true
+    if [[ "${JOURNAL_AVAILABLE}" == "true" ]]; then
+        local fallback_ioc_name="CrashTestJournalFallback"
+        local fallback_ioc_dir="${WORKSPACE}/crash_journal_fallback_ioc"
+        local output
+        local warning_detected="false"
+        mkdir -p "${fallback_ioc_dir}"
 
-    verify_state "true" "${warning_detected}" "Crash-loop warning detected for broken softIoc"
+        cat << EOF > "${fallback_ioc_dir}/st.cmd"
+#!${softioc_bin}
+system "sleep 0.5"
+system "echo 'FATAL: journal fallback simulated crash'"
+system "kill -9 \$PPID"
+EOF
+        chmod +x "${fallback_ioc_dir}/st.cmd"
+        _install_crash_probe "${fallback_ioc_name}" "${fallback_ioc_dir}"
+
+        if _write_journal_fallback_dropin "${fallback_ioc_name}"; then
+            output=$(IOC_RUNNER_LOG_DIR="${WORKSPACE}/missing-log-dir" \
+                bash "${RUNNER_SCRIPT}" --local start "${fallback_ioc_name}" 2>&1 || true)
+            if printf "%s" "${output}" | grep -q "procServ may be crash-looping"; then
+                warning_detected="true"
+            fi
+            _remove_crash_probe "${fallback_ioc_name}"
+            verify_state "true" "${warning_detected}" "Crash detection: journal fallback warning when log scan unavailable"
+        else
+            _remove_crash_probe "${fallback_ioc_name}"
+            _log "WARN" "procServ not found, skipping journal fallback crash detection test."
+        fi
+    else
+        _log "WARN" "User-scope journal unavailable, skipping journal fallback crash detection test."
+    fi
 }
 
 function test_persistence {
@@ -793,5 +929,3 @@ function run_all_tests {
 }
 
 run_all_tests
-
-

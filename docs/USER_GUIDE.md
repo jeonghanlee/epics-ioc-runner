@@ -103,17 +103,19 @@ sudo systemctl disable epics-@myioc.service
 
 
 ## 4. Viewing IOC Logs
-All standard output (stdout/stderr) from the IOC is automatically captured by the system journal.
+By default, procServ writes IOC standard output and standard error to a dedicated log file under `/var/log/procserv/`.
 
 **Watch logs in real-time:**
 ```bash
-journalctl -u epics-@myioc.service -f
+tail -f /var/log/procserv/myioc.log
 ```
 
-**View logs from the last 1 hour:**
+**View recent IOC output:**
 ```bash
-journalctl -u epics-@myioc.service --since "1 hour ago"
+tail -n 200 /var/log/procserv/myioc.log
 ```
+
+Use `journalctl -u epics-@myioc.service` when you need systemd service-manager diagnostics rather than IOC console output.
 
 ## 5. Removing an IOC
 To permanently stop and remove an IOC from the system:

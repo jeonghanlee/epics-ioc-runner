@@ -1133,11 +1133,11 @@ function test_crash_pattern_matching {
     verify_match "match"   "FATAL: aborting"                        "Case-insensitive: FATAL (upper)"
     verify_match "match"   "fatal allocation failure"               "Case-insensitive: fatal (lower)"
 
-    # Regression: pre-existing patterns continue to match
-    verify_match "match"   "procServ: Restarting child"             "Regression: Restarting child"
+    # Regression: fatal startup patterns continue to match
     verify_match "match"   "Segmentation fault (core dumped)"       "Regression: Segmentation fault"
 
     # Negative: routine startup lines must not trigger crash detection
+    verify_match "nomatch" "procServ: Restarting child"             "Negative: procServ child start line"
     verify_match "nomatch" "iocInit: All initialization complete"   "Negative: iocInit complete line"
     verify_match "nomatch" "## EPICS R7.0.7 banner"                 "Negative: EPICS banner"
     verify_match "nomatch" "Starting iocsh.bash"                    "Negative: startup banner"

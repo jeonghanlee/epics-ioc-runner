@@ -47,12 +47,12 @@ The master script executes tests in the recommended SOP sequence and supports se
 ```bash
 # Default: Runs ALL phases (1 through 4)
 # Requires EPICS_BASE, 'ioc' group membership, sudo access, and lsof.
-# A persistent user journal enables STEP 24/25 coverage; otherwise those steps SKIP with a WARN.
+# A persistent user journal enables STEP 24 coverage; otherwise that step SKIPs with a WARN.
 bash tests/run-all-tests.bash
 
 # Local Mode: Runs Phase 1 and 2 only
 # Requires EPICS_BASE and lsof. No sudo or 'ioc' group required.
-# A persistent user journal enables STEP 24/25 coverage; otherwise those steps SKIP with a WARN.
+# A persistent user journal enables STEP 24 coverage; otherwise that step SKIPs with a WARN.
 bash tests/run-all-tests.bash --local
 
 # System Mode: Runs Phase 3 and 4 only

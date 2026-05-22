@@ -137,8 +137,11 @@ systemctl --user restart epics-@iocctrlslab-tcmd.service
 # Check the detailed status
 systemctl --user status epics-@iocctrlslab-tcmd.service
 
-# View the live logs directly from systemd journal
-journalctl --user -u epics-@iocctrlslab-tcmd.service -f
+# View live IOC console output
+tail -f ~/.local/state/procserv/iocctrlslab-tcmd.log
+
+# View user service-manager diagnostics if needed
+journalctl --user -u epics-@iocctrlslab-tcmd.service
 ```
 
 ## 12. Direct Console Access (Alternative)

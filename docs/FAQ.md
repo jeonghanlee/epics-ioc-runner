@@ -122,9 +122,9 @@ ioc-runner attach myioc
 **Layer 2 — ioc-runner health checks (startup verification):**
 When `ioc-runner start` is executed, it performs a two-stage health check:
 
-1. **Primary check:** After a 5-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with a `journalctl` command for troubleshooting.
+1. **Primary check:** After a 5-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with the procServ log file path for troubleshooting.
 
-2. **Secondary check:** If the service appears active, it scans the recent system journal (case-insensitive) for crash-loop indicators across four categories: process supervision (`Restarting child`, `Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). If any pattern matches, it warns the engineer:
+2. **Secondary check:** If the service appears active, it scans the new procServ log content from the current start or restart operation. If the log file is unavailable, it falls back to the corresponding systemd journal. The case-insensitive crash indicators cover fatal process failures (`Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). If any pattern matches, it warns the engineer:
 
    *"Warning: IOC is active, but procServ may be crash-looping or reporting fatal errors."*
 
@@ -138,7 +138,7 @@ When `ioc-runner start` is executed, it performs a two-stage health check:
 The patterns used by the secondary health check are defined as a global variable at the top of the `ioc-runner` script:
 
 ```bash
-CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
+CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 ```
 
 For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script:
@@ -156,7 +156,7 @@ Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Invalid regex s
 
 **No, not in system mode.** `procServ` runs as the `ioc-srv` service account, and the IOC payload inherits `IOC_CHDIR` as its working directory. At runtime, the IOC writes `.iocsh_history`, autosave files, save/restore snapshots, and any site-specific artifacts created by `st.cmd` to this directory. If the directory is not writable by `ioc-srv`, these writes fail silently.
 
-Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure emits two `ERROR` lines into the system journal, which match the crash detection pattern (Q7) and cause `ioc-runner start` to report a crash-loop false positive.
+Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure emits `ERROR` lines into the procServ log file, which match the crash detection pattern (Q7) and cause `ioc-runner start` to report a crash-loop warning.
 
 The correct location is `/opt/epics-iocs/` (or any tree configured with `root:ioc`, mode `2775`, and default ACLs — see `INSTALL.md` Section 4).
 
@@ -177,6 +177,6 @@ If the probe fails, a warning is emitted and confirmation is required before pro
 
 Reading system journal logs for `ioc-srv` services requires membership in the `adm` or `systemd-journal` group. Without this, commands like `journalctl -u epics-@myioc.service` may return empty results.
 
-`ioc-runner`'s secondary crash-loop detection greps `journalctl --user -u <unit>` (system mode reads the equivalent system journal) for fatal log patterns. If the journal returns no data — missing group membership, no persistent journal, or linger disabled — the warning never fires; the runner does not flag this state, it simply has no signal to act on. The primary health check (`systemctl is-active`) is unaffected.
+`ioc-runner`'s secondary crash-loop detection reads the procServ log file first, so ordinary crash detection does not require journal group membership. If the procServ log file cannot be read, the runner falls back to journal output when available. If both paths are unavailable, the runner reports that startup logs could not be scanned instead of claiming a clean start. The primary health check (`systemctl is-active`) is unaffected.
 
-For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout — useful when journal-dependent coverage is needed outside a live session. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24/25 with a WARN.
+For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24 monitor-isolation coverage with a WARN.
