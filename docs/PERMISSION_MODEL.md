@@ -294,6 +294,21 @@ model above is the precondition: engineers in the `ioc` group can
 `stat`, `tail`, `grep` the log file directly, without `sudo` and
 without `systemd-journal` group membership.
 
+### No journal-group re-grant
+
+The `systemd-journal` group reads the entire host journal — sshd
+authentication, kernel events, sudo usage, and every unrelated service —
+not only IOC logs. Granting it to IOC operators over-exposes them far
+beyond their role; in a multi-tenant lab this is the least-privilege
+violation that 1.1.0 removes by taking operators out of the group.
+
+Removal is therefore not paired with a rollback or re-grant procedure:
+re-adding the group would reopen the same broad exposure. Dual-path
+crash detection keeps journal scanning as an in-code fallback, so no
+manual group re-grant is needed even when the log-file path is
+unavailable on a given host. The supported recovery is to restore the
+log-file path, not to widen operator privilege.
+
 ## Cross-References
 
 - Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
