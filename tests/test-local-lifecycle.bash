@@ -713,32 +713,6 @@ function _run_crash_probe {
     verify_state "${expected_warning}" "${warning_detected}" "${assertion_name}"
 }
 
-function _write_journal_fallback_dropin {
-    local ioc_name="$1"
-    local dropin_dir="${SYSTEMD_USER_DIR}/epics-@${ioc_name}.service.d"
-    local procserv_bin=""
-    local path
-
-    for path in "/usr/local/bin/procServ" "/usr/bin/procServ"; do
-        if [[ -x "${path}" ]]; then
-            procserv_bin="${path}"
-            break
-        fi
-    done
-
-    if [[ -z "${procserv_bin}" ]]; then
-        return 1
-    fi
-
-    mkdir -p "${dropin_dir}"
-    cat << EOF > "${dropin_dir}/override.conf"
-[Service]
-ExecStart=
-ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
-EOF
-    "${SYSTEMCTL_CMD[@]}" daemon-reload
-}
-
 function test_crash_detection {
     local step="$1"
     print_divider
@@ -817,38 +791,6 @@ EOF
         _run_crash_probe "${truncate_ioc_name}" "true" "Crash detection: truncated log scans new fatal content"
     else
         _log "WARN" "truncate not found, skipping truncated log crash detection test."
-    fi
-
-    if [[ "${JOURNAL_AVAILABLE}" == "true" ]]; then
-        local fallback_ioc_name="CrashTestJournalFallback"
-        local fallback_ioc_dir="${WORKSPACE}/crash_journal_fallback_ioc"
-        local output
-        local warning_detected="false"
-        mkdir -p "${fallback_ioc_dir}"
-
-        cat << EOF > "${fallback_ioc_dir}/st.cmd"
-#!${softioc_bin}
-system "sleep 0.5"
-system "echo 'FATAL: journal fallback simulated crash'"
-system "kill -9 \$PPID"
-EOF
-        chmod +x "${fallback_ioc_dir}/st.cmd"
-        _install_crash_probe "${fallback_ioc_name}" "${fallback_ioc_dir}"
-
-        if _write_journal_fallback_dropin "${fallback_ioc_name}"; then
-            output=$(IOC_RUNNER_LOG_DIR="${WORKSPACE}/missing-log-dir" \
-                bash "${RUNNER_SCRIPT}" --local start "${fallback_ioc_name}" 2>&1 || true)
-            if printf "%s" "${output}" | grep -q "procServ may be crash-looping"; then
-                warning_detected="true"
-            fi
-            _remove_crash_probe "${fallback_ioc_name}"
-            verify_state "true" "${warning_detected}" "Crash detection: journal fallback warning when log scan unavailable"
-        else
-            _remove_crash_probe "${fallback_ioc_name}"
-            _log "WARN" "procServ not found, skipping journal fallback crash detection test."
-        fi
-    else
-        _log "WARN" "User-scope journal unavailable, skipping journal fallback crash detection test."
     fi
 }
 

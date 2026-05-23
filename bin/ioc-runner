@@ -431,27 +431,6 @@ function scan_file_for_crash_patterns {
     return 1
 }
 
-function scan_journal_for_crash_patterns {
-    local start_ts="$1"
-    local patterns="$2"
-    local journal_output
-    local -a log_cmd=("journalctl" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
-
-    if [[ "${EXEC_MODE}" == "local" ]]; then
-        log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
-    fi
-
-    if ! journal_output=$("${log_cmd[@]}" 2>/dev/null); then
-        return 2
-    fi
-
-    if printf "%s\n" "${journal_output}" | grep -qiE "${patterns}"; then
-        return 0
-    fi
-
-    return 1
-}
-
 function print_log_file_hint {
     local log_file="$1"
 
@@ -1518,9 +1497,6 @@ function do_start_restart {
     local log_start_offset
     log_start_offset=$(get_file_size "${log_file}")
 
-    # Journal fallback lower bound; must be captured before service start.
-    local start_ts
-    start_ts=$(date +%s)
     run_systemctl "${action}" "epics-@${IOC_NAME}.service"
 
 
@@ -1553,14 +1529,6 @@ function do_start_restart {
         scan_status=0
     else
         scan_status=$?
-    fi
-
-    if [[ ${scan_status} -eq 2 ]]; then
-        if scan_journal_for_crash_patterns "${start_ts}" "${effective_patterns}"; then
-            scan_status=0
-        else
-            scan_status=$?
-        fi
     fi
 
     if [[ ${scan_status} -eq 0 ]]; then
