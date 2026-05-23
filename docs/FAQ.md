@@ -124,7 +124,7 @@ When `ioc-runner start` is executed, it performs a two-stage health check:
 
 1. **Primary check:** After a 5-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with the procServ log file path for troubleshooting.
 
-2. **Secondary check:** If the service appears active, it scans the new procServ log content from the current start or restart operation. If the log file is unavailable, it falls back to the corresponding systemd journal. The case-insensitive crash indicators cover fatal process failures (`Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). If any pattern matches, it warns the engineer:
+2. **Secondary check:** If the service appears active, it scans the new procServ log content from the current start or restart operation. If the log file cannot be read, it reports that startup logs could not be scanned rather than claiming a clean start. The case-insensitive crash indicators cover fatal process failures (`Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). If any pattern matches, it warns the engineer:
 
    *"Warning: IOC is active, but procServ may be crash-looping or reporting fatal errors."*
 
@@ -177,6 +177,6 @@ If the probe fails, a warning is emitted and confirmation is required before pro
 
 Reading system journal logs for `ioc-srv` services requires membership in the `adm` or `systemd-journal` group. Without this, commands like `journalctl -u epics-@myioc.service` may return empty results.
 
-`ioc-runner`'s secondary crash-loop detection reads the procServ log file first, so ordinary crash detection does not require journal group membership. If the procServ log file cannot be read, the runner falls back to journal output when available. If both paths are unavailable, the runner reports that startup logs could not be scanned instead of claiming a clean start. The primary health check (`systemctl is-active`) is unaffected.
+`ioc-runner`'s secondary crash-loop detection reads the procServ log file, so crash detection does not require journal group membership. If the procServ log file cannot be read, the runner reports that startup logs could not be scanned instead of claiming a clean start. The primary health check (`systemctl is-active`) is unaffected.
 
 For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24 monitor-isolation coverage with a WARN.

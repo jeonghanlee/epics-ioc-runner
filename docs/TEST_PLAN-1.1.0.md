@@ -90,7 +90,7 @@ artifacts.
 | B-3 | V-B-3 | `logrotate -d /etc/logrotate.d/procserv`; `logrotate -f /etc/logrotate.d/procserv`; `ioc-runner restart <ioc>` |
 | C1 | V-C1 | `ioc-runner --local start <bad-ioc>` under operator without `systemd-journal`; expect crash warning |
 | C2 | V-C2 | Case 1 (procServ-created): `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}/<ioc>.log` returns `ioc-srv:ioc 644`; `sudo -u <ioc-member> cat <log>` succeeds; `getfacl` shows `mask::r--` (procServ's `0644` mode_arg restricts mask to `r--`). Case 2 (engineer-created, default ACL effect): engineer in `ioc` runs `touch ${SYSTEM_LOG_DIR}/probe.log` under shell `umask 0022`; `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}/probe.log` returns `<engineer>:ioc 664` (`touch` uses `open(0666)` mode_arg; default ACL `g:ioc:rw` + `m::rw` preserves group write); `sudo -u ioc-srv test -w <probe.log>` exits 0. sudoers gate (narrow): as a non-`ioc` user, `sudo /usr/bin/systemctl start epics-@<name>.service` exits with `not allowed to execute`. Non-`ioc` `ioc-runner` invocation and read-only `ioc-runner status`/`is-active` are not gated by sudoers |
-| D | V-D-1 / V-D-2 | `id <operator>` shows `systemd-journal` absent; `chmod 000 <log>; ioc-runner restart` falls back to journal or informs |
+| D | V-D-1 / V-D-2 | `id <operator>` shows `systemd-journal` absent; `chmod 000 <log>; ioc-runner restart` reports startup logs could not be scanned |
 | D+ | V-Dplus | `bash tests/run-all-tests.bash --local` STEP 17 on Rocky 8; `sudo -E bash tests/test-system-lifecycle.bash` STEP 24 on Rocky 8 |
 | E | V-E | `bash tests/run-all-tests.bash --local` clean PASS on 1.1.0 HEAD; T1-T5 FAIL on `1.0.8` tag |
 | F-1 | V-F-1 | rendered Markdown clean; `docs/README.md` links to `LOG_LAYOUT.md` |

@@ -303,11 +303,10 @@ beyond their role; in a multi-tenant lab this is the least-privilege
 violation that 1.1.0 removes by taking operators out of the group.
 
 Removal is therefore not paired with a rollback or re-grant procedure:
-re-adding the group would reopen the same broad exposure. Dual-path
-crash detection keeps journal scanning as an in-code fallback, so no
-manual group re-grant is needed even when the log-file path is
-unavailable on a given host. The supported recovery is to restore the
-log-file path, not to widen operator privilege.
+re-adding the group would reopen the same broad exposure. Crash
+detection reads the dedicated log file as the single source of truth,
+with no journal dependency to restore, so the supported recovery is to
+fix the log-file path — not to widen operator privilege.
 
 ## Cross-References
 

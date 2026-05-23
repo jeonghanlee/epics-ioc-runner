@@ -90,7 +90,7 @@ branch only after a Reviewer cross-check passes. Final merge to
 | B-3 | [#15](https://github.com/jeonghanlee/epics-ioc-runner/issues/15) | `/etc/logrotate.d/procserv` deployment | required |
 | C1 | [#11](https://github.com/jeonghanlee/epics-ioc-runner/issues/11) | byte-offset crash detection rewrite | required (P0) |
 | C2 | [#12](https://github.com/jeonghanlee/epics-ioc-runner/issues/12) | log file permission model | required (security surface) |
-| D | [#17](https://github.com/jeonghanlee/epics-ioc-runner/issues/17), [#24](https://github.com/jeonghanlee/epics-ioc-runner/issues/24) | journal grant removal, dual-path fallback | required |
+| D | [#17](https://github.com/jeonghanlee/epics-ioc-runner/issues/17), [#24](https://github.com/jeonghanlee/epics-ioc-runner/issues/24) | journal grant removal; #24 fallback dropped | required |
 | D+ | [#49](https://github.com/jeonghanlee/epics-ioc-runner/issues/49) | Rocky 8 `inspect` Netlink/UDS rendering | required |
 | E | [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | integration test expansion (T1-T5) | required |
 | F | [#18](https://github.com/jeonghanlee/epics-ioc-runner/issues/18), [#19](https://github.com/jeonghanlee/epics-ioc-runner/issues/19), [#20](https://github.com/jeonghanlee/epics-ioc-runner/issues/20) | docs — LOG_LAYOUT, CHANGELOG, README migration | required for #18; SKIP-allowed for #19, #20 |
@@ -168,19 +168,21 @@ membership.
 <log>` succeeds; `sudo -u <non-ioc> cat <log>` denied (T5 from Phase
 E).
 
-### Phase D — journal grant removal and dual-path fallback (#17, #24)
+### Phase D — journal grant removal (#17); journal fallback dropped (#24)
 
 **Acceptance for #17:** Operator accounts have no `systemd-journal`
 supplementary group; `ioc-runner restart` on a faulty IOC under the
 restricted account still emits the crash warning.
 
-**Acceptance for #24:** When the log file is unreadable but
-`journalctl --user` is accessible, the runner falls back to journal
-scan. When both are unavailable, the runner prints an informational
-message and does not claim "successfully started".
+**#24 (journal fallback) — dropped as won't-fix.** Under the
+dedicated-logfile architecture procServ writes child output only to the
+log file, not the journal, so a journal fallback has nothing to scan.
+An unreadable log yields a "startup logs could not be scanned" warning,
+not a journal scan.
 
 **Verification:** `id <operator>` after `gpasswd -d`; controlled probe
-with `chmod 000 ${log}; ioc-runner restart <ioc>`.
+with `chmod 000 ${log}; ioc-runner restart <ioc>` now yields the
+could-not-scan warning.
 
 ### Phase D+ — Rocky 8 inspect compatibility (#49)
 
