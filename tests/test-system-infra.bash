@@ -23,12 +23,15 @@ declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
+declare -g LOGROTATE_FILE="/etc/logrotate.d/procserv"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 declare -g RUNNER_SCRIPT_DEST="/usr/local/bin/ioc-runner"
 declare -g BASH_COMPLETION_DEST="/etc/bash_completion.d/ioc-runner"
 
 declare -g PERM_CONF_DIR="2770"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
+declare -g PERM_LOGROTATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
 declare -g PERM_BASH_COMPLETION="0644"
 
@@ -181,6 +184,7 @@ function test_infrastructure_files {
     verify_perm "${CONF_DIR}"             "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}"
     verify_perm "${SUDOERS_FILE}"         "${OWNER_SYSTEM}"   "${PERM_SUDOERS}"
     verify_perm "${SYSTEMD_TEMPLATE}"     "${OWNER_SYSTEM}"   "${PERM_SYSTEMD_TEMPLATE}"
+    verify_perm "${LOGROTATE_FILE}"       "${OWNER_SYSTEM}"   "${PERM_LOGROTATE}"
     verify_perm "${RUNNER_SCRIPT_DEST}"   "${OWNER_SYSTEM}"   "${PERM_RUNNER_SCRIPT}"
     verify_perm "${BASH_COMPLETION_DEST}" "${OWNER_SYSTEM}"   "${PERM_BASH_COMPLETION}"
 }
@@ -196,6 +200,32 @@ function test_sudoers_syntax {
         syntax_ok="true"
     fi
     verify_state "true" "${syntax_ok}" "Sudoers file syntax is valid"
+}
+
+function test_logrotate_syntax {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Logrotate Policy"
+    print_sub_divider
+
+    local syntax_ok="false"
+    if [[ -f "${LOGROTATE_FILE}" ]] && logrotate -d "${LOGROTATE_FILE}" >/dev/null 2>&1; then
+        syntax_ok="true"
+    fi
+    verify_state "true" "${syntax_ok}" "Logrotate policy syntax is valid"
+
+    # Pin the #15 acceptance directives. logrotate -d passes even if e.g.
+    # copytruncate is dropped, so assert the contract directives explicitly;
+    # copytruncate is mandatory because procServ does not reopen on SIGHUP,
+    # and nodateext keeps the <name>.log.N.gz numbering the acceptance cites.
+    local directive
+    for directive in "${SYSTEM_LOG_DIR}/*.log" "su root ${SYSTEM_GROUP}" "copytruncate" "compress" "weekly" "rotate 8" "nodateext"; do
+        local present="false"
+        if [[ -f "${LOGROTATE_FILE}" ]] && grep -qF "${directive}" "${LOGROTATE_FILE}"; then
+            present="true"
+        fi
+        verify_state "true" "${present}" "Logrotate policy pins '${directive}'"
+    done
 }
 
 function test_sudoers_includedir_order {
@@ -496,6 +526,7 @@ function run_all_tests {
         "test_service_accounts"
         "test_infrastructure_files"
         "test_sudoers_syntax"
+        "test_logrotate_syntax"
         "test_sudoers_includedir_order"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"

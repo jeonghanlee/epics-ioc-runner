@@ -18,6 +18,7 @@ declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
+declare -g LOGROTATE_FILE="/etc/logrotate.d/procserv"
 declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
 declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 
@@ -46,6 +47,7 @@ declare -g PERM_CONF_DIR="2770"
 declare -g PERM_LOG_DIR="2775"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
+declare -g PERM_LOGROTATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
 declare -g PERM_BASH_COMP="0644"
 declare -g PERM_BACKUP_DIR="0700"
@@ -276,16 +278,18 @@ function backup_if_exists {
 
 if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
-    # Preflight: required tools for the system-mode permission model.
+    # Preflight: required tools for the system-mode infrastructure.
     # The log directory STEP relies on setfacl/getfacl to install default
-    # ACLs that enforce group=ioc:rw on procServ-created and engineer-
-    # created log files alike.
-    for required_tool in setfacl getfacl; do
+    # ACLs that enforce group=ioc:rw; the log rotation STEP relies on
+    # logrotate. Fail early here rather than after STEP 1-5 have already
+    # mutated accounts, sudoers, the log dir, and the unit template.
+    declare -A REQUIRED_PKG=([setfacl]="acl" [getfacl]="acl" [logrotate]="logrotate")
+    for required_tool in setfacl getfacl logrotate; do
         if ! command -v "${required_tool}" >/dev/null 2>&1; then
             _log "ERROR" "Required tool '${required_tool}' not found in PATH."
-            _log "INFO"  "Install the 'acl' package and re-run:"
-            _log "INFO"  "  Debian/Ubuntu: sudo apt install acl"
-            _log "INFO"  "  RHEL/Rocky/CentOS: sudo dnf install acl"
+            _log "INFO"  "Install the '${REQUIRED_PKG[${required_tool}]}' package and re-run:"
+            _log "INFO"  "  Debian/Ubuntu: sudo apt install ${REQUIRED_PKG[${required_tool}]}"
+            _log "INFO"  "  RHEL/Rocky/CentOS: sudo dnf install ${REQUIRED_PKG[${required_tool}]}"
             exit 1
         fi
     done
@@ -423,10 +427,50 @@ EOF
     systemctl daemon-reload
     _log "SUCCESS" "Reloaded systemd daemon."
 
+    print_divider
+    _log "INFO" "STEP 6: Log Rotation Policy Deployment"
+    print_sub_divider
+
+    # procServ does not reopen its log on SIGHUP, so copytruncate is
+    # mandatory: logrotate copies then truncates the live file in place,
+    # losing at most one buffered write cycle per rotation. SYSTEM_LOG_DIR
+    # is group-writable (2775, group ioc), so "su root ${SYSTEM_GROUP}" runs
+    # rotation under root:ioc, satisfying logrotate's refusal to rotate logs
+    # in a directory writable by a non-root group. copytruncate preserves
+    # the source log's owner on the rotated .gz, and the STEP 4 default ACL
+    # keeps ioc group read access either way. nodateext pins the
+    # <name>.log.N.gz numbering (the #15 acceptance) even if a global
+    # dateext is set in /etc/logrotate.conf.
+    tmp_logrotate=$(mktemp)
+
+    cat <<EOF > "${tmp_logrotate}"
+${SYSTEM_LOG_DIR}/*.log {
+    su root ${SYSTEM_GROUP}
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+    nodateext
+}
+EOF
+
+    if logrotate -d "${tmp_logrotate}" >/dev/null 2>&1; then
+        chmod "${PERM_LOGROTATE}" "${tmp_logrotate}"
+        backup_if_exists "${LOGROTATE_FILE}"
+        mv "${tmp_logrotate}" "${LOGROTATE_FILE}"
+        verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
+    else
+        _log "ERROR" "logrotate syntax validation failed. Skipping deployment."
+        rm -f "${tmp_logrotate}"
+        exit 1
+    fi
+
 fi
 
 print_divider
-_log "INFO" "STEP 6: CLI Wrapper Deployment"
+_log "INFO" "STEP 7: CLI Wrapper Deployment"
 print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then

@@ -117,6 +117,8 @@ tail -n 200 /var/log/procserv/myioc.log
 
 Use `journalctl -u epics-@myioc.service` when you need systemd service-manager diagnostics rather than IOC console output.
 
+**Log rotation:** `/var/log/procserv/*.log` is rotated weekly with 8-week retention via `/etc/logrotate.d/procserv` (deployed by `setup-system-infra.bash --full`). Rotated files are compressed as `myioc.log.1.gz`, `myioc.log.2.gz`, and so on; read them with `zcat` or `zless`. Rotation uses `copytruncate`, so the running IOC keeps writing to the same path without a restart.
+
 ## 5. Removing an IOC
 To permanently stop and remove an IOC from the system:
 
