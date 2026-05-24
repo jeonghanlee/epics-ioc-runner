@@ -254,6 +254,10 @@ from 1.0.x" section (delivered by #20) and the layout reference in
 - `docs/ARCHITECTURE.md` and `docs/CLI_REFERENCE.md` rewrites. Only
   deltas necessary for 1.1.0 behavior are accepted.
 - IPv6, TLS, or any transport-layer change.
+- `bin/ioc-runner` start/restart uses a fixed `sleep 5` (around line 1504)
+  before the active-state check. Replacing it with active-state polling plus
+  a minimum stabilization window — preserving the crash-loop scan that
+  follows — is deferred to a post-1.1.0 follow-up issue.
 
 ## Cross-References
 
