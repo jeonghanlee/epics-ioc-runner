@@ -43,3 +43,17 @@ This directory contains the complete documentation for deploying, managing, and 
   Development milestones, phase plan, and acceptance criteria for the 1.1.0 Journal Decoupling Release. Tracks the ordered execution of issues #8 through #22 plus #49, including pre-1.1.0 prerequisites already delivered.
 * **[TEST_PLAN-1.1.0.md](TEST_PLAN-1.1.0.md)**
   Verification surface for 1.1.0: phase acceptance matrices for the crash detection rewrite and log file permission model, per-phase verification commands, T1-T5 integration test specifications, and host coverage matrix.
+
+## Upgrading from 1.0.x
+
+1.1.0 moves IOC output from the systemd journal to dedicated procServ log files. Site administrators upgrading from 1.0.x:
+
+1. Install the 1.1.0 `ioc-runner` binary.
+2. Re-run `sudo ./bin/setup-system-infra.bash --full` to deploy the updated system systemd template and the logrotate config.
+3. `sudo systemctl daemon-reload`, then restart each IOC; `procServ` begins writing to `/var/log/procserv/<name>.log`.
+4. Verify the log file: `stat -c '%U:%G %a' /var/log/procserv/<name>.log` returns `ioc-srv:ioc 644`.
+5. Remove the now-unnecessary `systemd-journal` group from IOC operator accounts: `sudo gpasswd -d <operator> systemd-journal`, then confirm with `id <operator>`.
+
+Verify the deployment: `systemctl cat epics-@<name>.service` shows `--logfile=`, and `logrotate -d /etc/logrotate.d/procserv` reports no errors.
+
+See **[LOG_LAYOUT.md](LOG_LAYOUT.md)** for the full log path, permission, and rotation reference, and **[PERMISSION_MODEL.md](PERMISSION_MODEL.md)** for the access model.
