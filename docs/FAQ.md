@@ -175,7 +175,7 @@ If the probe fails, a warning is emitted and confirmation is required before pro
 
 ### Q9: Can we read system logs for IOCs running in system-wide mode?
 
-Reading system journal logs for `ioc-srv` services requires membership in the `adm` or `systemd-journal` group. Without this, commands like `journalctl -u epics-@myioc.service` may return empty results.
+IOC console output is written to the dedicated procServ log file (`/var/log/procserv/<name>.log`, mode `0644`), so reading it needs no `systemd-journal` membership — `ioc` group membership gates privileged IOC management, not log reads. The systemd journal is only an optional service-metadata diagnostic: reading it with `journalctl -u epics-@myioc.service` still requires the `adm` or `systemd-journal` group and returns empty without it.
 
 `ioc-runner`'s secondary crash-loop detection reads the procServ log file, so crash detection does not require journal group membership. If the procServ log file cannot be read, the runner reports that startup logs could not be scanned instead of claiming a clean start. The primary health check (`systemctl is-active`) is unaffected.
 

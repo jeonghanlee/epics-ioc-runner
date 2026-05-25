@@ -145,8 +145,10 @@ conf files are never observed.
 **Validates:** Phase C2.
 **Setup:** Post-install state with one IOC running and its log file
 present.
-**Action:** `sudo -u <user-not-in-ioc-group> cat <log>`.
-**Expected:** `cat` fails with permission denied.
+**Action:** `sudo -u <user-not-in-ioc-group> cat <log>`, then the same
+user runs `/usr/bin/systemctl start epics-@<name>.service`.
+**Expected:** `cat` succeeds (log file mode `0644` grants `o+r`); the
+privileged `systemctl start` is denied by the `%ioc` sudoers gate.
 
 ## Host Coverage Matrix
 

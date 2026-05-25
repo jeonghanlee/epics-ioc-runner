@@ -12,7 +12,7 @@ This architecture requires the following core utilities to be installed on your 
   * *Fallback*: If `con` is unavailable, the `attach` command automatically falls back to `socat` or `nc` (with `-U` UNIX Domain Socket support).
 
 ## Key Highlights
-* **No Python or Framework Runtime**: Built on Bash 4.3+ and native `systemd`. Runtime depends on `procServ`, `con`, `lsof`, `ss`, and `journalctl`; no Python interpreter or application framework is required.
+* **No Python or Framework Runtime**: Built on Bash 4.3+ and native `systemd`. Runtime depends on `procServ`, `con`, `lsof`, and `ss`; no Python interpreter or application framework is required.
 * **High-Performance Minimal-Fork Architecture**: Utilizes pure Bash stream parsing and O(1) associative arrays to batch-fetch socket and systemd states, eliminating per-IOC subprocess overhead.
 * **Dual Execution Modes**: Supports both system-wide deployment (via RBAC and sudoers) and isolated local user environments for testing.
 * **Input Isolation (`monitor`)**: Safe, uni-directional console observation to prevent interleaving of unintended inputs during sensitive hardware operations.

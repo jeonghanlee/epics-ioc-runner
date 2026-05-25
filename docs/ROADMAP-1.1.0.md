@@ -118,7 +118,7 @@ system mode resolves to `/var/log/procserv`; environment overrides
 `LogsDirectory=procserv`, `LogsDirectoryMode=0750`, and
 `--logfile=/var/log/procserv/%i.log` in `ExecStart=`. Activation of a
 fresh service creates `/var/log/procserv/<name>.log` owned by
-`ioc-srv:ioc` with mode 0640.
+`ioc-srv:ioc` with mode 0644.
 
 **Verification:** `systemctl cat epics-@<name>.service | grep -E
 '(--logfile=|LogsDirectory=)'` after deployment; `stat
@@ -159,13 +159,15 @@ detection); negative-permission probe (operator without
 
 ### Phase C2 — permission model (#12)
 
-**Acceptance:** `stat /var/log/procserv/<name>.log` shows mode 0640
-and owner `ioc-srv:ioc`. A user in `ioc` group reads the log; a user
-outside `ioc` is denied. No operation requires `systemd-journal`
-membership.
+**Acceptance:** `stat /var/log/procserv/<name>.log` shows mode 0644
+and owner `ioc-srv:ioc`. A user in the `ioc` group reads the log, and a user outside `ioc` can
+read it too at the file-mode layer (`0644`, `o+r`); the boundary for
+state-changing operations is the `%ioc` sudoers gate, not file mode. No
+operation requires `systemd-journal` membership.
 
-**Verification:** post-install `stat`; `sudo -u <ioc-member> cat
-<log>` succeeds; `sudo -u <non-ioc> cat <log>` denied (T5 from Phase
+**Verification:** post-install `stat`; `sudo -u <ioc-member> cat <log>`
+succeeds; `sudo -u <non-ioc> cat <log>` also succeeds (file `0644`); the
+`%ioc` sudoers gate denies a non-`ioc` `systemctl start` (T5 from Phase
 E).
 
 ### Phase D — journal grant removal (#17); journal fallback dropped (#24)
