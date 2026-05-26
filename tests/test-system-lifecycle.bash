@@ -79,6 +79,8 @@ declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
 declare -g RUN_DIR="/run/procserv"
 declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
+declare -g SUDOERS_FILE_PATH="/etc/sudoers.d/10-epics-ioc"
+declare -g T5_CREATED_USER=""
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
@@ -109,6 +111,13 @@ function _handle_exit {
     if [[ ${exit_code} -ne 0 && ${TEST_FAILED} -eq 0 && ${SCRIPT_ERROR} -eq 0 ]]; then
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
+    fi
+
+    # T5 may create a throwaway non-ioc account; remove only the one this run
+    # created (a pre-existing account of the same name is left untouched).
+    if [[ -n "${T5_CREATED_USER}" ]] && id "${T5_CREATED_USER}" &>/dev/null; then
+        userdel "${T5_CREATED_USER}" 2>/dev/null || true
+        T5_CREATED_USER=""
     fi
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
@@ -854,6 +863,90 @@ EOF
     bash "${RUNNER_SCRIPT}" remove "${rot_ioc_name}" >/dev/null 2>&1 || true
 }
 
+# T5 (Phase E): permission enforcement. A user outside the ioc group must be
+# able to READ a log file (mode 0644, o+r) yet must be DENIED a state-changing
+# systemctl start -- the %ioc sudoers gate, not file mode, is the boundary for
+# IOC state changes. The test account is created only if absent and removed only
+# if this run created it (function tail plus the exit trap).
+function test_permission_enforcement {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Permission Enforcement (T5)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -f "${SUDOERS_FILE_PATH}" ]]; then
+        _log "WARN" "${SUDOERS_FILE_PATH} not found, skipping permission enforcement test."
+        return 0
+    fi
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping permission enforcement test."
+        return 0
+    fi
+
+    local nonioc_user="epics-t5-noioc"
+    # Never touch a pre-existing account of this name: it may not be ours.
+    if id "${nonioc_user}" &>/dev/null; then
+        _log "WARN" "User ${nonioc_user} already exists; skipping to avoid removing a non-test account."
+        return 0
+    fi
+    useradd -M -N "${nonioc_user}" >/dev/null 2>&1
+    T5_CREATED_USER="${nonioc_user}"
+
+    # Guard: the test account must not be an ioc-group member, or the gate check
+    # below would be meaningless.
+    if id -nG "${nonioc_user}" 2>/dev/null | grep -qw "${SYSTEM_GROUP}"; then
+        _log "WARN" "Test user unexpectedly in ${SYSTEM_GROUP}; skipping."
+        userdel "${nonioc_user}" 2>/dev/null || true
+        T5_CREATED_USER=""
+        return 0
+    fi
+
+    local perm_ioc_name="PermTestIOC-SYS"
+    local perm_ioc_dir="${WORKSPACE}/perm_ioc"
+    local log_file="${SYSTEM_LOG_DIR}/${perm_ioc_name}.log"
+    mkdir -p "${perm_ioc_dir}"
+    chown "${OWNER_WORKSPACE}" "${perm_ioc_dir}"
+    chmod 2775 "${perm_ioc_dir}"
+
+    cat << EOF > "${perm_ioc_dir}/st.cmd"
+#!${softioc_bin}
+epicsEnvSet("IOCSH_HISTSIZE","0")
+system "sleep 0.5"
+EOF
+    chmod +x "${perm_ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${perm_ioc_name}.conf"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${perm_ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${perm_ioc_name}.conf" >/dev/null
+    bash "${RUNNER_SCRIPT}" start "${perm_ioc_name}" >/dev/null 2>&1 || true
+
+    # Evidence 1: a user outside ioc can READ the log (file mode 0644, o+r).
+    local read_ok="false"
+    if runuser -u "${nonioc_user}" -- cat "${log_file}" >/dev/null 2>&1; then
+        read_ok="true"
+    fi
+    verify_state "true" "${read_ok}" "Non-ioc user can read the log file (mode 0644)"
+
+    # Evidence 2: the same user is DENIED a state-changing start -- not in the
+    # %ioc sudoers gate, so sudo -n exits non-zero.
+    local start_denied="false"
+    if ! runuser -u "${nonioc_user}" -- sudo -n /usr/bin/systemctl start "epics-@${perm_ioc_name}.service" >/dev/null 2>&1; then
+        start_denied="true"
+    fi
+    verify_state "true" "${start_denied}" "Non-ioc user denied systemctl start by %ioc sudoers gate"
+
+    bash "${RUNNER_SCRIPT}" remove "${perm_ioc_name}" >/dev/null 2>&1 || true
+    userdel "${nonioc_user}" 2>/dev/null || true
+    T5_CREATED_USER=""
+}
+
 function test_persistence {
     local step="$1"
     print_divider
@@ -920,6 +1013,7 @@ function run_all_tests {
         "test_monitor_isolation"
         "test_crash_detection"
         "test_logrotate_boundary"
+        "test_permission_enforcement"
         "test_persistence"
         "test_remove"
     )
