@@ -102,10 +102,14 @@ artifacts.
 
 Defined by [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21).
 Each test exercises new 1.1.0 behavior and must fail on the `1.0.8`
-baseline (proof of behavioral coverage). The exception is T3, a
-regression guard for the pre-existing install-atomicity invariant
+baseline (proof of behavioral coverage). Two tests are exceptions. T3 is
+a regression guard for the pre-existing install-atomicity invariant
 (`mktemp` + `mv -f` in `do_install`, present since 1.0.8); it passes on
-both `1.0.8` and 1.1.0.
+both `1.0.8` and 1.1.0. T2 is infra-gated: the dedicated procServ log
+file and `/etc/logrotate.d/procserv` that it exercises do not exist on
+1.0.8, so T2 skips on the baseline and is required to pass on 1.1.0 HEAD
+only -- mixing 1.1.0 infrastructure onto a 1.0.8 runner to force a fail
+would test an artificial hybrid, not the baseline.
 
 ### T1 — Detection without journal access
 
@@ -124,6 +128,9 @@ the crash pattern match.
 `ioc-runner restart <ioc>`.
 **Expected:** New log file created; crash detection reads new content;
 no false positives from rotated historical log entries.
+**Baseline:** infra-gated. 1.0.8 has neither the dedicated procServ log
+file nor `/etc/logrotate.d/procserv`, so T2 skips on 1.0.8 and is
+required to pass on 1.1.0 HEAD only.
 
 ### T3 — IOC_PORT atomic install
 
