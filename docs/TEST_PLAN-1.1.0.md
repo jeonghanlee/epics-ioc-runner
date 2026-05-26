@@ -92,7 +92,7 @@ artifacts.
 | C2 | V-C2 | Case 1 (procServ-created): `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}/<ioc>.log` returns `ioc-srv:ioc 644`; `sudo -u <ioc-member> cat <log>` succeeds; `getfacl` shows `mask::r--` (procServ's `0644` mode_arg restricts mask to `r--`). Case 2 (engineer-created, default ACL effect): engineer in `ioc` runs `touch ${SYSTEM_LOG_DIR}/probe.log` under shell `umask 0022`; `stat -c '%U:%G %a' ${SYSTEM_LOG_DIR}/probe.log` returns `<engineer>:ioc 664` (`touch` uses `open(0666)` mode_arg; default ACL `g:ioc:rw` + `m::rw` preserves group write); `sudo -u ioc-srv test -w <probe.log>` exits 0. sudoers gate (narrow): as a non-`ioc` user, `sudo /usr/bin/systemctl start epics-@<name>.service` exits with `not allowed to execute`. Non-`ioc` `ioc-runner` invocation and read-only `ioc-runner status`/`is-active` are not gated by sudoers |
 | D | V-D-1 / V-D-2 | `id <operator>` shows `systemd-journal` absent; `chmod 000 <log>; ioc-runner restart` reports startup logs could not be scanned |
 | D+ | V-Dplus | `bash tests/run-all-tests.bash --local` STEP 17 on Rocky 8; `sudo -E bash tests/test-system-lifecycle.bash` STEP 24 on Rocky 8 |
-| E | V-E | `bash tests/run-all-tests.bash --local` clean PASS on 1.1.0 HEAD; T1-T5 FAIL on `1.0.8` tag |
+| E | V-E | `bash tests/run-all-tests.bash --local` clean PASS on 1.1.0 HEAD; T1, T2, T4, T5 FAIL on `1.0.8` tag (T3 passes on both as a regression guard) |
 | F-1 | V-F-1 | rendered Markdown clean; `docs/README.md` links to `LOG_LAYOUT.md` |
 | F-2 | V-F-2 | `CHANGELOG.md` 1.1.0 section follows existing format; all in-scope merged issues represented |
 | F-3 | V-F-3 | TOC link to migration section; commands copy-pastable |
@@ -102,7 +102,10 @@ artifacts.
 
 Defined by [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21).
 Each test exercises new 1.1.0 behavior and must fail on the `1.0.8`
-baseline (proof of behavioral coverage).
+baseline (proof of behavioral coverage). The exception is T3, a
+regression guard for the pre-existing install-atomicity invariant
+(`mktemp` + `mv -f` in `do_install`, present since 1.0.8); it passes on
+both `1.0.8` and 1.1.0.
 
 ### T1 — Detection without journal access
 
@@ -154,7 +157,7 @@ privileged `systemctl start` is denied by the `%ioc` sudoers gate.
 
 | Host | Role | Required validations |
 | --- | --- | --- |
-| `top` (Debian 13) | Dev baseline | Every per-phase verification; T1-T5; 1.0.x baseline fail-then-pass for T1-T5 |
+| `top` (Debian 13) | Dev baseline | Every per-phase verification; T1-T5; 1.0.x baseline fail-then-pass for T1, T2, T4, T5 (T3 regression guard, passes on both) |
 | `testbed-debian13-iocrunner-server` | Clone-and-test, install-and-test | System mode for B-1, C2, D-2, F-1 reference |
 | `testbed-rocky8-iocrunner-server` | Rocky 8 gate | V-Dplus (STEP 17 + STEP 24); V-C1 and V-C2 cross-distro; T1, T2, T4 |
 | `alsucl-psrv3` | Rocky NFS production-like | install-and-test; NFS root_squash regression for B and C |
@@ -167,7 +170,9 @@ The 1.1.0 release is acceptable when:
    and F-3 which are SKIP-allowed.
 2. The Phase Acceptance Matrices for #11 (C1) and #12 (C2) are
    complete across the matrix.
-3. T1-T5 fail on the 1.0.8 tag and pass on `release-1.1.0` HEAD.
+3. T1, T2, T4, and T5 fail on the 1.0.8 tag and pass on
+   `release-1.1.0` HEAD. T3 is a regression guard for a pre-existing
+   invariant and passes on both.
 4. `ioc-runner -V` reports `1.1.0` plus the git hash at the tagged
    commit.
 5. The migration steps in `docs/README.md` "Upgrading from 1.0.x"

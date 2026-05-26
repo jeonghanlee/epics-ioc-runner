@@ -468,6 +468,58 @@ function test_install_logic {
     verify_state "true" "${preserved}" "Install EOF abort preserves existing conf (marker retained)"
 }
 
+# T3 (Phase E): IOC_PORT atomic install. The write path in do_install
+# (mktemp + mv -f) must leave the target conf valid-or-untouched under any
+# interruption -- a partially written conf must never be observable.
+function test_ioc_port_atomic_install {
+    local step="$1"
+    local test_dir="${TEST_TMPDIR}/atomic_ioc"
+    local mock_conf_dir="${TEST_TMPDIR}/atomic_etc"
+    local mock_sysd_dir="${TEST_TMPDIR}/atomic_sysd"
+    local target_conf="${mock_conf_dir}/atomic_ioc.conf"
+
+    print_divider
+    _log "INFO" "STEP ${step}: IOC_PORT Atomic Install (T3)"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    # Pre-generate the source conf the install loop consumes.
+    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+
+    # Hammer install under a tight timeout that interrupts at varied points.
+    local iterations=120
+    local i rc port_count partial_writes=0 unexpected_exit=0
+    for ((i = 1; i <= iterations; i = i + 1)); do
+        if (
+            cd "${test_dir}" || exit 1
+            IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            timeout 0.01 bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+        ); then
+            rc=0
+        else
+            rc=$?
+        fi
+        # timeout completion (0) and timeout kill (124) are both expected.
+        if [[ "${rc}" -ne 0 && "${rc}" -ne 124 ]]; then
+            unexpected_exit=$((unexpected_exit + 1))
+        fi
+        # When present, the target must hold exactly one valid IOC_PORT= line.
+        if [[ -f "${target_conf}" ]]; then
+            port_count=$(grep -c '^IOC_PORT=' "${target_conf}" 2>/dev/null) || true
+            if [[ "${port_count:-0}" -ne 1 ]] \
+               || ! grep -qE '^IOC_PORT="unix:[^:]+:[^:]+:0660:.*/atomic_ioc/control"$' "${target_conf}" 2>/dev/null; then
+                partial_writes=$((partial_writes + 1))
+            fi
+        fi
+    done
+
+    verify_state "0" "${partial_writes}" "Atomic install: no partial conf across ${iterations} interrupted installs"
+    verify_state "0" "${unexpected_exit}" "Atomic install: install exits only 0 or 124 under interruption"
+}
+
 function test_install_errors {
     local step="$1"
     print_divider
@@ -1192,6 +1244,7 @@ function run_all_tests {
         "test_missing_target"
         "test_generate_logic"
         "test_install_logic"
+        "test_ioc_port_atomic_install"
         "test_generate_errors"
         "test_install_errors"
         "test_chdir_precheck"
