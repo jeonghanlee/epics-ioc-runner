@@ -78,6 +78,7 @@ declare -g CONF_DIR="/etc/procServ.d"
 declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
 declare -g RUN_DIR="/run/procserv"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
@@ -764,6 +765,95 @@ EOF
     verify_state "true" "${warning_detected}" "Crash-loop warning detected for broken softIoc"
 }
 
+# T2 (Phase E): crash detection across a logrotate boundary. A fatal pattern
+# present in the log BEFORE rotation must move into the rotated/compressed file
+# (copytruncate) and must NOT be re-scanned by the post-restart startup window,
+# which begins at the post-rotation offset. Otherwise a single historical crash
+# would raise a false crash warning on every subsequent restart.
+function test_logrotate_boundary {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Crash Detection Across Logrotate Boundary (T2)"
+    print_sub_divider
+
+    local logrotate_conf="/etc/logrotate.d/procserv"
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -f "${logrotate_conf}" ]]; then
+        _log "WARN" "${logrotate_conf} not found, skipping logrotate boundary test."
+        return 0
+    fi
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping logrotate boundary test."
+        return 0
+    fi
+
+    local rot_ioc_name="RotateTestIOC-SYS"
+    local rot_ioc_dir="${WORKSPACE}/rotate_ioc"
+    local log_file="${SYSTEM_LOG_DIR}/${rot_ioc_name}.log"
+    mkdir -p "${rot_ioc_dir}"
+    # ioc-srv must be able to write runtime artifacts under IOC_CHDIR; otherwise
+    # the startup permission errors would themselves trip crash detection and
+    # mask the historical-pattern boundary this test actually probes.
+    chown "${OWNER_WORKSPACE}" "${rot_ioc_dir}"
+    chmod 2775 "${rot_ioc_dir}"
+
+    # Healthy IOC: stays up and emits no crash pattern of its own. Disable the
+    # iocsh history file so a write failure on it cannot leak a crash pattern
+    # into the startup scan window.
+    cat << EOF > "${rot_ioc_dir}/st.cmd"
+#!${softioc_bin}
+epicsEnvSet("IOCSH_HISTSIZE","0")
+system "sleep 0.5"
+EOF
+    chmod +x "${rot_ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${rot_ioc_name}.conf"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${rot_ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${rot_ioc_name}.conf" >/dev/null
+    bash "${RUNNER_SCRIPT}" start "${rot_ioc_name}" >/dev/null 2>&1 || true
+
+    # Inject a fatal pattern into the ACTIVE log, ahead of rotation.
+    local crash_marker="FATAL: synthetic pre-rotate crash marker"
+    printf "%s\n" "${crash_marker}" >> "${log_file}"
+
+    # Force rotation: copytruncate moves history into <name>.log.1.gz and
+    # truncates the active log in place.
+    logrotate -f "${logrotate_conf}" >/dev/null 2>&1
+
+    # Evidence 1 (boundary created): the marker now lives in the rotated file
+    # and no longer in the active log.
+    local rotated_has_marker="false"
+    if [[ -f "${log_file}.1.gz" ]] && zgrep -qF "${crash_marker}" "${log_file}.1.gz" 2>/dev/null; then
+        rotated_has_marker="true"
+    fi
+    verify_state "true" "${rotated_has_marker}" "Pre-rotate FATAL pattern moved into rotated log (boundary created)"
+
+    local active_clean="true"
+    if grep -qF "${crash_marker}" "${log_file}" 2>/dev/null; then
+        active_clean="false"
+    fi
+    verify_state "true" "${active_clean}" "Active log cleared of the pre-rotate FATAL pattern after rotation"
+
+    # Evidence 2 (no false positive): restart after rotation must not re-flag
+    # the historical pattern that now lives only in the rotated file.
+    local output
+    output=$(bash "${RUNNER_SCRIPT}" restart "${rot_ioc_name}" 2>&1 || true)
+
+    local false_positive="false"
+    if printf "%s" "${output}" | grep -q "crash-looping or reporting fatal errors"; then
+        false_positive="true"
+    fi
+    verify_state "false" "${false_positive}" "No false crash warning from rotated historical FATAL pattern"
+
+    bash "${RUNNER_SCRIPT}" remove "${rot_ioc_name}" >/dev/null 2>&1 || true
+}
+
 function test_persistence {
     local step="$1"
     print_divider
@@ -828,7 +918,8 @@ function run_all_tests {
         "test_channel_access"
         "test_inspect_and_multiple_connections"
         "test_monitor_isolation"
-#        "test_crash_detection"  # blocked by #7 (v1.1.0 log file redirect); system journal requires adm or systemd-journal group
+        "test_crash_detection"
+        "test_logrotate_boundary"
         "test_persistence"
         "test_remove"
     )
