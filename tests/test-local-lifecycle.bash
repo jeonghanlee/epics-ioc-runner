@@ -445,6 +445,63 @@ function test_inspect {
     verify_state "true" "${has_client}"  "Inspect renders client process section"
 }
 
+# T4 (Phase E): do_inspect bounded runtime. inspect must stay under 1s even
+# when the host carries many unrelated UDS sockets. Separate from test_inspect
+# so a functional regression and a performance regression report distinctly.
+function test_inspect_bounded_runtime {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Inspect Bounded Runtime (T4)"
+    print_sub_divider
+
+    local socat_bin
+    socat_bin=$(command -v socat 2>/dev/null || true)
+    if [[ -z "${socat_bin}" ]]; then
+        _log "WARN" "socat not found, skipping inspect bounded-runtime test (T4)."
+        return 0
+    fi
+
+    # Spawn many unrelated UDS listeners. inspect must stay bounded and not be
+    # dragged down by host-wide socket noise independent of the IOC's own UDS.
+    local noise_dir="${WORKSPACE}/t4_noise"
+    mkdir -p "${noise_dir}"
+    local -a noise_pids=()
+    local target=500 i
+    for ((i = 1; i <= target; i = i + 1)); do
+        "${socat_bin}" UNIX-LISTEN:"${noise_dir}/s${i}.sock" /dev/null >/dev/null 2>&1 &
+        noise_pids+=("$!")
+    done
+
+    # Let the listeners bind, then count what exists (load evidence).
+    sleep 1
+    local created
+    created=$(find "${noise_dir}" -type s 2>/dev/null | wc -l)
+    _log "INFO" "T4 load: ${created} unrelated UDS listeners created via socat"
+
+    # Measure wall-clock time of a single inspect under that load. Capture
+    # the exit code too: a fast failure under load must not pass T4 merely
+    # because elapsed stayed under the bound.
+    local start_ns end_ns elapsed_ms inspect_exit=0
+    start_ns=$(date +%s%N)
+    bash "${RUNNER_SCRIPT}" --local inspect "${IOC_NAME}" >/dev/null 2>&1 || inspect_exit=$?
+    end_ns=$(date +%s%N)
+    elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
+    _log "INFO" "T4 elapsed: ${elapsed_ms} ms (bound: 1000 ms), inspect exit ${inspect_exit}"
+
+    # Tear down the noise listeners.
+    local pid
+    for pid in "${noise_pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
+    wait 2>/dev/null || true
+    rm -rf "${noise_dir}"
+
+    local load_ok="false" within_bound="false"
+    if [[ "${created}" -ge 450 ]]; then load_ok="true"; fi
+    if [[ "${elapsed_ms}" -lt 1000 ]]; then within_bound="true"; fi
+    verify_state "true" "${load_ok}" "T4 load generated 450+ unrelated UDS sockets (got ${created})"
+    verify_state "0" "${inspect_exit}" "Inspect succeeds under ${created} unrelated sockets"
+    verify_state "true" "${within_bound}" "Inspect bounded under 1s with ${created} unrelated sockets (elapsed ${elapsed_ms} ms)"
+}
+
 function test_restart {
     local step="$1"
     print_divider
@@ -850,6 +907,7 @@ function run_all_tests {
         "test_status"
         "test_view"
         "test_inspect"
+        "test_inspect_bounded_runtime"
         "test_restart"
         "test_stop"
         "test_socket_list"

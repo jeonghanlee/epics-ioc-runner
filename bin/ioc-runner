@@ -1368,6 +1368,11 @@ function do_inspect {
         exit 1
     fi
 
+    if ! command -v awk >/dev/null 2>&1; then
+        printf "Error: 'awk' utility is required but not found in PATH.\n" >&2
+        exit 1
+    fi
+
     print_divider
     printf "Deep Inspection: %s\n" "${IOC_NAME}"
     printf "Target Socket: %s\n" "${sock_path}"
@@ -1384,7 +1389,7 @@ function do_inspect {
     local lsof_found=0
     local -a server_pids=()
     local -A seen_server_pids=()
-    local line pid state loc_path loc_ino peer_ino proc_info p_ino c_pid
+    local line pid c_pid
 
     # 1. Gather server PIDs via lsof, restricted to the target socket path.
     # The -a flag forces AND semantics across selection criteria; without it,
@@ -1417,34 +1422,30 @@ function do_inspect {
     fi
     printf "\n"
 
-    # 2. Trace true client PIDs via Netlink peer inode mapping (ss -x -a -p)
+    # 2. Trace true client PIDs via Netlink peer inode mapping (ss -x -a -p).
+    # A single awk pass replaces the former per-line bash loop. On a host
+    # with many unrelated UDS sockets the bash loop walked every ss output
+    # line (O(lines)) and dominated inspect runtime; awk performs the same
+    # peer-inode and inode->PID mapping in one pass. pid= is matched against
+    # the whole line because the process field can contain spaces (e.g.
+    # "Isolated Web Co"), which would split a field-indexed match. awk emits
+    # client-candidate PIDs; the server-PID exclusion and dedup below
+    # preserve the original bash policy.
     local -a client_pids=()
-    local -A target_peer_inodes=()
-    local -A inode_to_pid=()
-
-    while read -r _ state _ _ loc_path loc_ino _ peer_ino proc_info; do
-        if [[ "${state}" == "ESTAB" ]]; then
-            # Identify the peer inode connected to our server socket
-            if [[ "${loc_path}" == "${sock_path}" ]]; then
-                target_peer_inodes["${peer_ino}"]=1
-            fi
-
-            # Map every local inode to its corresponding process ID
-            if [[ "${proc_info}" =~ pid=([0-9]+) ]]; then
-                inode_to_pid["${loc_ino}"]="${BASH_REMATCH[1]}"
-            fi
-        fi
-    done < <(ss -x -a -p 2>/dev/null || true)
-
     local -A seen_client_pids=()
-    for p_ino in "${!target_peer_inodes[@]}"; do
-        c_pid="${inode_to_pid[${p_ino}]:-}"
-        # Isolate true clients by excluding known server PIDs
-        if [[ -n "${c_pid}" && -z "${seen_server_pids[${c_pid}]:-}" && -z "${seen_client_pids[${c_pid}]:-}" ]]; then
+    while read -r c_pid; do
+        [[ -n "${c_pid}" ]] || continue
+        if [[ -z "${seen_server_pids[${c_pid}]:-}" && -z "${seen_client_pids[${c_pid}]:-}" ]]; then
             client_pids+=("${c_pid}")
             seen_client_pids["${c_pid}"]=1
         fi
-    done
+    done < <(ss -x -a -p 2>/dev/null | awk -v sock="${sock_path}" '
+        $2 == "ESTAB" {
+            if ($5 == sock) target_peer[$8] = 1
+            if (match($0, /pid=[0-9]+/)) inode_pid[$6] = substr($0, RSTART + 4, RLENGTH - 4)
+        }
+        END { for (p in target_peer) if (p in inode_pid) print inode_pid[p] }
+    ' || true)
 
     print_divider
     printf "2. Server Process Context (procServ & IOC)\n"
