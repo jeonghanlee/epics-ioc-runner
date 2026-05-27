@@ -670,7 +670,7 @@ function test_channel_access {
     while IFS= read -r line; do
         [[ -z "${line}" ]] && continue
         i=$((i + 1))
-        pv_val=$(printf "%s" "${line}" | awk '{print $4}' | tr -d '\r')
+        pv_val=$(printf "%s" "${line}" | awk '{print $2}' | tr -d '\r')
         if [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
             _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
             success_count=$((success_count + 1))
@@ -681,7 +681,7 @@ function test_channel_access {
             _log "WARN" "Update [${i}/${CAMONITOR_COUNT}] Failed to read PV or empty value."
         fi
         [[ ${i} -ge ${CAMONITOR_COUNT} ]] && break
-    done < <("${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" "${test_pv}" 2>/dev/null || true)
+    done < <("${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" -t n "${test_pv}" 2>/dev/null || true)
 
     local elapsed=$((SECONDS - read_start_time))
 
