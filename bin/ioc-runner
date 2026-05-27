@@ -25,6 +25,13 @@ declare -g BLUE='\033[0;34m'
 declare -g NC='\033[0m'
 
 # --- Configuration Directories ---
+# Resolve HOME defensively: bare sudo or some systemd/cron contexts leave
+# HOME unset, which would abort the LOCAL_* defaults below under 'set -u'
+# (even for --help, -V, or system mode that never use them).
+if [[ -z "${HOME:-}" ]]; then
+    HOME="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
+    HOME="${HOME:-/tmp}"
+fi
 declare -g SYSTEM_CONF_DIR="${IOC_RUNNER_SYSTEM_CONF_DIR:-/etc/procServ.d}"
 declare -g LOCAL_CONF_DIR="${IOC_RUNNER_LOCAL_CONF_DIR:-${HOME}/.config/procServ.d}"
 declare -g SYSTEM_SYSTEMD_DIR="${IOC_RUNNER_SYSTEM_SYSTEMD_DIR:-/etc/systemd/system}"
@@ -381,6 +388,8 @@ function read_conf_all {
     while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
         key="${key// /}"
         [[ -z "${key}" || "${key}" =~ ^# ]] && continue
+        val="${val#"${val%%[![:space:]]*}"}"   # trim leading whitespace
+        val="${val%"${val##*[![:space:]]}"}"   # trim trailing whitespace
         val="${val%\"}"; val="${val#\"}"
         val="${val%\'}"; val="${val#\'}"
         val="${val%$'\r'}"
@@ -1037,7 +1046,7 @@ function do_install {
     local tmp
     tmp=$(mktemp "${target_conf}.XXXXXX")
     trap 'rm -f "${tmp:-}"' EXIT
-    grep -v '^IOC_PORT=' "${source_conf}" > "${tmp}"
+    grep -v '^[[:space:]]*IOC_PORT[[:space:]]*=' "${source_conf}" > "${tmp}"
     printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${tmp}"
     [[ "${EXEC_MODE}" == "system" ]] && chmod 0660 "${tmp}"
     mv -f "${tmp}" "${target_conf}"
