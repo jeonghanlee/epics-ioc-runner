@@ -66,7 +66,7 @@ user's account.
 | --- | --- | --- | --- | --- |
 | `${LOCAL_LOG_DIR}/` (default `~/.local/state/procserv/`) | `<user>:<user>` | `0750` | `LOCAL_LOG_DIR` | created by `do_install` local branch |
 | `${LOCAL_LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | — | procServ-created with user unit `UMask=0027` |
-| `~/.config/systemd/user/epics-@.service` | `<user>:<user>` | `0644` | — | user-mode unit template written by `deploy_local_template` |
+| `~/.config/systemd/user/epics-@.service` | `<user>:<user>` | umask-dependent (`0644` at the conventional `umask 022`) | — | written by `deploy_local_template` via `cat`; no explicit `chmod`, so the final mode follows the invoking user's umask |
 
 ## Access Boundary: sudoers Policy + File Mode
 

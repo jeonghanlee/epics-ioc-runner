@@ -172,7 +172,7 @@ To verify the version of the local runner script, including the live Git hash if
 Example output when running directly from a clone (no `setup-system-infra.bash` install step):
 
 ```text
-epics-ioc-runner version 1.0.8 (4a8bba0 (live))
+epics-ioc-runner version 1.1.0 (4a8bba0 (live))
 commit date:  2026-05-13T20:00:00Z
 install date: live
 ```

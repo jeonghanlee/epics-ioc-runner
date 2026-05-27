@@ -112,7 +112,7 @@ Group=ioc
 EnvironmentFile=/etc/procServ.d/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${PROCSERV_BIN} --foreground --logfile=/var/log/procserv/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -123,6 +123,38 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
+```
+
+### 2.5. Log Directory and Rotation
+Create the directory that receives procServ console output. It is owned by `root` with the `ioc` group at `2775`. procServ creates each `<name>.log` with `open(0644)` (`ioc-srv:ioc`, group read only, world-readable); its hardcoded mode restricts the ACL mask to `r--`, so the default ACLs below grant `ioc`-group read/write only to *engineer-created* files in the directory (manual probes, archive copies), not to the procServ logs themselves.
+```bash
+mkdir -p /var/log/procserv
+chown root:ioc /var/log/procserv
+chmod 2775 /var/log/procserv
+
+# Default ACLs: engineer-created files inherit ioc-group rw; procServ logs
+# stay 0644 (open(0644) restricts the ACL mask to r--, group read only)
+setfacl -d -m g:ioc:rw /var/log/procserv
+setfacl -d -m o::r-- /var/log/procserv
+setfacl -d -m m::rw /var/log/procserv
+```
+
+Deploy weekly rotation with `copytruncate` so rotation does not interrupt the running IOC or invalidate its Unix domain socket:
+```bash
+cat <<EOF > /etc/logrotate.d/procserv
+/var/log/procserv/*.log {
+    su root ioc
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+    nodateext
+}
+EOF
+
+chmod 0644 /etc/logrotate.d/procserv
 ```
 
 ---

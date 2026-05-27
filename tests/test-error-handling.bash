@@ -758,12 +758,12 @@ function test_log_dir_xdg_fallback {
     _log "INFO" "STEP ${step}: LOG_DIR XDG_STATE_HOME Fallback"
     print_sub_divider
 
-    # Case 1: XDG_STATE_HOME unset → $HOME/.local/state/procserv.
+    # Case 1: XDG_STATE_HOME unset -> $HOME/.local/state/procserv.
     actual=$(_probe_log_dir "local" "-u" "XDG_STATE_HOME" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR")
     verify_state "${HOME}/.local/state/procserv" "${actual}" \
         "XDG_STATE_HOME unset: LOCAL_LOG_DIR falls back to \$HOME/.local/state/procserv"
 
-    # Case 2: XDG_STATE_HOME set → <XDG_STATE_HOME>/procserv.
+    # Case 2: XDG_STATE_HOME set -> <XDG_STATE_HOME>/procserv.
     # env(1) requires options before VAR=value pairs.
     actual=$(_probe_log_dir "local" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR" "XDG_STATE_HOME=/tmp/xdg_fallback_test")
     verify_state "/tmp/xdg_fallback_test/procserv" "${actual}" \

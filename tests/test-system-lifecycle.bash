@@ -726,7 +726,7 @@ function test_monitor_isolation {
 }
 
 
-# test_crash_detection — disabled; blocked by #7 (v1.1.0 log file redirect).
+# test_crash_detection -- disabled; blocked by #7 (v1.1.0 log file redirect).
 # Requires 'adm' or 'systemd-journal' group to read the system journal under ioc-srv.
 function test_crash_detection {
     local step="$1"

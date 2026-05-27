@@ -165,7 +165,7 @@ ioc-runner -V
 Example output:
 
 ```text
-epics-ioc-runner version 1.0.8 (4a8bba0)
+epics-ioc-runner version 1.1.0 (4a8bba0)
 commit date:  2026-05-13T20:00:00Z
 install date: 2026-05-13T21:30:00Z
 ```

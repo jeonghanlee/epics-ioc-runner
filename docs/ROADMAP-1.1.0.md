@@ -96,6 +96,26 @@ branch only after a Reviewer cross-check passes. Final merge to
 | F | [#18](https://github.com/jeonghanlee/epics-ioc-runner/issues/18), [#19](https://github.com/jeonghanlee/epics-ioc-runner/issues/19), [#20](https://github.com/jeonghanlee/epics-ioc-runner/issues/20) | docs — LOG_LAYOUT, CHANGELOG, README migration | required for #18; SKIP-allowed for #19, #20 |
 | G | [#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22) | RUNNER_VERSION bump to 1.1.0 + tag | required (release gate) |
 
+## Current Tracking Status
+
+Last checked: 2026-05-27 against GitHub milestone
+[`1.1.0`](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3).
+
+| Work unit | Issues | Status | Pending dependency |
+| --- | --- | --- | --- |
+| Phase A | [#8](https://github.com/jeonghanlee/epics-ioc-runner/issues/8) | Done | none |
+| Phase B-1 | [#9](https://github.com/jeonghanlee/epics-ioc-runner/issues/9) | Done | none |
+| Phase B-2 | [#10](https://github.com/jeonghanlee/epics-ioc-runner/issues/10) | Done | none |
+| Phase B-3 | [#15](https://github.com/jeonghanlee/epics-ioc-runner/issues/15) | Done | none |
+| Phase C1 | [#11](https://github.com/jeonghanlee/epics-ioc-runner/issues/11) | Done | none |
+| Phase C2 | [#12](https://github.com/jeonghanlee/epics-ioc-runner/issues/12) | Done | none |
+| Phase D | [#17](https://github.com/jeonghanlee/epics-ioc-runner/issues/17), [#24](https://github.com/jeonghanlee/epics-ioc-runner/issues/24) | Done | none |
+| Phase D+ | [#49](https://github.com/jeonghanlee/epics-ioc-runner/issues/49) | Done | none |
+| Phase E | [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | In progress | integration test expansion remains open; related open test/detection issues [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52), [#55](https://github.com/jeonghanlee/epics-ioc-runner/issues/55) |
+| Phase F | [#18](https://github.com/jeonghanlee/epics-ioc-runner/issues/18), [#19](https://github.com/jeonghanlee/epics-ioc-runner/issues/19), [#20](https://github.com/jeonghanlee/epics-ioc-runner/issues/20) | In progress | documentation issues remain open |
+| Phase G | [#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22) | Not started | release version bump and tag remain open |
+| Additional milestone fixes | [#56](https://github.com/jeonghanlee/epics-ioc-runner/issues/56) | In progress | permission-model install precheck remains open |
+
 ## Acceptance and Verification per Phase
 
 ### Phase A — LOG_DIR variables (#8)
@@ -115,14 +135,17 @@ system mode resolves to `/var/log/procserv`; environment overrides
 ### Phase B-1 — system systemd template (#9)
 
 **Acceptance:** `/etc/systemd/system/epics-@.service` contains
-`LogsDirectory=procserv`, `LogsDirectoryMode=0750`, and
-`--logfile=/var/log/procserv/%i.log` in `ExecStart=`. Activation of a
-fresh service creates `/var/log/procserv/<name>.log` owned by
-`ioc-srv:ioc` with mode 0644.
+`--logfile=/var/log/procserv/%i.log` in `ExecStart=` and
+`StandardError=inherit`. It does NOT use `LogsDirectory=` or
+`LogsDirectoryMode=` (see the Acceptance Amendments table): the log
+directory is created by `setup-system-infra.bash` via `install -d -o
+root -g ioc -m 2775` plus default ACLs. Activation of a fresh service
+creates `/var/log/procserv/<name>.log` owned by `ioc-srv:ioc` with mode
+0644.
 
 **Verification:** `systemctl cat epics-@<name>.service | grep -E
-'(--logfile=|LogsDirectory=)'` after deployment; `stat
-/var/log/procserv/<name>.log`.
+'(--logfile=|StandardError=)'` after deployment, and confirm no
+`LogsDirectory=` line is present; `stat /var/log/procserv/<name>.log`.
 
 ### Phase B-2 — user systemd template (#10)
 
@@ -237,8 +260,8 @@ Release URL.
 Site administrators upgrading from 1.0.x will:
 
 1. Install the 1.1.0 runner binary.
-2. Re-run `setup-system-infra.bash` to deploy the updated system
-   systemd template and the logrotate config.
+2. Re-run `setup-system-infra.bash --full` to deploy the updated
+   system systemd template and the logrotate config.
 3. `systemctl daemon-reload` and restart each IOC; `procServ` will
    begin writing to `/var/log/procserv/<name>.log`.
 4. Verify mode 0644 owned by `ioc-srv:ioc`.
@@ -256,7 +279,7 @@ from 1.0.x" section (delivered by #20) and the layout reference in
 - `docs/ARCHITECTURE.md` and `docs/CLI_REFERENCE.md` rewrites. Only
   deltas necessary for 1.1.0 behavior are accepted.
 - IPv6, TLS, or any transport-layer change.
-- `bin/ioc-runner` start/restart uses a fixed `sleep 5` (around line 1504)
+- `bin/ioc-runner` start/restart uses a fixed `sleep 5` (around line 1536)
   before the active-state check. Replacing it with active-state polling plus
   a minimum stabilization window — preserving the crash-loop scan that
   follows — is deferred to a post-1.1.0 follow-up issue.

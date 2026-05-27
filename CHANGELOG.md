@@ -39,7 +39,7 @@
 
 ### Migration
 
-Install the 1.1.0 runner, re-run `setup-system-infra.bash`, reload systemd
+Install the 1.1.0 runner, re-run `setup-system-infra.bash --full`, reload systemd
 and restart IOCs, verify the log file mode, and remove the now-unnecessary
 `systemd-journal` group from operator accounts. Step-by-step instructions
 are in the "Upgrading from 1.0.x" section of [`docs/README.md`](docs/README.md);
