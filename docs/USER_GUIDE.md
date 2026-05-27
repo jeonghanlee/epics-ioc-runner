@@ -19,9 +19,9 @@ cd myioc/iocBoot/iocmyioc
 
 In system mode, the IOC process runs as `ioc-srv` and writes runtime artifacts (`.iocsh_history`, autosave files, save/restore snapshots) to its working directory. `IOC_CHDIR` must therefore be writable by `ioc-srv`.
 
-The shared `/opt/epics-iocs` tree (`root:ioc`, mode `2775`, default ACLs) satisfies this requirement automatically. Personal home directories and NFS mounts without `ioc` group access do not, and will cause silent runtime failures under `procServ`.
+The shared `/opt/epics-iocs` tree (`root:ioc`, mode `2775`, or equivalent setgid + group write/execute) satisfies this requirement automatically, since `ioc-srv` writes via `ioc` group membership. Personal home directories and NFS mounts without `ioc` group access do not, and will cause silent runtime failures under `procServ`.
 
-During `install`, the runner performs a non-interactive write probe as `ioc-srv`. If the probe fails, a warning is emitted and confirmation is required before proceeding.
+During `install`, the runner checks that `IOC_CHDIR` is group-owned by `ioc` with setgid + group write/execute and is traversable by `ioc-srv`, reading file metadata directly (no `sudo`). If it does not conform, a warning is emitted and confirmation is required before proceeding.
 
 **Step 2: Create the Configuration File**
 Select either the automated generation tool or manual creation.

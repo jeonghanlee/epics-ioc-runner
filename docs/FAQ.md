@@ -158,15 +158,15 @@ Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Invalid regex s
 
 Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure emits `ERROR` lines into the procServ log file, which match the crash detection pattern (Q7) and cause `ioc-runner start` to report a crash-loop warning.
 
-The correct location is `/opt/epics-iocs/` (or any tree configured with `root:ioc`, mode `2775`, and default ACLs — see `INSTALL.md` Section 4).
+The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mode `2775`, or equivalent setgid + group write/execute, so `ioc-srv` writes via `ioc` group membership; see `INSTALL.md` Section 4).
 
-**Detection:** During `install`, the runner performs a non-interactive write probe as `ioc-srv`:
+**Detection:** During `install`, the runner checks that `IOC_CHDIR` conforms to the permission model: an absolute, non-symlinked directory group-owned by `ioc` with setgid plus group write and execute (mode `2775`, or equivalent permissions), and every parent traversable by `ioc-srv`. It reads file metadata directly (no `sudo`), so it gives the same result for `root` and for an `ioc`-group operator. A quick leaf check:
 
 ```bash
-sudo -n -u ioc-srv test -w "${IOC_CHDIR}"
+stat -c '%G %a' "${IOC_CHDIR}"
 ```
 
-If the probe fails, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains.
+Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time check also validates the absolute path, the non-symlinked leaf, and parent traversal. If the directory does not conform, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains.
 
 **Partial mitigation:** Adding `epicsEnvSet("IOCSH_HISTSIZE", "0")` to `st.cmd` suppresses only the history error. Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
 

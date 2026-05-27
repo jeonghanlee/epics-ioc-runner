@@ -1022,6 +1022,227 @@ EOF
     T5_CREATED_USER=""
 }
 
+# System-mode IOC_CHDIR precheck. do_install runs chdir_conforms_to_system_model
+# before deploying a system IOC and warns ("Warning: IOC_CHDIR ...") when the
+# directory does not conform to the permission model: an absolute, non-symlinked
+# dir, group-owned by ioc with setgid + group write + group execute (2775), and
+# every parent traversable by the service account. Conformance is decided by real
+# filesystem state, so this test builds real root-created fixtures rather than
+# stubbing sudo. Each case uses its own IOC name, conf dir, and systemd dir so the
+# overwrite prompt never consumes the y/N stdin token meant for the precheck prompt.
+function test_chdir_precheck {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: System-mode IOC_CHDIR Precheck (permission model)"
+    print_sub_divider
+
+    # Fixture root under WORKSPACE (root:ioc 2770). The service account
+    # traverses it via ioc group-execute, so no permission relaxation is
+    # needed, and _handle_exit's cleanup/retention covers it even on abort.
+    local base="${WORKSPACE}/precheck"
+    mkdir -p "${base}"
+
+    local stderr_cap="${base}/stderr"
+    local ec
+
+    # Writes a system-mode conf for the given name with IOC_CHDIR set to chdir.
+    # Caller supplies a pre-built isolated sysd/conf dir pair; here we only emit
+    # the conf artifact the runner consumes.
+    local sysd conf name chdir conf_file
+
+    # Case 1: conforming dir (root:ioc 2775) with traversable parents -> no warning.
+    name="PrecheckOK-SYS"
+    chdir="${base}/conform"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s1"; conf="${base}/c1"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned1="warned"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null || warned1="clean"
+    verify_state "clean" "${warned1}" "Conforming root:ioc 2775 dir emits no warning"
+    verify_state "0" "${ec}" "Conforming install exits 0"
+
+    # Case 2: 2775 but group mismatch (not ioc) -> warning.
+    name="PrecheckGrp-SYS"
+    chdir="${base}/grpmismatch"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s2"; conf="${base}/c2"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp root "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned2="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned2="warned"
+    verify_state "warned" "${warned2}" "Group-mismatch dir (not ioc) warns"
+    verify_state "0" "${ec}" "Group-mismatch install with -f exits 0"
+
+    # Case 3: conforming leaf but a parent dir is 0700 (not traversable) -> warning.
+    name="PrecheckParent-SYS"
+    local p3="${base}/parent700"; chdir="${p3}/leaf"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s3"; conf="${base}/c3"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    chmod 0700 "${p3}"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned3="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned3="warned"
+    verify_state "warned" "${warned3}" "Untraversable 0700 parent warns"
+    verify_state "0" "${ec}" "Untraversable-parent install with -f exits 0"
+    chmod 0755 "${p3}"  # restore so cleanup can recurse
+
+    # Case 4: relative IOC_CHDIR (helper rejects non-absolute). The dir must exist
+    # relative to the runner CWD for validate_conf to pass, so we cd into case_root.
+    name="PrecheckRel-SYS"
+    local case_root="${base}/relcase"; chdir="reldir"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s4"; conf="${base}/c4"
+    mkdir -p "${case_root}/${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${case_root}/${chdir}"; chmod 2775 "${case_root}/${chdir}"
+    touch "${case_root}/${chdir}/st.cmd"; chmod +x "${case_root}/${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash -c "cd \"${case_root}\" && bash \"${RUNNER_SCRIPT}\" -f install \"${conf_file}\"" \
+        >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned4="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned4="warned"
+    verify_state "warned" "${warned4}" "Relative IOC_CHDIR warns (non-absolute rejected)"
+    verify_state "0" "${ec}" "Relative-path install with -f exits 0"
+
+    # Case 5: IOC_CHDIR is a symlink to a conforming target (symlinked leaf rejected).
+    name="PrecheckLink-SYS"
+    local link_target="${base}/linktarget"; chdir="${base}/linkdir"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s5"; conf="${base}/c5"
+    mkdir -p "${link_target}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${link_target}"; chmod 2775 "${link_target}"
+    touch "${link_target}/st.cmd"; chmod +x "${link_target}/st.cmd"
+    ln -s "${link_target}" "${chdir}"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned5="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned5="warned"
+    verify_state "warned" "${warned5}" "Symlinked IOC_CHDIR warns (symlinked leaf rejected)"
+    verify_state "0" "${ec}" "Symlinked-leaf install with -f exits 0"
+
+    # Case 6: root:ioc 0775 (group rwx but no setgid) -> warning.
+    name="PrecheckNoSgid-SYS"
+    chdir="${base}/nosetgid"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s6"; conf="${base}/c6"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 0775 "${chdir}"
+    # chmod 0775 keeps the parent-inherited setgid bit; clear it explicitly so
+    # this case truly exercises a non-setgid (mode 775) directory.
+    chmod g-s "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned6="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned6="warned"
+    verify_state "warned" "${warned6}" "Missing-setgid 0775 dir warns"
+    verify_state "0" "${ec}" "Missing-setgid install with -f exits 0"
+
+    # Case 7: y/N prompt flow (no -f), triggered by a group-mismatch dir.
+    name="PrecheckPrompt-SYS"
+    chdir="${base}/promptdir"; conf_file="${base}/${name}.conf"
+    mkdir -p "${chdir}"
+    chgrp root "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+
+    # 7a: EOF on the prompt -> abort, exit 1.
+    sysd="${base}/s7a"; conf="${base}/c7a"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" install "${conf_file}" </dev/null >/dev/null 2>&1 || ec=$?
+    verify_state "1" "${ec}" "Prompt EOF aborts install (exit 1)"
+
+    # 7b: explicit N -> declined, exit 0.
+    sysd="${base}/s7b"; conf="${base}/c7b"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    ec=0
+    printf 'N\n' | IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" install "${conf_file}" >/dev/null 2>&1 || ec=$?
+    verify_state "0" "${ec}" "Prompt explicit N declines install (exit 0)"
+
+    # 7c: explicit Y -> proceeds, exit 0, conf deployed.
+    sysd="${base}/s7c"; conf="${base}/c7c"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    ec=0
+    printf 'Y\n' | IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" install "${conf_file}" >/dev/null 2>&1 || ec=$?
+    verify_state "0" "${ec}" "Prompt explicit Y proceeds with install (exit 0)"
+    local installed7c="false"
+    [[ -f "${conf}/${name}.conf" ]] && installed7c="true"
+    verify_state "true" "${installed7c}" "Prompt Y path deploys the conf file"
+
+    # Cleanup: isolated CONF_DIR/SYSTEMD_DIR overrides kept all artifacts under the
+    # base dir, so a single recursive removal suffices. Real /etc is never touched.
+    rm -rf "${base}"
+}
+
 function test_persistence {
     local step="$1"
     print_divider
@@ -1090,6 +1311,7 @@ function run_all_tests {
         "test_detection_without_journal"
         "test_logrotate_boundary"
         "test_permission_enforcement"
+        "test_chdir_precheck"
         "test_persistence"
         "test_remove"
     )

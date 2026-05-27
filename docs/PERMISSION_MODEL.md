@@ -41,9 +41,21 @@ responsible for owner and mode at provisioning time (typically via
 
 | Path | Typical Owner:Group | Typical Mode | Source | Runner's role |
 | --- | --- | --- | --- | --- |
-| `/opt/epics-iocs/` | `root:ioc` | `2775` | site provisioning | `bin/ioc-runner` verifies `IOC_CHDIR` writability for `${SYSTEM_USER}` only |
+| `/opt/epics-iocs/` | `root:ioc` | `2775` | site provisioning | `bin/ioc-runner` runs a metadata-based model-conformance check on `IOC_CHDIR` |
 | `/opt/epics-iocs/epics/<base-suite>/<distro>/<base-ver>/base` | site | site-defined | site provisioning | unused by the runner — IOC `.conf` references it via environment |
 | `/usr/local/bin/procServ` or `/usr/bin/procServ` | site | site-defined | package or site build | discovered via `PROCSERV_SEARCH_PATHS` |
+
+The runner's `IOC_CHDIR` writability check is satisfied by directory
+group ownership and mode, not by an ACL. The `ioc-srv` account is in
+the `ioc` group, so a `root:ioc` tree with setgid plus group
+write+execute permissions (typically mode `2775`) lets it create
+runtime artifacts such as `.iocsh_history`, autosave files, and
+save/restore state directly. This is the directory group-write bit
+acting on the directory itself. It is distinct from the default ACL on
+the log directory (see "Why Default ACLs Are Still Set"), which governs
+the ACL permissions and mask inherited by newly created entries, not
+write access to the parent directory. `IOC_CHDIR` needs the group-write
+model, not a default ACL.
 
 ### Local-mode paths
 
