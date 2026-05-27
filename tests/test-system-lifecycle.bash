@@ -622,22 +622,18 @@ function test_channel_access {
     local pv_ok="false"
     local success_count=0
 
-    local line pv_val i=0
+    local line pv_val
     while IFS= read -r line; do
         [[ -z "${line}" ]] && continue
-        i=$((i + 1))
         pv_val=$(printf "%s" "${line}" | awk '{print $2}' | tr -d '\r')
-        if [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
-            success_count=$((success_count + 1))
-        elif [[ -n "${pv_val}" ]]; then
-            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val} (Non-numeric)"
-            success_count=$((success_count + 1))
-        else
-            _log "WARN" "Update [${i}/${CAMONITOR_COUNT}] Failed to read PV or empty value."
-        fi
-        [[ ${i} -ge ${CAMONITOR_COUNT} ]] && break
-    done < <("${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" -t n "${test_pv}" 2>/dev/null || true)
+        # Count numeric value samples only. Connection/status lines (e.g.
+        # "***" during PV reconnect) carry no value and are skipped, not
+        # counted, keeping the sample count stable across reconnect timing.
+        [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]] || continue
+        success_count=$((success_count + 1))
+        _log "SUCCESS" "Update [${success_count}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
+        [[ ${success_count} -ge ${CAMONITOR_COUNT} ]] && break
+    done < <(timeout "${CAMONITOR_TIMEOUT}" "${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" -t n "${test_pv}" 2>/dev/null || true)
 
     local elapsed=$((SECONDS - read_start_time))
 
