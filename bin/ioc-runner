@@ -42,11 +42,6 @@ if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
     exit 1
 fi
 
-if [[ -z "${SYSTEMCTL_BIN}" ]]; then
-    printf "Error: systemctl binary not found. This script requires systemd to operate.\n" >&2
-    exit 1
-fi
-
 declare -g -a CON_SEARCH_PATHS=("/usr/local/bin/con" "/usr/bin/con")
 declare -g -a PROCSERV_SEARCH_PATHS=("/usr/local/bin/procServ" "/usr/bin/procServ")
 
@@ -138,15 +133,16 @@ EOF
 function validate_ioc_name {
     local name="$1"
     local context="${2:-}"
+    local LC_ALL=C   # locale-independent character-class matching
 
-    if [[ "${name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    if [[ "${#name}" -le 64 && "${name}" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]]; then
         return 0
     fi
 
     if [[ -n "${context}" ]]; then
-        printf "Error: Invalid IOC name '%s' %s. Only alphanumeric characters, '-', and '_' are allowed.\n" "${name}" "${context}" >&2
+        printf "Error: Invalid IOC name '%s' %s. Only alphanumeric characters, '-', and '_' are allowed; must not start with '-', max 64 chars.\n" "${name}" "${context}" >&2
     else
-        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${name}" >&2
+        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed; must not start with '-', max 64 chars.\n" "${name}" >&2
     fi
     return 1
 }
@@ -397,7 +393,7 @@ function get_file_size {
     local path="$1"
     local size="0"
 
-    if [[ -e "${path}" ]]; then
+    if [[ -f "${path}" ]]; then
         size=$(stat -c '%s' "${path}" 2>/dev/null || printf "0")
         if [[ ! "${size}" =~ ^[0-9]+$ ]]; then
             size="0"
@@ -601,6 +597,10 @@ function resolve_con_tool {
             fi
         done
     else
+        if [[ ! -x "${CON_TOOL_PATH}" ]]; then
+            printf "Error: IOC_RUNNER_CON_TOOL '%s' is not an executable file.\n" "${CON_TOOL_PATH}" >&2
+            exit 1
+        fi
         CON_TOOL_TYPE="con"
         return 0
     fi
@@ -1036,6 +1036,7 @@ function do_install {
     printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${tmp}"
     [[ "${EXEC_MODE}" == "system" ]] && chmod 0660 "${tmp}"
     mv -f "${tmp}" "${target_conf}"
+    trap - EXIT
 
     run_systemctl daemon-reload
 
@@ -1194,7 +1195,7 @@ function do_list {
     local ss_lx_out
     ss_lx_out=$(ss -lx 2>/dev/null)
     while read -r _ _ rq sq path _; do
-        if [[ "${path}" == "${RUN_DIR}"* ]]; then
+        if [[ "${path}" == "${RUN_DIR%/}/"* ]]; then
             ioc_rq_map["${path}"]="${rq}"
             ioc_sq_map["${path}"]="${sq}"
         fi
@@ -1207,7 +1208,7 @@ function do_list {
     {
         read -r _  # skip header
         while read -r _ refcnt _ flags _ st inode path; do
-            if [[ "${path}" == "${RUN_DIR}"* ]]; then
+            if [[ "${path}" == "${RUN_DIR%/}/"* ]]; then
                 # Convert hex flags to decimal and check the __SO_ACCEPTCON bit (0x10000)
                 is_listen=$(( 16#${flags} & 16#00010000 ))
 
