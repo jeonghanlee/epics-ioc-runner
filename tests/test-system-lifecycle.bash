@@ -1238,9 +1238,11 @@ EOF
     [[ -f "${conf}/${name}.conf" ]] && installed7c="true"
     verify_state "true" "${installed7c}" "Prompt Y path deploys the conf file"
 
-    # Cleanup: isolated CONF_DIR/SYSTEMD_DIR overrides kept all artifacts under the
-    # base dir, so a single recursive removal suffices. Real /etc is never touched.
-    rm -rf "${base}"
+    # Cleanup is left to _handle_exit: base lives under WORKSPACE, so the
+    # standard cleanup/retention policy removes it on success and retains it
+    # (with the precheck fixtures) for inspection on failure. Isolated
+    # CONF_DIR/SYSTEMD_DIR overrides kept every artifact under base; real
+    # /etc is never touched.
 }
 
 function test_persistence {
