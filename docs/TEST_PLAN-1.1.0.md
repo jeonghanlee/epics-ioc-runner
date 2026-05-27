@@ -102,10 +102,13 @@ artifacts.
 
 Defined by [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21).
 Each test exercises new 1.1.0 behavior and must fail on the `1.0.8`
-baseline (proof of behavioral coverage). Two tests are exceptions. T3 is
-a regression guard for the pre-existing install-atomicity invariant
+baseline (proof of behavioral coverage). Three tests are exceptions. T3
+is a regression guard for the pre-existing install-atomicity invariant
 (`mktemp` + `mv -f` in `do_install`, present since 1.0.8); it passes on
-both `1.0.8` and 1.1.0. T2 is infra-gated: the dedicated procServ log
+both `1.0.8` and 1.1.0. T4 is a performance regression guard: 1.0.8
+meets the 1-second inspect bound in practice (794 ms on top, 850 ms on
+psrv3), so T4 is baseline-exempt and required to pass on 1.1.0 HEAD
+only. T2 is infra-gated: the dedicated procServ log
 file and `/etc/logrotate.d/procserv` that it exercises do not exist on
 1.0.8, so T2 skips on the baseline and is required to pass on 1.1.0 HEAD
 only -- mixing 1.1.0 infrastructure onto a 1.0.8 runner to force a fail
@@ -149,6 +152,9 @@ conf files are never observed.
 **Setup:** Host with 500+ unrelated UDS sockets (spawn via `socat`).
 **Action:** `time ioc-runner inspect <healthy-ioc>`.
 **Expected:** Wall-clock time under 1 second.
+**Baseline:** exempt (performance regression guard). 1.0.8 meets the
+1-second bound in practice (794 ms on top, 850 ms on psrv3), so baseline
+fail is not required; T4 must pass on 1.1.0 HEAD.
 
 ### T5 — Permission enforcement
 
@@ -164,7 +170,7 @@ privileged `systemctl start` is denied by the `%ioc` sudoers gate.
 
 | Host | Role | Required validations |
 | --- | --- | --- |
-| `top` (Debian 13) | Dev baseline | Every per-phase verification; T1-T5; 1.0.x baseline fail-then-pass for T1, T2, T4, T5 (T3 regression guard, passes on both) |
+| `top` (Debian 13) | Dev baseline | Every per-phase verification; T1-T5; 1.0.8 baseline: T1 and T5 fail-then-pass, T2 skips (infra-gated), T3 and T4 baseline-exempt regression guards |
 | `testbed-debian13-iocrunner-server` | Clone-and-test, install-and-test | System mode for B-1, C2, D-2, F-1 reference |
 | `testbed-rocky8-iocrunner-server` | Rocky 8 gate | V-Dplus (STEP 17 + STEP 24); V-C1 and V-C2 cross-distro; T1, T2, T4 |
 | `alsucl-psrv3` | Rocky NFS production-like | install-and-test; NFS root_squash regression for B and C |
@@ -186,9 +192,11 @@ The 1.1.0 release is acceptable when:
    and F-3 which are SKIP-allowed.
 2. The Phase Acceptance Matrices for #11 (C1) and #12 (C2) are
    complete across the matrix.
-3. T1, T2, T4, and T5 fail on the 1.0.8 tag and pass on
-   `release-1.1.0` HEAD. T3 is a regression guard for a pre-existing
-   invariant and passes on both.
+3. T1 and T5 fail on the 1.0.8 tag and pass on `release-1.1.0` HEAD.
+   T2 skips on 1.0.8 (infra-gated) and passes on HEAD. T3 and T4 are
+   baseline-exempt regression guards that pass on both -- T4 because
+   1.0.8 meets the 1-second inspect bound in practice (794 ms on top,
+   850 ms on psrv3).
 4. `ioc-runner -V` reports `1.1.0` plus the git hash at the tagged
    commit.
 5. The migration steps in `docs/README.md` "Upgrading from 1.0.x"
