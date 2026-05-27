@@ -81,6 +81,7 @@ declare -g RUN_DIR="/run/procserv"
 declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 declare -g SUDOERS_FILE_PATH="/etc/sudoers.d/10-epics-ioc"
 declare -g T5_CREATED_USER=""
+declare -g T1_CREATED_USER=""
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
@@ -118,6 +119,10 @@ function _handle_exit {
     if [[ -n "${T5_CREATED_USER}" ]] && id "${T5_CREATED_USER}" &>/dev/null; then
         userdel "${T5_CREATED_USER}" 2>/dev/null || true
         T5_CREATED_USER=""
+    fi
+    if [[ -n "${T1_CREATED_USER}" ]] && id "${T1_CREATED_USER}" &>/dev/null; then
+        userdel "${T1_CREATED_USER}" 2>/dev/null || true
+        T1_CREATED_USER=""
     fi
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
@@ -774,6 +779,80 @@ EOF
     verify_state "true" "${warning_detected}" "Crash-loop warning detected for broken softIoc"
 }
 
+# T1 (Phase E): crash detection without journal access. An operator who is an
+# ioc-group member (so the %ioc sudoers gate lets them start the service) but
+# is NOT in systemd-journal must still get the crash warning -- 1.1.0 scans the
+# dedicated log file, not the journal. On 1.0.8 the journal scan would hand this
+# operator empty output and a false success, so T1 is a natural baseline-fail.
+function test_detection_without_journal {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Crash Detection Without Journal Access (T1)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping journal-less detection test."
+        return 0
+    fi
+
+    local operator="epics-t1-operator"
+    # Never touch a pre-existing account of this name: it may not be ours.
+    if id "${operator}" &>/dev/null; then
+        _log "WARN" "User ${operator} already exists; skipping to avoid removing a non-test account."
+        return 0
+    fi
+    useradd -M -N -G "${SYSTEM_GROUP}" "${operator}" >/dev/null 2>&1
+    T1_CREATED_USER="${operator}"
+
+    # The whole point: ioc member (sudoers gate reachable) but no systemd-journal.
+    local op_groups in_ioc="false" in_journal="false"
+    op_groups=$(id -nG "${operator}" 2>/dev/null)
+    if printf "%s" "${op_groups}" | grep -qw "${SYSTEM_GROUP}"; then in_ioc="true"; fi
+    if printf "%s" "${op_groups}" | grep -qw "systemd-journal"; then in_journal="true"; fi
+    verify_state "true" "${in_ioc}" "Operator is an ioc-group member (sudoers gate reachable)"
+    verify_state "false" "${in_journal}" "Operator is NOT in systemd-journal"
+
+    local bad_ioc_name="JournalLessIOC-SYS"
+    local bad_ioc_dir="${WORKSPACE}/journalless_ioc"
+    mkdir -p "${bad_ioc_dir}"
+    chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}"
+    chmod 2775 "${bad_ioc_dir}"
+
+    # Malformed st.cmd: an unbalanced quote drives an iocsh parse error whose
+    # crash pattern (Unbalanced quote) must land in the dedicated log file.
+    cat << EOF > "${bad_ioc_dir}/st.cmd"
+#!${softioc_bin}
+epicsEnvSet("BROKEN", "unterminated
+EOF
+    chmod +x "${bad_ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${bad_ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
+
+    # The operator (no systemd-journal) starts the IOC; crash detection must
+    # still warn, proving it reads the log file rather than the journal.
+    local output
+    output=$(runuser -u "${operator}" -- bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1 || true)
+
+    local warning_detected="false"
+    if printf "%s" "${output}" | grep -q "Warning"; then
+        warning_detected="true"
+    fi
+    verify_state "true" "${warning_detected}" "Crash warning emitted for journal-less operator"
+
+    bash "${RUNNER_SCRIPT}" remove "${bad_ioc_name}" >/dev/null 2>&1 || true
+    userdel "${operator}" 2>/dev/null || true
+    T1_CREATED_USER=""
+}
+
 # T2 (Phase E): crash detection across a logrotate boundary. A fatal pattern
 # present in the log BEFORE rotation must move into the rotated/compressed file
 # (copytruncate) and must NOT be re-scanned by the post-restart startup window,
@@ -1012,6 +1091,7 @@ function run_all_tests {
         "test_inspect_and_multiple_connections"
         "test_monitor_isolation"
         "test_crash_detection"
+        "test_detection_without_journal"
         "test_logrotate_boundary"
         "test_permission_enforcement"
         "test_persistence"
