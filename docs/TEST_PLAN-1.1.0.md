@@ -169,6 +169,15 @@ privileged `systemctl start` is denied by the `%ioc` sudoers gate.
 | `testbed-rocky8-iocrunner-server` | Rocky 8 gate | V-Dplus (STEP 17 + STEP 24); V-C1 and V-C2 cross-distro; T1, T2, T4 |
 | `alsucl-psrv3` | Rocky NFS production-like | install-and-test; NFS root_squash regression for B and C |
 
+**NFS home constraint.** Phase 3 and Phase 4 read source-tree scripts
+via `sudo` / `sudo -E`. On an NFS home exported with `root_squash`,
+`sudo` maps root to `nobody`; a private home directory (mode `0700`)
+is not traversable by `nobody`, so the scripts cannot be read and
+execution fails with `Permission denied` before any test runs. Run the
+system phases from a local path outside the NFS home (for example a
+copy under `/tmp`). Phase 1 and Phase 2 run as the invoking user and
+are unaffected.
+
 ## Acceptance Gate Summary
 
 The 1.1.0 release is acceptable when:
