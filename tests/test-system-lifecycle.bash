@@ -935,6 +935,124 @@ EOF
     fi
     verify_state "false" "${false_positive}" "No false crash warning from rotated historical FATAL pattern"
 
+    # --- T2 sub-case A: new-inode replacement during the sleep window (#58)
+    # Background a restart and gate the log mutation on the unit's
+    # ActiveEnterTimestampMonotonic actually changing -- this guarantees
+    # the runner has completed its pre-restart capture and is now inside
+    # its post-restart sleep window, which a fixed sleep cannot. Then swap
+    # the active log file with a new-inode file. The replacement MUST grow
+    # past the captured offset, otherwise the existing size-shrink guard
+    # could rescue a missing inode check. mv, install, and the active-path
+    # inode change are each verified so a degraded setup cannot be misread
+    # as a successful inode-branch fire.
+    print_sub_divider
+    _log "INFO" "T2 sub-case A: New-inode replacement during sleep window"
+
+    printf "T2 sub-case A priming line for inode/size context\n" >> "${log_file}"
+    sleep 0.2
+    local pre_a_size pre_a_inode pre_a_active_ts
+    pre_a_size=$(stat -c '%s' "${log_file}" 2>/dev/null || printf "0")
+    pre_a_inode=$(stat -c '%i' "${log_file}" 2>/dev/null || printf "")
+    pre_a_active_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+
+    local sub_a_marker="FATAL: synthetic in-window inode replacement"
+    local sub_a_out="${WORKSPACE}/t2_sub_a.out"
+    local sub_a_old="${log_file}.t2_sub_a.old"
+    local sub_a_mv_ok="true" sub_a_install_ok="true"
+
+    bash "${RUNNER_SCRIPT}" restart "${rot_ioc_name}" >"${sub_a_out}" 2>&1 &
+    local sub_a_pid=$!
+
+    local sub_a_activation="false"
+    local sub_a_deadline=$((SECONDS + 20))
+    local sub_a_cur_ts
+    while [[ ${SECONDS} -lt ${sub_a_deadline} ]]; do
+        sub_a_cur_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+        if [[ -n "${sub_a_cur_ts}" && "${sub_a_cur_ts}" != "0" && "${sub_a_cur_ts}" != "${pre_a_active_ts}" ]]; then
+            sub_a_activation="true"
+            break
+        fi
+        sleep 0.1
+    done
+    verify_state "true" "${sub_a_activation}" "T2 sub-case A: restart activation observed before log mutation"
+
+    mv "${log_file}" "${sub_a_old}" || sub_a_mv_ok="false"
+    install -o "${SYSTEM_USER}" -g "${SYSTEM_GROUP}" -m 0644 /dev/null "${log_file}" || sub_a_install_ok="false"
+    printf "%s\n" "${sub_a_marker}" >> "${log_file}"
+    # Grow the replacement past the captured offset so the size guard
+    # alone cannot detect the rotation; only the inode branch can.
+    yes X 2>/dev/null | head -c "$((pre_a_size + 1024))" >> "${log_file}" || true
+
+    wait "${sub_a_pid}" || true
+
+    verify_state "true" "${sub_a_mv_ok}" "T2 sub-case A: log mv to side-name succeeded"
+    verify_state "true" "${sub_a_install_ok}" "T2 sub-case A: replacement log install succeeded"
+
+    local post_a_inode
+    post_a_inode=$(stat -c '%i' "${log_file}" 2>/dev/null || printf "")
+    local sub_a_inode_changed="false"
+    if [[ -n "${pre_a_inode}" && -n "${post_a_inode}" && "${pre_a_inode}" != "${post_a_inode}" ]]; then
+        sub_a_inode_changed="true"
+    fi
+    verify_state "true" "${sub_a_inode_changed}" "T2 sub-case A: active log inode actually changed after replacement"
+
+    local sub_a_caught="false"
+    if grep -q "crash-looping or reporting fatal errors" "${sub_a_out}" 2>/dev/null; then
+        sub_a_caught="true"
+    fi
+    verify_state "true" "${sub_a_caught}" "T2 sub-case A: in-window new-inode replacement triggers crash warning"
+
+    rm -f "${sub_a_old}"
+
+    # --- T2 sub-case B: same-inode truncate-and-regrow-past during the
+    # sleep window (#58). Seed the active log so the captured tailhash
+    # spans a non-trivial byte range, then gate the mutation on the unit's
+    # ActiveEnterTimestampMonotonic actually changing so the truncate is
+    # guaranteed to land between the runner's capture and its scan. inode
+    # and size guards alone cannot tell this apart from healthy growth:
+    # inode unchanged, current_size > captured offset. The tailhash guard
+    # fires because the byte window ending at the captured offset is now
+    # different content, so the scanner re-scans from offset 0.
+    print_sub_divider
+    _log "INFO" "T2 sub-case B: Same-inode truncate-and-regrow-past during sleep window"
+
+    printf "T2 sub-case B priming line for tailhash range\n" >> "${log_file}"
+    sleep 0.2
+    local pre_cap_size pre_b_active_ts
+    pre_cap_size=$(stat -c '%s' "${log_file}" 2>/dev/null || printf "0")
+    pre_b_active_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+
+    local sub_b_marker="FATAL: synthetic same-inode regrow past offset"
+    local sub_b_out="${WORKSPACE}/t2_sub_b.out"
+
+    bash "${RUNNER_SCRIPT}" restart "${rot_ioc_name}" >"${sub_b_out}" 2>&1 &
+    local sub_b_pid=$!
+
+    local sub_b_activation="false"
+    local sub_b_deadline=$((SECONDS + 20))
+    local sub_b_cur_ts
+    while [[ ${SECONDS} -lt ${sub_b_deadline} ]]; do
+        sub_b_cur_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+        if [[ -n "${sub_b_cur_ts}" && "${sub_b_cur_ts}" != "0" && "${sub_b_cur_ts}" != "${pre_b_active_ts}" ]]; then
+            sub_b_activation="true"
+            break
+        fi
+        sleep 0.1
+    done
+    verify_state "true" "${sub_b_activation}" "T2 sub-case B: restart activation observed before log mutation"
+
+    : > "${log_file}"
+    printf "%s\n" "${sub_b_marker}" >> "${log_file}"
+    yes X 2>/dev/null | head -c "$((pre_cap_size + 1024))" >> "${log_file}" || true
+
+    wait "${sub_b_pid}" || true
+
+    local sub_b_caught="false"
+    if grep -q "crash-looping or reporting fatal errors" "${sub_b_out}" 2>/dev/null; then
+        sub_b_caught="true"
+    fi
+    verify_state "true" "${sub_b_caught}" "T2 sub-case B: in-window same-inode regrow-past triggers crash warning via tailhash mismatch"
+
     bash "${RUNNER_SCRIPT}" remove "${rot_ioc_name}" >/dev/null 2>&1 || true
 }
 

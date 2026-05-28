@@ -429,11 +429,60 @@ function get_file_size {
     printf "%s" "${size}"
 }
 
+# Capture the file's inode for rotation detection. Empty on missing/
+# unreadable file or stat failure so the caller can detect-and-skip
+# instead of misinterpreting an empty value as a changed inode.
+function get_file_inode {
+    local path="$1"
+    local inode=""
+
+    if [[ -f "${path}" ]]; then
+        inode=$(stat -c '%i' "${path}" 2>/dev/null || printf "")
+        if [[ ! "${inode}" =~ ^[0-9]+$ ]]; then
+            inode=""
+        fi
+    fi
+
+    printf "%s" "${inode}"
+}
+
+# Hash the last 64 bytes ending at end_offset. Used as a fingerprint to
+# detect same-inode truncate-and-regrow-past-old-offset rotations that
+# inode and size guards alone cannot distinguish. Empty hash on
+# unreadable file, zero/negative offset, or any tool failure so the
+# scanner skips the comparison rather than treating it as a mismatch.
+function get_file_tailhash {
+    local path="$1"
+    local end_offset="$2"
+    local start n hash
+
+    if [[ ! -r "${path}" || "${end_offset}" -le 0 ]]; then
+        printf ""
+        return
+    fi
+
+    n=64
+    if [[ "${end_offset}" -lt "${n}" ]]; then
+        n="${end_offset}"
+    fi
+    start=$((end_offset - n))
+
+    if ! hash=$(dd if="${path}" bs=1 count="${n}" skip="${start}" \
+                  iflag=skip_bytes,count_bytes status=none 2>/dev/null \
+                  | sha256sum 2>/dev/null | cut -d' ' -f1); then
+        hash=""
+    fi
+
+    printf "%s" "${hash}"
+}
+
 function scan_file_for_crash_patterns {
     local log_file="$1"
     local start_offset="$2"
-    local patterns="$3"
-    local current_size
+    local start_inode="$3"
+    local start_tailhash="$4"
+    local patterns="$5"
+    local current_size current_inode current_tailhash
     local scan_offset
 
     if [[ ! -r "${log_file}" ]]; then
@@ -441,9 +490,28 @@ function scan_file_for_crash_patterns {
     fi
 
     current_size=$(get_file_size "${log_file}")
+    current_inode=$(get_file_inode "${log_file}")
     scan_offset="${start_offset}"
-    if [[ "${current_size}" -lt "${scan_offset}" ]]; then
+
+    # Rotation/truncation detection, in precedence order:
+    # 1. Inode changed -> file was replaced (rename-style rotation or
+    #    "file appeared after capture"); scan from 0.
+    # 2. Current size below captured size -> truncated in place
+    #    (copytruncate path while regrowth has not passed the old
+    #    offset); scan from 0.
+    # 3. Same inode, size >= captured offset, but the byte window
+    #    ending at the captured offset no longer matches its
+    #    capture-time fingerprint -> copytruncate-then-regrow-past;
+    #    scan from 0.
+    if [[ -n "${start_inode}" && -n "${current_inode}" && "${current_inode}" != "${start_inode}" ]]; then
         scan_offset=0
+    elif [[ "${current_size}" -lt "${scan_offset}" ]]; then
+        scan_offset=0
+    elif [[ -n "${start_tailhash}" ]]; then
+        current_tailhash=$(get_file_tailhash "${log_file}" "${start_offset}")
+        if [[ -n "${current_tailhash}" && "${current_tailhash}" != "${start_tailhash}" ]]; then
+            scan_offset=0
+        fi
     fi
 
     if tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null | grep -qiE "${patterns}"; then
@@ -1572,8 +1640,10 @@ function do_start_restart {
     fi
 
     local log_file="${LOG_DIR}/${IOC_NAME}.log"
-    local log_start_offset
+    local log_start_offset log_start_inode log_start_tailhash
     log_start_offset=$(get_file_size "${log_file}")
+    log_start_inode=$(get_file_inode "${log_file}")
+    log_start_tailhash=$(get_file_tailhash "${log_file}" "${log_start_offset}")
 
     run_systemctl "${action}" "epics-@${IOC_NAME}.service"
 
@@ -1603,7 +1673,7 @@ function do_start_restart {
     fi
 
     local scan_status=0
-    if scan_file_for_crash_patterns "${log_file}" "${log_start_offset}" "${effective_patterns}"; then
+    if scan_file_for_crash_patterns "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}" "${effective_patterns}"; then
         scan_status=0
     else
         scan_status=$?
