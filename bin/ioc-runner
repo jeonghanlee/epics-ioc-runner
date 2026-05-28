@@ -245,10 +245,13 @@ if [[ "${EXEC_MODE}" == "system" && "${RUN_DIR}" != "/run/procserv" ]]; then
 fi
 
 # Foot-gun guard: IOC_RUNNER_LOG_DIR shifts where the runner scans for crash
-# patterns. In system mode, procServ writes through the system systemd template
-# under SYSTEM_LOG_DIR; if IOC_RUNNER_LOG_DIR diverges from SYSTEM_LOG_DIR the
-# runner scans a path procServ never writes to. Safe in --local mode
-# (LOCAL_LOG_DIR governs both ends).
+# patterns; the scan path (LOG_DIR) must match where procServ actually writes.
+# - system mode: procServ writes to SYSTEM_LOG_DIR (fixed by the system
+#   template), so an IOC_RUNNER_LOG_DIR override that differs guarantees a
+#   mismatch.
+# - local mode: the user unit bakes the resolved LOG_DIR as --logfile at
+#   install time, so a different IOC_RUNNER_LOG_DIR or IOC_RUNNER_LOCAL_LOG_DIR
+#   at start/restart scans a file procServ is not writing to.
 if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_LOG_DIR:-}" \
       && "${IOC_RUNNER_LOG_DIR}" != "${SYSTEM_LOG_DIR}" ]]; then
     printf "Warning: IOC_RUNNER_LOG_DIR (%s) differs from SYSTEM_LOG_DIR (%s).\n" \
@@ -256,6 +259,11 @@ if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_LOG_DIR:-}" \
     printf "         The runner will scan the override path, but procServ writes to\n" >&2
     printf "         SYSTEM_LOG_DIR per the system systemd template. Use --local for\n" >&2
     printf "         custom paths.\n" >&2
+elif [[ "${EXEC_MODE}" == "local" && ( -n "${IOC_RUNNER_LOG_DIR:-}" || -n "${IOC_RUNNER_LOCAL_LOG_DIR:-}" ) ]]; then
+    printf "Warning: the local log directory (%s), set via IOC_RUNNER_LOG_DIR or\n" "${LOG_DIR}" >&2
+    printf "         IOC_RUNNER_LOCAL_LOG_DIR, is baked into the user unit's --logfile\n" >&2
+    printf "         at install time. Export the same value when you start or restart\n" >&2
+    printf "         the IOC, or the crash scan reads a path procServ is not writing to.\n" >&2
 fi
 
 # Strict validation for command-specific flags
@@ -354,7 +362,7 @@ UMask=0027
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${procserv_bin} --foreground --logfile=${LOCAL_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -998,10 +1006,12 @@ function do_install {
             exit 1
         fi
     else
-        # Ensure the per-user log directory exists before the template is
-        # emitted, so the rendered ExecStart= --logfile= path is valid on
-        # the first systemctl --user start.
-        install -d -m 0750 "${LOCAL_LOG_DIR}"
+        # Ensure the resolved local log directory (LOG_DIR, which honors
+        # IOC_RUNNER_LOG_DIR / IOC_RUNNER_LOCAL_LOG_DIR) exists before the
+        # template is emitted, so the
+        # rendered ExecStart= --logfile= path is valid on the first
+        # systemctl --user start.
+        install -d -m 0750 "${LOG_DIR}"
         deploy_local_template
     fi
 
