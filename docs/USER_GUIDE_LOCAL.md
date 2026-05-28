@@ -137,8 +137,11 @@ systemctl --user restart epics-@iocctrlslab-tcmd.service
 # Check the detailed status
 systemctl --user status epics-@iocctrlslab-tcmd.service
 
-# View the live logs directly from systemd journal
-journalctl --user -u epics-@iocctrlslab-tcmd.service -f
+# View live IOC console output
+tail -f ~/.local/state/procserv/iocctrlslab-tcmd.log
+
+# View user service-manager diagnostics if needed
+journalctl --user -u epics-@iocctrlslab-tcmd.service
 ```
 
 ## 12. Direct Console Access (Alternative)
@@ -169,7 +172,7 @@ To verify the version of the local runner script, including the live Git hash if
 Example output when running directly from a clone (no `setup-system-infra.bash` install step):
 
 ```text
-epics-ioc-runner version 1.0.8 (4a8bba0 (live))
+epics-ioc-runner version 1.1.0 (4a8bba0 (live))
 commit date:  2026-05-13T20:00:00Z
 install date: live
 ```
@@ -213,6 +216,6 @@ export IOC_RUNNER_LOCAL_SYSTEMD_DIR="/tmp/sandbox/systemd"
 ~/epics-ioc-runner/bin/ioc-runner --local install .
 ```
 
-**Caveat: `IOC_RUNNER_RUN_DIR`** in system mode
+**Caveat: the system-mode runtime directory is fixed**
 
-This variable changes the socket path written into `IOC_PORT`, but the deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, redirecting `RUN_DIR` will cause the `IOC_PORT` path and the actual socket location to diverge. Use this override only in --local mode or for test scaffolding.
+The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, moving the runtime directory off `/run/procserv` via `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` would split the `IOC_PORT` socket path from where the kernel creates the UDS, so the runner now rejects it with a hard error. Use these overrides only in `--local` mode or for test scaffolding.

@@ -38,18 +38,18 @@ if ! command -v lsof >/dev/null 2>&1; then
     exit 1
 fi
 
-# STEP 24 (monitor isolation) and STEP 25 (crash detection) read journalctl
-# --user output. Hosts without a working user-scope journal (no linger,
-# missing /var/log/journal/<machine-id>, or user not in systemd-journal
-# group) cannot verify these steps. Detect both common failure messages
-# and mark the journal unavailable so dependent steps skip with a WARN.
+# STEP 24 (monitor isolation) reads journalctl --user output. Hosts
+# without a working user-scope journal (no linger, missing
+# /var/log/journal/<machine-id>, or user not in systemd-journal group)
+# cannot verify that step. Detect both common failure messages and mark
+# the journal unavailable so dependent steps skip with a WARN.
 # See issue #50.
 declare -g JOURNAL_AVAILABLE="true"
 journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
 if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}" == *"insufficient permissions"* ]]; then
     JOURNAL_AVAILABLE="false"
     printf "${YELLOW}%s${NC}\n" "WARN: User-scope journal unavailable on this host." >&2
-    printf "STEP 24 (monitor isolation) and STEP 25 (crash detection) will be skipped.\n" >&2
+    printf "STEP 24 (monitor isolation) will be skipped.\n" >&2
     printf "Hint: enable linger and persistent journal to enable these steps:\n" >&2
     printf "  sudo loginctl enable-linger %s\n" "$(id -un)" >&2
     printf "  sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald\n" >&2
@@ -242,6 +242,20 @@ function _setup_workspace {
     fi
 
     WORKSPACE=$(mktemp -d -p "${target_tmp}" epics-ioc-test.XXXXXX)
+
+    # Isolate local-mode CONF_DIR / LOG_DIR under WORKSPACE so a direct or
+    # sudo-elevated run cannot corrupt the user's ~/.config/procServ.d or
+    # ~/.local/state/procserv. RUN_DIR stays at the default
+    # /run/user/<uid>/procserv because the deployed user unit relies on
+    # systemd's RuntimeDirectory= directive, which only materialises a
+    # subdirectory of XDG_RUNTIME_DIR. SYSTEMD_DIR also stays default so
+    # systemctl --user can find the unit on its standard search path. (#70)
+    export IOC_RUNNER_LOCAL_CONF_DIR="${WORKSPACE}/local-config/procServ.d"
+    export IOC_RUNNER_LOCAL_LOG_DIR="${WORKSPACE}/local-state/procserv"
+
+    # Keep test-side globals consistent with the exported env vars so the
+    # conf-existence assertions look in the right place.
+    CONF_DIR="${IOC_RUNNER_LOCAL_CONF_DIR}"
 
     # TOP_DIR uses the repository name. BOOT_DIR matches the standard IOC name.
     TOP_DIR="${WORKSPACE}/${REPO_NAME}"
@@ -445,6 +459,63 @@ function test_inspect {
     verify_state "true" "${has_client}"  "Inspect renders client process section"
 }
 
+# T4 (Phase E): do_inspect bounded runtime. inspect must stay under 1s even
+# when the host carries many unrelated UDS sockets. Separate from test_inspect
+# so a functional regression and a performance regression report distinctly.
+function test_inspect_bounded_runtime {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Inspect Bounded Runtime (T4)"
+    print_sub_divider
+
+    local socat_bin
+    socat_bin=$(command -v socat 2>/dev/null || true)
+    if [[ -z "${socat_bin}" ]]; then
+        _log "WARN" "socat not found, skipping inspect bounded-runtime test (T4)."
+        return 0
+    fi
+
+    # Spawn many unrelated UDS listeners. inspect must stay bounded and not be
+    # dragged down by host-wide socket noise independent of the IOC's own UDS.
+    local noise_dir="${WORKSPACE}/t4_noise"
+    mkdir -p "${noise_dir}"
+    local -a noise_pids=()
+    local target=500 i
+    for ((i = 1; i <= target; i = i + 1)); do
+        "${socat_bin}" UNIX-LISTEN:"${noise_dir}/s${i}.sock" /dev/null >/dev/null 2>&1 &
+        noise_pids+=("$!")
+    done
+
+    # Let the listeners bind, then count what exists (load evidence).
+    sleep 1
+    local created
+    created=$(find "${noise_dir}" -type s 2>/dev/null | wc -l)
+    _log "INFO" "T4 load: ${created} unrelated UDS listeners created via socat"
+
+    # Measure wall-clock time of a single inspect under that load. Capture
+    # the exit code too: a fast failure under load must not pass T4 merely
+    # because elapsed stayed under the bound.
+    local start_ns end_ns elapsed_ms inspect_exit=0
+    start_ns=$(date +%s%N)
+    bash "${RUNNER_SCRIPT}" --local inspect "${IOC_NAME}" >/dev/null 2>&1 || inspect_exit=$?
+    end_ns=$(date +%s%N)
+    elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
+    _log "INFO" "T4 elapsed: ${elapsed_ms} ms (bound: 1000 ms), inspect exit ${inspect_exit}"
+
+    # Tear down the noise listeners.
+    local pid
+    for pid in "${noise_pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
+    wait 2>/dev/null || true
+    rm -rf "${noise_dir}"
+
+    local load_ok="false" within_bound="false"
+    if [[ "${created}" -ge 450 ]]; then load_ok="true"; fi
+    if [[ "${elapsed_ms}" -lt 1000 ]]; then within_bound="true"; fi
+    verify_state "true" "${load_ok}" "T4 load generated 450+ unrelated UDS sockets (got ${created})"
+    verify_state "0" "${inspect_exit}" "Inspect succeeds under ${created} unrelated sockets"
+    verify_state "true" "${within_bound}" "Inspect bounded under 1s with ${created} unrelated sockets (elapsed ${elapsed_ms} ms)"
+}
+
 function test_restart {
     local step="$1"
     print_divider
@@ -609,22 +680,18 @@ function test_channel_access {
     local pv_ok="false"
     local success_count=0
 
-    local line pv_val i=0
+    local line pv_val
     while IFS= read -r line; do
         [[ -z "${line}" ]] && continue
-        i=$((i + 1))
-        pv_val=$(printf "%s" "${line}" | awk '{print $4}' | tr -d '\r')
-        if [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
-            success_count=$((success_count + 1))
-        elif [[ -n "${pv_val}" ]]; then
-            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val} (Non-numeric)"
-            success_count=$((success_count + 1))
-        else
-            _log "WARN" "Update [${i}/${CAMONITOR_COUNT}] Failed to read PV or empty value."
-        fi
-        [[ ${i} -ge ${CAMONITOR_COUNT} ]] && break
-    done < <("${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" "${test_pv}" 2>/dev/null || true)
+        pv_val=$(printf "%s" "${line}" | awk '{print $2}' | tr -d '\r')
+        # Count numeric value samples only. Connection/status lines (e.g.
+        # "***" during PV reconnect) carry no value and are skipped, not
+        # counted, keeping the sample count stable across reconnect timing.
+        [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]] || continue
+        success_count=$((success_count + 1))
+        _log "SUCCESS" "Update [${success_count}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
+        [[ ${success_count} -ge ${CAMONITOR_COUNT} ]] && break
+    done < <(timeout "${CAMONITOR_TIMEOUT}" "${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" -t n "${test_pv}" 2>/dev/null || true)
 
     local elapsed=$((SECONDS - read_start_time))
 
@@ -664,16 +731,60 @@ function test_monitor_isolation {
     kill -- -"${monitor_pid}" 2>/dev/null || true
 }
 
+function _install_crash_probe {
+    local ioc_name="$1"
+    local ioc_dir="$2"
+
+    cat << EOF > "${WORKSPACE}/${ioc_name}.conf"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" --local -f install "${WORKSPACE}/${ioc_name}.conf" >/dev/null
+}
+
+function _remove_crash_probe {
+    local ioc_name="$1"
+    local dropin_dir="${SYSTEMD_USER_DIR}/epics-@${ioc_name}.service.d"
+
+    bash "${RUNNER_SCRIPT}" --local remove "${ioc_name}" >/dev/null 2>&1 || true
+    rm -f "${dropin_dir}/override.conf"
+    rmdir "${dropin_dir}" 2>/dev/null || true
+    "${SYSTEMCTL_CMD[@]}" daemon-reload >/dev/null 2>&1 || true
+}
+
+function _run_crash_probe {
+    local ioc_name="$1"
+    local expected_warning="$2"
+    local assertion_name="$3"
+    local output
+    local exit_code=0
+    local start_ok="true"
+    local warning_detected="false"
+
+    output=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || exit_code=$?
+    if [[ ${exit_code} -ne 0 ]]; then
+        start_ok="false"
+    fi
+    if printf "%s" "${output}" | grep -q "procServ may be crash-looping"; then
+        warning_detected="true"
+    fi
+
+    _remove_crash_probe "${ioc_name}"
+    if [[ "${expected_warning}" == "false" ]]; then
+        verify_state "true" "${start_ok}" "${assertion_name}: start completed"
+    fi
+    verify_state "${expected_warning}" "${warning_detected}" "${assertion_name}"
+}
+
 function test_crash_detection {
     local step="$1"
     print_divider
     _log "INFO" "STEP ${step}: Test Crash Detection with softIoc"
     print_sub_divider
-
-    if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
-        _log "WARN" "User-scope journal unavailable, skipping crash detection test."
-        return 0
-    fi
 
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then
@@ -681,39 +792,73 @@ function test_crash_detection {
         return 0
     fi
 
-    local bad_ioc_name="CrashTestIOC"
-    local bad_ioc_dir="${WORKSPACE}/bad_ioc"
-    mkdir -p "${bad_ioc_dir}"
+    local local_log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
+    local fatal_ioc_name="CrashTestFatal"
+    local fatal_ioc_dir="${WORKSPACE}/crash_fatal_ioc"
+    mkdir -p "${fatal_ioc_dir}"
 
-    cat << EOF > "${bad_ioc_dir}/st.cmd"
+    cat << EOF > "${fatal_ioc_dir}/st.cmd"
 #!${softioc_bin}
 system "sleep 0.5"
 system "echo 'FATAL: Simulated softIoc crash'"
 system "kill -9 \$PPID"
 EOF
-    chmod +x "${bad_ioc_dir}/st.cmd"
+    chmod +x "${fatal_ioc_dir}/st.cmd"
+    _install_crash_probe "${fatal_ioc_name}" "${fatal_ioc_dir}"
+    _run_crash_probe "${fatal_ioc_name}" "true" "Crash detection: FATAL softIoc child kill warning"
 
-    cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
-IOC_USER="$(id -un)"
-IOC_GROUP="$(id -gn)"
-IOC_CHDIR="${bad_ioc_dir}"
-IOC_PORT=""
-IOC_CMD="./st.cmd"
+    local parse_ioc_name="CrashTestParse"
+    local parse_ioc_dir="${WORKSPACE}/crash_parse_ioc"
+    mkdir -p "${parse_ioc_dir}"
+
+    cat << EOF > "${parse_ioc_dir}/st.cmd"
+#!${softioc_bin}
+dbLoadRecords("missing.db
 EOF
+    chmod +x "${parse_ioc_dir}/st.cmd"
+    _install_crash_probe "${parse_ioc_name}" "${parse_ioc_dir}"
+    _run_crash_probe "${parse_ioc_name}" "true" "Crash detection: iocsh parse error warning"
 
-    bash "${RUNNER_SCRIPT}" --local -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
+    local history_ioc_name="CrashTestHistory"
+    local history_ioc_dir="${WORKSPACE}/crash_history_ioc"
+    mkdir -p "${history_ioc_dir}" "${local_log_dir}"
 
-    local output
-    output=$(bash "${RUNNER_SCRIPT}" --local start "${bad_ioc_name}" 2>&1 || true)
+    cat << EOF > "${history_ioc_dir}/st.cmd"
+#!${softioc_bin}
+iocInit()
+EOF
+    chmod +x "${history_ioc_dir}/st.cmd"
+    _install_crash_probe "${history_ioc_name}" "${history_ioc_dir}"
+    printf "%s\n" "FATAL: historical startup failure before current start" > "${local_log_dir}/${history_ioc_name}.log"
+    _run_crash_probe "${history_ioc_name}" "false" "Crash detection: historical fatal log ignored for healthy start"
 
-    local warning_detected="false"
-    if printf "%s" "${output}" | grep -q "Warning"; then
-        warning_detected="true"
+    local truncate_bin
+    truncate_bin=$(command -v truncate || true)
+    if [[ -n "${truncate_bin}" ]]; then
+        local truncate_ioc_name="CrashTestTruncate"
+        local truncate_ioc_dir="${WORKSPACE}/crash_truncate_ioc"
+        local truncate_log="${local_log_dir}/${truncate_ioc_name}.log"
+        local i
+        mkdir -p "${truncate_ioc_dir}" "${local_log_dir}"
+
+        : > "${truncate_log}"
+        for i in {1..40}; do
+            printf "%s %02d\n" "FATAL: stale failure before truncation" "${i}" >> "${truncate_log}"
+        done
+
+        cat << EOF > "${truncate_ioc_dir}/st.cmd"
+#!${softioc_bin}
+system "${truncate_bin} -s 0 ${truncate_log}"
+system "sleep 0.5"
+system "echo 'FATAL: new failure after truncation'"
+system "kill -9 \$PPID"
+EOF
+        chmod +x "${truncate_ioc_dir}/st.cmd"
+        _install_crash_probe "${truncate_ioc_name}" "${truncate_ioc_dir}"
+        _run_crash_probe "${truncate_ioc_name}" "true" "Crash detection: truncated log scans new fatal content"
+    else
+        _log "WARN" "truncate not found, skipping truncated log crash detection test."
     fi
-
-    bash "${RUNNER_SCRIPT}" --local remove "${bad_ioc_name}" >/dev/null 2>&1 || true
-
-    verify_state "true" "${warning_detected}" "Crash-loop warning detected for broken softIoc"
 }
 
 function test_persistence {
@@ -772,6 +917,7 @@ function run_all_tests {
         "test_status"
         "test_view"
         "test_inspect"
+        "test_inspect_bounded_runtime"
         "test_restart"
         "test_stop"
         "test_socket_list"
@@ -784,6 +930,15 @@ function run_all_tests {
         "test_remove"
     )
 
+    # Record which ioc-runner binary this run exercises, so captured
+    # output shows whether the installed or source-tree binary ran. A
+    # stale installed binary previously masked a passing fix as a failing
+    # test until an external reviewer caught the path mismatch. (#71)
+    print_divider
+    _log "INFO" "Runner under test: ${RUNNER_SCRIPT}"
+    bash "${RUNNER_SCRIPT}" -V || _log "WARN" "ioc-runner -V returned non-zero"
+    print_divider
+
     local step=1
     local func
     for func in "${pipeline[@]}"; do
@@ -793,5 +948,3 @@ function run_all_tests {
 }
 
 run_all_tests
-
-

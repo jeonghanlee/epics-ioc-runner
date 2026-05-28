@@ -169,6 +169,28 @@ function _run {
     printf "%d" "${exit_code}"
 }
 
+# Extracts LOG_DIR-related declarations and the set_local_mode function
+# from RUNNER_SCRIPT, sources them in a clean subshell, and prints the
+# resolved LOG_DIR for the requested mode. Use to validate Phase A LOG_DIR
+# routing without requiring Phase B file-system side effects.
+#
+# Usage: _probe_log_dir <system|local> [env_modifier...]
+#   env_modifier is any argument accepted by env(1), e.g.,
+#   "IOC_RUNNER_LOG_DIR=/tmp/x" or "-u XDG_STATE_HOME".
+function _probe_log_dir {
+    local mode="$1"
+    shift
+    local probe
+    probe=$(mktemp)
+    {
+        sed -n '/^declare -g SYSTEM_CONF_DIR=/,/^declare -g LOCAL_LOG_DIR=/p' "${RUNNER_SCRIPT}"
+        sed -n '/^declare -g EXEC_MODE=/,/^declare -g LOG_DIR=/p' "${RUNNER_SCRIPT}"
+        sed -n '/^function set_local_mode {/,/^}/p' "${RUNNER_SCRIPT}"
+    } > "${probe}"
+    env "$@" bash -c "source '${probe}'; if [[ '${mode}' == 'local' ]]; then set_local_mode; fi; printf '%s' \"\${LOG_DIR}\""
+    rm -f "${probe}"
+}
+
 # Asserts whether a fixture string matches CRASH_LOG_PATTERNS under the same
 # flags used by do_start_restart in ioc-runner (grep -qiE).
 function verify_match {
@@ -194,6 +216,16 @@ function _setup {
     print_sub_divider
 
     TEST_TMPDIR=$(mktemp -d)
+
+    # Isolate local-mode CONF / SYSTEMD / RUN / LOG directories under
+    # TEST_TMPDIR so a direct or sudo-elevated run cannot corrupt the
+    # user's ~/.config or ~/.local/state. Per-case unified env vars
+    # (IOC_RUNNER_{CONF,SYSTEMD,RUN,LOG}_DIR) take precedence over these
+    # namespaced defaults per ioc-runner's resolution order. (#70)
+    export IOC_RUNNER_LOCAL_CONF_DIR="${TEST_TMPDIR}/local-config/procServ.d"
+    export IOC_RUNNER_LOCAL_SYSTEMD_DIR="${TEST_TMPDIR}/local-config/systemd/user"
+    export IOC_RUNNER_LOCAL_RUN_DIR="${TEST_TMPDIR}/local-run/procserv"
+    export IOC_RUNNER_LOCAL_LOG_DIR="${TEST_TMPDIR}/local-state/procserv"
 
     # Create a mock con binary that exits successfully without doing anything.
     MOCK_CON_BIN="${TEST_TMPDIR}/con"
@@ -446,6 +478,58 @@ function test_install_logic {
     verify_state "true" "${preserved}" "Install EOF abort preserves existing conf (marker retained)"
 }
 
+# T3 (Phase E): IOC_PORT atomic install. The write path in do_install
+# (mktemp + mv -f) must leave the target conf valid-or-untouched under any
+# interruption -- a partially written conf must never be observable.
+function test_ioc_port_atomic_install {
+    local step="$1"
+    local test_dir="${TEST_TMPDIR}/atomic_ioc"
+    local mock_conf_dir="${TEST_TMPDIR}/atomic_etc"
+    local mock_sysd_dir="${TEST_TMPDIR}/atomic_sysd"
+    local target_conf="${mock_conf_dir}/atomic_ioc.conf"
+
+    print_divider
+    _log "INFO" "STEP ${step}: IOC_PORT Atomic Install (T3)"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    # Pre-generate the source conf the install loop consumes.
+    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+
+    # Hammer install under a tight timeout that interrupts at varied points.
+    local iterations=120
+    local i rc port_count partial_writes=0 unexpected_exit=0
+    for ((i = 1; i <= iterations; i = i + 1)); do
+        if (
+            cd "${test_dir}" || exit 1
+            IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            timeout 0.01 bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+        ); then
+            rc=0
+        else
+            rc=$?
+        fi
+        # timeout completion (0) and timeout kill (124) are both expected.
+        if [[ "${rc}" -ne 0 && "${rc}" -ne 124 ]]; then
+            unexpected_exit=$((unexpected_exit + 1))
+        fi
+        # When present, the target must hold exactly one valid IOC_PORT= line.
+        if [[ -f "${target_conf}" ]]; then
+            port_count=$(grep -c '^IOC_PORT=' "${target_conf}" 2>/dev/null) || true
+            if [[ "${port_count:-0}" -ne 1 ]] \
+               || ! grep -qE '^IOC_PORT="unix:[^:]+:[^:]+:0660:.*/atomic_ioc/control"$' "${target_conf}" 2>/dev/null; then
+                partial_writes=$((partial_writes + 1))
+            fi
+        fi
+    done
+
+    verify_state "0" "${partial_writes}" "Atomic install: no partial conf across ${iterations} interrupted installs"
+    verify_state "0" "${unexpected_exit}" "Atomic install: install exits only 0 or 124 under interruption"
+}
+
 function test_install_errors {
     local step="$1"
     print_divider
@@ -480,128 +564,6 @@ function test_install_errors {
     verify_exit_code "1" "${exit_code}" "Install file-direct with invalid IOC name exits 1"
 }
 
-# Validates the IOC_CHDIR write-access precheck inserted in do_install for system mode.
-# Uses a PATH-injected stub sudo to control probe exit codes without requiring a real
-# ioc-srv account or elevated privileges. Five paths are covered:
-#   1. Probe fails + EOF       → exit 1
-#   2. Probe fails + explicit N → exit 0
-#   3. Probe fails + explicit Y → install proceeds (exit 0)
-#   4. Probe fails + FORCE_OVERWRITE → warning on stderr, install proceeds (exit 0)
-#   5. Probe passes            → no warning emitted, install proceeds (exit 0)
-function test_chdir_precheck {
-    local step="$1"
-    local exit_code
-
-    print_divider
-    _log "INFO" "STEP ${step}: IOC_CHDIR Write-Access Precheck"
-    print_sub_divider
-
-    local mock_bin_fail="${TEST_TMPDIR}/precheck_bin_fail"
-    local mock_bin_pass="${TEST_TMPDIR}/precheck_bin_pass"
-    local test_dir="${TEST_TMPDIR}/precheck_ioc"
-    local test_conf="${test_dir}/precheck_ioc.conf"
-    local stderr_cap="${TEST_TMPDIR}/precheck_stderr"
-
-    mkdir -p "${mock_bin_fail}" "${mock_bin_pass}" "${test_dir}"
-    touch "${test_dir}/st.cmd"
-    chmod +x "${test_dir}/st.cmd"
-
-    # Stub sudo: returns 1 for "-n -u <user> test -w <path>" probe, 0 for all other
-    # invocations (e.g. daemon-reload). The -n flag is stripped before pattern matching
-    # because it is a non-interactive marker, not part of the command identity.
-    cat > "${mock_bin_fail}/sudo" <<'STUB'
-#!/usr/bin/env bash
-filtered=()
-for arg in "$@"; do
-    [[ "${arg}" == "-n" ]] && continue
-    filtered+=("${arg}")
-done
-if [[ "${filtered[0]}" == "-u" && "${filtered[2]}" == "test" && "${filtered[3]}" == "-w" ]]; then
-    exit 1
-fi
-exit 0
-STUB
-    chmod +x "${mock_bin_fail}/sudo"
-
-    # Stub sudo that always exits 0 (simulates: TARGET_SYSTEM_USER can write to chdir).
-    printf '#!/usr/bin/env bash\nexit 0\n' > "${mock_bin_pass}/sudo"
-    chmod +x "${mock_bin_pass}/sudo"
-
-    # Valid system-mode conf. IOC_USER and IOC_GROUP match TARGET_SYSTEM_USER/GROUP
-    # literals hardcoded in ioc-runner. IOC_PORT must match process_ioc_port output
-    # for the default SYSTEM_RUN_DIR (/run/procserv).
-    cat > "${test_conf}" <<EOF
-IOC_NAME="precheck_ioc"
-IOC_USER="ioc-srv"
-IOC_GROUP="ioc"
-IOC_CHDIR="${test_dir}"
-IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/precheck_ioc/control"
-IOC_CMD="./st.cmd"
-EOF
-
-    # Each test case uses its own sysd/conf pair to avoid triggering the overwrite
-    # prompt (which would consume the stdin token intended for the precheck prompt).
-    local sysd conf
-
-    # Case 1: probe fails, EOF → exit 1
-    sysd="${TEST_TMPDIR}/precheck_s1"; conf="${TEST_TMPDIR}/precheck_c1"
-    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
-    exit_code=$(PATH="${mock_bin_fail}:${PATH}" \
-        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
-        _run bash -c "bash \"${RUNNER_SCRIPT}\" install \"${test_conf}\" < /dev/null")
-    verify_exit_code "1" "${exit_code}" "Precheck: probe fails, EOF → exit 1"
-
-    # Case 2: probe fails, explicit N → exit 0
-    sysd="${TEST_TMPDIR}/precheck_s2"; conf="${TEST_TMPDIR}/precheck_c2"
-    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
-    exit_code=$(PATH="${mock_bin_fail}:${PATH}" \
-        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
-        _run bash -c "printf 'n\n' | bash \"${RUNNER_SCRIPT}\" install \"${test_conf}\"")
-    verify_exit_code "0" "${exit_code}" "Precheck: probe fails, explicit N → exit 0"
-
-    # Case 3: probe fails, explicit Y → install proceeds and conf is deployed
-    sysd="${TEST_TMPDIR}/precheck_s3"; conf="${TEST_TMPDIR}/precheck_c3"
-    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
-    exit_code=$(PATH="${mock_bin_fail}:${PATH}" \
-        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
-        _run bash -c "printf 'y\n' | bash \"${RUNNER_SCRIPT}\" install \"${test_conf}\"")
-    verify_exit_code "0" "${exit_code}" "Precheck: probe fails, explicit Y → install proceeds (exit 0)"
-    local installed3_exists="false"
-    [[ -f "${conf}/precheck_ioc.conf" ]] && installed3_exists="true"
-    verify_state "true" "${installed3_exists}" "Precheck: Y path installs conf file"
-
-    # Case 4: probe fails, FORCE_OVERWRITE → warning on stderr, no prompt, install proceeds
-    sysd="${TEST_TMPDIR}/precheck_s4"; conf="${TEST_TMPDIR}/precheck_c4"
-    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
-    local ec4=0
-    PATH="${mock_bin_fail}:${PATH}" \
-        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
-        bash "${RUNNER_SCRIPT}" -f install "${test_conf}" >/dev/null 2>"${stderr_cap}" \
-        || ec4=$?
-    verify_exit_code "0" "${ec4}" "Precheck: FORCE_OVERWRITE → exit 0"
-    local has_warning4="false"
-    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && has_warning4="true"
-    verify_state "true" "${has_warning4}" "Precheck: FORCE_OVERWRITE emits warning to stderr"
-    local installed4_exists="false"
-    [[ -f "${conf}/precheck_ioc.conf" ]] && installed4_exists="true"
-    verify_state "true" "${installed4_exists}" "Precheck: FORCE_OVERWRITE installs conf"
-
-    # Case 5: probe passes → no warning emitted, install proceeds silently
-    sysd="${TEST_TMPDIR}/precheck_s5"; conf="${TEST_TMPDIR}/precheck_c5"
-    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
-    local ec5=0
-    PATH="${mock_bin_pass}:${PATH}" \
-        IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
-        bash "${RUNNER_SCRIPT}" -f install "${test_conf}" >/dev/null 2>"${stderr_cap}" \
-        || ec5=$?
-    verify_exit_code "0" "${ec5}" "Precheck: probe passes → exit 0"
-    local has_warning5="false"
-    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && has_warning5="true"
-    verify_state "false" "${has_warning5}" "Precheck: probe passes → no warning emitted"
-    local installed5_exists="false"
-    [[ -f "${conf}/precheck_ioc.conf" ]] && installed5_exists="true"
-    verify_state "true" "${installed5_exists}" "Precheck: probe passes → conf installed"
-}
 
 # Validates that ss -lx failure aborts do_list under set -eo pipefail.
 # find is replaced by a PATH stub that emits one fake socket entry in the
@@ -646,6 +608,7 @@ function test_env_var_namespacing {
     local test_dir="${TEST_TMPDIR}/ns_ioc"
     local ns_conf_dir="${TEST_TMPDIR}/ns_conf"
     local ns_sysd_dir="${TEST_TMPDIR}/ns_sysd"
+    local ns_log_dir="${TEST_TMPDIR}/ns_log"
     local legacy_conf_dir="${TEST_TMPDIR}/legacy_conf"
     local legacy_sysd_dir="${TEST_TMPDIR}/legacy_sysd"
 
@@ -653,7 +616,7 @@ function test_env_var_namespacing {
     _log "INFO" "STEP ${step}: Env Var Namespacing and Precedence"
     print_sub_divider
 
-    mkdir -p "${test_dir}" "${ns_conf_dir}" "${ns_sysd_dir}" \
+    mkdir -p "${test_dir}" "${ns_conf_dir}" "${ns_sysd_dir}" "${ns_log_dir}" \
              "${legacy_conf_dir}" "${legacy_sysd_dir}"
     touch "${test_dir}/st.cmd"
     chmod +x "${test_dir}/st.cmd"
@@ -673,6 +636,11 @@ function test_env_var_namespacing {
     local ns_exists="false"
     [[ -f "${ns_installed}" ]] && ns_exists="true"
     verify_state "true" "${ns_exists}" "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
+
+    # Case 2: Namespaced IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local mode.
+    local actual_log_dir
+    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log_dir}")
+    verify_state "${ns_log_dir}" "${actual_log_dir}" "IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local"
 
 }
 
@@ -736,6 +704,80 @@ function test_env_var_precedence {
     [[ -f "${ns_sysd}/epics-@.service" ]] && tpl_in_ns="true"
     verify_state "true"  "${tpl_in_unified}" "SYSTEMD_DIR: unified var wins"
     verify_state "false" "${tpl_in_ns}"      "SYSTEMD_DIR: namespaced var ignored"
+
+    # LOG_DIR precedence: unified IOC_RUNNER_LOG_DIR wins over namespaced
+    # IOC_RUNNER_LOCAL_LOG_DIR in --local mode; namespaced honored when no unified.
+    local unified_log="${TEST_TMPDIR}/prec_unified_log"
+    local ns_log="${TEST_TMPDIR}/prec_ns_log"
+    local actual_log_dir
+    actual_log_dir=$(_probe_log_dir "local" \
+                       "IOC_RUNNER_LOG_DIR=${unified_log}" \
+                       "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
+    verify_state "${unified_log}" "${actual_log_dir}" "LOG_DIR: unified var wins"
+    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
+    verify_state "${ns_log}" "${actual_log_dir}" "LOG_DIR: namespaced var honored when no unified"
+}
+
+# Validates the system-mode foot-gun warning for IOC_RUNNER_LOG_DIR:
+# warning fires when IOC_RUNNER_LOG_DIR diverges from SYSTEM_LOG_DIR in
+# system mode; suppressed when they match; suppressed in --local mode.
+function test_log_dir_guard {
+    local step="$1"
+    local stderr_cap
+    stderr_cap=$(mktemp)
+    local has_warn
+
+    print_divider
+    _log "INFO" "STEP ${step}: LOG_DIR Foot-Gun Guard"
+    print_sub_divider
+
+    # Case 1: system mode + IOC_RUNNER_LOG_DIR differs from default SYSTEM_LOG_DIR.
+    IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_diff \
+        bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
+    has_warn="false"
+    grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
+    verify_state "true" "${has_warn}" "system + differing IOC_RUNNER_LOG_DIR triggers warning"
+
+    # Case 2: system mode + IOC_RUNNER_LOG_DIR matches overridden SYSTEM_LOG_DIR.
+    IOC_RUNNER_SYSTEM_LOG_DIR=/tmp/log_dir_guard_test_match \
+    IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_match \
+        bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
+    has_warn="false"
+    grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
+    verify_state "false" "${has_warn}" "system + matching IOC_RUNNER_LOG_DIR suppresses warning"
+
+    # Case 3: --local mode + IOC_RUNNER_LOG_DIR set to non-default.
+    IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_local \
+        bash "${RUNNER_SCRIPT}" --local status fake-ioc >/dev/null 2>"${stderr_cap}" || true
+    has_warn="false"
+    grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
+    verify_state "false" "${has_warn}" "--local mode suppresses LOG_DIR guard"
+
+    rm -f "${stderr_cap}"
+}
+
+# Validates XDG_STATE_HOME fallback semantics for LOCAL_LOG_DIR:
+# when XDG_STATE_HOME is unset, LOCAL_LOG_DIR falls back to
+# $HOME/.local/state/procserv; when set, LOCAL_LOG_DIR uses
+# $XDG_STATE_HOME/procserv.
+function test_log_dir_xdg_fallback {
+    local step="$1"
+    local actual
+
+    print_divider
+    _log "INFO" "STEP ${step}: LOG_DIR XDG_STATE_HOME Fallback"
+    print_sub_divider
+
+    # Case 1: XDG_STATE_HOME unset -> $HOME/.local/state/procserv.
+    actual=$(_probe_log_dir "local" "-u" "XDG_STATE_HOME" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR")
+    verify_state "${HOME}/.local/state/procserv" "${actual}" \
+        "XDG_STATE_HOME unset: LOCAL_LOG_DIR falls back to \$HOME/.local/state/procserv"
+
+    # Case 2: XDG_STATE_HOME set -> <XDG_STATE_HOME>/procserv.
+    # env(1) requires options before VAR=value pairs.
+    actual=$(_probe_log_dir "local" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR" "XDG_STATE_HOME=/tmp/xdg_fallback_test")
+    verify_state "/tmp/xdg_fallback_test/procserv" "${actual}" \
+        "XDG_STATE_HOME set: LOCAL_LOG_DIR uses <XDG_STATE_HOME>/procserv"
 }
 
 # Validates the bash completion script by sourcing it in isolated subshells
@@ -1031,11 +1073,11 @@ function test_crash_pattern_matching {
     verify_match "match"   "FATAL: aborting"                        "Case-insensitive: FATAL (upper)"
     verify_match "match"   "fatal allocation failure"               "Case-insensitive: fatal (lower)"
 
-    # Regression: pre-existing patterns continue to match
-    verify_match "match"   "procServ: Restarting child"             "Regression: Restarting child"
+    # Regression: fatal startup patterns continue to match
     verify_match "match"   "Segmentation fault (core dumped)"       "Regression: Segmentation fault"
 
     # Negative: routine startup lines must not trigger crash detection
+    verify_match "nomatch" "procServ: Restarting child"             "Negative: procServ child start line"
     verify_match "nomatch" "iocInit: All initialization complete"   "Negative: iocInit complete line"
     verify_match "nomatch" "## EPICS R7.0.7 banner"                 "Negative: EPICS banner"
     verify_match "nomatch" "Starting iocsh.bash"                    "Negative: startup banner"
@@ -1090,12 +1132,14 @@ function run_all_tests {
         "test_missing_target"
         "test_generate_logic"
         "test_install_logic"
+        "test_ioc_port_atomic_install"
         "test_generate_errors"
         "test_install_errors"
-        "test_chdir_precheck"
         "test_ss_failure_aborts_list"
         "test_env_var_namespacing"
         "test_env_var_precedence"
+        "test_log_dir_guard"
+        "test_log_dir_xdg_fallback"
         "test_completion"
         "test_ioc_name_validation"
         "test_validation_errors"

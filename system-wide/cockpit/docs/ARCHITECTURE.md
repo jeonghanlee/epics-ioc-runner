@@ -132,7 +132,7 @@ Phase 5. Production Rollout
      |     ioc-runner restart {ioc_name}
      |
      |-- IOC Log
-     |     journalctl -u epics-@{ioc_name}.service
+     |     reads /var/log/procserv/{ioc_name}.log
      |
      |-- IOC Console
            ioc-runner attach {ioc_name}

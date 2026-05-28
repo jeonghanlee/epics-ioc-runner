@@ -18,17 +18,25 @@ declare -g TEST_FAILED=0
 declare -g SCRIPT_ERROR=0
 declare -g -a FAILED_DETAILS=()
 
+# Set by the regex-deny probe when it creates an ephemeral ioc-group
+# member; cleared after the normal cleanup path. A pre-existing account
+# with the same name is reused without deletion, so this stays empty.
+declare -g C57_CREATED_USER=""
+
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
+declare -g LOGROTATE_FILE="/etc/logrotate.d/procserv"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 declare -g RUNNER_SCRIPT_DEST="/usr/local/bin/ioc-runner"
 declare -g BASH_COMPLETION_DEST="/etc/bash_completion.d/ioc-runner"
 
 declare -g PERM_CONF_DIR="2770"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
+declare -g PERM_LOGROTATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
 declare -g PERM_BASH_COMPLETION="0644"
 
@@ -46,6 +54,10 @@ function _handle_exit {
     if [[ $exit_code -ne 0 ]]; then
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
+    fi
+    if [[ -n "${C57_CREATED_USER:-}" ]]; then
+        userdel "${C57_CREATED_USER}" 2>/dev/null || true
+        C57_CREATED_USER=""
     fi
     print_summary
 
@@ -181,6 +193,7 @@ function test_infrastructure_files {
     verify_perm "${CONF_DIR}"             "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}"
     verify_perm "${SUDOERS_FILE}"         "${OWNER_SYSTEM}"   "${PERM_SUDOERS}"
     verify_perm "${SYSTEMD_TEMPLATE}"     "${OWNER_SYSTEM}"   "${PERM_SYSTEMD_TEMPLATE}"
+    verify_perm "${LOGROTATE_FILE}"       "${OWNER_SYSTEM}"   "${PERM_LOGROTATE}"
     verify_perm "${RUNNER_SCRIPT_DEST}"   "${OWNER_SYSTEM}"   "${PERM_RUNNER_SCRIPT}"
     verify_perm "${BASH_COMPLETION_DEST}" "${OWNER_SYSTEM}"   "${PERM_BASH_COMPLETION}"
 }
@@ -196,6 +209,32 @@ function test_sudoers_syntax {
         syntax_ok="true"
     fi
     verify_state "true" "${syntax_ok}" "Sudoers file syntax is valid"
+}
+
+function test_logrotate_syntax {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Logrotate Policy"
+    print_sub_divider
+
+    local syntax_ok="false"
+    if [[ -f "${LOGROTATE_FILE}" ]] && logrotate -d "${LOGROTATE_FILE}" >/dev/null 2>&1; then
+        syntax_ok="true"
+    fi
+    verify_state "true" "${syntax_ok}" "Logrotate policy syntax is valid"
+
+    # Pin the #15 acceptance directives. logrotate -d passes even if e.g.
+    # copytruncate is dropped, so assert the contract directives explicitly;
+    # copytruncate is mandatory because procServ does not reopen on SIGHUP,
+    # and nodateext keeps the <name>.log.N.gz numbering the acceptance cites.
+    local directive
+    for directive in "${SYSTEM_LOG_DIR}/*.log" "su root ${SYSTEM_GROUP}" "copytruncate" "compress" "weekly" "rotate 8" "nodateext"; do
+        local present="false"
+        if [[ -f "${LOGROTATE_FILE}" ]] && grep -qF "${directive}" "${LOGROTATE_FILE}"; then
+            present="true"
+        fi
+        verify_state "true" "${present}" "Logrotate policy pins '${directive}'"
+    done
 }
 
 function test_sudoers_includedir_order {
@@ -230,6 +269,67 @@ function test_sudoers_includedir_order {
     fi
 
     verify_state "true" "${ordering_ok}" "includedir is the final active directive in ${main_sudoers}"
+}
+
+function test_sudoers_regex_denies_bad_name {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Sudoers Anchored Regex Denies Out-of-Model Names"
+    print_sub_divider
+
+    if [[ ! -f "${SUDOERS_FILE}" ]]; then
+        verify_state "true" "false" "Sudoers file exists for regex-deny probe"
+        return
+    fi
+
+    # The anchored-regex emission begins each verb with '^'. Hosts whose
+    # installed sudo is < 1.9.10 (or whose policy hasn't been refreshed
+    # since the OS-agnostic generator landed) use fnmatch globs by
+    # design; the deny semantic the probe checks does not apply there.
+    # See docs/PERMISSION_MODEL.md residual-risk subsection.
+    if ! grep -qE '\^(start|stop|restart|status|enable|disable) epics-@' "${SUDOERS_FILE}"; then
+        _log "INFO" "SKIP: deployed sudoers uses glob fallback; regex-deny probe does not apply."
+        verify_state "skipped" "skipped" "Regex-deny probe skipped on glob-form policy"
+        return
+    fi
+
+    local test_user="epics-c57-iocmember"
+
+    if id -u "${test_user}" >/dev/null 2>&1; then
+        _log "INFO" "Pre-existing user '${test_user}' detected; reusing without cleanup on exit."
+    else
+        if ! useradd -M -N -G "${SYSTEM_GROUP}" "${test_user}" >/dev/null 2>&1; then
+            verify_state "true" "false" "Create ephemeral ioc-group user '${test_user}'"
+            return
+        fi
+        C57_CREATED_USER="${test_user}"
+    fi
+
+    # Resolve the systemctl path from the deployed policy so the probe
+    # argv matches the policy line verbatim (Debian uses /usr/bin,
+    # Rocky often uses /bin via usrmerge).
+    local systemctl_bin
+    systemctl_bin=$(grep -oE '/[^[:space:],]*systemctl' "${SUDOERS_FILE}" | head -1)
+    if [[ -z "${systemctl_bin}" ]]; then
+        systemctl_bin="/usr/bin/systemctl"
+    fi
+
+    local bad_deny="false"
+    if ! runuser -u "${test_user}" -- sudo -n -l "${systemctl_bin}" start 'epics-@bad name.service' >/dev/null 2>&1; then
+        bad_deny="true"
+    fi
+    verify_state "true" "${bad_deny}" "Anchored regex denies 'epics-@bad name.service' for ioc-group member"
+
+    local good_allow="false"
+    if runuser -u "${test_user}" -- sudo -n -l "${systemctl_bin}" start 'epics-@goodname.service' >/dev/null 2>&1; then
+        good_allow="true"
+    fi
+    verify_state "true" "${good_allow}" "Anchored regex allows 'epics-@goodname.service' for ioc-group member"
+
+    if [[ -n "${C57_CREATED_USER:-}" ]]; then
+        userdel "${C57_CREATED_USER}" 2>/dev/null || true
+        C57_CREATED_USER=""
+    fi
 }
 
 function test_git_context_resolution {
@@ -496,7 +596,9 @@ function run_all_tests {
         "test_service_accounts"
         "test_infrastructure_files"
         "test_sudoers_syntax"
+        "test_logrotate_syntax"
         "test_sudoers_includedir_order"
+        "test_sudoers_regex_denies_bad_name"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
         "test_runner_script_deployed_preference"

@@ -3,3 +3,7 @@
 *.log
 issue
 work
+# SDLC review-session artifacts are kept local-only (audit trail on disk).
+docs/sdlc/*/review_sessions/
+docs/*/review_sessions/
+docs/review_sessions/

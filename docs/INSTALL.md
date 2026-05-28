@@ -4,6 +4,7 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
 
 ## Prerequisites
 * Root (sudo) access to the target server.
+* Bash 4.3+ (the runner relies on `local -n` namerefs, introduced in Bash 4.3). Debian 8+, Ubuntu 14.04+, and RHEL/Rocky/AlmaLinux 8+ qualify; RHEL 7 / CentOS 7 ship Bash 4.2 and are not supported.
 * Basic build tools installed (`gcc`, `g++`, `make`, `git`).
 * Core utilities (`procServ` and `con`) compiled and installed system-wide.
 
@@ -66,25 +67,27 @@ chmod 2770 /etc/procServ.d/
 ```
 
 ### 2.3. Sudoers Configuration (Restricted)
-Allow members of the `ioc` group to manage only specific `epics-@*.service` systemd instances securely.
+Allow members of the `ioc` group to manage only specific `epics-@<name>.service` systemd instances securely.
 
-Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file:
+Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file. `setup-system-infra.bash` emits one of two forms based on the local sudo version (OS-agnostic). The canonical regex form (sudo >= 1.9.10) achieves parity with `validate_ioc_name` in `bin/ioc-runner`:
 ```bash
 
 SYSTEMCTL_BIN="/usr/bin/systemctl"
 
 cat <<EOF > /etc/sudoers.d/10-epics-ioc
-%ioc ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} stop epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} restart epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} status epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} enable epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} disable epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} daemon-reload
+%ioc ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} ^start   epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^stop    epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^status  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^enable  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^daemon-reload\$
 EOF
 
 chmod 0440 /etc/sudoers.d/10-epics-ioc
 ```
+
+On hosts with sudo < 1.9.10, replace each `^<verb> ... $` form with the glob form (`<verb> epics-@*.service`); the deployment script handles this automatically and emits a `WARN` line plus a residual-risk header comment. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
 
 > **Important:** The `@includedir /etc/sudoers.d` (or legacy `#includedir`) directive in `/etc/sudoers` must be the final active line. Any user-specific rules placed after it (e.g., `alice ALL=(ALL) ALL`) will be evaluated *after* the drop-in policies and silently override the NOPASSWD rule installed above. Verify with `sudo -l` on a group member account: the `(root) NOPASSWD: /usr/bin/systemctl ...` entry must appear last.
 
@@ -111,7 +114,7 @@ Group=ioc
 EnvironmentFile=/etc/procServ.d/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${PROCSERV_BIN} --foreground --logfile=/var/log/procserv/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -122,6 +125,38 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
+```
+
+### 2.5. Log Directory and Rotation
+Create the directory that receives procServ console output. It is owned by `root` with the `ioc` group at `2775`. procServ creates each `<name>.log` with `open(0644)` (`ioc-srv:ioc`, group read only, world-readable); its hardcoded mode restricts the ACL mask to `r--`, so the default ACLs below grant `ioc`-group read/write only to *engineer-created* files in the directory (manual probes, archive copies), not to the procServ logs themselves.
+```bash
+mkdir -p /var/log/procserv
+chown root:ioc /var/log/procserv
+chmod 2775 /var/log/procserv
+
+# Default ACLs: engineer-created files inherit ioc-group rw; procServ logs
+# stay 0644 (open(0644) restricts the ACL mask to r--, group read only)
+setfacl -d -m g:ioc:rw /var/log/procserv
+setfacl -d -m o::r-- /var/log/procserv
+setfacl -d -m m::rw /var/log/procserv
+```
+
+Deploy weekly rotation with `copytruncate` so rotation does not interrupt the running IOC or invalidate its Unix domain socket:
+```bash
+cat <<EOF > /etc/logrotate.d/procserv
+/var/log/procserv/*.log {
+    su root ioc
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+    nodateext
+}
+EOF
+
+chmod 0644 /etc/logrotate.d/procserv
 ```
 
 ---

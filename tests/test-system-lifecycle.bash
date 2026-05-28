@@ -78,6 +78,10 @@ declare -g CONF_DIR="/etc/procServ.d"
 declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
 declare -g RUN_DIR="/run/procserv"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
+declare -g SUDOERS_FILE_PATH="/etc/sudoers.d/10-epics-ioc"
+declare -g T5_CREATED_USER=""
+declare -g T1_CREATED_USER=""
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
@@ -108,6 +112,17 @@ function _handle_exit {
     if [[ ${exit_code} -ne 0 && ${TEST_FAILED} -eq 0 && ${SCRIPT_ERROR} -eq 0 ]]; then
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
+    fi
+
+    # T5 may create a throwaway non-ioc account; remove only the one this run
+    # created (a pre-existing account of the same name is left untouched).
+    if [[ -n "${T5_CREATED_USER}" ]] && id "${T5_CREATED_USER}" &>/dev/null; then
+        userdel "${T5_CREATED_USER}" 2>/dev/null || true
+        T5_CREATED_USER=""
+    fi
+    if [[ -n "${T1_CREATED_USER}" ]] && id "${T1_CREATED_USER}" &>/dev/null; then
+        userdel "${T1_CREATED_USER}" 2>/dev/null || true
+        T1_CREATED_USER=""
     fi
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
@@ -607,22 +622,18 @@ function test_channel_access {
     local pv_ok="false"
     local success_count=0
 
-    local line pv_val i=0
+    local line pv_val
     while IFS= read -r line; do
         [[ -z "${line}" ]] && continue
-        i=$((i + 1))
-        pv_val=$(printf "%s" "${line}" | awk '{print $4}' | tr -d '\r')
-        if [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
-            success_count=$((success_count + 1))
-        elif [[ -n "${pv_val}" ]]; then
-            _log "SUCCESS" "Update [${i}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val} (Non-numeric)"
-            success_count=$((success_count + 1))
-        else
-            _log "WARN" "Update [${i}/${CAMONITOR_COUNT}] Failed to read PV or empty value."
-        fi
-        [[ ${i} -ge ${CAMONITOR_COUNT} ]] && break
-    done < <("${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" "${test_pv}" 2>/dev/null || true)
+        pv_val=$(printf "%s" "${line}" | awk '{print $2}' | tr -d '\r')
+        # Count numeric value samples only. Connection/status lines (e.g.
+        # "***" during PV reconnect) carry no value and are skipped, not
+        # counted, keeping the sample count stable across reconnect timing.
+        [[ "${pv_val}" =~ ^[0-9]+(\.[0-9]+)?$ ]] || continue
+        success_count=$((success_count + 1))
+        _log "SUCCESS" "Update [${success_count}/${CAMONITOR_COUNT}] PV ${test_pv} = ${pv_val}"
+        [[ ${success_count} -ge ${CAMONITOR_COUNT} ]] && break
+    done < <(timeout "${CAMONITOR_TIMEOUT}" "${camonitor_cmd}" -w "${CAMONITOR_TIMEOUT}" -t n "${test_pv}" 2>/dev/null || true)
 
     local elapsed=$((SECONDS - read_start_time))
 
@@ -715,7 +726,7 @@ function test_monitor_isolation {
 }
 
 
-# test_crash_detection — disabled; blocked by #7 (v1.1.0 log file redirect).
+# test_crash_detection -- disabled; blocked by #7 (v1.1.0 log file redirect).
 # Requires 'adm' or 'systemd-journal' group to read the system journal under ioc-srv.
 function test_crash_detection {
     local step="$1"
@@ -762,6 +773,594 @@ EOF
     bash "${RUNNER_SCRIPT}" remove "${bad_ioc_name}" >/dev/null 2>&1 || true
 
     verify_state "true" "${warning_detected}" "Crash-loop warning detected for broken softIoc"
+}
+
+# T1 (Phase E): crash detection without journal access. An operator who is an
+# ioc-group member (so the %ioc sudoers gate lets them start the service) but
+# is NOT in systemd-journal must still get the crash warning -- 1.1.0 scans the
+# dedicated log file, not the journal. On 1.0.8 the journal scan would hand this
+# operator empty output and a false success, so T1 is a natural baseline-fail.
+function test_detection_without_journal {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Crash Detection Without Journal Access (T1)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping journal-less detection test."
+        return 0
+    fi
+
+    local operator="epics-t1-operator"
+    # Never touch a pre-existing account of this name: it may not be ours.
+    if id "${operator}" &>/dev/null; then
+        _log "WARN" "User ${operator} already exists; skipping to avoid removing a non-test account."
+        return 0
+    fi
+    useradd -M -N -G "${SYSTEM_GROUP}" "${operator}" >/dev/null 2>&1
+    T1_CREATED_USER="${operator}"
+
+    # The whole point: ioc member (sudoers gate reachable) but no systemd-journal.
+    local op_groups in_ioc="false" in_journal="false"
+    op_groups=$(id -nG "${operator}" 2>/dev/null)
+    if printf "%s" "${op_groups}" | grep -qw "${SYSTEM_GROUP}"; then in_ioc="true"; fi
+    if printf "%s" "${op_groups}" | grep -qw "systemd-journal"; then in_journal="true"; fi
+    verify_state "true" "${in_ioc}" "Operator is an ioc-group member (sudoers gate reachable)"
+    verify_state "false" "${in_journal}" "Operator is NOT in systemd-journal"
+
+    local bad_ioc_name="JournalLessIOC-SYS"
+    local bad_ioc_dir="${WORKSPACE}/journalless_ioc"
+    mkdir -p "${bad_ioc_dir}"
+    chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}"
+    chmod 2775 "${bad_ioc_dir}"
+
+    # Malformed st.cmd: an unbalanced quote drives an iocsh parse error whose
+    # crash pattern (Unbalanced quote) must land in the dedicated log file.
+    cat << EOF > "${bad_ioc_dir}/st.cmd"
+#!${softioc_bin}
+epicsEnvSet("BROKEN", "unterminated
+EOF
+    chmod +x "${bad_ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${bad_ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
+
+    # The operator (no systemd-journal) starts the IOC; crash detection must
+    # still warn, proving it reads the log file rather than the journal.
+    local output
+    output=$(runuser -u "${operator}" -- bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1 || true)
+
+    local warning_detected="false"
+    if printf "%s" "${output}" | grep -q "Warning"; then
+        warning_detected="true"
+    fi
+    verify_state "true" "${warning_detected}" "Crash warning emitted for journal-less operator"
+
+    bash "${RUNNER_SCRIPT}" remove "${bad_ioc_name}" >/dev/null 2>&1 || true
+    userdel "${operator}" 2>/dev/null || true
+    T1_CREATED_USER=""
+}
+
+# T2 (Phase E): crash detection across a logrotate boundary. A fatal pattern
+# present in the log BEFORE rotation must move into the rotated/compressed file
+# (copytruncate) and must NOT be re-scanned by the post-restart startup window,
+# which begins at the post-rotation offset. Otherwise a single historical crash
+# would raise a false crash warning on every subsequent restart.
+function test_logrotate_boundary {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Crash Detection Across Logrotate Boundary (T2)"
+    print_sub_divider
+
+    local logrotate_conf="/etc/logrotate.d/procserv"
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -f "${logrotate_conf}" ]]; then
+        _log "WARN" "${logrotate_conf} not found, skipping logrotate boundary test."
+        return 0
+    fi
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping logrotate boundary test."
+        return 0
+    fi
+
+    local rot_ioc_name="RotateTestIOC-SYS"
+    local rot_ioc_dir="${WORKSPACE}/rotate_ioc"
+    local log_file="${SYSTEM_LOG_DIR}/${rot_ioc_name}.log"
+    mkdir -p "${rot_ioc_dir}"
+    # ioc-srv must be able to write runtime artifacts under IOC_CHDIR; otherwise
+    # the startup permission errors would themselves trip crash detection and
+    # mask the historical-pattern boundary this test actually probes.
+    chown "${OWNER_WORKSPACE}" "${rot_ioc_dir}"
+    chmod 2775 "${rot_ioc_dir}"
+
+    # Healthy IOC: stays up and emits no crash pattern of its own. Disable the
+    # iocsh history file so a write failure on it cannot leak a crash pattern
+    # into the startup scan window.
+    cat << EOF > "${rot_ioc_dir}/st.cmd"
+#!${softioc_bin}
+epicsEnvSet("IOCSH_HISTSIZE","0")
+system "sleep 0.5"
+EOF
+    chmod +x "${rot_ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${rot_ioc_name}.conf"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${rot_ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${rot_ioc_name}.conf" >/dev/null
+    bash "${RUNNER_SCRIPT}" start "${rot_ioc_name}" >/dev/null 2>&1 || true
+
+    # Inject a fatal pattern into the ACTIVE log, ahead of rotation.
+    local crash_marker="FATAL: synthetic pre-rotate crash marker"
+    printf "%s\n" "${crash_marker}" >> "${log_file}"
+
+    # Force rotation: copytruncate moves history into <name>.log.1.gz and
+    # truncates the active log in place.
+    logrotate -f "${logrotate_conf}" >/dev/null 2>&1
+
+    # Evidence 1 (boundary created): the marker now lives in the rotated file
+    # and no longer in the active log.
+    local rotated_has_marker="false"
+    if [[ -f "${log_file}.1.gz" ]] && zgrep -qF "${crash_marker}" "${log_file}.1.gz" 2>/dev/null; then
+        rotated_has_marker="true"
+    fi
+    verify_state "true" "${rotated_has_marker}" "Pre-rotate FATAL pattern moved into rotated log (boundary created)"
+
+    local active_clean="true"
+    if grep -qF "${crash_marker}" "${log_file}" 2>/dev/null; then
+        active_clean="false"
+    fi
+    verify_state "true" "${active_clean}" "Active log cleared of the pre-rotate FATAL pattern after rotation"
+
+    # Evidence 2 (no false positive): restart after rotation must not re-flag
+    # the historical pattern that now lives only in the rotated file.
+    local output
+    output=$(bash "${RUNNER_SCRIPT}" restart "${rot_ioc_name}" 2>&1 || true)
+
+    local false_positive="false"
+    if printf "%s" "${output}" | grep -q "crash-looping or reporting fatal errors"; then
+        false_positive="true"
+    fi
+    verify_state "false" "${false_positive}" "No false crash warning from rotated historical FATAL pattern"
+
+    # --- T2 sub-case A: new-inode replacement during the sleep window (#58)
+    # Background a restart and gate the log mutation on the unit's
+    # ActiveEnterTimestampMonotonic actually changing -- this guarantees
+    # the runner has completed its pre-restart capture and is now inside
+    # its post-restart sleep window, which a fixed sleep cannot. Then swap
+    # the active log file with a new-inode file. The replacement MUST grow
+    # past the captured offset, otherwise the existing size-shrink guard
+    # could rescue a missing inode check. mv, install, and the active-path
+    # inode change are each verified so a degraded setup cannot be misread
+    # as a successful inode-branch fire.
+    print_sub_divider
+    _log "INFO" "T2 sub-case A: New-inode replacement during sleep window"
+
+    printf "T2 sub-case A priming line for inode/size context\n" >> "${log_file}"
+    sleep 0.2
+    local pre_a_size pre_a_inode pre_a_active_ts
+    pre_a_size=$(stat -c '%s' "${log_file}" 2>/dev/null || printf "0")
+    pre_a_inode=$(stat -c '%i' "${log_file}" 2>/dev/null || printf "")
+    pre_a_active_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+
+    local sub_a_marker="FATAL: synthetic in-window inode replacement"
+    local sub_a_out="${WORKSPACE}/t2_sub_a.out"
+    local sub_a_old="${log_file}.t2_sub_a.old"
+    local sub_a_mv_ok="true" sub_a_install_ok="true"
+
+    bash "${RUNNER_SCRIPT}" restart "${rot_ioc_name}" >"${sub_a_out}" 2>&1 &
+    local sub_a_pid=$!
+
+    local sub_a_activation="false"
+    local sub_a_deadline=$((SECONDS + 20))
+    local sub_a_cur_ts
+    while [[ ${SECONDS} -lt ${sub_a_deadline} ]]; do
+        sub_a_cur_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+        if [[ -n "${sub_a_cur_ts}" && "${sub_a_cur_ts}" != "0" && "${sub_a_cur_ts}" != "${pre_a_active_ts}" ]]; then
+            sub_a_activation="true"
+            break
+        fi
+        sleep 0.1
+    done
+    verify_state "true" "${sub_a_activation}" "T2 sub-case A: restart activation observed before log mutation"
+
+    mv "${log_file}" "${sub_a_old}" || sub_a_mv_ok="false"
+    install -o "${SYSTEM_USER}" -g "${SYSTEM_GROUP}" -m 0644 /dev/null "${log_file}" || sub_a_install_ok="false"
+    printf "%s\n" "${sub_a_marker}" >> "${log_file}"
+    # Grow the replacement past the captured offset so the size guard
+    # alone cannot detect the rotation; only the inode branch can.
+    yes X 2>/dev/null | head -c "$((pre_a_size + 1024))" >> "${log_file}" || true
+
+    wait "${sub_a_pid}" || true
+
+    verify_state "true" "${sub_a_mv_ok}" "T2 sub-case A: log mv to side-name succeeded"
+    verify_state "true" "${sub_a_install_ok}" "T2 sub-case A: replacement log install succeeded"
+
+    local post_a_inode
+    post_a_inode=$(stat -c '%i' "${log_file}" 2>/dev/null || printf "")
+    local sub_a_inode_changed="false"
+    if [[ -n "${pre_a_inode}" && -n "${post_a_inode}" && "${pre_a_inode}" != "${post_a_inode}" ]]; then
+        sub_a_inode_changed="true"
+    fi
+    verify_state "true" "${sub_a_inode_changed}" "T2 sub-case A: active log inode actually changed after replacement"
+
+    local sub_a_caught="false"
+    if grep -q "crash-looping or reporting fatal errors" "${sub_a_out}" 2>/dev/null; then
+        sub_a_caught="true"
+    fi
+    verify_state "true" "${sub_a_caught}" "T2 sub-case A: in-window new-inode replacement triggers crash warning"
+
+    rm -f "${sub_a_old}"
+
+    # --- T2 sub-case B: same-inode truncate-and-regrow-past during the
+    # sleep window (#58). Seed the active log so the captured tailhash
+    # spans a non-trivial byte range, then gate the mutation on the unit's
+    # ActiveEnterTimestampMonotonic actually changing so the truncate is
+    # guaranteed to land between the runner's capture and its scan. inode
+    # and size guards alone cannot tell this apart from healthy growth:
+    # inode unchanged, current_size > captured offset. The tailhash guard
+    # fires because the byte window ending at the captured offset is now
+    # different content, so the scanner re-scans from offset 0.
+    print_sub_divider
+    _log "INFO" "T2 sub-case B: Same-inode truncate-and-regrow-past during sleep window"
+
+    printf "T2 sub-case B priming line for tailhash range\n" >> "${log_file}"
+    sleep 0.2
+    local pre_cap_size pre_b_active_ts
+    pre_cap_size=$(stat -c '%s' "${log_file}" 2>/dev/null || printf "0")
+    pre_b_active_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+
+    local sub_b_marker="FATAL: synthetic same-inode regrow past offset"
+    local sub_b_out="${WORKSPACE}/t2_sub_b.out"
+
+    bash "${RUNNER_SCRIPT}" restart "${rot_ioc_name}" >"${sub_b_out}" 2>&1 &
+    local sub_b_pid=$!
+
+    local sub_b_activation="false"
+    local sub_b_deadline=$((SECONDS + 20))
+    local sub_b_cur_ts
+    while [[ ${SECONDS} -lt ${sub_b_deadline} ]]; do
+        sub_b_cur_ts=$(systemctl show "epics-@${rot_ioc_name}.service" --property=ActiveEnterTimestampMonotonic --value 2>/dev/null || printf "")
+        if [[ -n "${sub_b_cur_ts}" && "${sub_b_cur_ts}" != "0" && "${sub_b_cur_ts}" != "${pre_b_active_ts}" ]]; then
+            sub_b_activation="true"
+            break
+        fi
+        sleep 0.1
+    done
+    verify_state "true" "${sub_b_activation}" "T2 sub-case B: restart activation observed before log mutation"
+
+    : > "${log_file}"
+    printf "%s\n" "${sub_b_marker}" >> "${log_file}"
+    yes X 2>/dev/null | head -c "$((pre_cap_size + 1024))" >> "${log_file}" || true
+
+    wait "${sub_b_pid}" || true
+
+    local sub_b_caught="false"
+    if grep -q "crash-looping or reporting fatal errors" "${sub_b_out}" 2>/dev/null; then
+        sub_b_caught="true"
+    fi
+    verify_state "true" "${sub_b_caught}" "T2 sub-case B: in-window same-inode regrow-past triggers crash warning via tailhash mismatch"
+
+    bash "${RUNNER_SCRIPT}" remove "${rot_ioc_name}" >/dev/null 2>&1 || true
+}
+
+# T5 (Phase E): permission enforcement. A user outside the ioc group must be
+# able to READ a log file (mode 0644, o+r) yet must be DENIED a state-changing
+# systemctl start -- the %ioc sudoers gate, not file mode, is the boundary for
+# IOC state changes. The test account is created only if absent and removed only
+# if this run created it (function tail plus the exit trap).
+function test_permission_enforcement {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Permission Enforcement (T5)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -f "${SUDOERS_FILE_PATH}" ]]; then
+        _log "WARN" "${SUDOERS_FILE_PATH} not found, skipping permission enforcement test."
+        return 0
+    fi
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping permission enforcement test."
+        return 0
+    fi
+
+    local nonioc_user="epics-t5-noioc"
+    # Never touch a pre-existing account of this name: it may not be ours.
+    if id "${nonioc_user}" &>/dev/null; then
+        _log "WARN" "User ${nonioc_user} already exists; skipping to avoid removing a non-test account."
+        return 0
+    fi
+    useradd -M -N "${nonioc_user}" >/dev/null 2>&1
+    T5_CREATED_USER="${nonioc_user}"
+
+    # Guard: the test account must not be an ioc-group member, or the gate check
+    # below would be meaningless.
+    if id -nG "${nonioc_user}" 2>/dev/null | grep -qw "${SYSTEM_GROUP}"; then
+        _log "WARN" "Test user unexpectedly in ${SYSTEM_GROUP}; skipping."
+        userdel "${nonioc_user}" 2>/dev/null || true
+        T5_CREATED_USER=""
+        return 0
+    fi
+
+    local perm_ioc_name="PermTestIOC-SYS"
+    local perm_ioc_dir="${WORKSPACE}/perm_ioc"
+    local log_file="${SYSTEM_LOG_DIR}/${perm_ioc_name}.log"
+    mkdir -p "${perm_ioc_dir}"
+    chown "${OWNER_WORKSPACE}" "${perm_ioc_dir}"
+    chmod 2775 "${perm_ioc_dir}"
+
+    cat << EOF > "${perm_ioc_dir}/st.cmd"
+#!${softioc_bin}
+epicsEnvSet("IOCSH_HISTSIZE","0")
+system "sleep 0.5"
+EOF
+    chmod +x "${perm_ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${perm_ioc_name}.conf"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${perm_ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${perm_ioc_name}.conf" >/dev/null
+    bash "${RUNNER_SCRIPT}" start "${perm_ioc_name}" >/dev/null 2>&1 || true
+
+    # Evidence 1: a user outside ioc can READ the log (file mode 0644, o+r).
+    local read_ok="false"
+    if runuser -u "${nonioc_user}" -- cat "${log_file}" >/dev/null 2>&1; then
+        read_ok="true"
+    fi
+    verify_state "true" "${read_ok}" "Non-ioc user can read the log file (mode 0644)"
+
+    # Evidence 2: the same user is DENIED a state-changing start -- not in the
+    # %ioc sudoers gate, so sudo -n exits non-zero.
+    local start_denied="false"
+    if ! runuser -u "${nonioc_user}" -- sudo -n /usr/bin/systemctl start "epics-@${perm_ioc_name}.service" >/dev/null 2>&1; then
+        start_denied="true"
+    fi
+    verify_state "true" "${start_denied}" "Non-ioc user denied systemctl start by %ioc sudoers gate"
+
+    bash "${RUNNER_SCRIPT}" remove "${perm_ioc_name}" >/dev/null 2>&1 || true
+    userdel "${nonioc_user}" 2>/dev/null || true
+    T5_CREATED_USER=""
+}
+
+# System-mode IOC_CHDIR precheck. do_install runs chdir_conforms_to_system_model
+# before deploying a system IOC and warns ("Warning: IOC_CHDIR ...") when the
+# directory does not conform to the permission model: an absolute, non-symlinked
+# dir, group-owned by ioc with setgid + group write + group execute (2775), and
+# every parent traversable by the service account. Conformance is decided by real
+# filesystem state, so this test builds real root-created fixtures rather than
+# stubbing sudo. Each case uses its own IOC name, conf dir, and systemd dir so the
+# overwrite prompt never consumes the y/N stdin token meant for the precheck prompt.
+function test_chdir_precheck {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: System-mode IOC_CHDIR Precheck (permission model)"
+    print_sub_divider
+
+    # Fixture root under WORKSPACE (root:ioc 2770). The service account
+    # traverses it via ioc group-execute, so no permission relaxation is
+    # needed, and _handle_exit's cleanup/retention covers it even on abort.
+    local base="${WORKSPACE}/precheck"
+    mkdir -p "${base}"
+
+    local stderr_cap="${base}/stderr"
+    local ec
+
+    # Writes a system-mode conf for the given name with IOC_CHDIR set to chdir.
+    # Caller supplies a pre-built isolated sysd/conf dir pair; here we only emit
+    # the conf artifact the runner consumes.
+    local sysd conf name chdir conf_file
+
+    # Case 1: conforming dir (root:ioc 2775) with traversable parents -> no warning.
+    name="PrecheckOK-SYS"
+    chdir="${base}/conform"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s1"; conf="${base}/c1"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned1="warned"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null || warned1="clean"
+    verify_state "clean" "${warned1}" "Conforming root:ioc 2775 dir emits no warning"
+    verify_state "0" "${ec}" "Conforming install exits 0"
+
+    # Case 2: 2775 but group mismatch (not ioc) -> warning.
+    name="PrecheckGrp-SYS"
+    chdir="${base}/grpmismatch"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s2"; conf="${base}/c2"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp root "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned2="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned2="warned"
+    verify_state "warned" "${warned2}" "Group-mismatch dir (not ioc) warns"
+    verify_state "0" "${ec}" "Group-mismatch install with -f exits 0"
+
+    # Case 3: conforming leaf but a parent dir is 0700 (not traversable) -> warning.
+    name="PrecheckParent-SYS"
+    local p3="${base}/parent700"; chdir="${p3}/leaf"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s3"; conf="${base}/c3"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    chmod 0700 "${p3}"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned3="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned3="warned"
+    verify_state "warned" "${warned3}" "Untraversable 0700 parent warns"
+    verify_state "0" "${ec}" "Untraversable-parent install with -f exits 0"
+    chmod 0755 "${p3}"  # restore so cleanup can recurse
+
+    # Case 4: relative IOC_CHDIR (helper rejects non-absolute). The dir must exist
+    # relative to the runner CWD for validate_conf to pass, so we cd into case_root.
+    name="PrecheckRel-SYS"
+    local case_root="${base}/relcase"; chdir="reldir"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s4"; conf="${base}/c4"
+    mkdir -p "${case_root}/${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${case_root}/${chdir}"; chmod 2775 "${case_root}/${chdir}"
+    touch "${case_root}/${chdir}/st.cmd"; chmod +x "${case_root}/${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash -c "cd \"${case_root}\" && bash \"${RUNNER_SCRIPT}\" -f install \"${conf_file}\"" \
+        >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned4="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned4="warned"
+    verify_state "warned" "${warned4}" "Relative IOC_CHDIR warns (non-absolute rejected)"
+    verify_state "0" "${ec}" "Relative-path install with -f exits 0"
+
+    # Case 5: IOC_CHDIR is a symlink to a conforming target (symlinked leaf rejected).
+    name="PrecheckLink-SYS"
+    local link_target="${base}/linktarget"; chdir="${base}/linkdir"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s5"; conf="${base}/c5"
+    mkdir -p "${link_target}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${link_target}"; chmod 2775 "${link_target}"
+    touch "${link_target}/st.cmd"; chmod +x "${link_target}/st.cmd"
+    ln -s "${link_target}" "${chdir}"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned5="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned5="warned"
+    verify_state "warned" "${warned5}" "Symlinked IOC_CHDIR warns (symlinked leaf rejected)"
+    verify_state "0" "${ec}" "Symlinked-leaf install with -f exits 0"
+
+    # Case 6: root:ioc 0775 (group rwx but no setgid) -> warning.
+    name="PrecheckNoSgid-SYS"
+    chdir="${base}/nosetgid"; conf_file="${base}/${name}.conf"
+    sysd="${base}/s6"; conf="${base}/c6"
+    mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 0775 "${chdir}"
+    # chmod 0775 keeps the parent-inherited setgid bit; clear it explicitly so
+    # this case truly exercises a non-setgid (mode 775) directory.
+    chmod g-s "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" -f install "${conf_file}" >/dev/null 2>"${stderr_cap}" || ec=$?
+    local warned6="clean"
+    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned6="warned"
+    verify_state "warned" "${warned6}" "Missing-setgid 0775 dir warns"
+    verify_state "0" "${ec}" "Missing-setgid install with -f exits 0"
+
+    # Case 7: y/N prompt flow (no -f), triggered by a group-mismatch dir.
+    name="PrecheckPrompt-SYS"
+    chdir="${base}/promptdir"; conf_file="${base}/${name}.conf"
+    mkdir -p "${chdir}"
+    chgrp root "${chdir}"; chmod 2775 "${chdir}"
+    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    cat <<EOF > "${conf_file}"
+IOC_NAME="${name}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${chdir}"
+IOC_PORT="unix:ioc-srv:ioc:0660:/run/procserv/${name}/control"
+IOC_CMD="./st.cmd"
+EOF
+
+    # 7a: EOF on the prompt -> abort, exit 1.
+    sysd="${base}/s7a"; conf="${base}/c7a"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    ec=0
+    IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" install "${conf_file}" </dev/null >/dev/null 2>&1 || ec=$?
+    verify_state "1" "${ec}" "Prompt EOF aborts install (exit 1)"
+
+    # 7b: explicit N -> declined, exit 0.
+    sysd="${base}/s7b"; conf="${base}/c7b"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    ec=0
+    printf 'N\n' | IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" install "${conf_file}" >/dev/null 2>&1 || ec=$?
+    verify_state "0" "${ec}" "Prompt explicit N declines install (exit 0)"
+
+    # 7c: explicit Y -> proceeds, exit 0, conf deployed.
+    sysd="${base}/s7c"; conf="${base}/c7c"
+    mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
+    ec=0
+    printf 'Y\n' | IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
+        bash "${RUNNER_SCRIPT}" install "${conf_file}" >/dev/null 2>&1 || ec=$?
+    verify_state "0" "${ec}" "Prompt explicit Y proceeds with install (exit 0)"
+    local installed7c="false"
+    [[ -f "${conf}/${name}.conf" ]] && installed7c="true"
+    verify_state "true" "${installed7c}" "Prompt Y path deploys the conf file"
+
+    # Cleanup is left to _handle_exit: base lives under WORKSPACE, so the
+    # standard cleanup/retention policy removes it on success and retains it
+    # (with the precheck fixtures) for inspection on failure. Isolated
+    # CONF_DIR/SYSTEMD_DIR overrides kept every artifact under base; real
+    # /etc is never touched.
 }
 
 function test_persistence {
@@ -828,10 +1427,23 @@ function run_all_tests {
         "test_channel_access"
         "test_inspect_and_multiple_connections"
         "test_monitor_isolation"
-#        "test_crash_detection"  # blocked by #7 (v1.1.0 log file redirect); system journal requires adm or systemd-journal group
+        "test_crash_detection"
+        "test_detection_without_journal"
+        "test_logrotate_boundary"
+        "test_permission_enforcement"
+        "test_chdir_precheck"
         "test_persistence"
         "test_remove"
     )
+
+    # Record which ioc-runner binary this run exercises, so captured
+    # output shows whether the installed or source-tree binary ran. A
+    # stale installed binary previously masked a passing fix as a failing
+    # test until an external reviewer caught the path mismatch. (#71)
+    print_divider
+    _log "INFO" "Runner under test: ${RUNNER_SCRIPT}"
+    bash "${RUNNER_SCRIPT}" -V || _log "WARN" "ioc-runner -V returned non-zero"
+    print_divider
 
     local step=1
     local func

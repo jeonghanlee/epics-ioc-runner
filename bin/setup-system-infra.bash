@@ -18,7 +18,9 @@ declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
+declare -g LOGROTATE_FILE="/etc/logrotate.d/procserv"
 declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 
 declare -g SC_DIR
 SC_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -42,12 +44,15 @@ declare -g VERIFY_PASS=0
 declare -g VERIFY_FAIL=0
 
 declare -g PERM_CONF_DIR="2770"
+declare -g PERM_LOG_DIR="2775"
 declare -g PERM_SUDOERS="0440"
 declare -g PERM_SYSTEMD_TEMPLATE="0644"
+declare -g PERM_LOGROTATE="0644"
 declare -g PERM_RUNNER_SCRIPT="0755"
 declare -g PERM_BASH_COMP="0644"
 declare -g PERM_BACKUP_DIR="0700"
 declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
+declare -g OWNER_LOG_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
 
 # --- Base Commands & Paths ---
@@ -119,6 +124,40 @@ function is_rhel_family {
         esac
         exit 1
     )
+}
+
+function sudo_supports_regex_args {
+    # Threshold 1.9.10: regex command-argument matching shipped in sudo
+    # 1.9.10 (2022). Returns 1 on execution or parse failure so callers
+    # fall back to the glob form; missing-sudo is already a hard error
+    # caught by the FULL_SETUP_MODE preflight, so this helper assumes
+    # sudo is on PATH.
+    local raw
+    if ! raw=$(sudo -V 2>/dev/null | head -n 1); then
+        _log "WARN" "sudo -V failed; falling back to glob-form sudoers policy."
+        return 1
+    fi
+
+    local major minor patch
+    if [[ "${raw}" =~ Sudo[[:space:]]version[[:space:]]([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+        major=${BASH_REMATCH[1]}
+        minor=${BASH_REMATCH[2]}
+        patch=${BASH_REMATCH[3]}
+    else
+        _log "WARN" "sudo -V output not in expected 'Sudo version X.Y.Z' form; falling back to glob-form sudoers policy."
+        return 1
+    fi
+
+    if (( major > 1 )); then
+        return 0
+    fi
+    if (( major == 1 && minor > 9 )); then
+        return 0
+    fi
+    if (( major == 1 && minor == 9 && patch >= 10 )); then
+        return 0
+    fi
+    return 1
 }
 
 function verify_path {
@@ -273,6 +312,26 @@ function backup_if_exists {
 
 if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
+    # Clean up staged temp files (sudoers, logrotate) on any exit; a
+    # mid-run abort would otherwise leak them in /tmp.
+    trap 'rm -f "${tmp_sudoers:-}" "${tmp_logrotate:-}"' EXIT
+
+    # Preflight: required tools for the system-mode infrastructure.
+    # The log directory STEP relies on setfacl/getfacl to install default
+    # ACLs that enforce group=ioc:rw; the log rotation STEP relies on
+    # logrotate. Fail early here rather than after STEP 1-5 have already
+    # mutated accounts, sudoers, the log dir, and the unit template.
+    declare -A REQUIRED_PKG=([setfacl]="acl" [getfacl]="acl" [logrotate]="logrotate" [sudo]="sudo")
+    for required_tool in setfacl getfacl logrotate sudo; do
+        if ! command -v "${required_tool}" >/dev/null 2>&1; then
+            _log "ERROR" "Required tool '${required_tool}' not found in PATH."
+            _log "INFO"  "Install the '${REQUIRED_PKG[${required_tool}]}' package and re-run:"
+            _log "INFO"  "  Debian/Ubuntu: sudo apt install ${REQUIRED_PKG[${required_tool}]}"
+            _log "INFO"  "  RHEL/Rocky/CentOS: sudo dnf install ${REQUIRED_PKG[${required_tool}]}"
+            exit 1
+        fi
+    done
+
     print_divider
     _log "INFO" "STEP 1: Account and Group Setup (Hardened)"
     print_sub_divider
@@ -306,8 +365,35 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
     tmp_sudoers=$(mktemp)
 
-    cat <<EOF > "${tmp_sudoers}"
+    if sudo_supports_regex_args; then
+        # Anchored-regex form. Generator detected sudo >= 1.9.10, so
+        # command-argument matching is bound by ^ and $ in POSIX ERE,
+        # giving parity with validate_ioc_name in bin/ioc-runner
+        # ([A-Za-z0-9_] head, then up to 63 of [A-Za-z0-9_-]).
+        cat <<EOF > "${tmp_sudoers}"
 # /etc/sudoers.d/10-epics-ioc
+%${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} ^start epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^stop epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^status epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^enable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^daemon-reload\$
+EOF
+    else
+        # Glob-fallback form. fnmatch '*' is broader than the runner
+        # IOC-name model, but systemd unit-name escaping plus the
+        # template-only resolution rule prevents it from becoming an
+        # escalation path. See docs/PERMISSION_MODEL.md residual-risk
+        # subsection.
+        _log "WARN" "sudo < 1.9.10 detected; emitting glob-form sudoers policy (broader than the runner IOC-name model; not an escalation path; see docs/PERMISSION_MODEL.md)."
+        cat <<EOF > "${tmp_sudoers}"
+# /etc/sudoers.d/10-epics-ioc
+# Glob-fallback form: this host's sudo does not support regex command
+# arguments (introduced in sudo 1.9.10). Scope is broader than the
+# runner IOC-name model [A-Za-z0-9_][A-Za-z0-9_-]{0,63}, but systemd
+# unit-name escaping plus template-only resolution keep this off any
+# escalation path. See docs/PERMISSION_MODEL.md.
 %${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} stop epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} restart epics-@*.service, \\
@@ -316,11 +402,13 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
                                       ${SYSTEMCTL_BIN} disable epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} daemon-reload
 EOF
+    fi
 
     if visudo -cf "${tmp_sudoers}" >/dev/null 2>&1; then
         chmod "${PERM_SUDOERS}" "${tmp_sudoers}"
         backup_if_exists "${SUDOERS_FILE}"
         mv "${tmp_sudoers}" "${SUDOERS_FILE}"
+        tmp_sudoers=""   # consumed by mv; keep the EXIT trap from re-acting
         verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
         verify_sudoers_includedir_order "/etc/sudoers"
     else
@@ -330,7 +418,35 @@ EOF
     fi
 
     print_divider
-    _log "INFO" "STEP 4: Systemd Template Unit Deployment"
+    _log "INFO" "STEP 4: System Log Directory Setup"
+    print_sub_divider
+
+    if [[ ! -e "${SYSTEM_LOG_DIR}" ]]; then
+        install -d -o "root" -g "${SYSTEM_GROUP}" -m "${PERM_LOG_DIR}" "${SYSTEM_LOG_DIR}"
+        _log "INFO" "Created ${SYSTEM_LOG_DIR}"
+    else
+        _log "INFO" "${SYSTEM_LOG_DIR} already exists."
+    fi
+
+    # Re-assert ownership and mode unconditionally so a re-run of setup
+    # restores the canonical state if it has drifted.
+    chown "${OWNER_LOG_DIR}" "${SYSTEM_LOG_DIR}"
+    chmod "${PERM_LOG_DIR}" "${SYSTEM_LOG_DIR}"
+
+    # Default ACLs enforce group=ioc:rw on every newly created file in
+    # this directory, regardless of the creating process's umask. setgid
+    # alone propagates group identity but not the rw bits, so an engineer
+    # touching a file under default umask 0022 would otherwise create a
+    # 0644 entry that ioc-srv cannot append to. Site canonical pattern;
+    # see docs/PERMISSION_MODEL.md.
+    setfacl -d -m g:"${SYSTEM_GROUP}":rw "${SYSTEM_LOG_DIR}"
+    setfacl -d -m o::r-- "${SYSTEM_LOG_DIR}"
+    setfacl -d -m m::rw "${SYSTEM_LOG_DIR}"
+
+    verify_path "${SYSTEM_LOG_DIR}" "${OWNER_LOG_DIR}" "${PERM_LOG_DIR}" "System log directory ready: ${SYSTEM_LOG_DIR} (${OWNER_LOG_DIR}, ${PERM_LOG_DIR})"
+
+    print_divider
+    _log "INFO" "STEP 5: Systemd Template Unit Deployment"
     print_sub_divider
 
     declare p_path
@@ -362,7 +478,7 @@ Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -378,10 +494,51 @@ EOF
     systemctl daemon-reload
     _log "SUCCESS" "Reloaded systemd daemon."
 
+    print_divider
+    _log "INFO" "STEP 6: Log Rotation Policy Deployment"
+    print_sub_divider
+
+    # procServ does not reopen its log on SIGHUP, so copytruncate is
+    # mandatory: logrotate copies then truncates the live file in place,
+    # losing at most one buffered write cycle per rotation. SYSTEM_LOG_DIR
+    # is group-writable (2775, group ioc), so "su root ${SYSTEM_GROUP}" runs
+    # rotation under root:ioc, satisfying logrotate's refusal to rotate logs
+    # in a directory writable by a non-root group. copytruncate preserves
+    # the source log's owner on the rotated .gz, and the STEP 4 default ACL
+    # keeps ioc group read access either way. nodateext pins the
+    # <name>.log.N.gz numbering (the #15 acceptance) even if a global
+    # dateext is set in /etc/logrotate.conf.
+    tmp_logrotate=$(mktemp)
+
+    cat <<EOF > "${tmp_logrotate}"
+${SYSTEM_LOG_DIR}/*.log {
+    su root ${SYSTEM_GROUP}
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+    nodateext
+}
+EOF
+
+    if logrotate -d "${tmp_logrotate}" >/dev/null 2>&1; then
+        chmod "${PERM_LOGROTATE}" "${tmp_logrotate}"
+        backup_if_exists "${LOGROTATE_FILE}"
+        mv "${tmp_logrotate}" "${LOGROTATE_FILE}"
+        tmp_logrotate=""   # consumed by mv; keep the EXIT trap from re-acting
+        verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
+    else
+        _log "ERROR" "logrotate syntax validation failed. Skipping deployment."
+        rm -f "${tmp_logrotate}"
+        exit 1
+    fi
+
 fi
 
 print_divider
-_log "INFO" "STEP 5: CLI Wrapper Deployment"
+_log "INFO" "STEP 7: CLI Wrapper Deployment"
 print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then

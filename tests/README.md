@@ -37,6 +37,9 @@ To force retention regardless of the result, set the `KEEP_WORKSPACE` environmen
 KEEP_WORKSPACE=1 bash tests/run-all-tests.bash --local
 ```
 
+### Runner Binary Evidence
+Both lifecycle suites print the resolved `ioc-runner` path and its `-V` output (version, git hash, commit and install dates) before STEP 1. `test-system-lifecycle.bash` prefers the installed `/usr/local/bin/ioc-runner` and falls back to the source tree; `test-local-lifecycle.bash` uses the source tree. The evidence line makes captured output show which binary actually ran, so a stale installed binary cannot silently mask a source-tree fix.
+
 ---
 
 ## Test Execution
@@ -47,12 +50,12 @@ The master script executes tests in the recommended SOP sequence and supports se
 ```bash
 # Default: Runs ALL phases (1 through 4)
 # Requires EPICS_BASE, 'ioc' group membership, sudo access, and lsof.
-# A persistent user journal enables STEP 24/25 coverage; otherwise those steps SKIP with a WARN.
+# A persistent user journal enables STEP 24 coverage; otherwise that step SKIPs with a WARN.
 bash tests/run-all-tests.bash
 
 # Local Mode: Runs Phase 1 and 2 only
 # Requires EPICS_BASE and lsof. No sudo or 'ioc' group required.
-# A persistent user journal enables STEP 24/25 coverage; otherwise those steps SKIP with a WARN.
+# A persistent user journal enables STEP 24 coverage; otherwise that step SKIPs with a WARN.
 bash tests/run-all-tests.bash --local
 
 # System Mode: Runs Phase 3 and 4 only

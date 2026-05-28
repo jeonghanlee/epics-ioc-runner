@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.0.8"
+declare -g RUNNER_VERSION="1.1.0"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
@@ -25,23 +25,27 @@ declare -g BLUE='\033[0;34m'
 declare -g NC='\033[0m'
 
 # --- Configuration Directories ---
+# Resolve HOME defensively: bare sudo or some systemd/cron contexts leave
+# HOME unset, which would abort the LOCAL_* defaults below under 'set -u'
+# (even for --help, -V, or system mode that never use them).
+if [[ -z "${HOME:-}" ]]; then
+    HOME="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
+    HOME="${HOME:-/tmp}"
+fi
 declare -g SYSTEM_CONF_DIR="${IOC_RUNNER_SYSTEM_CONF_DIR:-/etc/procServ.d}"
 declare -g LOCAL_CONF_DIR="${IOC_RUNNER_LOCAL_CONF_DIR:-${HOME}/.config/procServ.d}"
 declare -g SYSTEM_SYSTEMD_DIR="${IOC_RUNNER_SYSTEM_SYSTEMD_DIR:-/etc/systemd/system}"
 declare -g LOCAL_SYSTEMD_DIR="${IOC_RUNNER_LOCAL_SYSTEMD_DIR:-${HOME}/.config/systemd/user}"
 declare -g SYSTEM_RUN_DIR="${IOC_RUNNER_SYSTEM_RUN_DIR:-/run/procserv}"
 declare -g LOCAL_RUN_DIR="${IOC_RUNNER_LOCAL_RUN_DIR:-/run/user/$(id -u)/procserv}"
+declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
+declare -g LOCAL_LOG_DIR="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
 
 # --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN="/usr/bin/systemctl"
 
 if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
     printf "Error: %s not found or not executable. This script requires systemd.\n" "${SYSTEMCTL_BIN}" >&2
-    exit 1
-fi
-
-if [[ -z "${SYSTEMCTL_BIN}" ]]; then
-    printf "Error: systemctl binary not found. This script requires systemd to operate.\n" >&2
     exit 1
 fi
 
@@ -52,6 +56,7 @@ declare -g EXEC_MODE="system"
 declare -g CONF_DIR="${IOC_RUNNER_CONF_DIR:-${SYSTEM_CONF_DIR}}"
 declare -g SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${SYSTEM_SYSTEMD_DIR}}"
 declare -g RUN_DIR="${IOC_RUNNER_RUN_DIR:-${SYSTEM_RUN_DIR}}"
+declare -g LOG_DIR="${IOC_RUNNER_LOG_DIR:-${SYSTEM_LOG_DIR}}"
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
@@ -61,9 +66,9 @@ declare -g TARGET_SYSTEM_USER="ioc-srv"
 declare -g TARGET_SYSTEM_GROUP="ioc"
 
 # --- Health Check Configuration ---
-# Regex pattern used to detect fatal errors or crash-loops in systemd logs immediately after startup.
+# Regex pattern used to detect fatal errors or crash-loops in procServ logs immediately after startup.
 # Users can add custom error strings specific to their hardware or EPICS modules here (separated by '|').
-declare -g CRASH_LOG_PATTERNS="(Restarting child|error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
+declare -g CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 
 
 function print_divider {
@@ -79,6 +84,7 @@ function set_local_mode {
     CONF_DIR="${IOC_RUNNER_CONF_DIR:-${LOCAL_CONF_DIR}}"
     SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${LOCAL_SYSTEMD_DIR}}"
     RUN_DIR="${IOC_RUNNER_RUN_DIR:-${LOCAL_RUN_DIR}}"
+    LOG_DIR="${IOC_RUNNER_LOG_DIR:-${LOCAL_LOG_DIR}}"
 }
 
 function print_usage {
@@ -134,15 +140,16 @@ EOF
 function validate_ioc_name {
     local name="$1"
     local context="${2:-}"
+    local LC_ALL=C   # locale-independent character-class matching
 
-    if [[ "${name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    if [[ "${#name}" -le 64 && "${name}" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]]; then
         return 0
     fi
 
     if [[ -n "${context}" ]]; then
-        printf "Error: Invalid IOC name '%s' %s. Only alphanumeric characters, '-', and '_' are allowed.\n" "${name}" "${context}" >&2
+        printf "Error: Invalid IOC name '%s' %s. Only alphanumeric characters, '-', and '_' are allowed; must not start with '-', max 64 chars.\n" "${name}" "${context}" >&2
     else
-        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed.\n" "${name}" >&2
+        printf "Error: Invalid IOC name '%s'. Only alphanumeric characters, '-', and '_' are allowed; must not start with '-', max 64 chars.\n" "${name}" >&2
     fi
     return 1
 }
@@ -221,17 +228,42 @@ if [[ -z "${COMMAND_ACTION}" ]]; then
     exit 0
 fi
 
-# Foot-gun guard: IOC_RUNNER_RUN_DIR overrides the socket path written into
-# IOC_PORT, but the system-mode systemd template hardcodes
-# RuntimeDirectory=procserv/%i (resolves under /run/procserv). In system mode
-# this override causes divergence between the declared socket path and where
-# the kernel actually creates the UDS. Safe in --local mode (runtime dir is
-# user-scoped and the template is regenerated per-user).
-if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_RUN_DIR:-}" \
-      && "${IOC_RUNNER_RUN_DIR}" != "/run/procserv" ]]; then
-    printf "Warning: IOC_RUNNER_RUN_DIR is honored in IOC_PORT, but the system-mode\n" >&2
-    printf "         systemd RuntimeDirectory is fixed at /run/procserv. The socket\n" >&2
-    printf "         may not appear where IOC_PORT claims. Use --local for custom paths.\n" >&2
+# Hard guard: the system-mode socket path comes from RUN_DIR, but the
+# system-mode systemd template hardcodes RuntimeDirectory=procserv/%i
+# (resolves under /run/procserv). Either IOC_RUNNER_RUN_DIR or
+# IOC_RUNNER_SYSTEM_RUN_DIR can move RUN_DIR off /run/procserv, splitting the
+# declared socket path from where the kernel creates the UDS -- breaking
+# list/attach/remove/inspect (and pointing do_remove's rm -rf at a path the
+# operator never intended). Checking resolved RUN_DIR catches both overrides.
+# Rejected outright in system mode; --local is the supported path.
+if [[ "${EXEC_MODE}" == "system" && "${RUN_DIR}" != "/run/procserv" ]]; then
+    printf "Error: system-mode runtime dir (%s) diverges from the fixed systemd\n" "${RUN_DIR}" >&2
+    printf "       RuntimeDirectory (/run/procserv); the socket path and the runner\n" >&2
+    printf "       would split, breaking list/attach/remove/inspect.\n" >&2
+    printf "       Unset IOC_RUNNER_RUN_DIR / IOC_RUNNER_SYSTEM_RUN_DIR, or use --local.\n" >&2
+    exit 1
+fi
+
+# Foot-gun guard: IOC_RUNNER_LOG_DIR shifts where the runner scans for crash
+# patterns; the scan path (LOG_DIR) must match where procServ actually writes.
+# - system mode: procServ writes to SYSTEM_LOG_DIR (fixed by the system
+#   template), so an IOC_RUNNER_LOG_DIR override that differs guarantees a
+#   mismatch.
+# - local mode: the user unit bakes the resolved LOG_DIR as --logfile at
+#   install time, so a different IOC_RUNNER_LOG_DIR or IOC_RUNNER_LOCAL_LOG_DIR
+#   at start/restart scans a file procServ is not writing to.
+if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_LOG_DIR:-}" \
+      && "${IOC_RUNNER_LOG_DIR}" != "${SYSTEM_LOG_DIR}" ]]; then
+    printf "Warning: IOC_RUNNER_LOG_DIR (%s) differs from SYSTEM_LOG_DIR (%s).\n" \
+           "${IOC_RUNNER_LOG_DIR}" "${SYSTEM_LOG_DIR}" >&2
+    printf "         The runner will scan the override path, but procServ writes to\n" >&2
+    printf "         SYSTEM_LOG_DIR per the system systemd template. Use --local for\n" >&2
+    printf "         custom paths.\n" >&2
+elif [[ "${EXEC_MODE}" == "local" && ( -n "${IOC_RUNNER_LOG_DIR:-}" || -n "${IOC_RUNNER_LOCAL_LOG_DIR:-}" ) ]]; then
+    printf "Warning: the local log directory (%s), set via IOC_RUNNER_LOG_DIR or\n" "${LOG_DIR}" >&2
+    printf "         IOC_RUNNER_LOCAL_LOG_DIR, is baked into the user unit's --logfile\n" >&2
+    printf "         at install time. Export the same value when you start or restart\n" >&2
+    printf "         the IOC, or the crash scan reads a path procServ is not writing to.\n" >&2
 fi
 
 # Strict validation for command-specific flags
@@ -277,6 +309,7 @@ function run_systemctl {
 function deploy_local_template {
     local procserv_bin=""
     local template_path="${SYSTEMD_DIR}/epics-@.service"
+    local backup_path=""
 
     # Resolve procServ binary path
     for path in "${PROCSERV_SEARCH_PATHS[@]}"; do
@@ -291,20 +324,45 @@ function deploy_local_template {
         exit 1
     fi
 
-    if [[ ! -f "${template_path}" ]]; then
-        printf "Deploying user-level systemd template to %s...\n" "${template_path}"
-        mkdir -p "${SYSTEMD_DIR}"
-        cat > "${template_path}" <<EOF
+    mkdir -p "${SYSTEMD_DIR}"
+
+    # Always emit the template. Back up any prior file atomically via
+    # mktemp so repeated installs in the same second do not collide,
+    # including on shared (NFS-backed) home directories. mktemp creates
+    # an empty placeholder at a unique path; the subsequent mv -f swaps
+    # in the prior template.
+    if [[ -f "${template_path}" ]]; then
+        if ! backup_path=$(mktemp "${template_path}.bak.XXXXXXXX" 2>/dev/null); then
+            printf "Error: Unable to create backup of existing user template.\n" >&2
+            printf "  template: %s\n" "${template_path}" >&2
+            printf "  Possible causes: %s is read-only, the home directory is\n" "${SYSTEMD_DIR}" >&2
+            printf "    full, or the filesystem does not allow file creation here.\n" >&2
+            printf "  Resolve the underlying condition and re-run 'ioc-runner --local install'.\n" >&2
+            exit 1
+        fi
+        mv -f "${template_path}" "${backup_path}"
+        printf "Backed up existing user template to %s\n" "${backup_path}"
+        # Prune old template backups, keeping the 3 most recent.
+        local -a old_backups=()
+        mapfile -t old_backups < <(ls -1t "${template_path}".bak.* 2>/dev/null)
+        if (( ${#old_backups[@]} > 3 )); then
+            rm -f -- "${old_backups[@]:3}"
+        fi
+    fi
+
+    printf "Deploying user-level systemd template to %s...\n" "${template_path}"
+    cat > "${template_path}" <<EOF
 [Unit]
 Description=procServ for %i (Local User)
 AssertFileNotEmpty=${CONF_DIR}/%i.conf
 
 [Service]
 Type=simple
+UMask=0027
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${procserv_bin} --foreground --logfile=- --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 StandardOutput=syslog
 StandardError=inherit
@@ -313,8 +371,7 @@ SyslogIdentifier=epics-%i
 [Install]
 WantedBy=default.target
 EOF
-        run_systemctl daemon-reload
-    fi
+    run_systemctl daemon-reload
 }
 
 # Parse a specific key from a configuration file using only bash built-ins
@@ -348,12 +405,126 @@ function read_conf_all {
     while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
         key="${key// /}"
         [[ -z "${key}" || "${key}" =~ ^# ]] && continue
+        val="${val#"${val%%[![:space:]]*}"}"   # trim leading whitespace
+        val="${val%"${val##*[![:space:]]}"}"   # trim trailing whitespace
         val="${val%\"}"; val="${val#\"}"
         val="${val%\'}"; val="${val#\'}"
         val="${val%$'\r'}"
         # shellcheck disable=SC2034
         result_map["${key}"]="${val}"
     done < "${conf_file}"
+}
+
+function get_file_size {
+    local path="$1"
+    local size="0"
+
+    if [[ -f "${path}" ]]; then
+        size=$(stat -c '%s' "${path}" 2>/dev/null || printf "0")
+        if [[ ! "${size}" =~ ^[0-9]+$ ]]; then
+            size="0"
+        fi
+    fi
+
+    printf "%s" "${size}"
+}
+
+# Capture the file's inode for rotation detection. Empty on missing/
+# unreadable file or stat failure so the caller can detect-and-skip
+# instead of misinterpreting an empty value as a changed inode.
+function get_file_inode {
+    local path="$1"
+    local inode=""
+
+    if [[ -f "${path}" ]]; then
+        inode=$(stat -c '%i' "${path}" 2>/dev/null || printf "")
+        if [[ ! "${inode}" =~ ^[0-9]+$ ]]; then
+            inode=""
+        fi
+    fi
+
+    printf "%s" "${inode}"
+}
+
+# Hash the last 64 bytes ending at end_offset. Used as a fingerprint to
+# detect same-inode truncate-and-regrow-past-old-offset rotations that
+# inode and size guards alone cannot distinguish. Empty hash on
+# unreadable file, zero/negative offset, or any tool failure so the
+# scanner skips the comparison rather than treating it as a mismatch.
+function get_file_tailhash {
+    local path="$1"
+    local end_offset="$2"
+    local start n hash
+
+    if [[ ! -r "${path}" || "${end_offset}" -le 0 ]]; then
+        printf ""
+        return
+    fi
+
+    n=64
+    if [[ "${end_offset}" -lt "${n}" ]]; then
+        n="${end_offset}"
+    fi
+    start=$((end_offset - n))
+
+    if ! hash=$(dd if="${path}" bs=1 count="${n}" skip="${start}" \
+                  iflag=skip_bytes,count_bytes status=none 2>/dev/null \
+                  | sha256sum 2>/dev/null | cut -d' ' -f1); then
+        hash=""
+    fi
+
+    printf "%s" "${hash}"
+}
+
+function scan_file_for_crash_patterns {
+    local log_file="$1"
+    local start_offset="$2"
+    local start_inode="$3"
+    local start_tailhash="$4"
+    local patterns="$5"
+    local current_size current_inode current_tailhash
+    local scan_offset
+
+    if [[ ! -r "${log_file}" ]]; then
+        return 2
+    fi
+
+    current_size=$(get_file_size "${log_file}")
+    current_inode=$(get_file_inode "${log_file}")
+    scan_offset="${start_offset}"
+
+    # Rotation/truncation detection, in precedence order:
+    # 1. Inode changed -> file was replaced (rename-style rotation or
+    #    "file appeared after capture"); scan from 0.
+    # 2. Current size below captured size -> truncated in place
+    #    (copytruncate path while regrowth has not passed the old
+    #    offset); scan from 0.
+    # 3. Same inode, size >= captured offset, but the byte window
+    #    ending at the captured offset no longer matches its
+    #    capture-time fingerprint -> copytruncate-then-regrow-past;
+    #    scan from 0.
+    if [[ -n "${start_inode}" && -n "${current_inode}" && "${current_inode}" != "${start_inode}" ]]; then
+        scan_offset=0
+    elif [[ "${current_size}" -lt "${scan_offset}" ]]; then
+        scan_offset=0
+    elif [[ -n "${start_tailhash}" ]]; then
+        current_tailhash=$(get_file_tailhash "${log_file}" "${start_offset}")
+        if [[ -n "${current_tailhash}" && "${current_tailhash}" != "${start_tailhash}" ]]; then
+            scan_offset=0
+        fi
+    fi
+
+    if tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null | grep -qiE "${patterns}"; then
+        return 0
+    fi
+
+    return 1
+}
+
+function print_log_file_hint {
+    local log_file="$1"
+
+    printf "  -> Check logs: tail -f %s\n" "${log_file}" >&2
 }
 
 # Generate or correct the UNIX domain socket path based on the execution mode
@@ -520,6 +691,10 @@ function resolve_con_tool {
             fi
         done
     else
+        if [[ ! -x "${CON_TOOL_PATH}" ]]; then
+            printf "Error: IOC_RUNNER_CON_TOOL '%s' is not an executable file.\n" "${CON_TOOL_PATH}" >&2
+            exit 1
+        fi
         CON_TOOL_TYPE="con"
         return 0
     fi
@@ -678,6 +853,7 @@ function do_generate {
     fi
 
     tmp_conf=$(mktemp "${TMPDIR:-/tmp}/ioc-runner-gen.XXXXXX.conf")
+    trap 'rm -f "${tmp_conf:-}"' EXIT
 
     cat <<EOF > "${tmp_conf}"
 IOC_NAME="${IOC_NAME}"
@@ -752,15 +928,21 @@ EOF
     fi
 
     mv -f "${tmp_conf}" "${generated_conf}"
+    trap - EXIT
 
-    # Pre-allocates the EPICS shell history file and enforces group-writable permissions.
-    # Allows the restricted system daemon (ioc-srv) to append command history by leveraging
-    # its membership in the shared management group, bypassing the need for root ownership.
+    # Pre-allocate the EPICS shell history file. In system mode it is made
+    # group-writable (0664) so the ioc-srv daemon can append via its 'ioc'
+    # group membership; in --local mode it is owner-private (0600), matching
+    # the single-principal local model.
     local hist_file="${abs_dir}/.iocsh_history"
     if [[ ! -f "${hist_file}" ]]; then
         touch "${hist_file}" 2>/dev/null || true
     fi
-    chmod 664 "${hist_file}" 2>/dev/null || true
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        chmod 0664 "${hist_file}" 2>/dev/null || true
+    else
+        chmod 0600 "${hist_file}" 2>/dev/null || true
+    fi
 
     print_divider
     printf "Configuration successfully generated and validated at: %s\n" "${generated_conf}"
@@ -768,6 +950,37 @@ EOF
     cat "${generated_conf}"
     print_divider
     printf "Next step: %s %sinstall %s\n" "${0##*/}" "${mode_flag}" "${generated_conf}"
+}
+
+# Model-conformance check (PERMISSION_MODEL.md): IOC_CHDIR is an absolute
+# 2775 tree -- group-owned by TARGET_SYSTEM_GROUP with setgid +
+# group write+execute -- and every parent is traversable by the service
+# account (other-execute, or TARGET_SYSTEM_GROUP with group-execute). No
+# sudo, so root and an ioc-group operator agree. ACLs and symlinked paths
+# are out of scope; IOC_CHDIR must be an absolute, non-symlinked path.
+function chdir_conforms_to_system_model {
+    local dir="$1"
+    [[ "${dir}" == /* ]] || return 1            # absolute path required
+    [[ ! -L "${dir}" ]] || return 1             # symlinked leaf out of scope
+    [[ -d "${dir}" ]] || return 1
+    local grp mode
+    grp=$(stat -c '%G' "${dir}" 2>/dev/null) || return 1
+    mode=$(stat -c '%a' "${dir}" 2>/dev/null) || return 1
+    [[ "${grp}" == "${TARGET_SYSTEM_GROUP}" ]] || return 1
+    (( (0${mode} & 02000) != 0 )) || return 1                            # setgid
+    (( (0${mode} & 0020) != 0 && (0${mode} & 0010) != 0 )) || return 1   # group w + x
+    local parent="${dir}"
+    while [[ "${parent}" != "/" ]]; do
+        parent=$(dirname "${parent}")
+        [[ ! -L "${parent}" ]] || return 1      # symlinked parent out of scope
+        local pgrp pmode
+        pgrp=$(stat -c '%G' "${parent}" 2>/dev/null) || return 1
+        pmode=$(stat -c '%a' "${parent}" 2>/dev/null) || return 1
+        (( (0${pmode} & 0001) != 0 )) && continue                        # other-x
+        [[ "${pgrp}" == "${TARGET_SYSTEM_GROUP}" ]] && (( (0${pmode} & 0010) != 0 )) && continue
+        return 1
+    done
+    return 0
 }
 
 function do_install {
@@ -814,21 +1027,22 @@ function do_install {
     fi
 
     # System-mode write-access precheck for IOC_CHDIR.
-    # Verifies that TARGET_SYSTEM_USER can write to the deployment directory so
-    # runtime artifacts (iocsh history, autosave, save/restore state) do not
-    # fail on startup. The documented convention deploys system-mode IOCs under
-    # a shared, group-writable tree (typically /opt/epics-iocs/, mode 2775,
-    # group TARGET_SYSTEM_GROUP). Non-interactive sudo probe avoids blocking
-    # CI pipelines; when sudo itself is unavailable the precheck is skipped.
+    # Verifies the directory conforms to the permission model so runtime
+    # artifacts (iocsh history, autosave, save/restore state) do not fail
+    # on startup. The model deploys system-mode IOCs under a 2775 tree
+    # group-owned by ioc (typically root:ioc, e.g. /opt/epics-iocs/);
+    # ioc-srv writes via TARGET_SYSTEM_GROUP
+    # membership, so the check is by group ownership + mode, not sudo --
+    # the result is identical for root and for an ioc-group operator.
     # FORCE_OVERWRITE bypasses the confirmation prompt but never suppresses
     # the warning emitted to stderr.
-    if [[ "${EXEC_MODE}" == "system" ]] && command -v sudo >/dev/null 2>&1; then
+    if [[ "${EXEC_MODE}" == "system" ]]; then
         local chdir_target="${install_conf[IOC_CHDIR]:-}"
         local precheck_confirm
-        if ! sudo -n -u "${TARGET_SYSTEM_USER}" test -w "${chdir_target}" 2>/dev/null; then
+        if ! chdir_conforms_to_system_model "${chdir_target}"; then
             printf "Warning: IOC_CHDIR '%s' is not writable by '%s'.\n" "${chdir_target}" "${TARGET_SYSTEM_USER}" >&2
             printf "         System-mode IOCs should be deployed under /opt/epics-iocs/\n" >&2
-            printf "         (or another 'root:%s' 2775 tree) so that %s can write\n" "${TARGET_SYSTEM_GROUP}" "${TARGET_SYSTEM_USER}" >&2
+            printf "         (or another 2775 tree group-owned by '%s' with setgid) so that %s can write\n" "${TARGET_SYSTEM_GROUP}" "${TARGET_SYSTEM_USER}" >&2
             printf "         runtime artifacts such as .iocsh_history and autosave files.\n" >&2
             printf "         Continuing will install the configuration, but the IOC may\n" >&2
             printf "         emit permission errors on startup that trigger crash detection\n" >&2
@@ -860,6 +1074,12 @@ function do_install {
             exit 1
         fi
     else
+        # Ensure the resolved local log directory (LOG_DIR, which honors
+        # IOC_RUNNER_LOG_DIR / IOC_RUNNER_LOCAL_LOG_DIR) exists before the
+        # template is emitted, so the
+        # rendered ExecStart= --logfile= path is valid on the first
+        # systemctl --user start.
+        install -d -m 0750 "${LOG_DIR}"
         deploy_local_template
     fi
 
@@ -909,16 +1129,16 @@ function do_install {
         else
             printf "Info: Overwriting existing configuration file '%s' (--force).\n" "${target_conf}"
         fi
-        rm -f "${target_conf}" 2>/dev/null || true
     fi
 
     local tmp
     tmp=$(mktemp "${target_conf}.XXXXXX")
     trap 'rm -f "${tmp:-}"' EXIT
-    grep -v '^IOC_PORT=' "${source_conf}" > "${tmp}"
+    grep -v '^[[:space:]]*IOC_PORT[[:space:]]*=' "${source_conf}" > "${tmp}"
     printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${tmp}"
     [[ "${EXEC_MODE}" == "system" ]] && chmod 0660 "${tmp}"
     mv -f "${tmp}" "${target_conf}"
+    trap - EXIT
 
     run_systemctl daemon-reload
 
@@ -1077,7 +1297,7 @@ function do_list {
     local ss_lx_out
     ss_lx_out=$(ss -lx 2>/dev/null)
     while read -r _ _ rq sq path _; do
-        if [[ "${path}" == "${RUN_DIR}"* ]]; then
+        if [[ "${path}" == "${RUN_DIR%/}/"* ]]; then
             ioc_rq_map["${path}"]="${rq}"
             ioc_sq_map["${path}"]="${sq}"
         fi
@@ -1090,7 +1310,7 @@ function do_list {
     {
         read -r _  # skip header
         while read -r _ refcnt _ flags _ st inode path; do
-            if [[ "${path}" == "${RUN_DIR}"* ]]; then
+            if [[ "${path}" == "${RUN_DIR%/}/"* ]]; then
                 # Convert hex flags to decimal and check the __SO_ACCEPTCON bit (0x10000)
                 is_listen=$(( 16#${flags} & 16#00010000 ))
 
@@ -1283,6 +1503,16 @@ function do_inspect {
         exit 1
     fi
 
+    if ! command -v awk >/dev/null 2>&1; then
+        printf "Error: 'awk' utility is required but not found in PATH.\n" >&2
+        exit 1
+    fi
+
+    if ! command -v ss >/dev/null 2>&1; then
+        printf "Error: 'ss' utility is required but not found in PATH.\n" >&2
+        exit 1
+    fi
+
     print_divider
     printf "Deep Inspection: %s\n" "${IOC_NAME}"
     printf "Target Socket: %s\n" "${sock_path}"
@@ -1299,7 +1529,7 @@ function do_inspect {
     local lsof_found=0
     local -a server_pids=()
     local -A seen_server_pids=()
-    local line pid state loc_path loc_ino peer_ino proc_info p_ino c_pid
+    local line pid c_pid
 
     # 1. Gather server PIDs via lsof, restricted to the target socket path.
     # The -a flag forces AND semantics across selection criteria; without it,
@@ -1332,34 +1562,35 @@ function do_inspect {
     fi
     printf "\n"
 
-    # 2. Trace true client PIDs via Netlink peer inode mapping (ss -x -a -p)
+    # 2. Trace true client PIDs via Netlink peer inode mapping (ss -x -a -p).
+    # A single awk pass replaces the former per-line bash loop. On a host
+    # with many unrelated UDS sockets the bash loop walked every ss output
+    # line (O(lines)) and dominated inspect runtime; awk performs the same
+    # peer-inode and inode->PID mapping in one pass. pid= is matched against
+    # the whole line because the process field can contain spaces (e.g.
+    # "Isolated Web Co"), which would split a field-indexed match. awk emits
+    # client-candidate PIDs; the server-PID exclusion and dedup below
+    # preserve the original bash policy.
     local -a client_pids=()
-    local -A target_peer_inodes=()
-    local -A inode_to_pid=()
-
-    while read -r _ state _ _ loc_path loc_ino _ peer_ino proc_info; do
-        if [[ "${state}" == "ESTAB" ]]; then
-            # Identify the peer inode connected to our server socket
-            if [[ "${loc_path}" == "${sock_path}" ]]; then
-                target_peer_inodes["${peer_ino}"]=1
-            fi
-
-            # Map every local inode to its corresponding process ID
-            if [[ "${proc_info}" =~ pid=([0-9]+) ]]; then
-                inode_to_pid["${loc_ino}"]="${BASH_REMATCH[1]}"
-            fi
-        fi
-    done < <(ss -x -a -p 2>/dev/null || true)
-
     local -A seen_client_pids=()
-    for p_ino in "${!target_peer_inodes[@]}"; do
-        c_pid="${inode_to_pid[${p_ino}]:-}"
-        # Isolate true clients by excluding known server PIDs
-        if [[ -n "${c_pid}" && -z "${seen_server_pids[${c_pid}]:-}" && -z "${seen_client_pids[${c_pid}]:-}" ]]; then
+    local ss_peer_out
+    if ! ss_peer_out=$(ss -x -a -p 2>/dev/null); then
+        printf "Error: 'ss -x -a -p' failed; cannot trace client connections.\n" >&2
+        exit 1
+    fi
+    while read -r c_pid; do
+        [[ -n "${c_pid}" ]] || continue
+        if [[ -z "${seen_server_pids[${c_pid}]:-}" && -z "${seen_client_pids[${c_pid}]:-}" ]]; then
             client_pids+=("${c_pid}")
             seen_client_pids["${c_pid}"]=1
         fi
-    done
+    done < <(printf '%s\n' "${ss_peer_out}" | awk -v sock="${sock_path}" '
+        $2 == "ESTAB" {
+            if ($5 == sock) target_peer[$8] = 1
+            if (match($0, /pid=[0-9]+/)) inode_pid[$6] = substr($0, RSTART + 4, RLENGTH - 4)
+        }
+        END { for (p in target_peer) if (p in inode_pid) print inode_pid[p] }
+    ')
 
     print_divider
     printf "2. Server Process Context (procServ & IOC)\n"
@@ -1408,9 +1639,12 @@ function do_start_restart {
         run_systemctl daemon-reload
     fi
 
-    # Journal scan lower bound; must be captured before service start
-    local start_ts
-    start_ts=$(date +%s)
+    local log_file="${LOG_DIR}/${IOC_NAME}.log"
+    local log_start_offset log_start_inode log_start_tailhash
+    log_start_offset=$(get_file_size "${log_file}")
+    log_start_inode=$(get_file_inode "${log_file}")
+    log_start_tailhash=$(get_file_tailhash "${log_file}" "${log_start_offset}")
+
     run_systemctl "${action}" "epics-@${IOC_NAME}.service"
 
 
@@ -1423,19 +1657,8 @@ function do_start_restart {
     if [[ "${post_state}" != "active" ]]; then
         printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
         printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
-        if [[ "${EXEC_MODE}" == "local" ]]; then
-            printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
-        else
-            printf "  -> Check logs: journalctl -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
-            printf "     (Requires 'adm' or 'systemd-journal' group membership to read system logs)\n" >&2
-        fi
+        print_log_file_hint "${log_file}"
         exit 1
-    fi
-
-    # Scans journal from start_ts forward against CRASH_LOG_PATTERNS (case-insensitive)
-    local log_cmd=("journalctl" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
-    if [[ "${EXEC_MODE}" == "local" ]]; then
-        log_cmd=("journalctl" "--user" "-u" "epics-@${IOC_NAME}.service" "--since" "@${start_ts}" "--no-pager" "-q")
     fi
 
     # Issue #25: append per-IOC CRASH_LOG_PATTERNS_EXTRA when present.
@@ -1449,14 +1672,19 @@ function do_start_restart {
         effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}"
     fi
 
-    if "${log_cmd[@]}" 2>/dev/null | grep -qiE "${effective_patterns}"; then
+    local scan_status=0
+    if scan_file_for_crash_patterns "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}" "${effective_patterns}"; then
+        scan_status=0
+    else
+        scan_status=$?
+    fi
+
+    if [[ ${scan_status} -eq 0 ]]; then
         printf "\nWarning: IOC '%s' is active, but procServ may be crash-looping or reporting fatal errors.\n" "${IOC_NAME}" >&2
-        if [[ "${EXEC_MODE}" == "local" ]]; then
-            printf "  -> Check logs: journalctl --user -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
-        else
-            printf "  -> Check logs: journalctl -u epics-@%s.service -f\n" "${IOC_NAME}" >&2
-            printf "     (Requires 'adm' or 'systemd-journal' group membership to read system logs)\n" >&2
-        fi
+        print_log_file_hint "${log_file}"
+    elif [[ ${scan_status} -eq 2 ]]; then
+        printf "\nWarning: IOC '%s' is active, but startup logs could not be scanned.\n" "${IOC_NAME}" >&2
+        print_log_file_hint "${log_file}"
     else
         printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
     fi

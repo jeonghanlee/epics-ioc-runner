@@ -1,4 +1,18 @@
 # /etc/sudoers.d/10-epics-ioc
+#
+# Example for hosts shipping sudo < 1.9.10 (no regex command-argument
+# matching). Rocky 8's stock sudo (1.9.5p2) is one such host; the OS
+# name in the filename is a navigational hint, the actual branch key
+# is the local sudo version. setup-system-infra.bash auto-selects
+# this form when sudo_supports_regex_args returns false.
+#
+# Residual risk: fnmatch '*' is broader than the runner IOC-name model
+# [A-Za-z0-9_][A-Za-z0-9_-]{0,63}, so a direct sudo systemctl call
+# bypassing the runner accepts unit-name characters the runner never
+# generates. systemd escapes path and whitespace characters and the
+# epics-@.service template is root-owned, so this stays off any known
+# escalation path; the boundary is the %ioc sudoers gate, not the
+# argument pattern. See docs/PERMISSION_MODEL.md.
 
 # Allow trained engineers to manage ONLY EPICS template services
 %ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-@*.service, \

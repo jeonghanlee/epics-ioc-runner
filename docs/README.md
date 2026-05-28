@@ -21,6 +21,10 @@ This directory contains the complete documentation for deploying, managing, and 
 ### 2. Infrastructure Setup (System Administrators)
 * **[INSTALL.md](INSTALL.md)**
   Provides step-by-step instructions for the initial server setup. It covers creating dedicated service accounts, setting up shared configuration directories with SetGID permissions, configuring sudoers, and deploying the static system-wide systemd template unit.
+* **[PERMISSION_MODEL.md](PERMISSION_MODEL.md)**
+  Filesystem permission model covering every directory and file the runner installs, references, or creates: setup-managed paths, site-provisioned paths, three-principal model, end-state targets, and permission lifecycle (Create / Manage / Track) per principal across system and local modes.
+* **[LOG_LAYOUT.md](LOG_LAYOUT.md)**
+  Log file paths, ownership and permissions, and rotation policy for system and local modes: data flow from procServ to the log file, the `0644`/`0640` file modes, the logrotate `copytruncate` policy, the read-access model, and troubleshooting.
 
 ### 3. System-Wide Operations (Engineers)
 * **[USER_GUIDE.md](USER_GUIDE.md)**
@@ -33,3 +37,23 @@ This directory contains the complete documentation for deploying, managing, and 
 ### 5. Operations FAQ
 * **[FAQ.md](FAQ.md)**
   Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
+
+### 6. Release-Specific Documents
+* **[MILESTONE-1.1.0.md](MILESTONE-1.1.0.md)**
+  Single milestone register for the 1.1.0 Journal Decoupling Release: phase plan, acceptance criteria, current tracking status (commits, footers, audit backlog), and next session entry point. Tracks issues #8 through #22 plus the audit backlog #55-#65 and the follow-up #69.
+* **[TEST_PLAN-1.1.0.md](TEST_PLAN-1.1.0.md)**
+  Verification surface for 1.1.0: phase acceptance matrices for the crash detection rewrite and log file permission model, per-phase verification commands, T1-T5 integration test specifications, and host coverage matrix.
+
+## Upgrading from 1.0.x
+
+1.1.0 moves IOC output from the systemd journal to dedicated procServ log files. Site administrators upgrading from 1.0.x:
+
+1. Install the 1.1.0 `ioc-runner` binary.
+2. Re-run `sudo ./bin/setup-system-infra.bash --full` to deploy the updated system systemd template and the logrotate config.
+3. `sudo systemctl daemon-reload`, then restart each IOC; `procServ` begins writing to `/var/log/procserv/<name>.log`.
+4. Verify the log file: `stat -c '%U:%G %a' /var/log/procserv/<name>.log` returns `ioc-srv:ioc 644`.
+5. Remove the now-unnecessary `systemd-journal` group from IOC operator accounts: `sudo gpasswd -d <operator> systemd-journal`, then confirm with `id <operator>`.
+
+Verify the deployment: `systemctl cat epics-@<name>.service` shows `--logfile=`, and `logrotate -d /etc/logrotate.d/procserv` reports no errors.
+
+See **[LOG_LAYOUT.md](LOG_LAYOUT.md)** for the full log path, permission, and rotation reference, and **[PERMISSION_MODEL.md](PERMISSION_MODEL.md)** for the access model.
