@@ -39,8 +39,8 @@ This directory contains the complete documentation for deploying, managing, and 
   Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
 
 ### 6. Release-Specific Documents
-* **[ROADMAP-1.1.0.md](ROADMAP-1.1.0.md)**
-  Development milestones, phase plan, and acceptance criteria for the 1.1.0 Journal Decoupling Release. Tracks the ordered execution of issues #8 through #22 plus #49, including pre-1.1.0 prerequisites already delivered.
+* **[MILESTONE-1.1.0.md](MILESTONE-1.1.0.md)**
+  Single milestone register for the 1.1.0 Journal Decoupling Release: phase plan, acceptance criteria, current tracking status (commits, footers, audit backlog), and next session entry point. Tracks issues #8 through #22 plus the audit backlog #55-#65 and the follow-up #69.
 * **[TEST_PLAN-1.1.0.md](TEST_PLAN-1.1.0.md)**
   Verification surface for 1.1.0: phase acceptance matrices for the crash detection rewrite and log file permission model, per-phase verification commands, T1-T5 integration test specifications, and host coverage matrix.
 

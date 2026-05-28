@@ -324,7 +324,7 @@ fix the log-file path — not to widen operator privilege.
 
 - Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - CLI surface: [`CLI_REFERENCE.md`](CLI_REFERENCE.md)
-- Release roadmap: [`ROADMAP-1.1.0.md`](ROADMAP-1.1.0.md)
+- Release milestone: [`MILESTONE-1.1.0.md`](MILESTONE-1.1.0.md)
 - Test plan: [`TEST_PLAN-1.1.0.md`](TEST_PLAN-1.1.0.md)
 - Tracking epic: [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7)
 - Milestone: [1.1.0](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3)

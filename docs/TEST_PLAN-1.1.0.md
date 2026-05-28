@@ -1,6 +1,6 @@
 # EPICS IOC Runner 1.1.0 Test Plan
 
-**Companion to:** [`ROADMAP-1.1.0.md`](ROADMAP-1.1.0.md)
+**Companion to:** [`MILESTONE-1.1.0.md`](MILESTONE-1.1.0.md)
 **Milestone:** [1.1.0](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3)
 
 ## Scope
@@ -131,6 +131,40 @@ the crash pattern match.
 `ioc-runner restart <ioc>`.
 **Expected:** New log file created; crash detection reads new content;
 no false positives from rotated historical log entries.
+
+T2 also covers two in-window race sub-cases as deterministic
+regression guards for the rotation-during-sleep window. Each
+backgrounds `ioc-runner restart` and gates the log mutation on the
+unit's `ActiveEnterTimestampMonotonic` actually changing, which proves
+the mutation lands strictly between the runner's pre-restart capture
+and its post-restart scan.
+
+#### T2 sub-case A — new-inode replacement during sleep window
+
+**Setup:** Active IOC log with a priming line so the file has
+nontrivial size and a known inode.
+**Action:** Background `restart`; on observed activation, `mv <log>
+<log>.old`, `install -o ioc-srv -g ioc -m 0644 /dev/null <log>` (new
+inode at the active path), append a `FATAL` line, then fill past the
+captured offset with ASCII.
+**Expected:** Runner emits the crash warning because the inode at the
+active path differs from the one captured pre-restart, forcing the
+scanner to reset to offset 0. `mv`, `install`, and the actual inode
+change are each verified before the warning assertion, so a degraded
+setup cannot mask the inode-branch decision.
+
+#### T2 sub-case B — same-inode truncate-and-regrow-past during sleep window
+
+**Setup:** Active IOC log with a priming line; record `pre_cap_size`
+just before backgrounding the restart.
+**Action:** Background `restart`; on observed activation, `: > <log>`
+(truncate in place — same inode), append a `FATAL` line, then fill
+past `pre_cap_size` with ASCII.
+**Expected:** Runner emits the crash warning because the 64-byte
+tail-hash window ending at the captured offset no longer matches its
+capture-time fingerprint, forcing scan from offset 0. Inode and size
+guards alone cannot distinguish this from healthy growth.
+
 **Baseline:** infra-gated. 1.0.8 has neither the dedicated procServ log
 file nor `/etc/logrotate.d/procserv`, so T2 skips on 1.0.8 and is
 required to pass on 1.1.0 HEAD only.
@@ -206,7 +240,7 @@ The 1.1.0 release is acceptable when:
 
 ## Cross-References
 
-- Roadmap: [`ROADMAP-1.1.0.md`](ROADMAP-1.1.0.md)
+- Milestone register: [`MILESTONE-1.1.0.md`](MILESTONE-1.1.0.md)
 - Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - CLI: [`CLI_REFERENCE.md`](CLI_REFERENCE.md)
 - Tracking epic: [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7)

@@ -1,4 +1,4 @@
-# EPICS IOC Runner 1.1.0 Development Roadmap
+# EPICS IOC Runner 1.1.0 Release Milestone
 
 **Release codename:** Journal Decoupling Release
 **Due:** 2026-05-29
@@ -98,23 +98,72 @@ branch only after a Reviewer cross-check passes. Final merge to
 
 ## Current Tracking Status
 
-Last checked: 2026-05-27 against GitHub milestone
+Last checked: 2026-05-28 against GitHub milestone
 [`1.1.0`](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3).
+HEAD: `release-1.1.0` at `25b520b`, in sync with
+`origin/release-1.1.0`.
 
-| Work unit | Issues | Status | Pending dependency |
+Source-of-truth ordering: GitHub milestone state and `release-1.1.0`
+commit footers (`Closes` / `Refs`) are authoritative. The tables below
+reconcile that state against the phase plan and the
+[#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7) tracking
+epic.
+
+### Phase plan progress
+
+| Phase | Issues | Status | Notes |
 | --- | --- | --- | --- |
-| Phase A | [#8](https://github.com/jeonghanlee/epics-ioc-runner/issues/8) | Done | none |
-| Phase B-1 | [#9](https://github.com/jeonghanlee/epics-ioc-runner/issues/9) | Done | none |
-| Phase B-2 | [#10](https://github.com/jeonghanlee/epics-ioc-runner/issues/10) | Done | none |
-| Phase B-3 | [#15](https://github.com/jeonghanlee/epics-ioc-runner/issues/15) | Done | none |
-| Phase C1 | [#11](https://github.com/jeonghanlee/epics-ioc-runner/issues/11) | Done | none |
-| Phase C2 | [#12](https://github.com/jeonghanlee/epics-ioc-runner/issues/12) | Done | none |
-| Phase D | [#17](https://github.com/jeonghanlee/epics-ioc-runner/issues/17), [#24](https://github.com/jeonghanlee/epics-ioc-runner/issues/24) | Done | none |
-| Phase D+ | [#49](https://github.com/jeonghanlee/epics-ioc-runner/issues/49) | Done | none |
-| Phase E | [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | In progress | integration test expansion remains open; related open test/detection issues [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52), [#55](https://github.com/jeonghanlee/epics-ioc-runner/issues/55) |
-| Phase F | [#18](https://github.com/jeonghanlee/epics-ioc-runner/issues/18), [#19](https://github.com/jeonghanlee/epics-ioc-runner/issues/19), [#20](https://github.com/jeonghanlee/epics-ioc-runner/issues/20) | In progress | documentation issues remain open |
-| Phase G | [#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22) | Not started | release version bump and tag remain open |
-| Additional milestone fixes | [#56](https://github.com/jeonghanlee/epics-ioc-runner/issues/56) | In progress | permission-model install precheck remains open |
+| Phase A | [#8](https://github.com/jeonghanlee/epics-ioc-runner/issues/8) | Done | |
+| Phase B-1 | [#9](https://github.com/jeonghanlee/epics-ioc-runner/issues/9) | Done | |
+| Phase B-2 | [#10](https://github.com/jeonghanlee/epics-ioc-runner/issues/10) | Done | |
+| Phase B-3 | [#15](https://github.com/jeonghanlee/epics-ioc-runner/issues/15) | Done | |
+| Phase C1 | [#11](https://github.com/jeonghanlee/epics-ioc-runner/issues/11) | Done | |
+| Phase C2 | [#12](https://github.com/jeonghanlee/epics-ioc-runner/issues/12) | Done | |
+| Phase D | [#17](https://github.com/jeonghanlee/epics-ioc-runner/issues/17), [#24](https://github.com/jeonghanlee/epics-ioc-runner/issues/24) | Done | |
+| Phase D+ | [#49](https://github.com/jeonghanlee/epics-ioc-runner/issues/49) | Done | |
+| Phase E | [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | Done (code) | T1-T5 verified PASS on Debian 13 (`top`) and Rocky 8 (`testbed-rocky8-iocrunner-server`). #21 commits used `Refs #21` only, so the umbrella issue stays open until manual close at Phase G. |
+| Phase F | [#18](https://github.com/jeonghanlee/epics-ioc-runner/issues/18), [#19](https://github.com/jeonghanlee/epics-ioc-runner/issues/19), [#20](https://github.com/jeonghanlee/epics-ioc-runner/issues/20) | Done (code) | Docs committed with `Closes #N`; auto-close on master merge. |
+| Phase G | [#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22) | Not started | Final `RUNNER_VERSION` bump (`1.1.0-dev` → `1.1.0`), master merge, annotated tag `1.1.0` (no `v` prefix). |
+
+### Audit backlog (A1-A20)
+
+The 2026-05-27 code audit produced 20 items (A1-A20) tracked as GitHub
+issues [#55](https://github.com/jeonghanlee/epics-ioc-runner/issues/55)
+through [#65](https://github.com/jeonghanlee/epics-ioc-runner/issues/65)
+in this milestone; deferred follow-ups
+[#66](https://github.com/jeonghanlee/epics-ioc-runner/issues/66),
+[#67](https://github.com/jeonghanlee/epics-ioc-runner/issues/67), and
+[#68](https://github.com/jeonghanlee/epics-ioc-runner/issues/68) live in
+Backlog.
+
+| Status | Issues | Notes |
+| --- | --- | --- |
+| Code committed with `Closes #N` (auto-close on master merge) | [#55](https://github.com/jeonghanlee/epics-ioc-runner/issues/55), [#56](https://github.com/jeonghanlee/epics-ioc-runner/issues/56), [#58](https://github.com/jeonghanlee/epics-ioc-runner/issues/58), [#59](https://github.com/jeonghanlee/epics-ioc-runner/issues/59), [#60](https://github.com/jeonghanlee/epics-ioc-runner/issues/60), [#61](https://github.com/jeonghanlee/epics-ioc-runner/issues/61), [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62), [#63](https://github.com/jeonghanlee/epics-ioc-runner/issues/63), [#64](https://github.com/jeonghanlee/epics-ioc-runner/issues/64), [#65](https://github.com/jeonghanlee/epics-ioc-runner/issues/65) | #62 install-path live verification on VM/psrv3 still recommended before merge. |
+| Code not yet committed | [#57](https://github.com/jeonghanlee/epics-ioc-runner/issues/57) | A1 sudoers per-distro generator; the last 1.1.0 audit item with no code. |
+
+### Other in-milestone items
+
+| Issue | Disposition |
+| --- | --- |
+| [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52) | Enhancement; the issue body itself declares `Milestone: Backlog`. Proposed: move from 1.1.0 to Backlog. |
+| [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69) | `IOC_RUNNER_TEST_MODE` env var for lifecycle test runner selection; filed during the #58 close-out to close the silent-stale-binary class of evidence gaps. |
+| [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7) | Tracking epic; closes after every sub-issue closes. |
+
+### Next session entry point
+
+1. Implement [#57](https://github.com/jeonghanlee/epics-ioc-runner/issues/57)
+   (A1 sudoers per-distro generator) — the last 1.1.0 audit item with no
+   code. Same cadence as #58: full diff review then Debian 13 and Rocky 8
+   verification before commit.
+2. Move [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52)
+   from the 1.1.0 milestone to Backlog.
+3. Run [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62)
+   install-path verification on VM and `alsucl-psrv3`.
+4. Implement [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69)
+   (`IOC_RUNNER_TEST_MODE`).
+5. Phase G release sequence
+   ([#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22)):
+   final version bump, master merge, annotated tag `1.1.0`.
 
 ## Acceptance and Verification per Phase
 
@@ -253,7 +302,7 @@ upgrade steps and a troubleshooting quickref to `LOG_LAYOUT.md`.
 `RUNNER_VERSION="1.1.0"`. `ioc-runner -V` prints `1.1.0` plus the
 git hash. Git tag `1.1.0` exists at the merge commit on `master` and
 the GitHub Release page links to `CHANGELOG.md`,
-`docs/ROADMAP-1.1.0.md`, and `docs/LOG_LAYOUT.md`.
+`docs/MILESTONE-1.1.0.md`, and `docs/LOG_LAYOUT.md`.
 
 **Verification:** `ioc-runner -V`; `git tag --list '1.1.0'`; GitHub
 Release URL.
