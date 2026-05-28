@@ -72,10 +72,42 @@ if [[ ${RUN_SYSTEM} -eq 1 ]]; then
     sudo -v
 fi
 
-# Execute tests based on selected mode
+# Execute tests based on selected mode.
+# Phase 1 / Phase 2 exercise local mode, which routes through
+# `systemctl --user` against the caller's user-mode systemd. When the
+# whole suite is invoked via `sudo -E`, root's user bus is typically
+# unreachable, so drop privilege back to ${SUDO_USER} for these two
+# phases. The system phases below stay root because they need it.
+#
+# `sudo -u <user> -E` would carry the outer root process's HOME /
+# XDG_RUNTIME_DIR into the dropped shell whenever sudoers env_keep
+# preserves them, which then drives the wrong ~/.config/systemd/user
+# discovery in test-local-lifecycle.bash (it captures HOME at script
+# load). To remove that ambiguity we build an explicit environment
+# (HOME, XDG_RUNTIME_DIR derived from SUDO_USER's passwd entry, plus
+# the EPICS variables) and start the dropped shell from `env -i`. (#70)
 if [[ ${RUN_LOCAL} -eq 1 ]]; then
-    _run_test "Phase 1: Error Handling" bash "${SC_TOP}/test-error-handling.bash"
-    _run_test "Phase 2: Local Lifecycle" bash "${SC_TOP}/test-local-lifecycle.bash"
+    if [[ $(id -u) -eq 0 && -n "${SUDO_USER:-}" ]]; then
+        SUDO_USER_UID=$(id -u "${SUDO_USER}")
+        SUDO_USER_HOME=$(getent passwd "${SUDO_USER}" | cut -d: -f6)
+        declare -a LOCAL_PHASE_ENV=(
+            "HOME=${SUDO_USER_HOME}"
+            "USER=${SUDO_USER}"
+            "LOGNAME=${SUDO_USER}"
+            "XDG_RUNTIME_DIR=/run/user/${SUDO_USER_UID}"
+            "PATH=${PATH}"
+            "LANG=${LANG:-C.UTF-8}"
+            "EPICS_BASE=${EPICS_BASE:-}"
+            "EPICS_HOST_ARCH=${EPICS_HOST_ARCH:-}"
+            "EPICS_MODULES=${EPICS_MODULES:-}"
+            "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
+        )
+        _run_test "Phase 1: Error Handling" sudo -u "${SUDO_USER}" env -i "${LOCAL_PHASE_ENV[@]}" bash "${SC_TOP}/test-error-handling.bash"
+        _run_test "Phase 2: Local Lifecycle" sudo -u "${SUDO_USER}" env -i "${LOCAL_PHASE_ENV[@]}" bash "${SC_TOP}/test-local-lifecycle.bash"
+    else
+        _run_test "Phase 1: Error Handling" bash "${SC_TOP}/test-error-handling.bash"
+        _run_test "Phase 2: Local Lifecycle" bash "${SC_TOP}/test-local-lifecycle.bash"
+    fi
 fi
 
 if [[ ${RUN_SYSTEM} -eq 1 ]]; then

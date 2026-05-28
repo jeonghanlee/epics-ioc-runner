@@ -217,6 +217,16 @@ function _setup {
 
     TEST_TMPDIR=$(mktemp -d)
 
+    # Isolate local-mode CONF / SYSTEMD / RUN / LOG directories under
+    # TEST_TMPDIR so a direct or sudo-elevated run cannot corrupt the
+    # user's ~/.config or ~/.local/state. Per-case unified env vars
+    # (IOC_RUNNER_{CONF,SYSTEMD,RUN,LOG}_DIR) take precedence over these
+    # namespaced defaults per ioc-runner's resolution order. (#70)
+    export IOC_RUNNER_LOCAL_CONF_DIR="${TEST_TMPDIR}/local-config/procServ.d"
+    export IOC_RUNNER_LOCAL_SYSTEMD_DIR="${TEST_TMPDIR}/local-config/systemd/user"
+    export IOC_RUNNER_LOCAL_RUN_DIR="${TEST_TMPDIR}/local-run/procserv"
+    export IOC_RUNNER_LOCAL_LOG_DIR="${TEST_TMPDIR}/local-state/procserv"
+
     # Create a mock con binary that exits successfully without doing anything.
     MOCK_CON_BIN="${TEST_TMPDIR}/con"
     printf "#!/usr/bin/env bash\nexit 0\n" > "${MOCK_CON_BIN}"

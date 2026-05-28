@@ -243,6 +243,20 @@ function _setup_workspace {
 
     WORKSPACE=$(mktemp -d -p "${target_tmp}" epics-ioc-test.XXXXXX)
 
+    # Isolate local-mode CONF_DIR / LOG_DIR under WORKSPACE so a direct or
+    # sudo-elevated run cannot corrupt the user's ~/.config/procServ.d or
+    # ~/.local/state/procserv. RUN_DIR stays at the default
+    # /run/user/<uid>/procserv because the deployed user unit relies on
+    # systemd's RuntimeDirectory= directive, which only materialises a
+    # subdirectory of XDG_RUNTIME_DIR. SYSTEMD_DIR also stays default so
+    # systemctl --user can find the unit on its standard search path. (#70)
+    export IOC_RUNNER_LOCAL_CONF_DIR="${WORKSPACE}/local-config/procServ.d"
+    export IOC_RUNNER_LOCAL_LOG_DIR="${WORKSPACE}/local-state/procserv"
+
+    # Keep test-side globals consistent with the exported env vars so the
+    # conf-existence assertions look in the right place.
+    CONF_DIR="${IOC_RUNNER_LOCAL_CONF_DIR}"
+
     # TOP_DIR uses the repository name. BOOT_DIR matches the standard IOC name.
     TOP_DIR="${WORKSPACE}/${REPO_NAME}"
     BOOT_DIR="${TOP_DIR}/iocBoot/${IOC_NAME}"
