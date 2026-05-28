@@ -72,20 +72,32 @@ user's account.
 
 The sudoers policy at `/etc/sudoers.d/10-epics-ioc` gates the
 privileged state-changing systemctl verbs that `ioc-runner` issues
-in system mode:
+in system mode. `setup-system-infra.bash` emits one of two forms
+based on the local sudo version (decided by
+`sudo_supports_regex_args`, OS-agnostic):
 
-```
-%ioc ALL=(root) NOPASSWD: /usr/bin/systemctl start|stop|restart|
-                          status|enable|disable|daemon-reload
-                          epics-@*.service
-```
+- sudo >= 1.9.10: anchored regex per verb, parity with
+  `validate_ioc_name` in `bin/ioc-runner`:
+
+  ```
+  %ioc ALL=(root) NOPASSWD: /usr/bin/systemctl ^start  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^stop   epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^status  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^enable  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^daemon-reload$
+  ```
+
+- sudo < 1.9.10: glob fallback (`epics-@*.service`), broader than
+  the runner IOC-name model. See the residual-risk subsection below.
 
 Effective scope:
 
 - Only members of the `ioc` group can have `ioc-runner` succeed in
   `start` / `stop` / `restart` / `enable` / `disable` /
-  `daemon-reload` operations on `epics-@*.service` instances. For
-  non-`ioc` users, the `sudo systemctl ...` call inside
+  `daemon-reload` operations on `epics-@<name>.service` instances.
+  For non-`ioc` users, the `sudo systemctl ...` call inside
   `ioc-runner` fails at the sudo gate.
 - `ioc-runner` execution itself is not restricted — any user can
   invoke the script. The gate is the privileged systemctl
@@ -98,6 +110,32 @@ Effective scope:
 File-mode permissions and default ACLs reinforce the boundary at
 the file system layer: who can read log files, who can write, and
 who can create files in the log directory.
+
+### Residual risk on sudo < 1.9.10 hosts
+
+The glob fallback (`epics-@*.service`) accepts unit-name characters
+the runner never generates: `*` in sudoers fnmatch matches `/`,
+`.`, and whitespace. A direct `sudo systemctl start
+'epics-@bad name.service'` issued outside `ioc-runner` therefore
+passes the sudoers gate where the regex form would deny it.
+
+This is least-privilege drift, not an escalation path. Three
+independent reasons keep it out of the known threat surface:
+
+1. The `epics-@.service` template is root-owned and the only
+   template loader; systemd looks up the literal instance name and
+   rejects anything it cannot resolve to a real unit file.
+2. systemd unit-name encoding escapes `/`, space, and other control
+   characters before the unit is loaded, so the crafted argument
+   never reaches the IOC startup path as a writable target.
+3. The trust model is "any `%ioc` member can already start any
+   `epics-@<name>.service`"; the glob does not widen who can act,
+   only what argument string the sudoers parser will accept on
+   their behalf.
+
+`setup-system-infra.bash` emits a single `WARN` line at generation
+time when the glob form is selected, so the residual-risk record
+is visible in install logs.
 
 ## Three-Principal Model (system mode)
 
@@ -164,7 +202,7 @@ Create, Manage, and Track (read).
 | Create | open log file | `ioc-srv` | `${SYSTEM_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` at IOC start; system unit umask `0022` | `ioc-srv:ioc 0644` |
 | Create | adhoc file (probe, manual archive) | engineer ∈ `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | `<engineer>:ioc 0664` |
 | Manage | append log records | `ioc-srv` | `<ioc>.log` | procServ `write(logFileFD, ...)` during IOC runtime | owner `w` bit |
-| Manage | start / stop / restart IOC | engineer ∈ `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` → `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ... epics-@*.service` |
+| Manage | start / stop / restart IOC | engineer ∈ `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` → `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ...` against `epics-@<name>.service` (regex form on sudo >= 1.9.10, glob fallback otherwise) |
 | Manage | rotate (Phase B-3 #15, pending) | `root` (cron) | `<ioc>.log` | `logrotate -f /etc/logrotate.d/procserv` with `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
 | Track | crash detection scan | engineer ∈ `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
 | Track | manual read | engineer ∈ `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |

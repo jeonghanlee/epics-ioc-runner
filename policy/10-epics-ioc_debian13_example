@@ -1,10 +1,19 @@
 # /etc/sudoers.d/10-epics-ioc
+#
+# Example for hosts shipping sudo >= 1.9.10 (regex command-argument
+# matching). Debian 13's stock sudo (1.9.16p2) is one such host; the
+# OS name in the filename is a navigational hint, the actual branch
+# key is the local sudo version. setup-system-infra.bash auto-selects
+# this form via sudo_supports_regex_args; see docs/PERMISSION_MODEL.md.
+#
+# Pattern parity with validate_ioc_name in bin/ioc-runner:
+# [A-Za-z0-9_] head, then up to 63 of [A-Za-z0-9_-].
 
 # Allow trained engineers to manage ONLY EPICS template services
-%ioc ALL=(root) NOPASSWD: /usr/bin/systemctl start epics-@*.service, \
-                          /usr/bin/systemctl stop epics-@*.service, \
-                          /usr/bin/systemctl restart epics-@*.service, \
-                          /usr/bin/systemctl status epics-@*.service, \
-                          /usr/bin/systemctl enable epics-@*.service, \
-                          /usr/bin/systemctl disable epics-@*.service, \
-                          /usr/bin/systemctl daemon-reload
+%ioc ALL=(root) NOPASSWD: /usr/bin/systemctl ^start epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^stop epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^status epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^enable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^daemon-reload$

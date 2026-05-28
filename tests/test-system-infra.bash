@@ -18,6 +18,11 @@ declare -g TEST_FAILED=0
 declare -g SCRIPT_ERROR=0
 declare -g -a FAILED_DETAILS=()
 
+# Set by the regex-deny probe when it creates an ephemeral ioc-group
+# member; cleared after the normal cleanup path. A pre-existing account
+# with the same name is reused without deletion, so this stays empty.
+declare -g C57_CREATED_USER=""
+
 declare -g SYSTEM_USER="ioc-srv"
 declare -g SYSTEM_GROUP="ioc"
 declare -g CONF_DIR="/etc/procServ.d"
@@ -49,6 +54,10 @@ function _handle_exit {
     if [[ $exit_code -ne 0 ]]; then
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
+    fi
+    if [[ -n "${C57_CREATED_USER:-}" ]]; then
+        userdel "${C57_CREATED_USER}" 2>/dev/null || true
+        C57_CREATED_USER=""
     fi
     print_summary
 
@@ -260,6 +269,67 @@ function test_sudoers_includedir_order {
     fi
 
     verify_state "true" "${ordering_ok}" "includedir is the final active directive in ${main_sudoers}"
+}
+
+function test_sudoers_regex_denies_bad_name {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Sudoers Anchored Regex Denies Out-of-Model Names"
+    print_sub_divider
+
+    if [[ ! -f "${SUDOERS_FILE}" ]]; then
+        verify_state "true" "false" "Sudoers file exists for regex-deny probe"
+        return
+    fi
+
+    # The anchored-regex emission begins each verb with '^'. Hosts whose
+    # installed sudo is < 1.9.10 (or whose policy hasn't been refreshed
+    # since the OS-agnostic generator landed) use fnmatch globs by
+    # design; the deny semantic the probe checks does not apply there.
+    # See docs/PERMISSION_MODEL.md residual-risk subsection.
+    if ! grep -qE '\^(start|stop|restart|status|enable|disable) epics-@' "${SUDOERS_FILE}"; then
+        _log "INFO" "SKIP: deployed sudoers uses glob fallback; regex-deny probe does not apply."
+        verify_state "skipped" "skipped" "Regex-deny probe skipped on glob-form policy"
+        return
+    fi
+
+    local test_user="epics-c57-iocmember"
+
+    if id -u "${test_user}" >/dev/null 2>&1; then
+        _log "INFO" "Pre-existing user '${test_user}' detected; reusing without cleanup on exit."
+    else
+        if ! useradd -M -N -G "${SYSTEM_GROUP}" "${test_user}" >/dev/null 2>&1; then
+            verify_state "true" "false" "Create ephemeral ioc-group user '${test_user}'"
+            return
+        fi
+        C57_CREATED_USER="${test_user}"
+    fi
+
+    # Resolve the systemctl path from the deployed policy so the probe
+    # argv matches the policy line verbatim (Debian uses /usr/bin,
+    # Rocky often uses /bin via usrmerge).
+    local systemctl_bin
+    systemctl_bin=$(grep -oE '/[^[:space:],]*systemctl' "${SUDOERS_FILE}" | head -1)
+    if [[ -z "${systemctl_bin}" ]]; then
+        systemctl_bin="/usr/bin/systemctl"
+    fi
+
+    local bad_deny="false"
+    if ! runuser -u "${test_user}" -- sudo -n -l "${systemctl_bin}" start 'epics-@bad name.service' >/dev/null 2>&1; then
+        bad_deny="true"
+    fi
+    verify_state "true" "${bad_deny}" "Anchored regex denies 'epics-@bad name.service' for ioc-group member"
+
+    local good_allow="false"
+    if runuser -u "${test_user}" -- sudo -n -l "${systemctl_bin}" start 'epics-@goodname.service' >/dev/null 2>&1; then
+        good_allow="true"
+    fi
+    verify_state "true" "${good_allow}" "Anchored regex allows 'epics-@goodname.service' for ioc-group member"
+
+    if [[ -n "${C57_CREATED_USER:-}" ]]; then
+        userdel "${C57_CREATED_USER}" 2>/dev/null || true
+        C57_CREATED_USER=""
+    fi
 }
 
 function test_git_context_resolution {
@@ -528,6 +598,7 @@ function run_all_tests {
         "test_sudoers_syntax"
         "test_logrotate_syntax"
         "test_sudoers_includedir_order"
+        "test_sudoers_regex_denies_bad_name"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
         "test_runner_script_deployed_preference"

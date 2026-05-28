@@ -37,16 +37,20 @@ Instead of relying on fragmented Polkit rules or overly broad wildcards, service
 
 *Note: The absolute path to `systemctl` may vary depending on the Linux distribution (e.g., `/usr/bin/systemctl`). The deployment script resolves this automatically.*
 
-```bash
-# Allow trained engineers to manage ONLY EPICS template services
-%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-@*.service, \
-                          /bin/systemctl stop epics-@*.service, \
-                          /bin/systemctl restart epics-@*.service, \
-                          /bin/systemctl status epics-@*.service, \
-                          /bin/systemctl enable epics-@*.service, \
-                          /bin/systemctl disable epics-@*.service, \
-                          /bin/systemctl daemon-reload
+`setup-system-infra.bash` emits one of two forms based on the local sudo version (OS-agnostic, decided by `sudo -V`). The canonical regex form (sudo >= 1.9.10) achieves parity with `validate_ioc_name` in `bin/ioc-runner`:
+
 ```
+# Allow trained engineers to manage ONLY EPICS template services
+%ioc ALL=(root) NOPASSWD: /usr/bin/systemctl ^start   epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^stop    epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^status  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^enable  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                          /usr/bin/systemctl ^daemon-reload$
+```
+
+On hosts with sudo < 1.9.10, the deployment script falls back to a glob form (`epics-@*.service`) with a generation-time `WARN` line and a residual-risk comment in the deployed file. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
 
 ---
 

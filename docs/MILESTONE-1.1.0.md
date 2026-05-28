@@ -75,6 +75,7 @@ authoritative source for the resulting end state.
 | B-1 (#9) | `LogsDirectory=procserv`, `LogsDirectoryMode=0750` in system unit | `LogsDirectory=` NOT used; directory created by `setup-system-infra.bash` via `install -d -o root -g ioc -m 2775` + default ACLs | `LogsDirectory=` chowns the directory to `User=/Group=` on every activation, overriding the `root:ioc` ownership that the three-principal model requires |
 | B-1 (#9) | Log file mode `0640` | Log file mode `0644` | procServ uses hardcoded `open(O_CREAT, 0644)` (`procServ.cc:924`); system unit carries no `UMask=` so the default `0022` preserves `0644` |
 | C2 (#12) | System log directory mode `2770`; non-`ioc` user read denied | System log directory mode `2775`; non-`ioc` user read permitted at file-mode layer (sudoers gate still restricts state-changing `systemctl` verbs) | Site policy requires every host user to read every log file at minimum; access boundary for IOC state changes remains the `%ioc` sudoers gate, not file mode |
+| A1 (#57) | Per-distro sudoers generator branching on Debian 13 vs Rocky 8 | OS-agnostic; `setup-system-infra.bash` branches on the local sudo version via `sudo_supports_regex_args` (`>= 1.9.10` emits anchored regex, otherwise emits glob + WARN + residual-risk comment) | Branch key is upstream sudo's regex-args support (sudo 1.9.10, 2022), not the distro identity; coupling to distro would mis-trigger on backported or sidegrade installs. `PERMISSION_MODEL.md` is authoritative for the residual-risk record |
 
 ## Phase Plan
 
@@ -100,7 +101,7 @@ branch only after a Reviewer cross-check passes. Final merge to
 
 Last checked: 2026-05-28 against GitHub milestone
 [`1.1.0`](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3).
-HEAD: `release-1.1.0` at `25b520b`, in sync with
+HEAD: `release-1.1.0` at `d656d9c`, in sync with
 `origin/release-1.1.0`.
 
 Source-of-truth ordering: GitHub milestone state and `release-1.1.0`
@@ -138,8 +139,8 @@ Backlog.
 
 | Status | Issues | Notes |
 | --- | --- | --- |
-| Code committed with `Closes #N` (auto-close on master merge) | [#55](https://github.com/jeonghanlee/epics-ioc-runner/issues/55), [#56](https://github.com/jeonghanlee/epics-ioc-runner/issues/56), [#58](https://github.com/jeonghanlee/epics-ioc-runner/issues/58), [#59](https://github.com/jeonghanlee/epics-ioc-runner/issues/59), [#60](https://github.com/jeonghanlee/epics-ioc-runner/issues/60), [#61](https://github.com/jeonghanlee/epics-ioc-runner/issues/61), [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62), [#63](https://github.com/jeonghanlee/epics-ioc-runner/issues/63), [#64](https://github.com/jeonghanlee/epics-ioc-runner/issues/64), [#65](https://github.com/jeonghanlee/epics-ioc-runner/issues/65) | #62 install-path live verification on VM/psrv3 still recommended before merge. |
-| Code not yet committed | [#57](https://github.com/jeonghanlee/epics-ioc-runner/issues/57) | A1 sudoers per-distro generator; the last 1.1.0 audit item with no code. |
+| Code committed with `Closes #N` (auto-close on master merge) | [#55](https://github.com/jeonghanlee/epics-ioc-runner/issues/55), [#56](https://github.com/jeonghanlee/epics-ioc-runner/issues/56), [#57](https://github.com/jeonghanlee/epics-ioc-runner/issues/57), [#58](https://github.com/jeonghanlee/epics-ioc-runner/issues/58), [#59](https://github.com/jeonghanlee/epics-ioc-runner/issues/59), [#60](https://github.com/jeonghanlee/epics-ioc-runner/issues/60), [#61](https://github.com/jeonghanlee/epics-ioc-runner/issues/61), [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62), [#63](https://github.com/jeonghanlee/epics-ioc-runner/issues/63), [#64](https://github.com/jeonghanlee/epics-ioc-runner/issues/64), [#65](https://github.com/jeonghanlee/epics-ioc-runner/issues/65) | #62 install-path live verification on VM/psrv3 still recommended before merge. #57 is the OS-agnostic sudo-version-driven generator (Acceptance Amendments). |
+| Code not yet committed | _none_ | All 1.1.0 audit items have code committed. |
 
 ### Other in-milestone items
 
@@ -151,17 +152,13 @@ Backlog.
 
 ### Next session entry point
 
-1. Implement [#57](https://github.com/jeonghanlee/epics-ioc-runner/issues/57)
-   (A1 sudoers per-distro generator) — the last 1.1.0 audit item with no
-   code. Same cadence as #58: full diff review then Debian 13 and Rocky 8
-   verification before commit.
-2. Move [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52)
+1. Move [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52)
    from the 1.1.0 milestone to Backlog.
-3. Run [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62)
+2. Run [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62)
    install-path verification on VM and `alsucl-psrv3`.
-4. Implement [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69)
+3. Implement [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69)
    (`IOC_RUNNER_TEST_MODE`).
-5. Phase G release sequence
+4. Phase G release sequence
    ([#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22)):
    final version bump, master merge, annotated tag `1.1.0`.
 

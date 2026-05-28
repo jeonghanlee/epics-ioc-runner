@@ -20,7 +20,7 @@ or equivalently:
 sudo systemctl restart epics-@myioc.service
 ```
 
-No root password is required, and no sysadmin needs to be contacted. The `sudo` command is still used under the hood — `ioc-runner` internally calls `sudo systemctl ...` for system-wide operations — but the sudoers policy grants `NOPASSWD` to the `ioc` group, so no password prompt ever appears. The key distinction is: **`sudo` (the command) is required, but `sudo` (the password) is not.** Additionally, the policy is scoped exclusively to `epics-@*.service` units, so engineers cannot accidentally affect unrelated system services.
+No root password is required, and no sysadmin needs to be contacted. The `sudo` command is still used under the hood — `ioc-runner` internally calls `sudo systemctl ...` for system-wide operations — but the sudoers policy grants `NOPASSWD` to the `ioc` group, so no password prompt ever appears. The key distinction is: **`sudo` (the command) is required, but `sudo` (the password) is not.** Additionally, the policy is scoped exclusively to EPICS IOC template instances (`epics-@<name>.service`, where `<name>` follows the runner IOC-name model), so engineers cannot accidentally affect unrelated system services.
 
 ---
 

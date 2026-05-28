@@ -67,25 +67,27 @@ chmod 2770 /etc/procServ.d/
 ```
 
 ### 2.3. Sudoers Configuration (Restricted)
-Allow members of the `ioc` group to manage only specific `epics-@*.service` systemd instances securely.
+Allow members of the `ioc` group to manage only specific `epics-@<name>.service` systemd instances securely.
 
-Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file:
+Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file. `setup-system-infra.bash` emits one of two forms based on the local sudo version (OS-agnostic). The canonical regex form (sudo >= 1.9.10) achieves parity with `validate_ioc_name` in `bin/ioc-runner`:
 ```bash
 
 SYSTEMCTL_BIN="/usr/bin/systemctl"
 
 cat <<EOF > /etc/sudoers.d/10-epics-ioc
-%ioc ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} stop epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} restart epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} status epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} enable epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} disable epics-@*.service, \\
-                          ${SYSTEMCTL_BIN} daemon-reload
+%ioc ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} ^start   epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^stop    epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^status  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^enable  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^daemon-reload\$
 EOF
 
 chmod 0440 /etc/sudoers.d/10-epics-ioc
 ```
+
+On hosts with sudo < 1.9.10, replace each `^<verb> ... $` form with the glob form (`<verb> epics-@*.service`); the deployment script handles this automatically and emits a `WARN` line plus a residual-risk header comment. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
 
 > **Important:** The `@includedir /etc/sudoers.d` (or legacy `#includedir`) directive in `/etc/sudoers` must be the final active line. Any user-specific rules placed after it (e.g., `alice ALL=(ALL) ALL`) will be evaluated *after* the drop-in policies and silently override the NOPASSWD rule installed above. Verify with `sudo -l` on a group member account: the `(root) NOPASSWD: /usr/bin/systemctl ...` entry must appear last.
 

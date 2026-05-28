@@ -126,6 +126,40 @@ function is_rhel_family {
     )
 }
 
+function sudo_supports_regex_args {
+    # Threshold 1.9.10: regex command-argument matching shipped in sudo
+    # 1.9.10 (2022). Returns 1 on execution or parse failure so callers
+    # fall back to the glob form; missing-sudo is already a hard error
+    # caught by the FULL_SETUP_MODE preflight, so this helper assumes
+    # sudo is on PATH.
+    local raw
+    if ! raw=$(sudo -V 2>/dev/null | head -n 1); then
+        _log "WARN" "sudo -V failed; falling back to glob-form sudoers policy."
+        return 1
+    fi
+
+    local major minor patch
+    if [[ "${raw}" =~ Sudo[[:space:]]version[[:space:]]([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+        major=${BASH_REMATCH[1]}
+        minor=${BASH_REMATCH[2]}
+        patch=${BASH_REMATCH[3]}
+    else
+        _log "WARN" "sudo -V output not in expected 'Sudo version X.Y.Z' form; falling back to glob-form sudoers policy."
+        return 1
+    fi
+
+    if (( major > 1 )); then
+        return 0
+    fi
+    if (( major == 1 && minor > 9 )); then
+        return 0
+    fi
+    if (( major == 1 && minor == 9 && patch >= 10 )); then
+        return 0
+    fi
+    return 1
+}
+
 function verify_path {
     local path="$1"
     local expected_owner="$2"
@@ -287,8 +321,8 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
     # ACLs that enforce group=ioc:rw; the log rotation STEP relies on
     # logrotate. Fail early here rather than after STEP 1-5 have already
     # mutated accounts, sudoers, the log dir, and the unit template.
-    declare -A REQUIRED_PKG=([setfacl]="acl" [getfacl]="acl" [logrotate]="logrotate")
-    for required_tool in setfacl getfacl logrotate; do
+    declare -A REQUIRED_PKG=([setfacl]="acl" [getfacl]="acl" [logrotate]="logrotate" [sudo]="sudo")
+    for required_tool in setfacl getfacl logrotate sudo; do
         if ! command -v "${required_tool}" >/dev/null 2>&1; then
             _log "ERROR" "Required tool '${required_tool}' not found in PATH."
             _log "INFO"  "Install the '${REQUIRED_PKG[${required_tool}]}' package and re-run:"
@@ -331,8 +365,35 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
     tmp_sudoers=$(mktemp)
 
-    cat <<EOF > "${tmp_sudoers}"
+    if sudo_supports_regex_args; then
+        # Anchored-regex form. Generator detected sudo >= 1.9.10, so
+        # command-argument matching is bound by ^ and $ in POSIX ERE,
+        # giving parity with validate_ioc_name in bin/ioc-runner
+        # ([A-Za-z0-9_] head, then up to 63 of [A-Za-z0-9_-]).
+        cat <<EOF > "${tmp_sudoers}"
 # /etc/sudoers.d/10-epics-ioc
+%${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} ^start epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^stop epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^status epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^enable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                                      ${SYSTEMCTL_BIN} ^daemon-reload\$
+EOF
+    else
+        # Glob-fallback form. fnmatch '*' is broader than the runner
+        # IOC-name model, but systemd unit-name escaping plus the
+        # template-only resolution rule prevents it from becoming an
+        # escalation path. See docs/PERMISSION_MODEL.md residual-risk
+        # subsection.
+        _log "WARN" "sudo < 1.9.10 detected; emitting glob-form sudoers policy (broader than the runner IOC-name model; not an escalation path; see docs/PERMISSION_MODEL.md)."
+        cat <<EOF > "${tmp_sudoers}"
+# /etc/sudoers.d/10-epics-ioc
+# Glob-fallback form: this host's sudo does not support regex command
+# arguments (introduced in sudo 1.9.10). Scope is broader than the
+# runner IOC-name model [A-Za-z0-9_][A-Za-z0-9_-]{0,63}, but systemd
+# unit-name escaping plus template-only resolution keep this off any
+# escalation path. See docs/PERMISSION_MODEL.md.
 %${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} stop epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} restart epics-@*.service, \\
@@ -341,6 +402,7 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
                                       ${SYSTEMCTL_BIN} disable epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} daemon-reload
 EOF
+    fi
 
     if visudo -cf "${tmp_sudoers}" >/dev/null 2>&1; then
         chmod "${PERM_SUDOERS}" "${tmp_sudoers}"
