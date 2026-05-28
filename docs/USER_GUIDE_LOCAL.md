@@ -216,6 +216,6 @@ export IOC_RUNNER_LOCAL_SYSTEMD_DIR="/tmp/sandbox/systemd"
 ~/epics-ioc-runner/bin/ioc-runner --local install .
 ```
 
-**Caveat: `IOC_RUNNER_RUN_DIR`** in system mode
+**Caveat: the system-mode runtime directory is fixed**
 
-This variable changes the socket path written into `IOC_PORT`, but the deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, redirecting `RUN_DIR` will cause the `IOC_PORT` path and the actual socket location to diverge. Use this override only in --local mode or for test scaffolding.
+The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, moving the runtime directory off `/run/procserv` via `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` would split the `IOC_PORT` socket path from where the kernel creates the UDS, so the runner now rejects it with a hard error. Use these overrides only in `--local` mode or for test scaffolding.
