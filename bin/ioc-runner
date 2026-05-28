@@ -228,17 +228,20 @@ if [[ -z "${COMMAND_ACTION}" ]]; then
     exit 0
 fi
 
-# Foot-gun guard: IOC_RUNNER_RUN_DIR overrides the socket path written into
-# IOC_PORT, but the system-mode systemd template hardcodes
-# RuntimeDirectory=procserv/%i (resolves under /run/procserv). In system mode
-# this override causes divergence between the declared socket path and where
-# the kernel actually creates the UDS. Safe in --local mode (runtime dir is
-# user-scoped and the template is regenerated per-user).
-if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_RUN_DIR:-}" \
-      && "${IOC_RUNNER_RUN_DIR}" != "/run/procserv" ]]; then
-    printf "Warning: IOC_RUNNER_RUN_DIR is honored in IOC_PORT, but the system-mode\n" >&2
-    printf "         systemd RuntimeDirectory is fixed at /run/procserv. The socket\n" >&2
-    printf "         may not appear where IOC_PORT claims. Use --local for custom paths.\n" >&2
+# Hard guard: the system-mode socket path comes from RUN_DIR, but the
+# system-mode systemd template hardcodes RuntimeDirectory=procserv/%i
+# (resolves under /run/procserv). Either IOC_RUNNER_RUN_DIR or
+# IOC_RUNNER_SYSTEM_RUN_DIR can move RUN_DIR off /run/procserv, splitting the
+# declared socket path from where the kernel creates the UDS -- breaking
+# list/attach/remove/inspect (and pointing do_remove's rm -rf at a path the
+# operator never intended). Checking resolved RUN_DIR catches both overrides.
+# Rejected outright in system mode; --local is the supported path.
+if [[ "${EXEC_MODE}" == "system" && "${RUN_DIR}" != "/run/procserv" ]]; then
+    printf "Error: system-mode runtime dir (%s) diverges from the fixed systemd\n" "${RUN_DIR}" >&2
+    printf "       RuntimeDirectory (/run/procserv); the socket path and the runner\n" >&2
+    printf "       would split, breaking list/attach/remove/inspect.\n" >&2
+    printf "       Unset IOC_RUNNER_RUN_DIR / IOC_RUNNER_SYSTEM_RUN_DIR, or use --local.\n" >&2
+    exit 1
 fi
 
 # Foot-gun guard: IOC_RUNNER_LOG_DIR shifts where the runner scans for crash
