@@ -331,6 +331,12 @@ function deploy_local_template {
         fi
         mv -f "${template_path}" "${backup_path}"
         printf "Backed up existing user template to %s\n" "${backup_path}"
+        # Prune old template backups, keeping the 3 most recent.
+        local -a old_backups=()
+        mapfile -t old_backups < <(ls -1t "${template_path}".bak.* 2>/dev/null)
+        if (( ${#old_backups[@]} > 3 )); then
+            rm -f -- "${old_backups[@]:3}"
+        fi
     fi
 
     printf "Deploying user-level systemd template to %s...\n" "${template_path}"
@@ -768,6 +774,7 @@ function do_generate {
     fi
 
     tmp_conf=$(mktemp "${TMPDIR:-/tmp}/ioc-runner-gen.XXXXXX.conf")
+    trap 'rm -f "${tmp_conf:-}"' EXIT
 
     cat <<EOF > "${tmp_conf}"
 IOC_NAME="${IOC_NAME}"
@@ -842,6 +849,7 @@ EOF
     fi
 
     mv -f "${tmp_conf}" "${generated_conf}"
+    trap - EXIT
 
     # Pre-allocate the EPICS shell history file. In system mode it is made
     # group-writable (0664) so the ioc-srv daemon can append via its 'ioc'
@@ -1419,6 +1427,11 @@ function do_inspect {
         exit 1
     fi
 
+    if ! command -v ss >/dev/null 2>&1; then
+        printf "Error: 'ss' utility is required but not found in PATH.\n" >&2
+        exit 1
+    fi
+
     print_divider
     printf "Deep Inspection: %s\n" "${IOC_NAME}"
     printf "Target Socket: %s\n" "${sock_path}"
@@ -1479,19 +1492,24 @@ function do_inspect {
     # preserve the original bash policy.
     local -a client_pids=()
     local -A seen_client_pids=()
+    local ss_peer_out
+    if ! ss_peer_out=$(ss -x -a -p 2>/dev/null); then
+        printf "Error: 'ss -x -a -p' failed; cannot trace client connections.\n" >&2
+        exit 1
+    fi
     while read -r c_pid; do
         [[ -n "${c_pid}" ]] || continue
         if [[ -z "${seen_server_pids[${c_pid}]:-}" && -z "${seen_client_pids[${c_pid}]:-}" ]]; then
             client_pids+=("${c_pid}")
             seen_client_pids["${c_pid}"]=1
         fi
-    done < <(ss -x -a -p 2>/dev/null | awk -v sock="${sock_path}" '
+    done < <(printf '%s\n' "${ss_peer_out}" | awk -v sock="${sock_path}" '
         $2 == "ESTAB" {
             if ($5 == sock) target_peer[$8] = 1
             if (match($0, /pid=[0-9]+/)) inode_pid[$6] = substr($0, RSTART + 4, RLENGTH - 4)
         }
         END { for (p in target_peer) if (p in inode_pid) print inode_pid[p] }
-    ' || true)
+    ')
 
     print_divider
     printf "2. Server Process Context (procServ & IOC)\n"

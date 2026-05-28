@@ -278,6 +278,10 @@ function backup_if_exists {
 
 if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
+    # Clean up staged temp files (sudoers, logrotate) on any exit; a
+    # mid-run abort would otherwise leak them in /tmp.
+    trap 'rm -f "${tmp_sudoers:-}" "${tmp_logrotate:-}"' EXIT
+
     # Preflight: required tools for the system-mode infrastructure.
     # The log directory STEP relies on setfacl/getfacl to install default
     # ACLs that enforce group=ioc:rw; the log rotation STEP relies on
@@ -342,6 +346,7 @@ EOF
         chmod "${PERM_SUDOERS}" "${tmp_sudoers}"
         backup_if_exists "${SUDOERS_FILE}"
         mv "${tmp_sudoers}" "${SUDOERS_FILE}"
+        tmp_sudoers=""   # consumed by mv; keep the EXIT trap from re-acting
         verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
         verify_sudoers_includedir_order "/etc/sudoers"
     else
@@ -460,6 +465,7 @@ EOF
         chmod "${PERM_LOGROTATE}" "${tmp_logrotate}"
         backup_if_exists "${LOGROTATE_FILE}"
         mv "${tmp_logrotate}" "${LOGROTATE_FILE}"
+        tmp_logrotate=""   # consumed by mv; keep the EXIT trap from re-acting
         verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
     else
         _log "ERROR" "logrotate syntax validation failed. Skipping deployment."
