@@ -149,14 +149,17 @@ creates `/var/log/procserv/<name>.log` owned by `ioc-srv:ioc` with mode
 
 ### Phase B-2 — user systemd template (#10)
 
-**Acceptance:** `ioc-runner --local install <conf>` creates
-`${LOCAL_LOG_DIR}` with mode 0750. The rendered user unit at
+**Acceptance:** `ioc-runner --local install <conf>` creates the
+resolved local `${LOG_DIR}` with mode 0750. By default this is
+`${LOCAL_LOG_DIR}`; `IOC_RUNNER_LOG_DIR` or
+`IOC_RUNNER_LOCAL_LOG_DIR` can override it. The rendered user unit at
 `~/.config/systemd/user/epics-@.service` contains
-`--logfile=${LOCAL_LOG_DIR}/%i.log`. Starting a fresh user IOC creates
-the log file with mode 0640.
+`--logfile=${LOG_DIR}/%i.log`. Starting a fresh user IOC creates the
+log file with mode 0640.
 
-**Verification:** `ioc-runner --local install <conf>`, then `stat
-${LOCAL_LOG_DIR}` and `systemctl --user cat epics-@<name>.service`.
+**Verification:** `ioc-runner --local install <conf>`, then `stat` the
+resolved local `${LOG_DIR}` and inspect `systemctl --user cat
+epics-@<name>.service`.
 
 ### Phase B-3 — logrotate (#15)
 

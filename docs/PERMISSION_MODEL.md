@@ -64,8 +64,8 @@ user's account.
 
 | Path | Owner:Group | Mode | Variable | Notes |
 | --- | --- | --- | --- | --- |
-| `${LOCAL_LOG_DIR}/` (default `~/.local/state/procserv/`) | `<user>:<user>` | `0750` | `LOCAL_LOG_DIR` | created by `do_install` local branch |
-| `${LOCAL_LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | — | procServ-created with user unit `UMask=0027` |
+| `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `<user>:<user>` | `0750` | `LOG_DIR` | created by `do_install` local branch; `IOC_RUNNER_LOG_DIR` or `IOC_RUNNER_LOCAL_LOG_DIR` can override the default |
+| `${LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | — | procServ-created with user unit `UMask=0027` |
 | `~/.config/systemd/user/epics-@.service` | `<user>:<user>` | umask-dependent (`0644` at the conventional `umask 022`) | — | written by `deploy_local_template` via `cat`; no explicit `chmod`, so the final mode follows the invoking user's umask |
 
 ## Access Boundary: sudoers Policy + File Mode
@@ -144,8 +144,8 @@ umask `0022` preserves the `0644` mode through.
 
 | Object | Owner:Group | Mode | Creator |
 | --- | --- | --- | --- |
-| `${LOCAL_LOG_DIR}/` (default `~/.local/state/procserv/`) | `<user>:<user>` | `0750` | `bin/ioc-runner` `do_install` local branch |
-| `${LOCAL_LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | procServ at IOC start, with user-mode unit `UMask=0027` |
+| `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `<user>:<user>` | `0750` | `bin/ioc-runner` `do_install` local branch |
+| `${LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | procServ at IOC start, with user-mode unit `UMask=0027` |
 
 Local mode keeps `UMask=0027` in the user-mode unit. The engineer
 is the only principal; `0640` ensures their primary group has read
@@ -176,8 +176,8 @@ Create, Manage, and Track (read).
 
 | Phase | Action | Principal | Object | Mechanism | Resulting state |
 | --- | --- | --- | --- | --- | --- |
-| Create | install log directory | `<user>` | `${LOCAL_LOG_DIR}/` | `ioc-runner --local install`: `install -d -m 0750` | `<user>:<user> 0750` |
-| Create | open log file | `<user>` (via `systemd --user`) | `${LOCAL_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` + user unit `UMask=0027` | `<user>:<user> 0640` |
+| Create | install log directory | `<user>` | `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `ioc-runner --local install`: `install -d -m 0750` | `<user>:<user> 0750` |
+| Create | open log file | `<user>` (via `systemd --user`) | `${LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` + user unit `UMask=0027` | `<user>:<user> 0640` |
 | Manage | append / IOC lifecycle | `<user>` | log file, user unit | `systemctl --user ...` (no sudo) | self-managed |
 | Track | crash scan / shell read | `<user>` | `<ioc>.log` | `ioc-runner --local`, `cat`, `tail` | owner `r` |
 
@@ -224,7 +224,7 @@ Local mode setup is performed by `ioc-runner --local install` under
 the invoking user:
 
 ```bash
-install -d -m 0750 "${LOCAL_LOG_DIR}"
+install -d -m 0750 "${LOG_DIR}"
 ```
 
 The local user systemd template carries `UMask=0027` so that

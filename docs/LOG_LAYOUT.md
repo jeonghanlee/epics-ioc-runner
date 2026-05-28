@@ -51,15 +51,17 @@ requires.
 
 ## 3. Local-mode Layout
 
-The local log path is `$XDG_STATE_HOME/procserv`, falling back to
-`$HOME/.local/state/procserv` — set from `LOCAL_LOG_DIR` (overridable with
-`IOC_RUNNER_LOCAL_LOG_DIR`) and written into the generated user unit's
-`--logfile=`.
+The local log path is the resolved local `LOG_DIR`. By default it is
+`$XDG_STATE_HOME/procserv`, falling back to
+`$HOME/.local/state/procserv`; `IOC_RUNNER_LOCAL_LOG_DIR` changes that
+local default, and `IOC_RUNNER_LOG_DIR` overrides the final value. The
+resolved path is created by `ioc-runner --local install` and written
+into the generated user unit's `--logfile=`.
 
 | Path | Owner:Group | Mode | Created by |
 | --- | --- | --- | --- |
-| `$XDG_STATE_HOME/procserv/` | `<user>:<user>` | `0750` | `ioc-runner --local install` |
-| `$XDG_STATE_HOME/procserv/<name>.log` | `<user>:<user>` | `0640` | `procServ` at IOC start |
+| `<LOG_DIR>/` | `<user>:<user>` | `0750` | `ioc-runner --local install` |
+| `<LOG_DIR>/<name>.log` | `<user>:<user>` | `0640` | `procServ` at IOC start |
 
 The user-mode unit sets `UMask=0027`, which tightens `procServ`'s `0644`
 mode_arg to `0640`. The single user is the only principal, so group/other
