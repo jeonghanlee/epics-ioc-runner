@@ -37,6 +37,9 @@ To force retention regardless of the result, set the `KEEP_WORKSPACE` environmen
 KEEP_WORKSPACE=1 bash tests/run-all-tests.bash --local
 ```
 
+### Runner Binary Evidence
+Both lifecycle suites print the resolved `ioc-runner` path and its `-V` output (version, git hash, commit and install dates) before STEP 1. `test-system-lifecycle.bash` prefers the installed `/usr/local/bin/ioc-runner` and falls back to the source tree; `test-local-lifecycle.bash` uses the source tree. The evidence line makes captured output show which binary actually ran, so a stale installed binary cannot silently mask a source-tree fix.
+
 ---
 
 ## Test Execution

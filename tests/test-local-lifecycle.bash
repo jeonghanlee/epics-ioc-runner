@@ -930,6 +930,15 @@ function run_all_tests {
         "test_remove"
     )
 
+    # Record which ioc-runner binary this run exercises, so captured
+    # output shows whether the installed or source-tree binary ran. A
+    # stale installed binary previously masked a passing fix as a failing
+    # test until an external reviewer caught the path mismatch. (#71)
+    print_divider
+    _log "INFO" "Runner under test: ${RUNNER_SCRIPT}"
+    bash "${RUNNER_SCRIPT}" -V || _log "WARN" "ioc-runner -V returned non-zero"
+    print_divider
+
     local step=1
     local func
     for func in "${pipeline[@]}"; do
