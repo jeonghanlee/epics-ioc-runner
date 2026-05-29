@@ -41,8 +41,12 @@ start 1.2.0 items unless the owner reorders them.
 ## Milestone 1.1.1
 
 Target: July 2026. Two carry-forwards from the 1.1.0 audit plus two small
-additive items (Makefile install front end, `--user` alias). GitHub milestone
-`1.1.1` (number 10). Release after a ~1-month testing and feedback window.
+additive items (Makefile install front end, `--user` alias). Release after a
+~1-month testing and feedback window.
+
+GitHub milestone `1.1.1` (number 10), due `2026-07-31`. Description: `Patch
+plus small additive items: chdir precheck, test-mode selection, Makefile
+install front end, --user alias`.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
