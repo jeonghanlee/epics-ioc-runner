@@ -38,11 +38,9 @@ This directory contains the complete documentation for deploying, managing, and 
 * **[FAQ.md](FAQ.md)**
   Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
 
-### 6. Release-Specific Documents
-* **[MILESTONE-1.1.0.md](MILESTONE-1.1.0.md)**
-  Single milestone register for the 1.1.0 Journal Decoupling Release: phase plan, acceptance criteria, current tracking status (commits, footers, audit backlog), and next session entry point. Tracks issues #8 through #22 plus the audit backlog #55-#65 and the follow-up #69.
-* **[TEST_PLAN-1.1.0.md](TEST_PLAN-1.1.0.md)**
-  Verification surface for 1.1.0: phase acceptance matrices for the crash detection rewrite and log file permission model, per-phase verification commands, T1-T5 integration test specifications, and host coverage matrix.
+### 6. Milestone Register
+* **[milestone.md](milestone.md)**
+  Single, unified milestone register covering all active milestones, carry-forward items, the status tally, and the next session entry point. GitHub milestone state is authoritative. Released versions are not retained here — on each release the register is cleared and restarted; the released snapshot lives in the matching git tag.
 
 ## Upgrading from 1.0.x
 

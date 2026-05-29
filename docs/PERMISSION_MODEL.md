@@ -362,7 +362,10 @@ fix the log-file path — not to widen operator privilege.
 
 - Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - CLI surface: [`CLI_REFERENCE.md`](CLI_REFERENCE.md)
-- Release milestone: [`MILESTONE-1.1.0.md`](MILESTONE-1.1.0.md)
-- Test plan: [`TEST_PLAN-1.1.0.md`](TEST_PLAN-1.1.0.md)
+- Release 1.1.0 history: git tag `1.1.0` (merge commit `b6cc0a6`). The
+  release milestone register and the 1.1.0 test plan are preserved in that
+  tagged revision (`git show 1.1.0:docs/MILESTONE-1.1.0.md`,
+  `git show 1.1.0:docs/TEST_PLAN-1.1.0.md`).
+- Active milestone register: [`milestone.md`](milestone.md)
 - Tracking epic: [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7)
 - Milestone: [1.1.0](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3)
