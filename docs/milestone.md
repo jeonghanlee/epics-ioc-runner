@@ -12,8 +12,12 @@ released milestone's full record is preserved in the matching git tag
 (`git show <tag>:docs/milestone.md`). Released versions are therefore not
 retained in this file.
 
+**1.1.1 release target:** July 2026. A ~1-month testing and feedback window
+(opened late May 2026) precedes the release; patches land on `release-1.1.1`
+during that window.
+
 **Next session entry point:** bump `RUNNER_VERSION` in `bin/ioc-runner:14` from
-`1.1.0` to `1.1.1-dev` on `master`, then start #66 (chdir precheck) in
+`1.1.0` to `1.1.1-dev` on `release-1.1.1`, then start #66 (chdir precheck) in
 `bin/ioc-runner:860-883`. Preserve the 1.1.0 per-segment symlink rejection
 posture — do not introduce `realpath` canonicalization that weakens it. Do not
 start 1.2.0 items unless the owner reorders them.
@@ -24,22 +28,28 @@ start 1.2.0 items unless the owner reorders them.
 | :--- | :--- | :--- | :--- | :--- |
 | 1.1.1 | #66 chdir precheck — reject `..` components / canonical-path policy | Carry-forward | Open | Start in `bin/ioc-runner:860-883`; parent walk diverges from resolved path on `..`. P2-medium. |
 | 1.1.1 | #69 lifecycle test runner selection (`IOC_RUNNER_TEST_MODE`) | Carry-forward | Open | Unify binary resolution + log resolved binary in `tests/test-system-lifecycle.bash` and `tests/test-local-lifecycle.bash`. P3-low. |
+| 1.1.1 | #72 modular Makefile install system (global + user-home) | Milestone | Not started | New `configure/` Makefile wrapping install to `/usr/local/bin` and `$(HOME)/.local/bin`, `CONFIG_SITE.local` layering. Tooling only; no runner runtime change. |
+| 1.1.1 | #73 `--user` alias for `--local` runtime mode | Milestone | Not started | Thin additive alias aligning with `systemctl --user`; `--local` stays primary. |
 | 1.2.0 | #68 distro-independent sudoers parity via validating `systemctl` wrapper | Carry-forward | Open | Closes the sudo < 1.9.10 residual risk from #57 (Rocky 8 / alsucl-psrv3 = 1.9.5p2). P2-medium. |
 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1536-1547`; preserve the crash-pattern scan that follows. P3-low. |
 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure`; interacts with #67 and #52. |
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
 
-**Tally:** Open 7 · In progress 0 · Blocked 0
+**Tally:** Open 7 · Not started 2 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
-Patch-level carry-forwards from the 1.1.0 audit. GitHub milestone `1.1.1` — 2 open.
+Target: July 2026. Two carry-forwards from the 1.1.0 audit plus two small
+additive items (Makefile install front end, `--user` alias). GitHub milestone
+`1.1.1` (number 10). Release after a ~1-month testing and feedback window.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
 | [#66](https://github.com/jeonghanlee/epics-ioc-runner/issues/66) | chdir precheck: reject `..` components / canonical-path policy | P2-medium | `chdir_conforms_to_system_model` walks parents lexically; `..` in `IOC_CHDIR` diverges the validated parent set from the resolved path. Deferred from 1.1.0 because `realpath` canonicalization would change the per-segment symlink-rejection posture for a check that only gates a warning + y/N prompt. |
 | [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69) | Lifecycle test runner selection: `IOC_RUNNER_TEST_MODE` | P3-low | Lifecycle scripts choose the runner binary by inconsistent, unlogged rules; an out-of-date installed binary once masked a passing fix. Add explicit mode selection and log the resolved binary. The low-risk observability half shipped in 1.1.0 as #71. |
+| [#72](https://github.com/jeonghanlee/epics-ioc-runner/issues/72) | Add a modular Makefile install system (global and user-home install) | enhancement | New `configure/` Makefile (EPICS configure/ pattern, as in `linux-home-env`). Global install to `/usr/local/bin`, user-home install to `$(HOME)/.local/bin`, `CONFIG_SITE.local` override layering. Tooling only; `bin/ioc-runner` runtime behavior unchanged. |
+| [#73](https://github.com/jeonghanlee/epics-ioc-runner/issues/73) | Add `--user` as an alias for `--local` runtime mode | enhancement | Accept `--user` wherever `--local` is accepted; route to the same code path. Aligns with `systemctl --user`. `--local` stays primary and documented. Backward-compatible additive change. |
 
 ## Milestone 1.2.0
 
