@@ -99,11 +99,12 @@ branch only after a Reviewer cross-check passes. Final merge to
 
 ## Current Tracking Status
 
-Last checked: 2026-05-28 against GitHub milestone
-[`1.1.0`](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3).
-HEAD: `release-1.1.0` at `5495315`, three commits ahead of
-`origin/release-1.1.0` (push pending): `9d25a58` (#57), `3b61448`
-(#70), `5495315` (#71).
+**Released 2026-05-28.** Tag `1.1.0` cut at the `release-1.1.0` →
+`master` merge (`b6cc0a6`); GitHub Release `1.1.0` published. The
+[`1.1.0`](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3)
+GitHub milestone is closed (30 / 30 issues closed, including the
+[#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7) epic).
+All phase, audit, and test-suite follow-up issues are resolved.
 
 Source-of-truth ordering: GitHub milestone state and `release-1.1.0`
 commit footers (`Closes` / `Refs`) are authoritative. The tables below
@@ -123,9 +124,9 @@ epic.
 | Phase C2 | [#12](https://github.com/jeonghanlee/epics-ioc-runner/issues/12) | Done | |
 | Phase D | [#17](https://github.com/jeonghanlee/epics-ioc-runner/issues/17), [#24](https://github.com/jeonghanlee/epics-ioc-runner/issues/24) | Done | |
 | Phase D+ | [#49](https://github.com/jeonghanlee/epics-ioc-runner/issues/49) | Done | |
-| Phase E | [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | Done (code) | T1-T5 verified PASS on Debian 13 (`top`) and Rocky 8 (`testbed-rocky8-iocrunner-server`). #21 commits used `Refs #21` only, so the umbrella issue stays open until manual close at Phase G. |
-| Phase F | [#18](https://github.com/jeonghanlee/epics-ioc-runner/issues/18), [#19](https://github.com/jeonghanlee/epics-ioc-runner/issues/19), [#20](https://github.com/jeonghanlee/epics-ioc-runner/issues/20) | Done (code) | Docs committed with `Closes #N`; auto-close on master merge. |
-| Phase G | [#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22) | Not started | Final `RUNNER_VERSION` bump (`1.1.0-dev` → `1.1.0`), master merge, annotated tag `1.1.0` (no `v` prefix). |
+| Phase E | [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | Closed | T1-T5 verified PASS on Debian 13 (`top`), `testbed-debian13-iocrunner-server`, and `testbed-rocky8-iocrunner-server`. Committed with `Refs #21`; manually closed at the release merge. |
+| Phase F | [#18](https://github.com/jeonghanlee/epics-ioc-runner/issues/18), [#19](https://github.com/jeonghanlee/epics-ioc-runner/issues/19), [#20](https://github.com/jeonghanlee/epics-ioc-runner/issues/20) | Closed | Docs committed with `Closes #N`; auto-closed on master merge. |
+| Phase G | [#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22) | Closed | `RUNNER_VERSION` bumped `1.1.0-dev` → `1.1.0` (`6c0bc60`), `--no-ff` merge to `master` (`b6cc0a6`), annotated tag `1.1.0`, GitHub Release published. |
 
 ### Audit backlog (A1-A20)
 
@@ -160,25 +161,30 @@ fixed and committed on `release-1.1.0`.
 | --- | --- |
 | [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52) | Moved to Backlog. Restart-semantics cluster with [#54](https://github.com/jeonghanlee/epics-ioc-runner/issues/54) (trigger) and [#67](https://github.com/jeonghanlee/epics-ioc-runner/issues/67) (same `do_start_restart` timing); needs restart scan-window rework, out of journal-decoupling scope. |
 | [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69) | Moved to Backlog. The `IOC_RUNNER_TEST_MODE` five-mode selection feature; its low-risk observability half was carved into [#71](https://github.com/jeonghanlee/epics-ioc-runner/issues/71) and shipped in 1.1.0. |
-| [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | Phase E umbrella; committed with `Refs #21` only, so it does not auto-close. Manual close at Phase G after the master merge. |
-| [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7) | Tracking epic; closes after every sub-issue closes. |
+| [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21) | Closed manually at the release merge (committed with `Refs #21`, so it did not auto-close). |
+| [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7) | Closed at the release merge after all 14 sub-issues closed; checklist updated to match. |
 
-### Next session entry point
+### Post-release follow-ups
 
-All 1.1.0 code is committed on `release-1.1.0` (#52 and #69 moved to
-Backlog). Only release actions remain:
+1.1.0 is shipped and the milestone is closed. Carry-forward work lives
+in the Backlog milestone:
 
-1. Push the three pending commits to `origin/release-1.1.0`.
-2. (Optional) Final cross-check: `sudo -E bash tests/run-all-tests.bash`
-   on `top`; [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62)
-   install-path verification on VM and `alsucl-psrv3`.
-3. Phase G release sequence
-   ([#22](https://github.com/jeonghanlee/epics-ioc-runner/issues/22)):
-   `RUNNER_VERSION` bump (`1.1.0-dev` → `1.1.0`), master merge, annotated
-   tag `1.1.0` (no `v` prefix), GitHub Release.
-4. After the merge, manually close
-   [#21](https://github.com/jeonghanlee/epics-ioc-runner/issues/21)
-   (committed with `Refs`, not `Closes`).
+- [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52),
+  [#54](https://github.com/jeonghanlee/epics-ioc-runner/issues/54),
+  [#67](https://github.com/jeonghanlee/epics-ioc-runner/issues/67) —
+  restart-semantics cluster (crash-loop signal, Restart= policy,
+  active-state polling).
+- [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69) —
+  `IOC_RUNNER_TEST_MODE` five-mode selection.
+- [#68](https://github.com/jeonghanlee/epics-ioc-runner/issues/68) —
+  distro-independent sudoers parity via a validating wrapper (closes the
+  sudo < 1.9.10 residual risk from #57).
+- [#62](https://github.com/jeonghanlee/epics-ioc-runner/issues/62) is
+  closed; install-path live verification on `alsucl-psrv3` is still a
+  recommended pre-deployment smoke check.
+
+Next development cycle opens with the `RUNNER_VERSION` bump to the next
+`-dev` value on `master`.
 
 ## Acceptance and Verification per Phase
 
