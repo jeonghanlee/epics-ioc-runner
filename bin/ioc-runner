@@ -1039,6 +1039,27 @@ function do_install {
     if [[ "${EXEC_MODE}" == "system" ]]; then
         local chdir_target="${install_conf[IOC_CHDIR]:-}"
         local precheck_confirm
+
+        # Reject a '..' path component outright. The conformance check below
+        # walks parents lexically via dirname; a '..' makes that walk diverge
+        # from the resolved physical path, so it would validate sibling
+        # directories instead of the true parent chain. This is malformed
+        # input, not a permission mismatch, so it aborts unconditionally
+        # rather than flowing into the writability warning's y/N prompt.
+        # Canonicalizing with realpath is avoided here because it would
+        # resolve symlinks and weaken the per-segment symlink rejection.
+        # A '..' component appears in exactly one of four positions: the whole
+        # string, leading, interior, or trailing. These four globs cover all of
+        # them so the rejection cannot be bypassed by a boundary-position '..'
+        # (literal names like '..bar' are deliberately not matched).
+        if [[ "${chdir_target}" == ".." || "${chdir_target}" == "../"* \
+           || "${chdir_target}" == */../* || "${chdir_target}" == */.. ]]; then
+            printf "Error: IOC_CHDIR '%s' contains a '..' component.\n" "${chdir_target}" >&2
+            printf "       Provide a canonical absolute path without '..' so the system-model\n" >&2
+            printf "       precheck validates the directory's true parent chain.\n" >&2
+            exit 1
+        fi
+
         if ! chdir_conforms_to_system_model "${chdir_target}"; then
             printf "Warning: IOC_CHDIR '%s' is not writable by '%s'.\n" "${chdir_target}" "${TARGET_SYSTEM_USER}" >&2
             printf "         System-mode IOCs should be deployed under /opt/epics-iocs/\n" >&2

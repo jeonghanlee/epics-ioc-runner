@@ -995,6 +995,49 @@ IOC_PORT=""
 EOF
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
     verify_exit_code "1" "${exit_code}" "Install with missing required key (IOC_CMD) exits 1"
+
+    # 5. Reject a '..' path component in IOC_CHDIR (system-mode precheck, #66).
+    #    Driven in system mode (no --local) so the chdir precheck fires. The
+    #    check is pure string work that exits before any privileged copy, so it
+    #    needs neither the ioc-srv account nor sudo: validate_conf compares the
+    #    IOC_USER/IOC_GROUP strings only, and the '..' path resolves to an
+    #    existing directory so validate_conf's earlier -d test passes. The -f
+    #    flag also confirms force does not bypass the rejection.
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="ioc-srv"
+IOC_GROUP="ioc"
+IOC_CHDIR="${dummy_dir}/../dummy_ioc"
+IOC_CMD="true"
+EOF
+    local dotdot_stderr="${TEST_TMPDIR}/dotdot_stderr"
+    local dotdot_ec=0
+    bash "${RUNNER_SCRIPT}" -f install "${bad_conf}" >/dev/null 2>"${dotdot_stderr}" || dotdot_ec=$?
+    verify_exit_code "1" "${dotdot_ec}" "Install with '..' in system IOC_CHDIR exits 1"
+
+    local has_dotdot_msg="false"
+    grep -q "contains a '..' component" "${dotdot_stderr}" 2>/dev/null && has_dotdot_msg="true"
+    verify_state "true" "${has_dotdot_msg}" "'..' rejection error references the '..' component"
+
+    # 5b. Boundary form: IOC_CHDIR exactly '..'. The interior/trailing globs do
+    #     not match a bare '..', so this closes the whole-string position. '..'
+    #     always resolves to an existing directory (the CWD parent), so it
+    #     reaches the precheck independent of the test's working directory.
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="ioc-srv"
+IOC_GROUP="ioc"
+IOC_CHDIR=".."
+IOC_CMD="true"
+EOF
+    local bare_stderr="${TEST_TMPDIR}/bare_dotdot_stderr"
+    local bare_ec=0
+    bash "${RUNNER_SCRIPT}" -f install "${bad_conf}" >/dev/null 2>"${bare_stderr}" || bare_ec=$?
+    verify_exit_code "1" "${bare_ec}" "Install with bare '..' IOC_CHDIR exits 1"
+
+    local has_bare_msg="false"
+    grep -q "contains a '..' component" "${bare_stderr}" 2>/dev/null && has_bare_msg="true"
+    verify_state "true" "${has_bare_msg}" "bare '..' rejection error references the '..' component"
 }
 
 function test_attach_errors {
