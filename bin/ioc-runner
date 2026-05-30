@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.1.0"
+declare -g RUNNER_VERSION="1.1.1-dev"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
