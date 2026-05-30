@@ -30,23 +30,24 @@ start 1.2.0 items unless the owner reorders them.
 | 1.1.1 | #69 lifecycle test runner selection (`IOC_RUNNER_TEST_MODE`) | Carry-forward | Open | Unify binary resolution + log resolved binary in `tests/test-system-lifecycle.bash` and `tests/test-local-lifecycle.bash`. P3-low. |
 | 1.1.1 | #72 modular Makefile install system (global + user-home) | Milestone | Not started | New `configure/` Makefile wrapping install to `/usr/local/bin` and `$(HOME)/.local/bin`, `CONFIG_SITE.local` layering. Tooling only; no runner runtime change. |
 | 1.1.1 | #73 `--user` alias for `--local` runtime mode | Milestone | Not started | Thin additive alias aligning with `systemctl --user`; `--local` stays primary. |
+| 1.1.1 | #74 procServ/con search paths overridable via env + home-bin default | Milestone | Not started | Add `IOC_RUNNER_PROCSERV_TOOL` (mirroring `IOC_RUNNER_CON_TOOL`) and `$(HOME)/.local/bin` defaults. Resolves user-built procServ in `~/.local/bin` without editing the script. |
 | 1.2.0 | #68 distro-independent sudoers parity via validating `systemctl` wrapper | Carry-forward | Open | Closes the sudo < 1.9.10 residual risk from #57 (Rocky 8 / alsucl-psrv3 = 1.9.5p2). P2-medium. |
 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1536-1547`; preserve the crash-pattern scan that follows. P3-low. |
 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure`; interacts with #67 and #52. |
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
 
-**Tally:** Open 7 · Not started 2 · In progress 0 · Blocked 0
+**Tally:** Open 7 · Not started 3 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
-Target: July 2026. Two carry-forwards from the 1.1.0 audit plus two small
-additive items (Makefile install front end, `--user` alias). Release after a
-~1-month testing and feedback window.
+Target: July 2026. Two carry-forwards from the 1.1.0 audit plus three small
+additive items (Makefile install front end, `--user` alias, procServ/con
+search-path override). Release after a ~1-month testing and feedback window.
 
 GitHub milestone `1.1.1` (number 10), due `2026-07-31`. Description: `Patch
 plus small additive items: chdir precheck, test-mode selection, Makefile
-install front end, --user alias`.
+install front end, --user alias, procServ/con search-path override`.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -54,6 +55,7 @@ install front end, --user alias`.
 | [#69](https://github.com/jeonghanlee/epics-ioc-runner/issues/69) | Lifecycle test runner selection: `IOC_RUNNER_TEST_MODE` | P3-low | Lifecycle scripts choose the runner binary by inconsistent, unlogged rules; an out-of-date installed binary once masked a passing fix. Add explicit mode selection and log the resolved binary. The low-risk observability half shipped in 1.1.0 as #71. |
 | [#72](https://github.com/jeonghanlee/epics-ioc-runner/issues/72) | Add a modular Makefile install system (global and user-home install) | enhancement | New `configure/` Makefile (EPICS configure/ pattern, as in `linux-home-env`). Global install to `/usr/local/bin`, user-home install to `$(HOME)/.local/bin`, `CONFIG_SITE.local` override layering. Tooling only; `bin/ioc-runner` runtime behavior unchanged. |
 | [#73](https://github.com/jeonghanlee/epics-ioc-runner/issues/73) | Add `--user` as an alias for `--local` runtime mode | enhancement | Accept `--user` wherever `--local` is accepted; route to the same code path. Aligns with `systemctl --user`. `--local` stays primary and documented. Backward-compatible additive change. |
+| [#74](https://github.com/jeonghanlee/epics-ioc-runner/issues/74) | Make procServ/con search paths overridable via env, with home-bin default | enhancement | Add `IOC_RUNNER_PROCSERV_TOOL` mirroring the existing `IOC_RUNNER_CON_TOOL`, and add `${HOME}/.local/bin` to both default search lists. Resolution order: `IOC_RUNNER_*_TOOL` -> `${HOME}/.local/bin` -> `/usr/local/bin` -> `/usr/bin`. `PROCSERV_SEARCH_PATHS` is local-mode only, so no system-mode shadowing. |
 
 ## Milestone 1.2.0
 
