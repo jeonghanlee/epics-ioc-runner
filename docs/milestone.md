@@ -16,19 +16,19 @@ retained in this file.
 (opened late May 2026) precedes the release; patches land on `release-1.1.1`
 during that window.
 
-**Next session entry point:** start #69 (lifecycle test runner selection,
-`IOC_RUNNER_TEST_MODE`) — unify the runner-binary resolution and log the
-resolved binary in `tests/test-system-lifecycle.bash` and
-`tests/test-local-lifecycle.bash`. The version is already at `1.1.1-dev`
-(`bin/ioc-runner:14`) and #66 landed on `release-1.1.1`. Do not start 1.2.0
-items unless the owner reorders them.
+**Next session entry point:** start #73 (`--user` alias for `--local`) — the
+smallest of the three remaining 1.1.1 additive items, a thin runtime-mode
+alias with no infra coupling. #69 is code-complete on `release-1.1.1`
+(`fb7d5aa`) but stays open pending NFS root_squash verification on
+alsucl-psrv3. The version is already at `1.1.1-dev` (`bin/ioc-runner:14`).
+Do not start 1.2.0 items unless the owner reorders them.
 
 ## Active Register
 
 | Topic | Work unit | Type | Status | Evidence or next action |
 | :--- | :--- | :--- | :--- | :--- |
 | 1.1.1 | #66 chdir precheck — reject `..` components / canonical-path policy | Carry-forward | Done (`release-1.1.1`) | System-mode install precheck rejects a `..` component (whole/leading/interior/trailing) as a hard error, no `realpath`. `tests/test-error-handling.bash` cases 5/5b. Closes on master merge. P2-medium. |
-| 1.1.1 | #69 lifecycle test runner selection (`IOC_RUNNER_TEST_MODE`) | Carry-forward | Open | Unify binary resolution + log resolved binary in `tests/test-system-lifecycle.bash` and `tests/test-local-lifecycle.bash`. P3-low. |
+| 1.1.1 | #69 lifecycle test runner selection (`IOC_RUNNER_TEST_MODE`) | Carry-forward | Code complete (`release-1.1.1`) | `fb7d5aa`: source/installed selection in both lifecycle suites, error suite split out as standalone, deployed-preference guard removed. Verified on top (Debian 13) 328/328 across all four binary-by-mode combinations. Open pending NFS root_squash verification on alsucl-psrv3. `Refs #69` (no auto-close). P3-low. |
 | 1.1.1 | #72 modular Makefile install system (global + user-home) | Milestone | Not started | New `configure/` Makefile wrapping install to `/usr/local/bin` and `$(HOME)/.local/bin`, `CONFIG_SITE.local` layering. Tooling only; no runner runtime change. |
 | 1.1.1 | #73 `--user` alias for `--local` runtime mode | Milestone | Not started | Thin additive alias aligning with `systemctl --user`; `--local` stays primary. |
 | 1.1.1 | #74 procServ/con search paths overridable via env + home-bin default | Milestone | Not started | Add `IOC_RUNNER_PROCSERV_TOOL` (mirroring `IOC_RUNNER_CON_TOOL`) and `$(HOME)/.local/bin` defaults. Resolves user-built procServ in `~/.local/bin` without editing the script. |
@@ -38,7 +38,7 @@ items unless the owner reorders them.
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
 
-**Tally:** Done 1 · Open 6 · Not started 3 · In progress 0 · Blocked 0
+**Tally:** Done 1 · Code complete (verification pending) 1 · Open 5 · Not started 3 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
