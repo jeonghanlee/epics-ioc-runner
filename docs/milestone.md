@@ -16,38 +16,42 @@ retained in this file.
 (opened late May 2026) precedes the release; patches land on `release-1.1.1`
 during that window.
 
-**Next session entry point:** start #73 (`--user` alias for `--local`) — the
-smallest of the three remaining 1.1.1 additive items, a thin runtime-mode
-alias with no infra coupling. #69 is code-complete on `release-1.1.1`
-(`fb7d5aa`) but stays open pending NFS root_squash verification on
-alsucl-psrv3. The version is already at `1.1.1-dev` (`bin/ioc-runner:14`).
-Do not start 1.2.0 items unless the owner reorders them.
+**Next session entry point:** #69 is verified (top 328/328 + both VM gates +
+prod `alsucl-psrv3` system-lifecycle 74/74) and closed on GitHub. Next:
+**confirm the #76 CA-coexistence mechanism on a VM** — why the local-mode CA
+test fails while system-mode passes on a host already running other IOCs
+(working hypothesis: UID-scoped `SO_REUSEPORT` grouping on shared UDP 5064).
+Record the confirmed mechanism in the #76 body, then implement the
+dedicated-port fix. Remaining 1.1.1 additive items: #73 (`--user` alias,
+smallest), #72, #74, #75. Version is `1.1.1-dev` (`bin/ioc-runner:14`). Do
+not start 1.2.0 items unless the owner reorders them.
 
 ## Active Register
 
 | Topic | Work unit | Type | Status | Evidence or next action |
 | :--- | :--- | :--- | :--- | :--- |
 | 1.1.1 | #66 chdir precheck — reject `..` components / canonical-path policy | Carry-forward | Done (`release-1.1.1`) | System-mode install precheck rejects a `..` component (whole/leading/interior/trailing) as a hard error, no `realpath`. `tests/test-error-handling.bash` cases 5/5b. Closes on master merge. P2-medium. |
-| 1.1.1 | #69 lifecycle test runner selection (`IOC_RUNNER_TEST_MODE`) | Carry-forward | Code complete (`release-1.1.1`) | `fb7d5aa`: source/installed selection in both lifecycle suites, error suite split out as standalone, deployed-preference guard removed. Verified on top (Debian 13) 328/328 across all four binary-by-mode combinations. Open pending NFS root_squash verification on alsucl-psrv3. `Refs #69` (no auto-close). P3-low. |
+| 1.1.1 | #69 lifecycle test runner selection (`IOC_RUNNER_TEST_MODE`) | Carry-forward | Done (`release-1.1.1`, verified) | `fb7d5aa`: source/installed selection in both lifecycle suites, error suite split out as standalone, deployed-preference guard removed. Verified on top (Debian 13) 328/328 across all four binary-by-mode combinations. VM gate PASSED 2026-06-01 on both `rocky8-iocrunner` and `debian13-iocrunner`, per binary mode: rocky8 local source 48/48, local installed 48/48, system-infra 40/40, system installed 74/74; debian13 49/49, 49/49, 41/41, 74/74. root_squash positive control confirmed on both (root mapped to nobody cannot execve the source binary on NFS). Prod (`alsucl-psrv3`, 2026-06-01): setup --full 9/9; local lifecycle in installed mode 47/48 with runner selection logged correct — the sole failure is STEP 24 Channel Access, split to #76 (test camonitor not isolated from co-located IOCs; identical failure on master 1.1.0, so not a #69 regression). System-lifecycle on prod (installed, sudo, root_squash) ran directly: 74/74 — fully green including Channel Access (5/5). Note the CA failure is local-mode-only and non-deterministic on this host: system passed CA with the same co-located IOCs up, so #76 is intermittent host-coexistence flakiness, not an always-fail. #69 prod path verified. `Refs #69` (no auto-close). P3-low. |
 | 1.1.1 | #72 modular Makefile install system (global + user-home) | Milestone | Not started | New `configure/` Makefile wrapping install to `/usr/local/bin` and `$(HOME)/.local/bin`, `CONFIG_SITE.local` layering. Tooling only; no runner runtime change. |
 | 1.1.1 | #73 `--user` alias for `--local` runtime mode | Milestone | Not started | Thin additive alias aligning with `systemctl --user`; `--local` stays primary. |
 | 1.1.1 | #74 procServ/con search paths overridable via env + home-bin default | Milestone | Not started | Add `IOC_RUNNER_PROCSERV_TOOL` (mirroring `IOC_RUNNER_CON_TOOL`) and `$(HOME)/.local/bin` defaults. Resolves user-built procServ in `~/.local/bin` without editing the script. |
 | 1.1.1 | #75 Debian 13 systemd `syslog` output type obsolete warning | Milestone | Not started | `bin/setup-system-infra.bash:483` sets `StandardOutput=syslog`; Debian 13 systemd flags the `syslog` value as obsolete. Move to `journal`, retaining `SyslogIdentifier=epics-%i`. System-mode template only; no local-mode change. P3-low. |
+| 1.1.1 | #76 lifecycle STEP 24 CA test not isolated from co-located IOCs | Milestone | Not started | `tests/test-{local,system}-lifecycle.bash` STEP 24 forces unicast `EPICS_CA_ADDR_LIST=127.0.0.1`; on a host with other IOCs sharing UDP 5064 the search lands on the wrong server. Give the test IOC a dedicated `EPICS_CA_SERVER_PORT`. Test harness only; reproduces on master 1.1.0, so not a runner regression. Surfaced verifying #69 on `alsucl-psrv3`. Next action (1): confirm the root-cause mechanism on a VM — local mode (test IOC owned by the invoking user, co-tenant on 5064 with that user's IOCs) fails; system mode (test IOC as `ioc-srv`, different UID) passes; hypothesis is UID-scoped `SO_REUSEPORT` grouping. Record the confirmed mechanism in the #76 body before the fix. P3-low. |
 | 1.2.0 | #68 distro-independent sudoers parity via validating `systemctl` wrapper | Carry-forward | Open | Closes the sudo < 1.9.10 residual risk from #57 (Rocky 8 / alsucl-psrv3 = 1.9.5p2). P2-medium. |
 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1536-1547`; preserve the crash-pattern scan that follows. P3-low. |
 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure`; interacts with #67 and #52. |
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
 
-**Tally:** Done 1 · Code complete (verification pending) 1 · Open 5 · Not started 4 · In progress 0 · Blocked 0
+**Tally:** Done 2 · Open 5 · Not started 5 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
 Target: July 2026. Two carry-forwards from the 1.1.0 audit, three small
 additive items (Makefile install front end, `--user` alias, procServ/con
-search-path override), plus a Debian 13 systemd logging-deprecation fix (#75,
-surfaced during the testing window). Release after a ~1-month testing and
-feedback window.
+search-path override), plus a Debian 13 systemd logging-deprecation fix (#75)
+and a lifecycle CA test isolation fix (#76), both surfaced during the testing
+window. Release after a ~1-month testing and feedback window.
 
 GitHub milestone `1.1.1` (number 10), due `2026-07-31`. Description: `Patch
 plus small additive items: chdir precheck, test-mode selection, Makefile
@@ -61,6 +65,7 @@ install front end, --user alias, procServ/con search-path override`.
 | [#73](https://github.com/jeonghanlee/epics-ioc-runner/issues/73) | Add `--user` as an alias for `--local` runtime mode | enhancement | Accept `--user` wherever `--local` is accepted; route to the same code path. Aligns with `systemctl --user`. `--local` stays primary and documented. Backward-compatible additive change. |
 | [#74](https://github.com/jeonghanlee/epics-ioc-runner/issues/74) | Make procServ/con search paths overridable via env, with home-bin default | enhancement | Add `IOC_RUNNER_PROCSERV_TOOL` mirroring the existing `IOC_RUNNER_CON_TOOL`, and add `${HOME}/.local/bin` to both default search lists. Resolution order: `IOC_RUNNER_*_TOOL` -> `${HOME}/.local/bin` -> `/usr/local/bin` -> `/usr/bin`. `PROCSERV_SEARCH_PATHS` is local-mode only, so no system-mode shadowing. |
 | [#75](https://github.com/jeonghanlee/epics-ioc-runner/issues/75) | Debian 13 systemd warns about output type "syslog" being obsolete | P3-low | `bin/setup-system-infra.bash:483` sets `StandardOutput=syslog` in the systemd template unit; Debian 13 systemd logs that the `syslog` output type is obsolete. Switch to `journal`; `SyslogIdentifier=epics-%i` continues to tag entries. System-mode template only. |
+| [#76](https://github.com/jeonghanlee/epics-ioc-runner/issues/76) | Lifecycle STEP 24 CA test not isolated from co-located IOCs | P3-low | STEP 24 of both lifecycle suites forces a unicast `EPICS_CA_ADDR_LIST=127.0.0.1` CA search; on a host already running other IOCs that share UDP 5064 the search reaches the wrong server and the PV is never found. Assign the test IOC a dedicated `EPICS_CA_SERVER_PORT`. Test harness only; reproduces on master 1.1.0. Surfaced verifying #69 on `alsucl-psrv3`. |
 
 ## Milestone 1.2.0
 
