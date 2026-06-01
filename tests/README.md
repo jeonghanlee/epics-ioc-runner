@@ -2,24 +2,36 @@
 
 This directory contains automated integration and error handling tests to verify both local user-level and system-wide systemd management architectures.
 
-## Recommended Test Sequence (Standard Operating Procedure - SOP)
+## Test Organization
 
-To ensure maximum reliability and prevent unintended system-wide outages, follow this specific testing order depending on your current task.
+Test runs vary along two independent axes, plus one standalone static check.
 
-### Phase 1: Logic & Unit Validation (Development)
-Execute these tests during the initial development phase or when modifying the internal logic of the `ioc-runner` script.
-1. `test-error-handling.bash`: Verifies that the script's input validation and error paths work as expected. No EPICS environment or root privileges are required.
+**Permission mode** (set by `run-all-tests.bash --local` / `--system`):
+- `--local`: the local lifecycle, as the current user. No `sudo`, no `ioc` group.
+- `--system`: the system infrastructure check then the system lifecycle, via
+  `sudo` and systemd.
 
-### Phase 2: Functional Validation (User-level)
-Execute this test to verify the full IOC management lifecycle without affecting system-wide services.
-2. `test-local-lifecycle.bash`: Validates the end-to-end workflow (install, start, attach, list, stop, remove) within the current user's systemd session. Requires an active EPICS environment.
+**Runner binary origin** (set by `run-all-tests.bash --source` / `--installed`):
+- `--source` (default): the source tree binary (`bin/ioc-runner`) — the
+  developer inner loop, testing just-edited code.
+- `--installed`: `/usr/local/bin/ioc-runner` — the deployed binary, for
+  validating a finished build or a production install.
 
-### Phase 3: Infrastructure & Integration (Deployment)
-Execute these tests when deploying to a new server or when modifying the infrastructure setup script (`setup-system-infra.bash`).
-3. `test-system-infra.bash`: Verifies that the system accounts, group permissions, directory ACLs, and sudoers policies are correctly established. **Requires execution via `sudo`.**
+**Standalone static check** (run on its own, not through the dispatcher):
+- `test-error-handling.bash`: parses the `ioc-runner` source for input
+  validation and error paths. It reads the source as a file rather than
+  executing it, so it is always source-fixed and needs no EPICS environment or
+  root privileges.
 
-### Phase 4: System Lifecycle (Deployment)
-4. `test-system-lifecycle.bash`: The final integration test. Verifies that the architecture functions correctly under the isolated `ioc-srv` account with strict system-wide permissions. **Crucially, this phase relies on Kernel Netlink diagnostics to map anonymous UDS clients via the `inspect` command, which also enforces execution via `sudo -E`.**
+| Script | Axis | Binary | Invocation |
+| :--- | :--- | :--- | :--- |
+| `test-error-handling.bash` | standalone static | source only | `bash tests/test-error-handling.bash` |
+| `test-local-lifecycle.bash` | local lifecycle | source or installed | via `run-all-tests.bash --local` |
+| `test-system-infra.bash` | system infra | n/a | via `run-all-tests.bash --system` |
+| `test-system-lifecycle.bash` | system lifecycle | source or installed | via `run-all-tests.bash --system` |
+
+The system lifecycle relies on Kernel Netlink diagnostics to map anonymous UDS
+clients via the `inspect` command, which is why it runs under `sudo -E`.
 
 ---
 
@@ -37,50 +49,71 @@ To force retention regardless of the result, set the `KEEP_WORKSPACE` environmen
 KEEP_WORKSPACE=1 bash tests/run-all-tests.bash --local
 ```
 
-### Runner Binary Evidence
-Both lifecycle suites print the resolved `ioc-runner` path and its `-V` output (version, git hash, commit and install dates) before STEP 1. `test-system-lifecycle.bash` prefers the installed `/usr/local/bin/ioc-runner` and falls back to the source tree; `test-local-lifecycle.bash` uses the source tree. The evidence line makes captured output show which binary actually ran, so a stale installed binary cannot silently mask a source-tree fix.
+### Runner Binary Selection
+Both lifecycle suites resolve the `ioc-runner` binary under test from
+`IOC_RUNNER_TEST_MODE`:
+
+| Value | Binary |
+| :--- | :--- |
+| (unset) or `source` | source tree (`bin/ioc-runner`) |
+| `installed` | `/usr/local/bin/ioc-runner`, or stop if absent |
+
+The unset default is the source tree for both suites, matching the developer
+inner loop. An NFS + `root_squash` host, where root cannot execute a
+user-owned source binary, runs system tests with `IOC_RUNNER_TEST_MODE=installed`.
+A missing binary, or an unrecognized value, stops the script before STEP 1 with
+an explicit error.
+
+`run-all-tests.bash` sets this from `--source` (default) / `--installed`. Both
+suites print the resolved path and its `-V` output (version, git hash, commit
+and install dates) before STEP 1, so captured output always shows which binary
+ran.
 
 ---
 
 ## Test Execution
 
 ### 1. Run Tests (Master Script - Recommended)
-The master script executes tests in the recommended SOP sequence and supports selective execution via arguments.
+The master script composes the two axes. Both flags are optional; the default is
+all permission modes against the source binary.
 
 ```bash
-# Default: Runs ALL phases (1 through 4)
+# Default: both modes, source binary.
 # Requires EPICS_BASE, 'ioc' group membership, sudo access, and lsof.
 # A persistent user journal enables STEP 24 coverage; otherwise that step SKIPs with a WARN.
 bash tests/run-all-tests.bash
 
-# Local Mode: Runs Phase 1 and 2 only
-# Requires EPICS_BASE and lsof. No sudo or 'ioc' group required.
-# A persistent user journal enables STEP 24 coverage; otherwise that step SKIPs with a WARN.
-bash tests/run-all-tests.bash --local
+# Local lifecycle, edited source (no sudo or 'ioc' group required).
+bash tests/run-all-tests.bash --local --source
 
-# System Mode: Runs Phase 3 and 4 only
-# Requires EPICS_BASE, 'ioc' group, sudo access, and lsof.
-bash tests/run-all-tests.bash --system
+# System lifecycle (infra + lifecycle), edited source.
+bash tests/run-all-tests.bash --system --source
+
+# Local lifecycle against the installed binary.
+bash tests/run-all-tests.bash --local --installed
+
+# System lifecycle against the installed binary.
+bash tests/run-all-tests.bash --system --installed
 ```
+
+The eight-stage development-to-production scenario maps directly onto these
+commands: stages 2-3 use `--source`, stages 4-5 and 7-8 use `--installed`,
+stage 6 is the install step (`setup-system-infra.bash` / `make install`), and
+the static error suite runs once per code change.
 
 ### 2. Run Individual Test Suites
-If you need to isolate and run a specific phase manually:
+To isolate one suite manually:
 
-#### Phase 1: Error Handling
 ```bash
+# Standalone static error suite (always source).
 bash tests/test-error-handling.bash
-```
-#### Phase 2: Local Lifecycle
-```bash
-bash tests/test-local-lifecycle.bash
-```
-#### Phase 3: System Infrastructure
-```bash
+
+# One lifecycle suite directly; IOC_RUNNER_TEST_MODE selects the binary.
+IOC_RUNNER_TEST_MODE=source    bash tests/test-local-lifecycle.bash
+sudo -E IOC_RUNNER_TEST_MODE=installed bash tests/test-system-lifecycle.bash
+
+# System infrastructure check.
 sudo bash tests/test-system-infra.bash
-```
-#### Phase 4: System Lifecycle
-```bash
-sudo -E bash tests/test-system-lifecycle.bash
 ```
 
 ---

@@ -65,7 +65,37 @@ SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
 # --- Managed Architecture Paths ---
-declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
+# Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
+# the binary origin; the unset default is the source tree, matching the
+# developer inner loop. Selection failures stop here, before STEP 1,
+# never deferred into the lifecycle body.
+declare -g RUNNER_SCRIPT
+function resolve_runner_script {
+    local mode="${IOC_RUNNER_TEST_MODE:-}"
+    local source_bin="${SC_TOP}/../bin/ioc-runner"
+    local installed_bin="/usr/local/bin/ioc-runner"
+    case "${mode}" in
+        ""|source)
+            RUNNER_SCRIPT="${source_bin}"
+            ;;
+        installed)
+            if [[ ! -x "${installed_bin}" ]]; then
+                printf "Error: installed ioc-runner not found\n" >&2
+                exit 1
+            fi
+            RUNNER_SCRIPT="${installed_bin}"
+            ;;
+        *)
+            printf "Error: invalid IOC_RUNNER_TEST_MODE '%s' (expected: source, installed)\n" "${mode}" >&2
+            exit 1
+            ;;
+    esac
+    if [[ "${RUNNER_SCRIPT}" == "${source_bin}" && ! -x "${RUNNER_SCRIPT}" ]]; then
+        printf "Error: source ioc-runner not found\n" >&2
+        exit 1
+    fi
+}
+resolve_runner_script
 declare -g CONF_DIR="${HOME}/.config/procServ.d"
 declare -g SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"

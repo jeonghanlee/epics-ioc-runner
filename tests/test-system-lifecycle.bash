@@ -64,16 +64,39 @@ declare -g SC_TOP
 SC_TOP="$(dirname "${BASH_SOURCE[0]}")"
 [[ "${SC_TOP}" != /* ]] && SC_TOP="${PWD}/${SC_TOP}"
 
-# Prefer the deployed copy: under sudo + NFS root_squash, root maps to
-# nobody and cannot execve a user-owned source-tree binary. Source-tree
-# fallback covers fresh checkouts where setup-system-infra.bash has not
-# run yet. See issue #45.
+# Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
+# the binary origin; the unset default is the source tree, matching the
+# developer inner loop. An NFS + root_squash host, where root maps to
+# nobody and cannot execve a user-owned source binary, runs system tests
+# with IOC_RUNNER_TEST_MODE=installed. Selection failures stop here,
+# before STEP 1, never deferred into the lifecycle body. See issue #45.
 declare -g RUNNER_SCRIPT
-if [[ -x /usr/local/bin/ioc-runner ]]; then
-    RUNNER_SCRIPT="/usr/local/bin/ioc-runner"
-else
-    RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
-fi
+function resolve_runner_script {
+    local mode="${IOC_RUNNER_TEST_MODE:-}"
+    local source_bin="${SC_TOP}/../bin/ioc-runner"
+    local installed_bin="/usr/local/bin/ioc-runner"
+    case "${mode}" in
+        ""|source)
+            RUNNER_SCRIPT="${source_bin}"
+            ;;
+        installed)
+            if [[ ! -x "${installed_bin}" ]]; then
+                printf "Error: installed ioc-runner not found\n" >&2
+                exit 1
+            fi
+            RUNNER_SCRIPT="${installed_bin}"
+            ;;
+        *)
+            printf "Error: invalid IOC_RUNNER_TEST_MODE '%s' (expected: source, installed)\n" "${mode}" >&2
+            exit 1
+            ;;
+    esac
+    if [[ "${RUNNER_SCRIPT}" == "${source_bin}" && ! -x "${RUNNER_SCRIPT}" ]]; then
+        printf "Error: source ioc-runner not found\n" >&2
+        exit 1
+    fi
+}
+resolve_runner_script
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
