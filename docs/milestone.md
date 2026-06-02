@@ -16,15 +16,15 @@ retained in this file.
 (opened late May 2026) precedes the release; patches land on `release-1.1.1`
 during that window.
 
-**Next session entry point:** #69 is verified (top 328/328 + both VM gates +
-prod `alsucl-psrv3` system-lifecycle 74/74) and closed on GitHub. Next:
-**confirm the #76 CA-coexistence mechanism on a VM** — why the local-mode CA
-test fails while system-mode passes on a host already running other IOCs
-(working hypothesis: UID-scoped `SO_REUSEPORT` grouping on shared UDP 5064).
-Record the confirmed mechanism in the #76 body, then implement the
-dedicated-port fix. Remaining 1.1.1 additive items: #73 (`--user` alias,
-smallest), #72, #74, #75. Version is `1.1.1-dev` (`bin/ioc-runner:14`). Do
-not start 1.2.0 items unless the owner reorders them.
+**Next session entry point:** #76 dedicated-port fix landed on
+`release-1.1.1` and VM-verified on `rocky8-iocrunner` + `debian13-iocrunner`
+(local 48/48 and 49/49, system 74/74 on both, CA step 5/5) under the
+co-located-IOC condition; the confirmed `SO_REUSEPORT`-fanout mechanism is
+recorded in the #76 body. Remaining for #76: prod acceptance on
+`alsucl-psrv3` (full local + system lifecycle green). Then the 1.1.1
+additive items: #73 (`--user` alias, smallest), #72, #74, #75. Version is
+`1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the owner
+reorders them.
 
 ## Active Register
 
@@ -36,14 +36,14 @@ not start 1.2.0 items unless the owner reorders them.
 | 1.1.1 | #73 `--user` alias for `--local` runtime mode | Milestone | Not started | Thin additive alias aligning with `systemctl --user`; `--local` stays primary. |
 | 1.1.1 | #74 procServ/con search paths overridable via env + home-bin default | Milestone | Not started | Add `IOC_RUNNER_PROCSERV_TOOL` (mirroring `IOC_RUNNER_CON_TOOL`) and `$(HOME)/.local/bin` defaults. Resolves user-built procServ in `~/.local/bin` without editing the script. |
 | 1.1.1 | #75 Debian 13 systemd `syslog` output type obsolete warning | Milestone | Not started | `bin/setup-system-infra.bash:483` sets `StandardOutput=syslog`; Debian 13 systemd flags the `syslog` value as obsolete. Move to `journal`, retaining `SyslogIdentifier=epics-%i`. System-mode template only; no local-mode change. P3-low. |
-| 1.1.1 | #76 lifecycle STEP 24 CA test not isolated from co-located IOCs | Milestone | Not started | `tests/test-{local,system}-lifecycle.bash` STEP 24 forces unicast `EPICS_CA_ADDR_LIST=127.0.0.1`; on a host with other IOCs sharing UDP 5064 the search lands on the wrong server. Give the test IOC a dedicated `EPICS_CA_SERVER_PORT`. Test harness only; reproduces on master 1.1.0, so not a runner regression. Surfaced verifying #69 on `alsucl-psrv3`. Next action (1): confirm the root-cause mechanism on a VM — local mode (test IOC owned by the invoking user, co-tenant on 5064 with that user's IOCs) fails; system mode (test IOC as `ioc-srv`, different UID) passes; hypothesis is UID-scoped `SO_REUSEPORT` grouping. Record the confirmed mechanism in the #76 body before the fix. P3-low. |
+| 1.1.1 | #76 lifecycle STEP 24 CA test not isolated from co-located IOCs | Milestone | Done (`release-1.1.1`, VM-verified) | Mechanism confirmed on `rocky8-iocrunner` + `debian13-iocrunner`: co-located IOCs share UDP 5064 via `SO_REUSEPORT` datagram fanout (not `SO_REUSEADDR` as first hypothesized), so a unicast `EPICS_CA_ADDR_LIST=127.0.0.1` search reaches only one socket in the group and the test PV resolves ~1/N (9/40 with four same-uid sockets). The UID hypothesis holds only halfway: same-uid co-tenants share one fanout group, but different-uid reachability is kernel-dependent (rocky8 40/40, debian13 non-deterministic 0/40·10/10·40/40), so the system-mode pass on `alsucl-psrv3` was a favorable-kernel accident, not a guarantee. Fix: assign the test IOC a free dedicated `EPICS_CA_SERVER_PORT` (probed from 5095), injected into the generated conf (loaded via the systemd `EnvironmentFile`), with the matching client port in STEP 24; both suites, loopback scope preserved. Verified under the #76 decoy condition (3 co-located same-user IOCs on 5064): local 48/48 (rocky8), 49/49 (debian13); system 74/74 on both; CA step 5/5 every run. Prod (`alsucl-psrv3`) acceptance pending. `Refs #76` (closes on master merge). P3-low. |
 | 1.2.0 | #68 distro-independent sudoers parity via validating `systemctl` wrapper | Carry-forward | Open | Closes the sudo < 1.9.10 residual risk from #57 (Rocky 8 / alsucl-psrv3 = 1.9.5p2). P2-medium. |
 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1536-1547`; preserve the crash-pattern scan that follows. P3-low. |
 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure`; interacts with #67 and #52. |
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
 
-**Tally:** Done 2 · Open 5 · Not started 5 · In progress 0 · Blocked 0
+**Tally:** Done 3 · Open 5 · Not started 4 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
