@@ -121,6 +121,14 @@ declare -g BOOT_DIR=""
 declare -g CONF_FILE=""
 
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
+
+# Dedicated Channel Access server port for the test IOC. STEP 24 runs a
+# unicast (EPICS_CA_ADDR_LIST=127.0.0.1) search; when co-located IOCs share
+# the default UDP 5064 SO_REUSEPORT fanout group, the kernel delivers the
+# search to only one socket in that group, so the test PV can be absorbed by
+# another IOC. A dedicated port isolates the test IOC from the shared group,
+# deterministic regardless of IOC owner UID or host kernel. (#76)
+declare -g TEST_CA_PORT=""
 declare -g PERM_WORKSPACE="2770"
 declare -g OWNER_WORKSPACE="root:ioc"
 
@@ -288,6 +296,16 @@ function verify_infrastructure {
     verify_state "true" "${tmpl_exist}" "System template unit exists (${SYSTEMD_DIR}/epics-@.service)"
 }
 
+# Returns the first free UDP port at or above the candidate base, so the
+# dedicated test CA port never collides with an IOC already bound on the host.
+function pick_free_ca_port {
+    local port="${1:-5095}"
+    while ss -uHln "sport = :${port}" 2>/dev/null | grep -q .; do
+        port=$((port + 1))
+    done
+    printf '%s' "${port}"
+}
+
 function _setup_workspace {
     local step="$1"
     print_divider
@@ -308,6 +326,8 @@ function _setup_workspace {
 
     chgrp "${OWNER_WORKSPACE#*:}" "${WORKSPACE}"
     chmod "${PERM_WORKSPACE}" "${WORKSPACE}"
+
+    TEST_CA_PORT="$(pick_free_ca_port 5095)"
 
     _log "SUCCESS" "Test workspace created at ${WORKSPACE}"
 }
@@ -393,6 +413,9 @@ function test_generate_auto {
     cd "${BOOT_DIR}" || exit 1
     # System generation explicitly detects the target boot directory
     bash "${RUNNER_SCRIPT}" generate . >/dev/null
+    # Pin the test IOC to its dedicated CA server port through the conf, which
+    # the systemd template loads as an EnvironmentFile into the IOC environment.
+    printf 'EPICS_CA_SERVER_PORT="%s"\n' "${TEST_CA_PORT}" >> "${CONF_FILE}"
 
     local conf_exist="false"
     if [[ -f "${CONF_FILE}" ]]; then conf_exist="true"; fi
@@ -640,6 +663,8 @@ function test_channel_access {
 
     export EPICS_CA_ADDR_LIST="127.0.0.1"
     export EPICS_CA_AUTO_ADDR_LIST="NO"
+    # Reach the test IOC on its dedicated port; the server side is set in the conf.
+    export EPICS_CA_SERVER_PORT="${TEST_CA_PORT}"
 
     local read_start_time=${SECONDS}
     local pv_ok="false"
