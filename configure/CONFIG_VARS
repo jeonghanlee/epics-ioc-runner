@@ -1,0 +1,24 @@
+BIN := $(TOP)/bin
+
+# Source artefacts shipped by the repository (read as the invoking user).
+RUNNER_SRC     := $(BIN)/ioc-runner
+COMPLETION_SRC := $(BIN)/ioc-runner-completion.bash
+
+# Version-metadata injector for the user-home install path. Mirrors the
+# metadata step setup-system-infra.bash performs for the system path.
+INJECT_VERSION := $(TOP)/configure/inject-runner-version.bash
+
+# System install destinations. setup-system-infra.bash is the single source of
+# truth for the system path; these literals mirror its defaults so 'uninstall'
+# reverses 'install' exactly. The /usr/bin symlink is RHEL-only.
+SYS_RUNNER_DEST     := /usr/local/bin/ioc-runner
+SYS_COMPLETION_DEST := /etc/bash_completion.d/ioc-runner
+SYS_RUNNER_SYMLINK  := /usr/bin/ioc-runner
+
+# User-home install destinations.
+USER_RUNNER_DEST     := $(HOME_BIN)/ioc-runner
+USER_COMPLETION_DEST := $(USER_COMPLETION_DIR)/ioc-runner
+
+# Install modes (match setup-system-infra.bash: 0755 runner, 0644 completion).
+MODE_RUNNER     := 0755
+MODE_COMPLETION := 0644

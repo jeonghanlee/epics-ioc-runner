@@ -1,0 +1,8 @@
+VARS_EXCLUDES := $(.VARIABLES)
+
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+include $(TOP)/configure/RELEASE
+include $(TOP)/configure/CONFIG_SITE
+include $(TOP)/configure/CONFIG_VARS
