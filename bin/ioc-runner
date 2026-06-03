@@ -97,7 +97,7 @@ EPICS IOC Runner - CLI Manager
 Usage: ${prog_name} [OPTIONS] COMMAND [TARGET]
 
 Options:
-  --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d)
+  --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d). Alias: --user
   -f, --force    Force overwrite of existing configuration files without prompting
   -v, -vv        Verbose output (supported only for 'list' command)
   -V, --version  Show version, git hash, commit date, and install date
@@ -160,7 +160,7 @@ declare -g TARGET_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --local)
+        --local|--user)
             set_local_mode
             ;;
         -f|--force)

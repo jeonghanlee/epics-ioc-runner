@@ -15,6 +15,7 @@ ioc-runner list           # basic view
 ioc-runner list -v        # with PID, CPU, memory
 ioc-runner list -vv       # with kernel socket internals
 ioc-runner --local list   # local user mode
+ioc-runner --user list    # alias of --local (identical local-mode path)
 ```
 
 ### Output Columns

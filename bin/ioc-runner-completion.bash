@@ -12,12 +12,12 @@ _ioc_runner_completions() {
 
     # Define available command set and global options
     commands="generate install remove start stop restart status enable disable view list attach monitor inspect"
-    opts="--local -f --force -v -vv -V --version -h --help"
+    opts="--local --user -f --force -v -vv -V --version -h --help"
 
-    # Check for the presence of --local flag to determine target configuration path
+    # Check for the presence of --local (or its --user alias) to determine target configuration path
     has_local=0
     for word in "${COMP_WORDS[@]}"; do
-        if [[ "${word}" == "--local" ]]; then
+        if [[ "${word}" == "--local" || "${word}" == "--user" ]]; then
             has_local=1
             break
         fi

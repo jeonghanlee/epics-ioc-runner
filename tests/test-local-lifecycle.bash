@@ -676,6 +676,30 @@ function test_list_options {
     verify_state "${IOC_NAME}" "${out_3}" "Parsed: list --local -v"
 }
 
+function test_user_alias {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test --user Alias Equivalence to --local"
+    print_sub_divider
+
+    # --user is a thin alias for --local. The IOC was installed and started
+    # with --local; observing the same running IOC through --user proves both
+    # flags route to the identical local-mode path, not merely that --user parses.
+    local via_user via_local user_status active_via_user
+    via_user=$(bash "${RUNNER_SCRIPT}" --user list -v | grep "${IOC_NAME}" | awk -F'|' '{print $1}' | tr -d ' ')
+    via_local=$(bash "${RUNNER_SCRIPT}" --local list -v | grep "${IOC_NAME}" | awk -F'|' '{print $1}' | tr -d ' ')
+    user_status=$(bash "${RUNNER_SCRIPT}" --user status "${IOC_NAME}" 2>&1 || true)
+
+    # Match the exact systemd token, not a bare *active* substring, so that
+    # an "Active: inactive" status cannot pass this "reports active" check.
+    active_via_user="false"
+    [[ "${user_status}" == *"Active: active"* ]] && active_via_user="true"
+
+    verify_state "${IOC_NAME}" "${via_user}" "--user list shows the --local-installed IOC"
+    verify_state "${via_local}" "${via_user}" "--user and --local list yield the same IOC"
+    verify_state "true" "${active_via_user}" "--user status reports the IOC active"
+}
+
 function test_console_attach {
     local step="$1"
     print_divider
@@ -977,6 +1001,7 @@ function run_all_tests {
         "test_stop"
         "test_socket_list"
         "test_list_options"
+        "test_user_alias"
         "test_console_attach"
         "test_channel_access"
         "test_monitor_isolation"
