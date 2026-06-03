@@ -117,4 +117,4 @@ If the process belongs to a stale IOC instance, reboot the host or kill the proc
 Another account still has `ioc` as its primary group. Use `getent group ioc` to identify membership and remove or reassign those accounts first. Supplementary memberships added via `usermod -aG ioc <username>` are not a blocker for `groupdel`, but the membership entries on those user records become orphaned after removal — this is harmless.
 
 ### NFS `root_squash`
-If the repository lives on an NFS share with `root_squash`, the install script cannot read its own files under sudo. The uninstall steps above do not read repository files, so this is not an issue for removal. See [INSTALL.md](INSTALL.md) for the install-side workaround.
+The uninstall steps above remove root-owned files under `/usr/local`, `/etc`, and `/usr/bin`; they read nothing from the repository, so an NFS `root_squash` home does not affect removal. (Installation is likewise unaffected — see [INSTALL.md](INSTALL.md).)

@@ -117,23 +117,16 @@ sudo bash tests/test-system-infra.bash
 ```
 
 ### 3. System Suite on an NFS Home with `root_squash`
-The `--system` path runs each suite under `sudo` (`sudo bash
-tests/test-system-*.bash`). On an NFS home exported with `root_squash`, root
-maps to `nobody`; if the home directory is mode `0700`, `nobody` cannot
-traverse it to reach the scripts and the run stops at `Permission denied`
-before STEP 1. The `--local` path is unaffected, running as the invoking user.
-`IOC_RUNNER_TEST_MODE=installed` does not resolve this — it relocates only the
-`ioc-runner` binary to `/usr/local/bin`, while `sudo` still reads the test
-scripts from the NFS tree.
+Both suites run in place from an NFS home, including one exported with
+`root_squash`. `--local` runs as the invoking user. `--system` with
+`IOC_RUNNER_TEST_MODE=installed` runs the runner from `/usr/local/bin` and its
+test workspace in `/dev/shm`, so `sudo` touches the NFS tree only to read the
+suite scripts (relative path, world-readable). Verified 74/74 on `alsucl-psrv3`
+(Rocky 8) and both VM gates.
 
-Copy the test tree to a local (non-NFS) path and run `--system` from there;
-the home directory's `0700` mode is left unchanged.
-
-```bash
-cp -r ~/gitsrc/epics-ioc-runner /tmp/
-cd /tmp/epics-ioc-runner
-bash tests/run-all-tests.bash --system --installed
-```
+`source` mode would `execve` the runner from its NFS source path, which
+`root_squash` blocks — but running the source binary under `sudo` is out of
+scope (production never does it). See `docs/INSTALL.md` for the mechanism.
 
 ---
 ## Verified Behaviors

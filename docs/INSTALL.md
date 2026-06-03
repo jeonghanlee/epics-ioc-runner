@@ -31,17 +31,18 @@ To apply the new group membership immediately to your current terminal session w
 newgrp ioc
 ```
 
-### Troubleshooting: NFS `root_squash` Error
-If you execute the setup script from an NFS-mounted directory (such as a networked home directory, common in RHEL/Rocky environments), you may encounter an error indicating that `ioc-runner` could not be found or read.
+### NFS `root_squash`
+On an NFS home exported with `root_squash`, `sudo` is downgraded to the
+anonymous `nobody` user, which cannot traverse a `0700` home by absolute path
+or `execve` a user-owned binary from it.
 
-This occurs because the NFS `root_squash` security feature forcibly downgrades the `sudo` (root) execution privileges to the anonymous `nobody` user, blocking the script from reading the repository files.
+The setup script is unaffected when run from the repository root: it reads its
+files by relative path (they are world-readable) and runs the version-stamp git
+step as the invoking user. `sudo ./bin/setup-system-infra.bash [--full]`
+therefore works in place from an NFS home — verified on `alsucl-psrv3`
+(Rocky 8) with `root_squash` active.
 
-**Workaround:** Copy the repository to a local filesystem partition (e.g., `/tmp` or `/opt`) before running the setup script.
-```bash
-cp -r /path/to/epics-ioc-runner /tmp/
-cd /tmp/epics-ioc-runner
-sudo ./bin/setup-system-infra.bash --full
-```
+The constraint affects the system test suite instead; see `tests/README.md`.
 
 ---
 
