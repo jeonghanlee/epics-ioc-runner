@@ -18,6 +18,16 @@ From the root of the repository, execute the following script as root using the 
 sudo ./bin/setup-system-infra.bash --full
 ```
 
+### Makefile front end
+A `configure/` Makefile wraps these invocations. Run the targets as your user (each calls `sudo` inside the recipe, so it works in place even on an NFS `root_squash` home):
+
+```bash
+make setup     # same as: sudo ./bin/setup-system-infra.bash --full
+make install   # same as: sudo ./bin/setup-system-infra.bash (CLI update only)
+```
+
+`make help` lists targets; `make vars` prints the resolved paths.
+
 > **Tip for Operations:** Later, if you only need to update the `ioc-runner` CLI script and its Bash completion to a newer version without touching the underlying systemd templates or permissions, simply run the script without any arguments:
 > `sudo ./bin/setup-system-infra.bash`
 

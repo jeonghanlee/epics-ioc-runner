@@ -19,6 +19,8 @@ git clone https://your_git_url/tcmd.git
 cd tcmd/iocBoot/iocctrlslab-tcmd/
 ```
 
+> **Tip:** To call `ioc-runner` directly instead of the full `~/epics-ioc-runner/bin/ioc-runner` path, run `make install.user` from the `epics-ioc-runner` checkout. It deploys the CLI and Bash completion under `~/.local/bin` with no root. Ensure `~/.local/bin` is on your `PATH`.
+
 ## 2. Create the Configuration File
 Prepare the configuration file for the local isolated environment.
 
