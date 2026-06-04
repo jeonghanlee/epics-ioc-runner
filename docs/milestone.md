@@ -41,9 +41,9 @@ code-complete on `release-1.1.1`; the next entry point is the 1.1.1 release
 sequence (master merge + annotated tag) at the end of the testing window. The
 remaining five 1.2.0 items stay deferred. Version
 is `1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the owner
-reorders them. Two #74 follow-ups are deferred to #77 (`_setup` suite-wide procServ
-mock) and #78 (`-x`/`-f` executable-directory resolver policy common to con
-and procServ).
+reorders them. The former #74 follow-ups #77 (`_setup` suite-wide procServ mock)
+and #78 (`-f && -x` executable-directory resolver policy common to con and
+procServ) are done on `release-1.1.1` (`Closes #77` / `Closes #78`).
 
 ## Active Register
 
