@@ -127,7 +127,7 @@ RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
 ExecStart=${PROCSERV_BIN} --foreground --logfile=/var/log/procserv/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
-StandardOutput=syslog
+StandardOutput=journal
 StandardError=inherit
 SyslogIdentifier=epics-%i
 

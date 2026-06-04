@@ -23,8 +23,8 @@ ioc-runner crash detection on start/restart
 
 `procServ` runs in the foreground under systemd and is told where to write
 with `--logfile`. The systemd journal still receives `procServ`'s own
-stderr for service-manager diagnostics, but the IOC console output and the
-crash-detection critical path live entirely in the log file.
+stdout and stderr for service-manager diagnostics, but the IOC console
+output and the crash-detection critical path live entirely in the log file.
 
 ## 2. System-mode Layout
 
