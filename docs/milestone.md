@@ -39,7 +39,8 @@ external review accepted, `Closes #80` on master merge). #79 and #80 are done; o
 done (`Closes #77` / `Closes #78` on master merge). All 1.1.1 issues are again
 code-complete on `release-1.1.1`; the next entry point is the 1.1.1 release
 sequence (master merge + annotated tag) at the end of the testing window. The
-remaining five 1.2.0 items stay deferred. Version
+remaining six 1.2.0 items stay deferred (the 2026-06-04 coherence sweep filed
+#81, the unit-template generalization, clustered with #53/#54). Version
 is `1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the owner
 reorders them. The former #74 follow-ups #77 (`_setup` suite-wide procServ mock)
 and #78 (`-f && -x` executable-directory resolver policy common to con and
@@ -63,10 +64,11 @@ procServ) are done on `release-1.1.1` (`Closes #77` / `Closes #78`).
 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure`; interacts with #67 and #52. |
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
+| 1.2.0 | #81 generalize the duplicated procServ systemd unit template into one emitter | Coherence (CI-4) | Open | Conceptual-integrity sweep seam: the unit contract is hand-maintained in two copies (`bin/ioc-runner:363-382` local user unit, `bin/setup-system-infra.bash:467-489` system unit); CI-1 (#75) already paid the round-trip when `syslog`->`journal` had to land in both. Slight generalization (single emitter over the divergent fields + a static guard test pinning the shared contract), clustered with #53/#54 which already edit the template. P3-low. |
 | 1.1.1 | #77 error suite host-independent of procServ via a `_setup` mock | Spin-off (#74) | Done (`release-1.1.1`) | Pulled into 1.1.1 2026-06-04. `tests/test-error-handling.bash`: `_setup` now exports a mock `IOC_RUNNER_PROCSERV_TOOL` (mirrors the con mock) so install cases resolve it, never a host procServ; header updated to match; `test_tool_resolution` Case 3 unsets it via `env -u` to keep the home-bin search meaningful. Static suite 101/101 on top (count unchanged = behavior preserved); host-independence proven by the in-suite Case 2 override assertion plus the suite-wide export (install bakes the path, never execs, so an exit-0 mock suffices). External review accepted. `Closes #77` (auto-close on master merge). tests, P3-low. |
 | 1.1.1 | #78 tighten `IOC_RUNNER_*_TOOL` override to reject directories | Spin-off (#74) | Done (`release-1.1.1`) | Pulled into 1.1.1 2026-06-04. `bin/ioc-runner`: the override branch of both `resolve_con_tool` (L703) and `resolve_procserv_tool` (L751) now requires `-f && -x` (regular executable file), so an executable directory is rejected; search loops untouched. New `test_tool_resolution` Case 1b (executable-directory `IOC_RUNNER_PROCSERV_TOOL` -> exit 1 + variable-named message); con shares the identical predicate without a separate test (its override path is not reachable in the static suite). Static suite 101 -> 103 on top, all pass. External review accepted (fixture made explicitly executable). `Closes #78` (auto-close on master merge). enhancement, P3-low. |
 
-**Tally:** Done 11 · Open 5 · Not started 0 · In progress 0 · Blocked 0
+**Tally:** Done 11 · Open 6 · Not started 0 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
@@ -99,8 +101,10 @@ install front end, --user alias, procServ/con search-path override`.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch. GitHub
-milestone `1.2.0` — 5 open (the two #74 spin-offs #77/#78 were pulled into
-1.1.1 on 2026-06-04).
+milestone `1.2.0` — 6 open (the two #74 spin-offs #77/#78 were pulled into
+1.1.1 on 2026-06-04; the 2026-06-04 coherence sweep then filed #81). The three
+template items #53, #54, and #81 form one cluster — all edit the system unit
+template, so it is touched once as a group.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -109,6 +113,7 @@ milestone `1.2.0` — 5 open (the two #74 spin-offs #77/#78 were pulled into
 | [#54](https://github.com/jeonghanlee/epics-ioc-runner/issues/54) | Add restart policy to system template unit | enhancement | Template unit defines no `Restart=`; evaluate `always` vs `on-failure`. Couples with #67 (timing) and #52 (exit-signal semantics). |
 | [#53](https://github.com/jeonghanlee/epics-ioc-runner/issues/53) | Possibly missing `Requires`/`Wants` in template systemd unit | enhancement | Per systemd unit docs, review `Requires`/`Wants` and `Before`/`After` ordering for the template unit. |
 | [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52) | Review procServ child-exit signals for crash-loop detection | enhancement | Follows #11 (byte-offset crash detection) and extends the #24 journal-fallback edge-case review. Current pattern set catches explicit fatal output; review child-exit signal handling for crash-loop cases. |
+| [#81](https://github.com/jeonghanlee/epics-ioc-runner/issues/81) | Generalize the duplicated procServ systemd unit template into a single emitter | refactor, P3-low | Coherence finding CI-4. The unit contract is hand-maintained in two near-identical copies (`bin/ioc-runner:363-382`, `bin/setup-system-infra.bash:467-489`); the must-agree lines currently match but nothing enforces it, and CI-1 (#75) already paid the round-trip. Slight generalization to a single emitter plus a shared-contract guard test. Clusters with #53/#54. |
 
 ## Coherence Sweep Findings (2026-06-04)
 
@@ -122,6 +127,9 @@ markers; a resolved finding links to the work unit that closed it. The
 | CI-1 | The obsolete systemd `syslog` output policy is duplicated across both generated units, while #75 was first scoped system-mode only. | `bin/ioc-runner:376`, `bin/setup-system-infra.bash:483`, `docs/INSTALL.md:130` | Resolved (#75) | Generalized #75 to both units (`StandardOutput=journal`); register scope corrected to name both. |
 | CI-2 | The prerequisite intros still require `procServ`/`con` in `/usr/bin` or `/usr/local/bin`, omitting the trusted `~/.local/bin` search added by #74. Stale spots: `docs/USER_GUIDE_LOCAL.md:6`, `README.md:9`. Note `docs/USER_GUIDE_LOCAL.md:210` already states the correct resolver order, so it is the alignment reference, not a defect. | `docs/USER_GUIDE_LOCAL.md:6`, `README.md:9` (stale); `docs/USER_GUIDE_LOCAL.md:210`, `bin/ioc-runner:66-72` (correct refs) | Resolved (#79) | Aligned the two prerequisite intros with the resolver search order documented at `USER_GUIDE_LOCAL.md:210`. Filed and fixed as #79 (1.1.1). |
 | CI-3 | System-lifecycle crash-detection comments describe a disabled, journal-dependent test, but the test is active and the log-file scan is the current contract (1.1.0 journal decoupling). | `tests/test-system-lifecycle.bash:777-779`, `tests/test-system-lifecycle.bash:1478`, `docs/PERMISSION_MODEL.md:338-345` | Resolved (#80) | Replaced the stale comment with the log-file-scan premise. Filed and fixed as #80 (1.1.1). |
+| CI-4 | The procServ systemd unit contract is hand-maintained as two near-identical copies (the fifth-fate seam). The must-agree lines currently match, but each is a separate edit point with nothing enforcing alignment; CI-1 (#75) already had to land in both. | `bin/ioc-runner:363-382` (local user unit), `bin/setup-system-infra.bash:467-489` (system unit) | Open (deferred to #81, 1.2.0) | Fate: Generalize (slight) — single emitter over the divergent fields plus a shared-contract guard test; clustered with the template items #53/#54. Not a defect today; deferred to keep the 1.1.1 release frozen. |
+| CI-5 | Console/procServ tool resolution uses `-x` only in the search loop but `-f && -x` in the override branch, so an executable directory on a search path would be accepted there but rejected as an override. Recorded so a later sweep does not re-open it. | `bin/ioc-runner:696`/`745` (search loop), `bin/ioc-runner:703`/`751` (override, hardened by #78) | Keep (examined, no action) | Principled asymmetry: search paths are fixed trusted defaults, the override is arbitrary user input, so the override needs the stricter predicate (#78 scoped to it deliberately). A search-path directory named `con`/`procServ` is pathological; reality near zero. Both resolvers agree with each other. |
+| CI-6 | The keep-3 backup-prune policy is implemented twice. The system path uses a 1-second timestamp name, so a same-second re-backup of one file would silently overwrite the prior copy. Recorded so a later sweep does not re-open it. | `bin/setup-system-infra.bash:281-311` (central `BACKUP_DIR`, timestamp), `bin/ioc-runner:343-359` (in-place, `mktemp`) | Keep (examined, no action) | Mode-appropriate divergence: local install is a repeatable user action so it uses `mktemp` for collision safety; system setup is one-shot and backs up each file once, so the same-second overwrite is unreachable. Unifying would force an awkward abstraction over two different backup targets. |
 
 ## Notes
 
