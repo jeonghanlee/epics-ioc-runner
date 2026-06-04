@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # Error path and negative-case tests for ioc-runner.
-# Requires only a mock con binary via IOC_RUNNER_CON_TOOL.
-# Does not require EPICS, procServ, or a running systemd service.
+# Requires only mock con and procServ binaries, both exported by _setup via
+# IOC_RUNNER_CON_TOOL / IOC_RUNNER_PROCSERV_TOOL. Does not require EPICS, a host
+# procServ, or a running systemd service.
 
 set -e
 
@@ -233,6 +234,18 @@ function _setup {
     chmod +x "${MOCK_CON_BIN}"
 
     export IOC_RUNNER_CON_TOOL="${MOCK_CON_BIN}"
+
+    # Create a mock procServ binary so the install path (deploy_local_template ->
+    # resolve_procserv_tool) resolves it instead of searching the host. The
+    # install cases only bake this path into the unit template; they never exec
+    # it, so a plain exit-0 stub is sufficient. This makes the suite truly
+    # host-independent (#77). test_tool_resolution's home-bin search case unsets
+    # this override (env -u) to exercise the real search path.
+    MOCK_PROCSERV_BIN="${TEST_TMPDIR}/procServ"
+    printf "#!/usr/bin/env bash\nexit 0\n" > "${MOCK_PROCSERV_BIN}"
+    chmod +x "${MOCK_PROCSERV_BIN}"
+
+    export IOC_RUNNER_PROCSERV_TOOL="${MOCK_PROCSERV_BIN}"
 
     _log "SUCCESS" "Mock environment ready at ${TEST_TMPDIR}"
 }
@@ -1169,9 +1182,9 @@ function test_crash_pattern_extra {
 
 # Validates #74 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
 # and the home-bin search-path default. Each case is self-contained -- it
-# supplies its own stub via the override or a HOME-redirected ~/.local/bin, so
-# it does not depend on a host procServ (the suite-wide host-procServ
-# dependency is tracked as a separate follow-up). _setup is not modified.
+# supplies its own stub via the override or a HOME-redirected ~/.local/bin.
+# _setup now exports a suite-wide mock IOC_RUNNER_PROCSERV_TOOL (#77), so the
+# home-bin search case below unsets it (env -u) to exercise the real search.
 function test_tool_resolution {
     local step="$1"
     local test_dir="${TEST_TMPDIR}/toolres_ioc"
@@ -1233,7 +1246,7 @@ function test_tool_resolution {
     chmod +x "${home_stub}"
     rm -f "${template}"
     local c3_ec=0
-    HOME="${fake_home}" \
+    env -u IOC_RUNNER_PROCSERV_TOOL HOME="${fake_home}" \
         IOC_RUNNER_CONF_DIR="${conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${sysd_dir}" \
         bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>&1 || c3_ec=$?
     verify_exit_code "0" "${c3_ec}" "Home-bin procServ resolves without an override"
