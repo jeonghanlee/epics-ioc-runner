@@ -35,10 +35,11 @@ docs only, external review accepted, `Closes #79` on master merge). #80 done 202
 crash-detection comment updated to the log-file-scan contract, comment-only,
 external review accepted, `Closes #80` on master merge). #79 and #80 are done; on
 2026-06-04 the two #74 spin-offs #77 (error-suite procServ mock, tests) and #78
-(`IOC_RUNNER_*_TOOL` `-f && -x` hardening) were pulled into 1.1.1. #77 is
-done (`Closes #77` on master merge); #78 is the next entry point. After #78
-lands, the 1.1.1 release sequence (master merge + annotated tag) runs at the end
-of the testing window; the remaining five 1.2.0 items stay deferred. Version
+(`IOC_RUNNER_*_TOOL` `-f && -x` hardening) were pulled into 1.1.1 and are
+done (`Closes #77` / `Closes #78` on master merge). All 1.1.1 issues are again
+code-complete on `release-1.1.1`; the next entry point is the 1.1.1 release
+sequence (master merge + annotated tag) at the end of the testing window. The
+remaining five 1.2.0 items stay deferred. Version
 is `1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the owner
 reorders them. Two #74 follow-ups are deferred to #77 (`_setup` suite-wide procServ
 mock) and #78 (`-x`/`-f` executable-directory resolver policy common to con
@@ -63,9 +64,9 @@ and procServ).
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
 | 1.1.1 | #77 error suite host-independent of procServ via a `_setup` mock | Spin-off (#74) | Done (`release-1.1.1`) | Pulled into 1.1.1 2026-06-04. `tests/test-error-handling.bash`: `_setup` now exports a mock `IOC_RUNNER_PROCSERV_TOOL` (mirrors the con mock) so install cases resolve it, never a host procServ; header updated to match; `test_tool_resolution` Case 3 unsets it via `env -u` to keep the home-bin search meaningful. Static suite 101/101 on top (count unchanged = behavior preserved); host-independence proven by the in-suite Case 2 override assertion plus the suite-wide export (install bakes the path, never execs, so an exit-0 mock suffices). External review accepted. `Closes #77` (auto-close on master merge). tests, P3-low. |
-| 1.1.1 | #78 tighten `IOC_RUNNER_*_TOOL` override to reject directories | Spin-off (#74) | Open | Pulled into 1.1.1 2026-06-04 to close #74's spin-offs in the same release. Both `resolve_con_tool` and `resolve_procserv_tool` check `-x` only, so an executable directory passes; apply `-f && -x` to both. enhancement, P3-low. |
+| 1.1.1 | #78 tighten `IOC_RUNNER_*_TOOL` override to reject directories | Spin-off (#74) | Done (`release-1.1.1`) | Pulled into 1.1.1 2026-06-04. `bin/ioc-runner`: the override branch of both `resolve_con_tool` (L703) and `resolve_procserv_tool` (L751) now requires `-f && -x` (regular executable file), so an executable directory is rejected; search loops untouched. New `test_tool_resolution` Case 1b (executable-directory `IOC_RUNNER_PROCSERV_TOOL` -> exit 1 + variable-named message); con shares the identical predicate without a separate test (its override path is not reachable in the static suite). Static suite 101 -> 103 on top, all pass. External review accepted (fixture made explicitly executable). `Closes #78` (auto-close on master merge). enhancement, P3-low. |
 
-**Tally:** Done 10 · Open 6 · Not started 0 · In progress 0 · Blocked 0
+**Tally:** Done 11 · Open 5 · Not started 0 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 

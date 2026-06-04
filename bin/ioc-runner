@@ -700,7 +700,7 @@ function resolve_con_tool {
             fi
         done
     else
-        if [[ ! -x "${CON_TOOL_PATH}" ]]; then
+        if [[ ! -f "${CON_TOOL_PATH}" || ! -x "${CON_TOOL_PATH}" ]]; then
             printf "Error: IOC_RUNNER_CON_TOOL '%s' is not an executable file.\n" "${CON_TOOL_PATH}" >&2
             exit 1
         fi
@@ -732,7 +732,8 @@ function resolve_con_tool {
 # Mirrors resolve_con_tool: IOC_RUNNER_PROCSERV_TOOL takes precedence over the
 # PROCSERV_SEARCH_PATHS default search list. procServ has no client-side
 # fallback (unlike con's socat/nc), so a failed search is a hard error. The
-# '-x' override check matches the IOC_RUNNER_CON_TOOL semantics. Sets
+# '-f && -x' override check matches the IOC_RUNNER_CON_TOOL semantics (a regular
+# executable file, so an executable directory is rejected). Sets
 # PROCSERV_TOOL_PATH on success; exits non-zero otherwise.
 declare -g PROCSERV_TOOL_PATH=""
 
@@ -747,7 +748,7 @@ function resolve_procserv_tool {
             fi
         done
     else
-        if [[ ! -x "${PROCSERV_TOOL_PATH}" ]]; then
+        if [[ ! -f "${PROCSERV_TOOL_PATH}" || ! -x "${PROCSERV_TOOL_PATH}" ]]; then
             printf "Error: IOC_RUNNER_PROCSERV_TOOL '%s' is not an executable file.\n" "${PROCSERV_TOOL_PATH}" >&2
             exit 1
         fi

@@ -1180,7 +1180,7 @@ function test_crash_pattern_extra {
 }
 
 
-# Validates #74 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
+# Validates #74/#78 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
 # and the home-bin search-path default. Each case is self-contained -- it
 # supplies its own stub via the override or a HOME-redirected ~/.local/bin.
 # _setup now exports a suite-wide mock IOC_RUNNER_PROCSERV_TOOL (#77), so the
@@ -1222,6 +1222,26 @@ function test_tool_resolution {
         c1_msg="true"
     fi
     verify_state "true" "${c1_msg}" "Non-executable override error names the variable"
+
+    # --- Case 1b: an executable directory as the override is rejected (#78). ---
+    # A directory carries the execute bit, so a bare -x check would accept it;
+    # the override must be a regular executable file (-f && -x).
+    local execdir="${TEST_TMPDIR}/execdir_procserv"
+    mkdir -p "${execdir}"
+    chmod +x "${execdir}"   # guarantee the fixture is an executable directory
+    local c1b_stderr="${TEST_TMPDIR}/toolres_c1b_stderr"
+    local c1b_ec=0
+    IOC_RUNNER_PROCSERV_TOOL="${execdir}" \
+        IOC_RUNNER_CONF_DIR="${conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>"${c1b_stderr}" || c1b_ec=$?
+    verify_exit_code "1" "${c1b_ec}" "Executable-directory IOC_RUNNER_PROCSERV_TOOL exits 1"
+
+    local c1b_msg="false"
+    if grep -q "IOC_RUNNER_PROCSERV_TOOL" "${c1b_stderr}" 2>/dev/null \
+       && grep -q "not an executable" "${c1b_stderr}" 2>/dev/null; then
+        c1b_msg="true"
+    fi
+    verify_state "true" "${c1b_msg}" "Executable-directory override error names the variable"
 
     # --- Case 2: an executable IOC_RUNNER_PROCSERV_TOOL is honored. ---
     local stub="${TEST_TMPDIR}/stub_procserv"
