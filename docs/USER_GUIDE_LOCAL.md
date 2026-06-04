@@ -205,8 +205,9 @@ For isolated testing, CI pipelines, or multi-tenant workstations, the runner sup
 | `IOC_RUNNER_SYSTEMD_DIR` | Overrides both `LOCAL_SYSTEMD_DIR` and `SYSTEM_SYSTEMD_DIR` |
 | `IOC_RUNNER_RUN_DIR`     | Overrides both `LOCAL_RUN_DIR` and `SYSTEM_RUN_DIR` |
 | `IOC_RUNNER_CON_TOOL`    | Absolute path to a custom `con`-compatible binary |
+| `IOC_RUNNER_PROCSERV_TOOL` | Absolute path to a custom `procServ` binary (local-mode template generation) |
 
-Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}_<VAR>` > built-in default.
+Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}_<VAR>` > built-in default. When `IOC_RUNNER_CON_TOOL` / `IOC_RUNNER_PROCSERV_TOOL` are unset, the tool is searched in `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin` (the `~/.local/bin` entry is skipped when HOME cannot be resolved to a real home).
 
 ### Example: sandboxed local run
 
