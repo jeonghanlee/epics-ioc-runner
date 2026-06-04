@@ -774,8 +774,10 @@ function test_monitor_isolation {
 }
 
 
-# test_crash_detection -- disabled; blocked by #7 (v1.1.0 log file redirect).
-# Requires 'adm' or 'systemd-journal' group to read the system journal under ioc-srv.
+# test_crash_detection: start a broken softIoc and verify the crash-loop
+# warning surfaces. Since 1.1.0 the warning comes from the inline log-file
+# scan in do_start_restart, run under the invoking engineer's UID, not the
+# system journal -- so no 'systemd-journal' or 'adm' group membership is needed.
 function test_crash_detection {
     local step="$1"
     print_divider
