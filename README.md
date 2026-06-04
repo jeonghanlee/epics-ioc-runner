@@ -6,7 +6,7 @@
 By eliminating heavy dependencies, this architecture adheres strictly to the **KISS (Keep It Simple, Stupid)** and **DRY (Don't Repeat Yourself)** principles, ensuring long-term maintainability across different Linux distributions.
 
 ## Prerequisites
-This architecture requires the following core utilities to be installed on your system (e.g., in `/usr/bin` or `/usr/local/bin`):
+This architecture requires the following core utilities to be installed on your system (e.g., in `~/.local/bin` for local-mode user installs, `/usr/local/bin`, or `/usr/bin`):
 * **procServ**: https://github.com/jeonghanlee/procServ-env
 * **con**: https://github.com/jeonghanlee/con (Recommended for clean detachment via Ctrl-A)
   * *Fallback*: If `con` is unavailable, the `attach` command automatically falls back to `socat` or `nc` (with `-U` UNIX Domain Socket support).

@@ -3,7 +3,7 @@
 This guide describes how to run and test EPICS IOCs in an isolated, user-level systemd environment without requiring root or sudo privileges.
 
 ## Prerequisites
-Ensure that the core utilities **`procServ`** and **`con`** are installed on your system (`/usr/bin` or `/usr/local/bin`). You can build and install them from the following repositories:
+Ensure that the core utilities **`procServ`** and **`con`** are available. In local mode the runner searches `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin`, or honors an explicit path in `IOC_RUNNER_PROCSERV_TOOL` / `IOC_RUNNER_CON_TOOL` (full resolution order in the environment-variable section below). You can build and install them from the following repositories:
 * **con**: https://github.com/jeonghanlee/con
 * **procServ**: https://github.com/jeonghanlee/procServ-env
 
