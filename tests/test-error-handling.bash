@@ -1167,6 +1167,98 @@ function test_crash_pattern_extra {
 }
 
 
+# Validates #74 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
+# and the home-bin search-path default. Each case is self-contained -- it
+# supplies its own stub via the override or a HOME-redirected ~/.local/bin, so
+# it does not depend on a host procServ (the suite-wide host-procServ
+# dependency is tracked as a separate follow-up). _setup is not modified.
+function test_tool_resolution {
+    local step="$1"
+    local test_dir="${TEST_TMPDIR}/toolres_ioc"
+    local conf_dir="${TEST_TMPDIR}/toolres_conf"
+    local sysd_dir="${TEST_TMPDIR}/toolres_sysd"
+    local template="${sysd_dir}/epics-@.service"
+    local conf_file="${test_dir}/toolres_ioc.conf"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Tool Resolution (IOC_RUNNER_PROCSERV_TOOL + home-bin)"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${conf_dir}" "${sysd_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    # Pre-generate a valid conf the install path consumes. IOC_CHDIR resolves to
+    # an absolute path, so later installs need no cwd change and can verify in
+    # the function body (subshell verify calls would not update the counters).
+    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+
+    # --- Case 1: a non-executable IOC_RUNNER_PROCSERV_TOOL is rejected. ---
+    local nonexec="${TEST_TMPDIR}/nonexec_procserv"
+    printf "#!/usr/bin/env bash\nexit 0\n" > "${nonexec}"   # intentionally not +x
+    local c1_stderr="${TEST_TMPDIR}/toolres_c1_stderr"
+    local c1_ec=0
+    IOC_RUNNER_PROCSERV_TOOL="${nonexec}" \
+        IOC_RUNNER_CONF_DIR="${conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>"${c1_stderr}" || c1_ec=$?
+    verify_exit_code "1" "${c1_ec}" "Non-executable IOC_RUNNER_PROCSERV_TOOL exits 1"
+
+    local c1_msg="false"
+    if grep -q "IOC_RUNNER_PROCSERV_TOOL" "${c1_stderr}" 2>/dev/null \
+       && grep -q "not an executable" "${c1_stderr}" 2>/dev/null; then
+        c1_msg="true"
+    fi
+    verify_state "true" "${c1_msg}" "Non-executable override error names the variable"
+
+    # --- Case 2: an executable IOC_RUNNER_PROCSERV_TOOL is honored. ---
+    local stub="${TEST_TMPDIR}/stub_procserv"
+    printf "#!/usr/bin/env bash\nexit 0\n" > "${stub}"
+    chmod +x "${stub}"
+    rm -f "${template}"
+    local c2_ec=0
+    IOC_RUNNER_PROCSERV_TOOL="${stub}" \
+        IOC_RUNNER_CONF_DIR="${conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>&1 || c2_ec=$?
+    verify_exit_code "0" "${c2_ec}" "Executable IOC_RUNNER_PROCSERV_TOOL accepted"
+
+    local c2_ref="false"
+    grep -q -F "${stub}" "${template}" 2>/dev/null && c2_ref="true"
+    verify_state "true" "${c2_ref}" "Template ExecStart references the override binary"
+
+    # --- Case 3: procServ resolves from ${HOME}/.local/bin via the search path. ---
+    local fake_home="${TEST_TMPDIR}/toolres_home"
+    local home_stub="${fake_home}/.local/bin/procServ"
+    mkdir -p "${fake_home}/.local/bin"
+    printf "#!/usr/bin/env bash\nexit 0\n" > "${home_stub}"
+    chmod +x "${home_stub}"
+    rm -f "${template}"
+    local c3_ec=0
+    HOME="${fake_home}" \
+        IOC_RUNNER_CONF_DIR="${conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>&1 || c3_ec=$?
+    verify_exit_code "0" "${c3_ec}" "Home-bin procServ resolves without an override"
+
+    local c3_ref="false"
+    grep -q -F "${home_stub}" "${template}" 2>/dev/null && c3_ref="true"
+    verify_state "true" "${c3_ref}" "Template ExecStart references the home-bin binary"
+
+    # --- Case 4: con search path prepends home-bin under a trusted HOME. ---
+    # Static: con resolution is observable only through the final exec, which
+    # do_attach guards behind a live socket (resolve_sock_path), absent in this
+    # suite. Source the trust-flag and array-construction fragments with HOME
+    # set (trusted), then assert the home-bin entry is first.
+    local fake_home_con="${TEST_TMPDIR}/toolres_home_con"
+    local c4_got
+    c4_got=$(env HOME="${fake_home_con}" bash -c '
+        source <(sed -n "/^declare -g HOME_TRUSTED=/,/^fi$/p" "'"${RUNNER_SCRIPT}"'")
+        source <(sed -n "/^declare -g -a CON_SEARCH_PATHS=/,/^fi$/p" "'"${RUNNER_SCRIPT}"'")
+        printf "%s" "${CON_SEARCH_PATHS[0]}"
+    ' 2>/dev/null)
+    verify_state "${fake_home_con}/.local/bin/con" "${c4_got}" \
+        "con search path prepends home-bin when HOME is trusted"
+}
+
+
 
 function run_all_tests {
     local -a pipeline=(
@@ -1191,6 +1283,7 @@ function run_all_tests {
         "test_inspect_errors"
         "test_crash_pattern_matching"
         "test_crash_pattern_extra"
+        "test_tool_resolution"
     )
     local step=1
     local func

@@ -28,9 +28,20 @@ declare -g NC='\033[0m'
 # Resolve HOME defensively: bare sudo or some systemd/cron contexts leave
 # HOME unset, which would abort the LOCAL_* defaults below under 'set -u'
 # (even for --help, -V, or system mode that never use them).
+#
+# HOME_TRUSTED records whether HOME is the user's real home (from the
+# environment or the passwd database) or the world-writable '/tmp' fallback.
+# The fallback is acceptable for the LOCAL_* directory defaults below, but a
+# search for an executable (con / procServ) must not trust
+# "${HOME}/.local/bin" when HOME resolved to '/tmp'; the home-bin search entry
+# is gated on this flag.
+declare -g HOME_TRUSTED=1
 if [[ -z "${HOME:-}" ]]; then
     HOME="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
-    HOME="${HOME:-/tmp}"
+    if [[ -z "${HOME}" ]]; then
+        HOME="/tmp"
+        HOME_TRUSTED=0
+    fi
 fi
 declare -g SYSTEM_CONF_DIR="${IOC_RUNNER_SYSTEM_CONF_DIR:-/etc/procServ.d}"
 declare -g LOCAL_CONF_DIR="${IOC_RUNNER_LOCAL_CONF_DIR:-${HOME}/.config/procServ.d}"
@@ -51,6 +62,15 @@ fi
 
 declare -g -a CON_SEARCH_PATHS=("/usr/local/bin/con" "/usr/bin/con")
 declare -g -a PROCSERV_SEARCH_PATHS=("/usr/local/bin/procServ" "/usr/bin/procServ")
+
+# Prepend the per-user home-bin location so a user-built con / procServ in
+# "${HOME}/.local/bin" is found first (resolution order: home -> /usr/local ->
+# /usr). Gated on HOME_TRUSTED: a '/tmp' fallback HOME is world-writable and
+# must not be a trusted source of executables.
+if [[ "${HOME_TRUSTED}" -eq 1 ]]; then
+    CON_SEARCH_PATHS=("${HOME}/.local/bin/con" "${CON_SEARCH_PATHS[@]}")
+    PROCSERV_SEARCH_PATHS=("${HOME}/.local/bin/procServ" "${PROCSERV_SEARCH_PATHS[@]}")
+fi
 
 declare -g EXEC_MODE="system"
 declare -g CONF_DIR="${IOC_RUNNER_CONF_DIR:-${SYSTEM_CONF_DIR}}"
@@ -307,22 +327,11 @@ function run_systemctl {
 }
 
 function deploy_local_template {
-    local procserv_bin=""
     local template_path="${SYSTEMD_DIR}/epics-@.service"
     local backup_path=""
 
-    # Resolve procServ binary path
-    for path in "${PROCSERV_SEARCH_PATHS[@]}"; do
-        if [[ -x "${path}" ]]; then
-            procserv_bin="${path}"
-            break
-        fi
-    done
-
-    if [[ -z "${procserv_bin}" ]]; then
-        printf "%s\n" "Error: procServ executable not found in standard paths." >&2
-        exit 1
-    fi
+    resolve_procserv_tool
+    local procserv_bin="${PROCSERV_TOOL_PATH}"
 
     mkdir -p "${SYSTEMD_DIR}"
 
@@ -716,6 +725,36 @@ function resolve_con_tool {
     printf "Error: No suitable tool (con, socat, nc) found for console attachment.\n" >&2
     printf "Recommendation: Install 'con' for the best experience (supports Ctrl-A to detach).\n" >&2
     printf "Source: https://github.com/jeonghanlee/con\n" >&2
+    exit 1
+}
+
+# --- procServ Tool Resolution ---
+# Mirrors resolve_con_tool: IOC_RUNNER_PROCSERV_TOOL takes precedence over the
+# PROCSERV_SEARCH_PATHS default search list. procServ has no client-side
+# fallback (unlike con's socat/nc), so a failed search is a hard error. The
+# '-x' override check matches the IOC_RUNNER_CON_TOOL semantics. Sets
+# PROCSERV_TOOL_PATH on success; exits non-zero otherwise.
+declare -g PROCSERV_TOOL_PATH=""
+
+function resolve_procserv_tool {
+    PROCSERV_TOOL_PATH="${IOC_RUNNER_PROCSERV_TOOL:-}"
+
+    if [[ -z "${PROCSERV_TOOL_PATH}" ]]; then
+        for path in "${PROCSERV_SEARCH_PATHS[@]}"; do
+            if [[ -x "${path}" ]]; then
+                PROCSERV_TOOL_PATH="${path}"
+                return 0
+            fi
+        done
+    else
+        if [[ ! -x "${PROCSERV_TOOL_PATH}" ]]; then
+            printf "Error: IOC_RUNNER_PROCSERV_TOOL '%s' is not an executable file.\n" "${PROCSERV_TOOL_PATH}" >&2
+            exit 1
+        fi
+        return 0
+    fi
+
+    printf "%s\n" "Error: procServ executable not found in standard paths." >&2
     exit 1
 }
 
