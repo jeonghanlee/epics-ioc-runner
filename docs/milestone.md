@@ -33,10 +33,12 @@ coherence finding CI-1; `Closes #75` on master merge). #79 done 2026-06-04
 (CI-2, prerequisite wording aligned with the `~/.local/bin` resolver order,
 docs only, external review accepted, `Closes #79` on master merge). #80 done 2026-06-04 (CI-3,
 crash-detection comment updated to the log-file-scan contract, comment-only,
-external review accepted, `Closes #80` on master merge). All 1.1.1 issues are
-now Done (code-complete on `release-1.1.1`); next entry point is the 1.1.1
-release sequence (master merge + annotated tag) after the testing window
-closes, then the 1.2.0 items. Version
+external review accepted, `Closes #80` on master merge). #79 and #80 are done; on
+2026-06-04 the two #74 spin-offs #77 (error-suite procServ mock, tests) and #78
+(`IOC_RUNNER_*_TOOL` `-f && -x` hardening) were pulled into 1.1.1 and are the
+next entry point. After they land, the 1.1.1 release sequence (master merge +
+annotated tag) runs at the end of the testing window; the remaining five 1.2.0
+items stay deferred. Version
 is `1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the owner
 reorders them. Two #74 follow-ups are deferred to #77 (`_setup` suite-wide procServ
 mock) and #78 (`-x`/`-f` executable-directory resolver policy common to con
@@ -60,8 +62,8 @@ and procServ).
 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure`; interacts with #67 and #52. |
 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. |
 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
-| 1.2.0 | #77 error suite host-independent of procServ via a `_setup` mock | Spin-off (#74) | Open | Existing `--local install` cases still resolve a host procServ via `deploy_local_template`; export a `_setup` procServ mock (mirror the con mock), resolution tests override/unset it. tests, P3-low. |
-| 1.2.0 | #78 tighten `IOC_RUNNER_*_TOOL` override to reject directories | Spin-off (#74) | Open | Both `resolve_con_tool` and `resolve_procserv_tool` check `-x` only, so an executable directory passes; apply `-f && -x` to both. enhancement, P3-low. |
+| 1.1.1 | #77 error suite host-independent of procServ via a `_setup` mock | Spin-off (#74) | Open | Pulled into 1.1.1 2026-06-04 to close #74's spin-offs in the same release. Existing `--local install` cases still resolve a host procServ via `deploy_local_template`; export a `_setup` procServ mock (mirror the con mock), resolution tests override/unset it. tests, P3-low. |
+| 1.1.1 | #78 tighten `IOC_RUNNER_*_TOOL` override to reject directories | Spin-off (#74) | Open | Pulled into 1.1.1 2026-06-04 to close #74's spin-offs in the same release. Both `resolve_con_tool` and `resolve_procserv_tool` check `-x` only, so an executable directory passes; apply `-f && -x` to both. enhancement, P3-low. |
 
 **Tally:** Done 9 · Open 7 · Not started 0 · In progress 0 · Blocked 0
 
@@ -71,7 +73,9 @@ Target: July 2026. Two carry-forwards from the 1.1.0 audit, three small
 additive items (Makefile install front end, `--user` alias, procServ/con
 search-path override), plus a Debian 13 systemd logging-deprecation fix (#75)
 and a lifecycle CA test isolation fix (#76), both surfaced during the testing
-window. Release after a ~1-month testing and feedback window.
+window. The 2026-06-04 coherence sweep then added two doc/comment cleanups
+(#79, #80) and pulled the two #74 spin-offs (#77, #78) into this release.
+Release after a ~1-month testing and feedback window.
 
 GitHub milestone `1.1.1` (number 10), due `2026-07-31`. Description: `Patch
 plus small additive items: chdir precheck, test-mode selection, Makefile
@@ -88,11 +92,14 @@ install front end, --user alias, procServ/con search-path override`.
 | [#76](https://github.com/jeonghanlee/epics-ioc-runner/issues/76) | Lifecycle STEP 24 CA test not isolated from co-located IOCs | P3-low | STEP 24 of both lifecycle suites forces a unicast `EPICS_CA_ADDR_LIST=127.0.0.1` CA search; on a host already running other IOCs that share UDP 5064 the search reaches the wrong server and the PV is never found. Assign the test IOC a dedicated `EPICS_CA_SERVER_PORT`. Test harness only; reproduces on master 1.1.0. Surfaced verifying #69 on `alsucl-psrv3`. |
 | [#79](https://github.com/jeonghanlee/epics-ioc-runner/issues/79) | Align local-mode tool prerequisite wording with the `~/.local/bin` resolver order | documentation, P3-low | Coherence finding CI-2. Prerequisite intros (`docs/USER_GUIDE_LOCAL.md:6`, `README.md:9`) still require `/usr/bin` or `/usr/local/bin` only, omitting the `~/.local/bin` search added by #74. Align with the order already documented at `USER_GUIDE_LOCAL.md:210`. Docs only. |
 | [#80](https://github.com/jeonghanlee/epics-ioc-runner/issues/80) | Update system-lifecycle crash-detection comments to the log-file-scan contract | tests, P3-low | Coherence finding CI-3. The comment at `tests/test-system-lifecycle.bash:777-778` marks `test_crash_detection` disabled and journal-dependent, but it is active (L1478) and passes via the log-file scan since the 1.1.0 journal decoupling. Comment-only correction. |
+| [#77](https://github.com/jeonghanlee/epics-ioc-runner/issues/77) | Make the error suite host-independent of procServ via a `_setup` mock | tests, P3-low | Spin-off from #74, pulled into 1.1.1 (2026-06-04). The existing `--local install` cases reach `deploy_local_template` -> `resolve_procserv_tool` and still require a host procServ, contradicting the suite header. Export a mock procServ in `_setup` (mirror the con mock); resolution tests override or unset it within scope. |
+| [#78](https://github.com/jeonghanlee/epics-ioc-runner/issues/78) | Tighten `IOC_RUNNER_*_TOOL` override check to reject directories (`-f && -x`) | enhancement, P3-low | Spin-off from #74, pulled into 1.1.1 (2026-06-04). Both `resolve_con_tool` and `resolve_procserv_tool` validate the override with `-x` only; an executable directory passes. Apply `-f && -x` to both resolvers in one change. |
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch. GitHub
-milestone `1.2.0` — 7 open.
+milestone `1.2.0` — 5 open (the two #74 spin-offs #77/#78 were pulled into
+1.1.1 on 2026-06-04).
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -101,8 +108,6 @@ milestone `1.2.0` — 7 open.
 | [#54](https://github.com/jeonghanlee/epics-ioc-runner/issues/54) | Add restart policy to system template unit | enhancement | Template unit defines no `Restart=`; evaluate `always` vs `on-failure`. Couples with #67 (timing) and #52 (exit-signal semantics). |
 | [#53](https://github.com/jeonghanlee/epics-ioc-runner/issues/53) | Possibly missing `Requires`/`Wants` in template systemd unit | enhancement | Per systemd unit docs, review `Requires`/`Wants` and `Before`/`After` ordering for the template unit. |
 | [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52) | Review procServ child-exit signals for crash-loop detection | enhancement | Follows #11 (byte-offset crash detection) and extends the #24 journal-fallback edge-case review. Current pattern set catches explicit fatal output; review child-exit signal handling for crash-loop cases. |
-| [#77](https://github.com/jeonghanlee/epics-ioc-runner/issues/77) | Make the error suite host-independent of procServ via a `_setup` mock | tests, P3-low | Spin-off from #74. The existing `--local install` cases reach `deploy_local_template` -> `resolve_procserv_tool` and still require a host procServ, contradicting the suite header. Export a mock procServ in `_setup` (mirror the con mock); resolution tests override or unset it within scope. |
-| [#78](https://github.com/jeonghanlee/epics-ioc-runner/issues/78) | Tighten `IOC_RUNNER_*_TOOL` override check to reject directories (`-f && -x`) | enhancement, P3-low | Spin-off from #74. Both `resolve_con_tool` and `resolve_procserv_tool` validate the override with `-x` only; an executable directory passes. Apply `-f && -x` to both resolvers in one change. |
 
 ## Coherence Sweep Findings (2026-06-04)
 
