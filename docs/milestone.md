@@ -36,21 +36,18 @@ crash-detection comment updated to the log-file-scan contract, comment-only,
 external review accepted, `Closes #80` on master merge). #79 and #80 are done; on
 2026-06-04 the two #74 spin-offs #77 (error-suite procServ mock, tests) and #78
 (`IOC_RUNNER_*_TOOL` `-f && -x` hardening) were pulled into 1.1.1 and are
-done (`Closes #77` / `Closes #78` on master merge). All 1.1.1 issues are again
-code-complete on `release-1.1.1`; the next entry point is the 1.1.1 release
-sequence (master merge + annotated tag) at the end of the testing window. The
-remaining six 1.2.0 items stay deferred (the 2026-06-04 coherence sweep filed
-#81, the unit-template generalization, clustered with #53/#54). Version
-is `1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the owner
-reorders them. The former #74 follow-ups #77 (`_setup` suite-wide procServ mock)
-and #78 (`-f && -x` executable-directory resolver policy common to con and
-procServ) are done on `release-1.1.1` (`Closes #77` / `Closes #78`). The
-2026-06-05 conceptual-integrity sweep then recorded findings CI-7..CI-11 (table
-below): CI-7 (docs) and CI-8 (small `do_inspect` refactor) are 1.1.1 candidates
-pending issue filing, CI-9 (git-metadata triplication) clusters into 1.2.0 with
-#81, and CI-10/CI-11 are examined-Keep. Filing CI-7/CI-8 as issues reopens the
-1.1.1 work list ahead of the release sequence; the 1.1.1 milestone is open for
-patches through the July 2026 testing window, not frozen.
+done (`Closes #77` / `Closes #78` on master merge). On 2026-06-06 the 2026-06-05
+coherence sweep filed three issues: #82 (CI-7, docs) and #83 (CI-8, `do_inspect`
+refactor) in 1.1.1, and #84 (CI-9, git-metadata guard test) in 1.2.0. The next
+entry point is therefore #82 and #83 on `release-1.1.1` — the only open 1.1.1
+code work — then the 1.1.1 release sequence (master merge + annotated tag) at the
+end of the testing window. The 1.1.1 milestone is open for patches through the
+July 2026 window, not frozen. The seven 1.2.0 items stay deferred (#81 from the
+2026-06-04 sweep, the unit-template generalization clustered with #53/#54; #84
+from the 2026-06-05 sweep, the git-metadata guard test clustered with #81).
+Version is `1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the
+owner reorders them. The 2026-06-05 sweep findings CI-7..CI-11 are in the table
+below; CI-10/CI-11 are examined-Keep with no work item.
 
 ## Active Register
 
@@ -73,8 +70,11 @@ patches through the July 2026 testing window, not frozen.
 | 1.2.0 | #81 generalize the duplicated procServ systemd unit template into one emitter | Coherence (CI-4) | Open | Conceptual-integrity sweep seam: the unit contract is hand-maintained in two copies (`bin/ioc-runner:363-382` local user unit, `bin/setup-system-infra.bash:467-489` system unit); CI-1 (#75) already paid the round-trip when `syslog`->`journal` had to land in both. Slight generalization (single emitter over the divergent fields + a static guard test pinning the shared contract), clustered with #53/#54 which already edit the template. P3-low. |
 | 1.1.1 | #77 error suite host-independent of procServ via a `_setup` mock | Spin-off (#74) | Done (`release-1.1.1`) | Pulled into 1.1.1 2026-06-04. `tests/test-error-handling.bash`: `_setup` now exports a mock `IOC_RUNNER_PROCSERV_TOOL` (mirrors the con mock) so install cases resolve it, never a host procServ; header updated to match; `test_tool_resolution` Case 3 unsets it via `env -u` to keep the home-bin search meaningful. Static suite 101/101 on top (count unchanged = behavior preserved); host-independence proven by the in-suite Case 2 override assertion plus the suite-wide export (install bakes the path, never execs, so an exit-0 mock suffices). External review accepted. `Closes #77` (auto-close on master merge). tests, P3-low. |
 | 1.1.1 | #78 tighten `IOC_RUNNER_*_TOOL` override to reject directories | Spin-off (#74) | Done (`release-1.1.1`) | Pulled into 1.1.1 2026-06-04. `bin/ioc-runner`: the override branch of both `resolve_con_tool` (L703) and `resolve_procserv_tool` (L751) now requires `-f && -x` (regular executable file), so an executable directory is rejected; search loops untouched. New `test_tool_resolution` Case 1b (executable-directory `IOC_RUNNER_PROCSERV_TOOL` -> exit 1 + variable-named message); con shares the identical predicate without a separate test (its override path is not reachable in the static suite). Static suite 101 -> 103 on top, all pass. External review accepted (fixture made explicitly executable). `Closes #78` (auto-close on master merge). enhancement, P3-low. |
+| 1.1.1 | #82 document the system-mode procServ override env var (`IOC_RUNNER_PROCSERV_PATH`) | Coherence (CI-7) | Open | Filed 2026-06-06. Docs-only: add `IOC_RUNNER_PROCSERV_PATH` (system-setup procServ override, `bin/setup-system-infra.bash:28-31`) to the env-var reference and keep it distinct from the runner's `IOC_RUNNER_PROCSERV_TOOL`. Follow-up to #74, same spin-off pattern as #77/#78. documentation, P3-low. |
+| 1.1.1 | #83 collapse `do_inspect` socket-path parse into `resolve_sock_path` | Coherence (CI-8) | Open | Filed 2026-06-06. `do_inspect` (`bin/ioc-runner:1550-1560`) re-implements the `IOC_PORT`->`##*:`->`-S` parse that `resolve_sock_path` (`:787-797`) already provides; call the helper after the root check. Small refactor. P3-low. |
+| 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | Filed 2026-06-06. The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; clusters with #81. refactor, P3-low. |
 
-**Tally:** Done 11 · Open 6 · Not started 0 · In progress 0 · Blocked 0
+**Tally:** Done 11 · Open 9 · Not started 0 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
@@ -103,12 +103,15 @@ install front end, --user alias, procServ/con search-path override`.
 | [#80](https://github.com/jeonghanlee/epics-ioc-runner/issues/80) | Update system-lifecycle crash-detection comments to the log-file-scan contract | tests, P3-low | Coherence finding CI-3. The comment at `tests/test-system-lifecycle.bash:777-778` marks `test_crash_detection` disabled and journal-dependent, but it is active (L1478) and passes via the log-file scan since the 1.1.0 journal decoupling. Comment-only correction. |
 | [#77](https://github.com/jeonghanlee/epics-ioc-runner/issues/77) | Make the error suite host-independent of procServ via a `_setup` mock | tests, P3-low | Spin-off from #74, pulled into 1.1.1 (2026-06-04). The existing `--local install` cases reach `deploy_local_template` -> `resolve_procserv_tool` and still require a host procServ, contradicting the suite header. Export a mock procServ in `_setup` (mirror the con mock); resolution tests override or unset it within scope. |
 | [#78](https://github.com/jeonghanlee/epics-ioc-runner/issues/78) | Tighten `IOC_RUNNER_*_TOOL` override check to reject directories (`-f && -x`) | enhancement, P3-low | Spin-off from #74, pulled into 1.1.1 (2026-06-04). Both `resolve_con_tool` and `resolve_procserv_tool` validate the override with `-x` only; an executable directory passes. Apply `-f && -x` to both resolvers in one change. |
+| [#82](https://github.com/jeonghanlee/epics-ioc-runner/issues/82) | Document the system-mode procServ override env var (IOC_RUNNER_PROCSERV_PATH) | documentation, P3-low | Coherence finding CI-7 (2026-06-05 sweep). The procServ override env var is split: the runner honors `IOC_RUNNER_PROCSERV_TOOL` (documented), system setup honors `IOC_RUNNER_PROCSERV_PATH` (undocumented). Document `PATH` as the system-setup override and keep it distinct from `TOOL`. Follow-up to #74. Docs only. |
+| [#83](https://github.com/jeonghanlee/epics-ioc-runner/issues/83) | Collapse do_inspect socket-path resolution into resolve_sock_path | refactor, P3-low | Coherence finding CI-8. `do_inspect` re-implements `resolve_sock_path`'s IOC_PORT->path->`-S` parse inline; call the shared helper after the root check. Small refactor; inspect behavior unchanged for an active socket. |
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch. GitHub
-milestone `1.2.0` — 6 open (the two #74 spin-offs #77/#78 were pulled into
-1.1.1 on 2026-06-04; the 2026-06-04 coherence sweep then filed #81). The three
+milestone `1.2.0` — 7 open (the two #74 spin-offs #77/#78 were pulled into
+1.1.1 on 2026-06-04; the 2026-06-04 coherence sweep then filed #81, and the
+2026-06-05 sweep filed #84). The three
 template items #53, #54, and #81 form one cluster — all edit the system unit
 template, so it is touched once as a group.
 
@@ -120,6 +123,7 @@ template, so it is touched once as a group.
 | [#53](https://github.com/jeonghanlee/epics-ioc-runner/issues/53) | Possibly missing `Requires`/`Wants` in template systemd unit | enhancement | Per systemd unit docs, review `Requires`/`Wants` and `Before`/`After` ordering for the template unit. |
 | [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52) | Review procServ child-exit signals for crash-loop detection | enhancement | Follows #11 (byte-offset crash detection) and extends the #24 journal-fallback edge-case review. Current pattern set catches explicit fatal output; review child-exit signal handling for crash-loop cases. |
 | [#81](https://github.com/jeonghanlee/epics-ioc-runner/issues/81) | Generalize the duplicated procServ systemd unit template into a single emitter | refactor, P3-low | Coherence finding CI-4. The unit contract is hand-maintained in two near-identical copies (`bin/ioc-runner:363-382`, `bin/setup-system-infra.bash:467-489`); the must-agree lines currently match but nothing enforces it, and CI-1 (#75) already paid the round-trip. Slight generalization to a single emitter plus a shared-contract guard test. Clusters with #53/#54. |
+| [#84](https://github.com/jeonghanlee/epics-ioc-runner/issues/84) | Pin the shared git-metadata injection contract with a guard test | refactor, P3-low | Coherence finding CI-9. The hash/commit/install metadata + `sed` contract is implemented in three places (`bin/ioc-runner`, `bin/setup-system-infra.bash`, `configure/inject-runner-version.bash`); add a static guard test pinning the shared `declare -g RUNNER_*` / `sed` contract. Side effect of #72; clusters with #81. |
 
 ## Coherence Sweep Findings (2026-06-04)
 
@@ -145,13 +149,13 @@ CI-5/CI-6 (Keep). The new seams below none disagree in output today — all are
 latent. The standalone, zero-dependency-script architecture (no shared sourced
 library) is the premise behind the duplications: each script must run on its
 own, so several fates land on Keep or a static guard test rather than a shared
-helper. Issues for CI-7..CI-9 are not yet filed.
+helper. Issues filed 2026-06-06: CI-7 -> #82, CI-8 -> #83 (1.1.1); CI-9 -> #84 (1.2.0).
 
 | ID | Finding | Evidence | Status | Resolution / fate |
 | --- | --- | --- | --- | --- |
-| CI-7 | The procServ-location override is split across two env var names: the runner honors `IOC_RUNNER_PROCSERV_TOOL` (documented), system setup honors `IOC_RUNNER_PROCSERV_PATH` (absent from the env-var table). The base search list is also duplicated across both scripts. | `bin/ioc-runner:64`/`741`, `bin/setup-system-infra.bash:28-31`, `docs/USER_GUIDE_LOCAL.md:208` | Open (1.1.1, issue not filed) | Fate: Document, do not unify. Add `IOC_RUNNER_PROCSERV_PATH` to the env-var reference noting it governs system-mode setup only; `TOOL` vs `PATH` stay distinct because they act in different scripts/contexts (renaming is a behavior change, out of scope). Docs-only, peer of CI-2/CI-3. Follow-up to #74, which added `IOC_RUNNER_PROCSERV_TOOL` for the runner but left setup's `IOC_RUNNER_PROCSERV_PATH` untouched (system mode was out of #74 scope); same spin-off pattern as #77/#78, `Refs #74`. |
-| CI-8 | `do_inspect` re-implements `resolve_sock_path`'s IOC_PORT -> `##*:` -> `-S` parse inline instead of calling the shared helper; an IOC_PORT-format change would have to land in both (fifth-fate seam, narrow). | `bin/ioc-runner:787-797` (resolve_sock_path) vs `bin/ioc-runner:1550-1560` (do_inspect) | Open (1.1.1, issue not filed) | Fate: Generalize (small) — have `do_inspect` call `resolve_sock_path` after its root-privilege check, collapsing the parse to one site. The only behavior delta is an added "service inactive / socket may be stale" warning, harmless (arguably appropriate) for inspect. Patch-sized. |
-| CI-9 | The git-metadata contract (short hash + `-dirty` + commit date + install date, then `sed` into three `declare -g RUNNER_*` lines) is implemented independently in three places; the four declaration lines are the shared anchor. | `bin/ioc-runner:14-17` (declarations) / `199-214` (`-V` live path), `bin/setup-system-infra.bash:563-585`, `configure/inject-runner-version.bash:16-31` | Open (deferred to 1.2.0, clusters with #81) | Fate: Same shape as CI-4/#81 — a static guard test pinning the shared declaration/`sed` contract, or a shared helper within the zero-dependency constraint. `inject-runner-version.bash` already documents itself as a mirror. Immediate Generalize is costly under the standalone-script premise. #72 introduced the third injector (`inject-runner-version.bash`), so the triplication is its side effect; `Refs #72`, clusters with #81. |
+| CI-7 | The procServ-location override is split across two env var names: the runner honors `IOC_RUNNER_PROCSERV_TOOL` (documented), system setup honors `IOC_RUNNER_PROCSERV_PATH` (absent from the env-var table). The base search list is also duplicated across both scripts. | `bin/ioc-runner:64`/`741`, `bin/setup-system-infra.bash:28-31`, `docs/USER_GUIDE_LOCAL.md:208` | Open (#82, 1.1.1) | Fate: Document, do not unify. Add `IOC_RUNNER_PROCSERV_PATH` to the env-var reference noting it governs system-mode setup only; `TOOL` vs `PATH` stay distinct because they act in different scripts/contexts (renaming is a behavior change, out of scope). Docs-only, peer of CI-2/CI-3. Follow-up to #74, which added `IOC_RUNNER_PROCSERV_TOOL` for the runner but left setup's `IOC_RUNNER_PROCSERV_PATH` untouched (system mode was out of #74 scope); same spin-off pattern as #77/#78, `Refs #74`. |
+| CI-8 | `do_inspect` re-implements `resolve_sock_path`'s IOC_PORT -> `##*:` -> `-S` parse inline instead of calling the shared helper; an IOC_PORT-format change would have to land in both (fifth-fate seam, narrow). | `bin/ioc-runner:787-797` (resolve_sock_path) vs `bin/ioc-runner:1550-1560` (do_inspect) | Open (#83, 1.1.1) | Fate: Generalize (small) — have `do_inspect` call `resolve_sock_path` after its root-privilege check, collapsing the parse to one site. The only behavior delta is an added "service inactive / socket may be stale" warning, harmless (arguably appropriate) for inspect. Patch-sized. |
+| CI-9 | The git-metadata contract (short hash + `-dirty` + commit date + install date, then `sed` into three `declare -g RUNNER_*` lines) is implemented independently in three places; the four declaration lines are the shared anchor. | `bin/ioc-runner:14-17` (declarations) / `199-214` (`-V` live path), `bin/setup-system-infra.bash:563-585`, `configure/inject-runner-version.bash:16-31` | Open (#84, 1.2.0, clusters with #81) | Fate: Same shape as CI-4/#81 — a static guard test pinning the shared declaration/`sed` contract, or a shared helper within the zero-dependency constraint. `inject-runner-version.bash` already documents itself as a mirror. Immediate Generalize is costly under the standalone-script premise. #72 introduced the third injector (`inject-runner-version.bash`), so the triplication is its side effect; `Refs #72`, clusters with #81. |
 | CI-10 | The completion command/option list is a separate copy of the runner's actual command set; nothing enforces agreement when a command is added. | `bin/ioc-runner-completion.bash:14-15` vs `bin/ioc-runner:1754-1793` (and `print_usage`) | Keep (examined, no action) | Currently agree (14 commands, identical option set). A drift-guard static test could fold into the CI-9/#81 guard-test cluster, but no defect today; recorded so the next sweep closes it fast. |
 | CI-11 | System-mode path overrides are guarded asymmetrically: `RUN_DIR` aborts when it diverges from the template's fixed `RuntimeDirectory`, but `IOC_RUNNER_SYSTEM_CONF_DIR` has no equivalent guard against diverging from the template's hardcoded `EnvironmentFile=/etc/procServ.d`. | `bin/ioc-runner:259-265` (RUN_DIR guard), `bin/ioc-runner:46`/`76` (CONF_DIR), `bin/setup-system-infra.bash:18`/`478` | Keep (examined, no action) | Principled asymmetry by failure mode: a diverged RUN_DIR breaks list/attach/remove silently and aims `rm -rf` at an unintended path; a diverged CONF_DIR fails loudly at `start` (AssertFileNotEmpty / missing EnvironmentFile). The silent-and-dangerous case earns the guard; the loud case does not. Recorded so the next sweep does not re-open it. |
 
