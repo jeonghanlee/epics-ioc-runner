@@ -209,6 +209,14 @@ For isolated testing, CI pipelines, or multi-tenant workstations, the runner sup
 
 Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}_<VAR>` > built-in default. When `IOC_RUNNER_CON_TOOL` / `IOC_RUNNER_PROCSERV_TOOL` are unset, the tool is searched in `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin` (the `~/.local/bin` entry is skipped when HOME cannot be resolved to a real home).
 
+### System-mode setup override (`bin/setup-system-infra.bash`)
+
+System-mode setup reads a separate variable, `IOC_RUNNER_PROCSERV_PATH`, distinct from the runner's `IOC_RUNNER_PROCSERV_TOOL`. It applies only while `bin/setup-system-infra.bash` generates the system template: system-mode setup uses this path as the procServ executable embedded in the system template's `ExecStart`. It takes a single path and replaces the default search list (`/usr/local/bin/procServ`, then `/usr/bin/procServ`) rather than prepending to it.
+
+| Variable | Default | Affects |
+|---|---|---|
+| `IOC_RUNNER_PROCSERV_PATH` | `/usr/local/bin/procServ`, then `/usr/bin/procServ` | system-mode setup: procServ executable in the generated template `ExecStart` |
+
 ### Example: sandboxed local run
 
 ```bash
