@@ -42,9 +42,10 @@ refactor) in 1.1.1, and #84 (CI-9, git-metadata guard test) in 1.2.0. #82 done 2
 top, external review accepted, `Closes #82`/`Refs #74` on master merge). #83 done
 2026-06-07 (`4af92aa`, CI-8, 3-reviewer convergence APPROVE, `Closes #83` on
 master merge). #85 (F4 from the #83 review, filed 2026-06-07) is an open 1.1.1
-follow-up with code deferred during the window. The next entry point is the
-1.1.1 release sequence (master merge + annotated tag) at the end of the testing
-window, with #85 handled at a later patch. The 1.1.1 milestone is open for patches through the
+item with code deferred to a patch within the testing window. As a 1.1.1 issue
+it is release-blocking: the next entry point is #85 on `release-1.1.1`, then the
+1.1.1 release sequence (master merge + annotated tag) once #85 is closed and the
+testing window ends. The 1.1.1 milestone is open for patches through the
 July 2026 window, not frozen. The seven 1.2.0 items stay deferred (#81 from the
 2026-06-04 sweep, the unit-template generalization clustered with #53/#54; #84
 from the 2026-06-05 sweep, the git-metadata guard test clustered with #81).
