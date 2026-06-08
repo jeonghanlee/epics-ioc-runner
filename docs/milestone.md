@@ -41,11 +41,11 @@ coherence sweep filed three issues: #82 (CI-7, docs) and #83 (CI-8, `do_inspect`
 refactor) in 1.1.1, and #84 (CI-9, git-metadata guard test) in 1.2.0. #82 done 2026-06-07 (`7391496`, CI-7, docs only, static 103/103 on
 top, external review accepted, `Closes #82`/`Refs #74` on master merge). #83 done
 2026-06-07 (`4af92aa`, CI-8, 3-reviewer convergence APPROVE, `Closes #83` on
-master merge). #85 (F4 from the #83 review, filed 2026-06-07) is an open 1.1.1
-item with code deferred to a patch within the testing window. As a 1.1.1 issue
-it is release-blocking: the next entry point is #85 on `release-1.1.1`, then the
-1.1.1 release sequence (master merge + annotated tag) once #85 is closed and the
-testing window ends. The 1.1.1 milestone is open for patches through the
+master merge). #85 done 2026-06-07 (`038619d`, F4 option B —
+documented the `do_inspect` alias as intentional; full caller-reference
+unification reconsidered in 1.2.0 as #86). With #85 closed, 1.1.1 has no open
+code work again; the next entry point is the 1.1.1 release sequence (master
+merge + annotated tag) at the end of the testing window. The 1.1.1 milestone is open for patches through the
 July 2026 window, not frozen. The seven 1.2.0 items stay deferred (#81 from the
 2026-06-04 sweep, the unit-template generalization clustered with #53/#54; #84
 from the 2026-06-05 sweep, the git-metadata guard test clustered with #81).
@@ -76,10 +76,11 @@ below; CI-10/CI-11 are examined-Keep with no work item.
 | 1.1.1 | #78 tighten `IOC_RUNNER_*_TOOL` override to reject directories | Spin-off (#74) | Done (`release-1.1.1`) | Pulled into 1.1.1 2026-06-04. `bin/ioc-runner`: the override branch of both `resolve_con_tool` (L703) and `resolve_procserv_tool` (L751) now requires `-f && -x` (regular executable file), so an executable directory is rejected; search loops untouched. New `test_tool_resolution` Case 1b (executable-directory `IOC_RUNNER_PROCSERV_TOOL` -> exit 1 + variable-named message); con shares the identical predicate without a separate test (its override path is not reachable in the static suite). Static suite 101 -> 103 on top, all pass. External review accepted (fixture made explicitly executable). `Closes #78` (auto-close on master merge). enhancement, P3-low. |
 | 1.1.1 | #82 document the system-mode procServ override env var (`IOC_RUNNER_PROCSERV_PATH`) | Coherence (CI-7) | Done (`release-1.1.1`) | Done 2026-06-07 (`7391496`). Added a distinct `### System-mode setup override` subsection to `docs/USER_GUIDE_LOCAL.md` section 14 documenting `IOC_RUNNER_PROCSERV_PATH` (system-setup procServ override, `bin/setup-system-infra.bash:28-31`), kept separate from the runner's `IOC_RUNNER_PROCSERV_TOOL` since it acts at setup time, system mode only; wording reflects the `-x`-only check (single path, search-list replacement, embedded in the template `ExecStart`). Static suite 103/103 on top, `git diff --check` clean; external review accepted (no blocking findings). Follow-up to #74, same spin-off pattern as #77/#78. `Closes #82`/`Refs #74` on master merge. documentation, P3-low. |
 | 1.1.1 | #83 collapse `do_inspect` socket-path parse into `resolve_sock_path` | Coherence (CI-8) | Done (`release-1.1.1`) | Done 2026-06-07 (`4af92aa`). `do_inspect` now calls `resolve_sock_path` after the root check (local `sock_path` alias, downstream lsof/ss/awk block unchanged), aligning it with `do_attach`/`do_monitor` which already use the helper. 3-reviewer convergence APPROVE, no blocking (`docs/review_sessions/20260607_213447_83-do-inspect-refactor/`). Verified error 103/103, local 52/52, VM gates rocky8/debian13 (inspect 4/4 + 3/3 both OS). `Closes #83` on master merge. P3-low. |
-| 1.1.1 | #85 normalize the socket-path variable reference across `resolve_sock_path` callers | Review follow-up (#83 F4) | Open | Filed 2026-06-07. `do_attach` (`bin/ioc-runner:1250`) and `do_monitor` (`:1279`) use `RESOLVED_SOCK_PATH` directly; `do_inspect` (`:1545`) aliases it to `sock_path`. Cosmetic cross-caller inconsistency, no behavior change. Surfaced in the #83 review convergence (finding F4); independent, `Refs #83`. Code deferred — filed during the testing window, fix at a later patch. P3-low. |
+| 1.1.1 | #85 normalize the socket-path variable reference across `resolve_sock_path` callers | Review follow-up (#83 F4) | Done (`release-1.1.1`) | Done 2026-06-07 (`038619d`, option B). `do_attach`/`do_monitor` use `RESOLVED_SOCK_PATH` directly; `do_inspect` (`:1545`) aliases it to `sock_path` for readability across its long FD-mapping block. Added a comment marking the split intentional (comment-only; `bash -n` + error suite 103/103 unchanged). Full caller-reference unification reconsidered in 1.2.0 as #86. `Closes #85` on master merge. P3-low. |
 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | Filed 2026-06-06. The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; clusters with #81. refactor, P3-low. |
+| 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Filed 2026-06-07. Revisits whether to truly unify the three `resolve_sock_path` caller references (option A) or change the helper contract; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Reconsidered in the 1.2.0 helper review, clusters with #81. `Refs #85`/`#83`. refactor, P3-low. |
 
-**Tally:** Done 13 · Open 8 · Not started 0 · In progress 0 · Blocked 0
+**Tally:** Done 14 · Open 8 · Not started 0 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
@@ -130,6 +131,7 @@ template, so it is touched once as a group.
 | [#52](https://github.com/jeonghanlee/epics-ioc-runner/issues/52) | Review procServ child-exit signals for crash-loop detection | enhancement | Follows #11 (byte-offset crash detection) and extends the #24 journal-fallback edge-case review. Current pattern set catches explicit fatal output; review child-exit signal handling for crash-loop cases. |
 | [#81](https://github.com/jeonghanlee/epics-ioc-runner/issues/81) | Generalize the duplicated procServ systemd unit template into a single emitter | refactor, P3-low | Coherence finding CI-4. The unit contract is hand-maintained in two near-identical copies (`bin/ioc-runner:363-382`, `bin/setup-system-infra.bash:467-489`); the must-agree lines currently match but nothing enforces it, and CI-1 (#75) already paid the round-trip. Slight generalization to a single emitter plus a shared-contract guard test. Clusters with #53/#54. |
 | [#84](https://github.com/jeonghanlee/epics-ioc-runner/issues/84) | Pin the shared git-metadata injection contract with a guard test | refactor, P3-low | Coherence finding CI-9. The hash/commit/install metadata + `sed` contract is implemented in three places (`bin/ioc-runner`, `bin/setup-system-infra.bash`, `configure/inject-runner-version.bash`); add a static guard test pinning the shared `declare -g RUNNER_*` / `sed` contract. Side effect of #72; clusters with #81. |
+| [#86](https://github.com/jeonghanlee/epics-ioc-runner/issues/86) | Reconsider unifying the socket-path reference across resolve_sock_path callers | refactor, P3-low | Follow-up from #85 (1.1.1 took option B, documenting the `do_inspect` alias). Revisit option A (unify all three callers) or a helper-contract refactor in the 1.2.0 helper review; clusters with #81. No behavior change. |
 
 ## Coherence Sweep Findings (2026-06-04)
 
