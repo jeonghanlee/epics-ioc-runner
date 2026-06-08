@@ -1541,23 +1541,8 @@ function do_inspect {
         exit 1
     fi
 
-    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
-    if [[ ! -f "${target_conf}" ]]; then
-        printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
-        exit 1
-    fi
-
-    local ioc_port_val
-    if ! ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT"); then
-        printf "Error: IOC_PORT not configured in %s.\n" "${target_conf}" >&2
-        exit 1
-    fi
-    local sock_path="${ioc_port_val##*:}"
-
-    if [[ -z "${sock_path}" || ! -S "${sock_path}" ]]; then
-        printf "Error: Socket file not found or inactive: %s\n" "${sock_path}" >&2
-        exit 1
-    fi
+    resolve_sock_path
+    local sock_path="${RESOLVED_SOCK_PATH}"
 
     if ! command -v lsof >/dev/null 2>&1; then
         printf "Error: 'lsof' utility is required but not found in PATH.\n" >&2
