@@ -1542,6 +1542,9 @@ function do_inspect {
     fi
 
     resolve_sock_path
+    # Local alias for RESOLVED_SOCK_PATH, named for readability across this
+    # command's long FD-mapping block below. do_attach/do_monitor have short
+    # bodies and reference the global directly; the naming split is intentional.
     local sock_path="${RESOLVED_SOCK_PATH}"
 
     if ! command -v lsof >/dev/null 2>&1; then
