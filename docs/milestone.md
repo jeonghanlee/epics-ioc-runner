@@ -46,12 +46,16 @@ documented the `do_inspect` alias as intentional; full caller-reference
 unification reconsidered in 1.2.0 as #86). With #85 closed, 1.1.1 has no open
 code work again; the next entry point is the 1.1.1 release sequence (master
 merge + annotated tag) at the end of the testing window. The 1.1.1 milestone is open for patches through the
-July 2026 window, not frozen. The seven 1.2.0 items stay deferred (#81 from the
+July 2026 window, not frozen. The nine 1.2.0 items stay deferred (#81 from the
 2026-06-04 sweep, the unit-template generalization clustered with #53/#54; #84
-from the 2026-06-05 sweep, the git-metadata guard test clustered with #81).
+from the 2026-06-05 sweep, the git-metadata guard test clustered with #81; #87
+from the 2026-06-08 sweep, the system user/group generalization).
 Version is `1.1.1-dev` (`bin/ioc-runner:14`). Do not start 1.2.0 items unless the
 owner reorders them. The 2026-06-05 sweep findings CI-7..CI-11 are in the table
-below; CI-10/CI-11 are examined-Keep with no work item.
+below; CI-10/CI-11 are examined-Keep with no work item. The 2026-06-08 sweep
+filed CI-12 as #87 (system user/group generalization, 1.2.0) and recorded
+CI-13/CI-14/CI-15 (unit-name prefix, system log-dir default literal, completion
+conf-dir resolution) as examined-Keep with no work item.
 
 ## Active Register
 
@@ -79,8 +83,9 @@ below; CI-10/CI-11 are examined-Keep with no work item.
 | 1.1.1 | #85 normalize the socket-path variable reference across `resolve_sock_path` callers | Review follow-up (#83 F4) | Done (`release-1.1.1`) | Done 2026-06-07 (`038619d`, option B). `do_attach`/`do_monitor` use `RESOLVED_SOCK_PATH` directly; `do_inspect` (`:1545`) aliases it to `sock_path` for readability across its long FD-mapping block. Added a comment marking the split intentional (comment-only; `bash -n` + error suite 103/103 unchanged). Full caller-reference unification reconsidered in 1.2.0 as #86. `Closes #85` on master merge. P3-low. |
 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | Filed 2026-06-06. The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; clusters with #81. refactor, P3-low. |
 | 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Filed 2026-06-07. Revisits whether to truly unify the three `resolve_sock_path` caller references (option A) or change the helper contract; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Reconsidered in the 1.2.0 helper review, clusters with #81. `Refs #85`/`#83`. refactor, P3-low. |
+| 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Open | Filed 2026-06-08. The system account/group is hardcoded independently in `bin/ioc-runner:85-86` (validation `:631-636`, ownership `:546-547`, conf defaults `:886-887`) and `bin/setup-system-infra.bash:16-17` (account creation, template `User=`/`Group=` `:476-477`, dir ownership); the runner's identity notion and setup's must name the same OS account/group, with nothing enforcing it. Generalize (drawn too narrowly): honor `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` in both, default `ioc-srv`/`ioc`, plus a static guard test pinning the shared defaults. Latent (agrees today); enables site-specific accounts. enhancement, P2-medium. |
 
-**Tally:** Done 14 · Open 8 · Not started 0 · In progress 0 · Blocked 0
+**Tally:** Done 14 · Open 9 · Not started 0 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
@@ -116,9 +121,9 @@ install front end, --user alias, procServ/con search-path override`.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch. GitHub
-milestone `1.2.0` — 7 open (the two #74 spin-offs #77/#78 were pulled into
-1.1.1 on 2026-06-04; the 2026-06-04 coherence sweep then filed #81, and the
-2026-06-05 sweep filed #84). The three
+milestone `1.2.0` — 9 open (the two #74 spin-offs #77/#78 were pulled into
+1.1.1 on 2026-06-04; the 2026-06-04 coherence sweep then filed #81, the
+2026-06-05 sweep filed #84, and the 2026-06-08 sweep filed #87). The three
 template items #53, #54, and #81 form one cluster — all edit the system unit
 template, so it is touched once as a group.
 
@@ -132,6 +137,7 @@ template, so it is touched once as a group.
 | [#81](https://github.com/jeonghanlee/epics-ioc-runner/issues/81) | Generalize the duplicated procServ systemd unit template into a single emitter | refactor, P3-low | Coherence finding CI-4. The unit contract is hand-maintained in two near-identical copies (`bin/ioc-runner:363-382`, `bin/setup-system-infra.bash:467-489`); the must-agree lines currently match but nothing enforces it, and CI-1 (#75) already paid the round-trip. Slight generalization to a single emitter plus a shared-contract guard test. Clusters with #53/#54. |
 | [#84](https://github.com/jeonghanlee/epics-ioc-runner/issues/84) | Pin the shared git-metadata injection contract with a guard test | refactor, P3-low | Coherence finding CI-9. The hash/commit/install metadata + `sed` contract is implemented in three places (`bin/ioc-runner`, `bin/setup-system-infra.bash`, `configure/inject-runner-version.bash`); add a static guard test pinning the shared `declare -g RUNNER_*` / `sed` contract. Side effect of #72; clusters with #81. |
 | [#86](https://github.com/jeonghanlee/epics-ioc-runner/issues/86) | Reconsider unifying the socket-path reference across resolve_sock_path callers | refactor, P3-low | Follow-up from #85 (1.1.1 took option B, documenting the `do_inspect` alias). Revisit option A (unify all three callers) or a helper-contract refactor in the 1.2.0 helper review; clusters with #81. No behavior change. |
+| [#87](https://github.com/jeonghanlee/epics-ioc-runner/issues/87) | Make the system service account and group configurable from a single source | enhancement, P2-medium | Coherence finding CI-12 (2026-06-08 sweep). The system account/group is hardcoded as `ioc-srv`/`ioc` independently in `bin/ioc-runner:85-86` and `bin/setup-system-infra.bash:16-17`; deploying under a site-specific identity needs both edited in lockstep. Generalize to `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` honored by both (default `ioc-srv`/`ioc`), plus a guard test pinning the shared defaults. Latent today; this is a Generalize, not a bug. |
 
 ## Coherence Sweep Findings (2026-06-04)
 
@@ -166,6 +172,24 @@ helper. Issues filed 2026-06-06: CI-7 -> #82, CI-8 -> #83 (1.1.1); CI-9 -> #84 (
 | CI-9 | The git-metadata contract (short hash + `-dirty` + commit date + install date, then `sed` into three `declare -g RUNNER_*` lines) is implemented independently in three places; the four declaration lines are the shared anchor. | `bin/ioc-runner:14-17` (declarations) / `199-214` (`-V` live path), `bin/setup-system-infra.bash:563-585`, `configure/inject-runner-version.bash:16-31` | Open (#84, 1.2.0, clusters with #81) | Fate: Same shape as CI-4/#81 — a static guard test pinning the shared declaration/`sed` contract, or a shared helper within the zero-dependency constraint. `inject-runner-version.bash` already documents itself as a mirror. Immediate Generalize is costly under the standalone-script premise. #72 introduced the third injector (`inject-runner-version.bash`), so the triplication is its side effect; `Refs #72`, clusters with #81. |
 | CI-10 | The completion command/option list is a separate copy of the runner's actual command set; nothing enforces agreement when a command is added. | `bin/ioc-runner-completion.bash:14-15` vs `bin/ioc-runner:1754-1793` (and `print_usage`) | Keep (examined, no action) | Currently agree (14 commands, identical option set). A drift-guard static test could fold into the CI-9/#81 guard-test cluster, but no defect today; recorded so the next sweep closes it fast. |
 | CI-11 | System-mode path overrides are guarded asymmetrically: `RUN_DIR` aborts when it diverges from the template's fixed `RuntimeDirectory`, but `IOC_RUNNER_SYSTEM_CONF_DIR` has no equivalent guard against diverging from the template's hardcoded `EnvironmentFile=/etc/procServ.d`. | `bin/ioc-runner:259-265` (RUN_DIR guard), `bin/ioc-runner:46`/`76` (CONF_DIR), `bin/setup-system-infra.bash:18`/`478` | Keep (examined, no action) | Principled asymmetry by failure mode: a diverged RUN_DIR breaks list/attach/remove silently and aims `rm -rf` at an unintended path; a diverged CONF_DIR fails loudly at `start` (AssertFileNotEmpty / missing EnvironmentFile). The silent-and-dangerous case earns the guard; the loud case does not. Recorded so the next sweep does not re-open it. |
+
+## Coherence Sweep Findings (2026-06-08)
+
+Third whole-codebase conceptual-integrity sweep. The agreement-point lens
+surfaced more members of the known cross-script duplicated-literal family; the
+standalone, zero-dependency-script architecture (no shared sourced library) is
+the premise, so shared literals are repeated across scripts rather than sourced
+from one place. All agree in output today — none is an already-disagreeing
+defect. CI-12 became a 1.2.0 issue because a site genuinely varies it (a real
+Generalize); CI-13/CI-14/CI-15 are examined-Keep because nothing varies them or
+the divergence is principled. Issue filed 2026-06-08: CI-12 -> #87 (1.2.0).
+
+| ID | Finding | Evidence | Status | Resolution / fate |
+| --- | --- | --- | --- | --- |
+| CI-12 | The system service account and group (`ioc-srv`/`ioc`) are hardcoded independently in two scripts; the runner's identity notion and setup's must name the same OS account/group, with nothing enforcing it. A site wanting a different account must edit both in lockstep. | `bin/ioc-runner:85-86` (validation `:631-636`, ownership `:546-547`, conf defaults `:886-887`) vs `bin/setup-system-infra.bash:16-17` (account creation, template `User=`/`Group=` `:476-477`, dir ownership) | Open (#87, 1.2.0) | Fate: Generalize (drawn too narrowly). Unlike the other seams below, this one has a real user reason to vary, so honor `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` in both scripts (default `ioc-srv`/`ioc`) plus a static guard test pinning the shared defaults. enhancement, P2-medium. |
+| CI-13 | The systemd unit-name prefix `epics-@` is duplicated across setup (the template filename `epics-@.service`) and the runner (~15 `systemctl` call sites targeting instances `epics-@<name>.service`, plus the local emitter). | `bin/setup-system-infra.bash:20` vs `bin/ioc-runner:330`/`1129` (emitters) and the runner `systemctl` call sites (`:779`, `:1148`, `:1218-1223`, `:1350-1353`, `:1697-1704`, `:1772`) | Keep (examined, no action) | Internal naming convention with no user reason to vary; only a developer edit could diverge it, and local mode (emit + call in one file) is self-consistent, so the cross-file risk is system mode only. Same character as CI-10; a drift-guard could fold into the CI-9/#81 guard-test cluster, but no defect today. |
+| CI-14 | The system log directory default literal `/var/log/procserv` is declared independently in both scripts; the runner scans it for crash patterns while setup's template writes to it and logrotate targets it. | `bin/ioc-runner:52`/`1691` (scan path) vs `bin/setup-system-infra.bash:23`/`481`/`514` (template logfile + logrotate) | Keep (examined, no action) | Already generalized for the user case: both read the same `IOC_RUNNER_SYSTEM_LOG_DIR` override so a runtime change propagates to both, and the runner already guards an `IOC_RUNNER_LOG_DIR` override that diverges (`bin/ioc-runner:267-280`). Only the duplicated default literal remains, divergeable by a source edit alone — same shape as CI-9, could fold into the #84 guard test. |
+| CI-15 | The bash-completion script re-derives the conf directory with the same env-var fallback chain and default literals the runner uses, to know where to list `*.conf` for tab-completion. | `bin/ioc-runner-completion.bash:28`/`30` vs `bin/ioc-runner:46-47`/`76`/`104` | Keep (examined, no action) | A completion function must be standalone (sourced into the shell, cannot source the runner), so re-deriving the path is architectural, not a defect; it reads the same `IOC_RUNNER_CONF_DIR` etc., so user overrides stay consistent. Drift degrades only tab-completion (cosmetic), never runner function — sibling of CI-10, Keep. |
 
 ## Notes
 
