@@ -166,7 +166,7 @@ The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mo
 stat -c '%G %a' "${IOC_CHDIR}"
 ```
 
-Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time check also validates the absolute path, the non-symlinked leaf, and parent traversal. If the directory does not conform, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains.
+Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time check also validates the absolute path, the non-symlinked leaf, and parent traversal. If the directory does not conform, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains. One case is excluded from this warning flow: an `IOC_CHDIR` containing a `..` path component is malformed input, not a permission mismatch — `install` rejects it outright with a hard error, no confirmation prompt, and `--force` does not bypass it.
 
 **Partial mitigation:** Adding `epicsEnvSet("IOCSH_HISTSIZE", "0")` to `st.cmd` suppresses only the history error. Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
 
