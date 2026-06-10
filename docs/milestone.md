@@ -195,6 +195,9 @@ the divergence is principled. Issue filed 2026-06-08: CI-12 -> #87 (1.2.0).
 
 - The `Backlog` GitHub milestone is empty; all post-1.1.0 carry-forwards have
   been triaged into `1.1.1` and `1.2.0`.
+- The multi-user verification scenarios live in
+  [`testplan.md`](testplan.md) — a V&V/test-plan artifact, not a milestone
+  register item.
 - The released 1.1.0 record (phase plan, acceptance, test plan) lives in git
   tag `1.1.0`: `git show 1.1.0:docs/MILESTONE-1.1.0.md` and
   `git show 1.1.0:docs/TEST_PLAN-1.1.0.md`. The permission-model end state
