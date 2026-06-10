@@ -100,13 +100,13 @@ Each phase streams its output through a `while read` loop that populates O(1) as
 
 ## 2. IOC Inspect Command (`inspect`)
 
-The `inspect` command provides a deep trace of a specific IOC's UNIX domain socket, mapping file descriptors to their corresponding server and client process contexts. This command requires root privileges (`sudo`) to access cross-user file descriptors and Netlink socket diagnostics.
+The `inspect` command provides a deep trace of a specific IOC's UNIX domain socket, mapping file descriptors to their corresponding server and client process contexts. In system mode this command requires root privileges (`sudo`) to access cross-user file descriptors and Netlink socket diagnostics. In local mode it runs unprivileged — the invoking user owns both the socket and the client processes — and `sudo` must not be used, since it would address the wrong user session.
 
 ### Usage
 
 ```bash
 sudo ioc-runner inspect <ioc_name>
-sudo ioc-runner --local inspect <ioc_name>
+ioc-runner --local inspect <ioc_name>
 ```
 
 ### Output Sections

@@ -133,14 +133,14 @@ Commands:
   status         Show the systemd status of the IOC service
   enable         Enable the IOC service to start on boot
   disable        Disable the IOC service from starting on boot
-  view           Print the contents of the generated systemd unit file
+  view           Print the IOC configuration file and the rendered systemd unit
   list           List all active IOC sockets
                    (default: name, status, start time, path)
                    (-v: adds PID, CPU, memory)
                    (-vv: adds Recv-Q, Send-Q, kernel state, inode, permissions)
   attach         Attach to the IOC console via UNIX Domain Socket (read/write)
   monitor        Attach to the IOC console in read-only mode (prevents input interleaving)
-  inspect        Deep trace of socket file descriptors and client PIDs (requires sudo)
+  inspect        Deep trace of socket file descriptors and client PIDs (sudo in system mode)
 
 Examples:
   ${prog_name} generate /path/to/iocBoot # Auto-generate myioc.conf in current directory
