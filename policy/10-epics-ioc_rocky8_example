@@ -15,10 +15,10 @@
 # argument pattern. See docs/PERMISSION_MODEL.md.
 
 # Allow trained engineers to manage ONLY EPICS template services
-%ioc ALL=(root) NOPASSWD: /bin/systemctl start epics-@*.service, \
-                          /bin/systemctl stop epics-@*.service, \
-                          /bin/systemctl restart epics-@*.service, \
-                          /bin/systemctl status epics-@*.service, \
-                          /bin/systemctl enable epics-@*.service, \
-                          /bin/systemctl disable epics-@*.service, \
-                          /bin/systemctl daemon-reload
+%ioc ALL=(root) NOPASSWD: /usr/bin/systemctl start epics-@*.service, \
+                          /usr/bin/systemctl stop epics-@*.service, \
+                          /usr/bin/systemctl restart epics-@*.service, \
+                          /usr/bin/systemctl status epics-@*.service, \
+                          /usr/bin/systemctl enable epics-@*.service, \
+                          /usr/bin/systemctl disable epics-@*.service, \
+                          /usr/bin/systemctl daemon-reload
