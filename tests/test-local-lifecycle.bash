@@ -65,7 +65,37 @@ SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
 # --- Managed Architecture Paths ---
-declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
+# Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
+# the binary origin; the unset default is the source tree, matching the
+# developer inner loop. Selection failures stop here, before STEP 1,
+# never deferred into the lifecycle body.
+declare -g RUNNER_SCRIPT
+function resolve_runner_script {
+    local mode="${IOC_RUNNER_TEST_MODE:-}"
+    local source_bin="${SC_TOP}/../bin/ioc-runner"
+    local installed_bin="/usr/local/bin/ioc-runner"
+    case "${mode}" in
+        ""|source)
+            RUNNER_SCRIPT="${source_bin}"
+            ;;
+        installed)
+            if [[ ! -x "${installed_bin}" ]]; then
+                printf "Error: installed ioc-runner not found\n" >&2
+                exit 1
+            fi
+            RUNNER_SCRIPT="${installed_bin}"
+            ;;
+        *)
+            printf "Error: invalid IOC_RUNNER_TEST_MODE '%s' (expected: source, installed)\n" "${mode}" >&2
+            exit 1
+            ;;
+    esac
+    if [[ "${RUNNER_SCRIPT}" == "${source_bin}" && ! -x "${RUNNER_SCRIPT}" ]]; then
+        printf "Error: source ioc-runner not found\n" >&2
+        exit 1
+    fi
+}
+resolve_runner_script
 declare -g CONF_DIR="${HOME}/.config/procServ.d"
 declare -g SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_USER_DIR}/default.target.wants"
@@ -83,6 +113,14 @@ declare -g TOP_DIR=""
 declare -g BOOT_DIR=""
 declare -g CONF_FILE=""
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
+
+# Dedicated Channel Access server port for the test IOC. STEP 24 runs a
+# unicast (EPICS_CA_ADDR_LIST=127.0.0.1) search; when co-located IOCs share
+# the default UDP 5064 SO_REUSEPORT fanout group, the kernel delivers the
+# search to only one socket in that group, so the test PV can be absorbed by
+# another IOC. A dedicated port isolates the test IOC from the shared group,
+# deterministic regardless of IOC owner UID or host kernel. (#76)
+declare -g TEST_CA_PORT=""
 
 declare -g -a SYSTEMCTL_CMD=(systemctl --user)
 
@@ -230,6 +268,16 @@ function cleanup_previous_state {
     _log "SUCCESS" "Cleaned up residual processes, templates, and configurations."
 }
 
+# Returns the first free UDP port at or above the candidate base, so the
+# dedicated test CA port never collides with an IOC already bound on the host.
+function pick_free_ca_port {
+    local port="${1:-5095}"
+    while ss -uHln "sport = :${port}" 2>/dev/null | grep -q .; do
+        port=$((port + 1))
+    done
+    printf '%s' "${port}"
+}
+
 function _setup_workspace {
     local step="$1"
     print_divider
@@ -263,6 +311,8 @@ function _setup_workspace {
 
     # The configuration artifact is now strictly aligned with the implicit IOC_NAME.
     CONF_FILE="${BOOT_DIR}/${IOC_NAME}.conf"
+
+    TEST_CA_PORT="$(pick_free_ca_port 5095)"
 
     _log "SUCCESS" "Test workspace defined with standard EPICS structure at ${WORKSPACE}"
 }
@@ -323,6 +373,9 @@ function test_generate_auto {
 
     cd "${BOOT_DIR}" || exit 1
     bash "${RUNNER_SCRIPT}" --local generate . >/dev/null
+    # Pin the test IOC to its dedicated CA server port through the conf, which
+    # the systemd template loads as an EnvironmentFile into the IOC environment.
+    printf 'EPICS_CA_SERVER_PORT="%s"\n' "${TEST_CA_PORT}" >> "${CONF_FILE}"
 
     local conf_exist="false"
     if [[ -f "${CONF_FILE}" ]]; then conf_exist="true"; fi
@@ -623,6 +676,30 @@ function test_list_options {
     verify_state "${IOC_NAME}" "${out_3}" "Parsed: list --local -v"
 }
 
+function test_user_alias {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test --user Alias Equivalence to --local"
+    print_sub_divider
+
+    # --user is a thin alias for --local. The IOC was installed and started
+    # with --local; observing the same running IOC through --user proves both
+    # flags route to the identical local-mode path, not merely that --user parses.
+    local via_user via_local user_status active_via_user
+    via_user=$(bash "${RUNNER_SCRIPT}" --user list -v | grep "${IOC_NAME}" | awk -F'|' '{print $1}' | tr -d ' ')
+    via_local=$(bash "${RUNNER_SCRIPT}" --local list -v | grep "${IOC_NAME}" | awk -F'|' '{print $1}' | tr -d ' ')
+    user_status=$(bash "${RUNNER_SCRIPT}" --user status "${IOC_NAME}" 2>&1 || true)
+
+    # Match the exact systemd token, not a bare *active* substring, so that
+    # an "Active: inactive" status cannot pass this "reports active" check.
+    active_via_user="false"
+    [[ "${user_status}" == *"Active: active"* ]] && active_via_user="true"
+
+    verify_state "${IOC_NAME}" "${via_user}" "--user list shows the --local-installed IOC"
+    verify_state "${via_local}" "${via_user}" "--user and --local list yield the same IOC"
+    verify_state "true" "${active_via_user}" "--user status reports the IOC active"
+}
+
 function test_console_attach {
     local step="$1"
     print_divider
@@ -675,6 +752,8 @@ function test_channel_access {
 
     export EPICS_CA_ADDR_LIST="127.0.0.1"
     export EPICS_CA_AUTO_ADDR_LIST="NO"
+    # Reach the test IOC on its dedicated port; the server side is set in the conf.
+    export EPICS_CA_SERVER_PORT="${TEST_CA_PORT}"
 
     local read_start_time=${SECONDS}
     local pv_ok="false"
@@ -922,6 +1001,7 @@ function run_all_tests {
         "test_stop"
         "test_socket_list"
         "test_list_options"
+        "test_user_alias"
         "test_console_attach"
         "test_channel_access"
         "test_monitor_isolation"

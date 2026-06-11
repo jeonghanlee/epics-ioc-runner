@@ -166,7 +166,7 @@ The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mo
 stat -c '%G %a' "${IOC_CHDIR}"
 ```
 
-Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time check also validates the absolute path, the non-symlinked leaf, and parent traversal. If the directory does not conform, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains.
+Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time check also validates the absolute path, the non-symlinked leaf, and parent traversal. If the directory does not conform, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains. One case is excluded from this warning flow: an `IOC_CHDIR` containing a `..` path component is malformed input, not a permission mismatch — `install` rejects it outright with a hard error, no confirmation prompt, and `--force` does not bypass it.
 
 **Partial mitigation:** Adding `epicsEnvSet("IOCSH_HISTSIZE", "0")` to `st.cmd` suppresses only the history error. Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
 
@@ -180,3 +180,15 @@ IOC console output is written to the dedicated procServ log file (`/var/log/proc
 `ioc-runner`'s secondary crash-loop detection reads the procServ log file, so crash detection does not require journal group membership. If the procServ log file cannot be read, the runner reports that startup logs could not be scanned instead of claiming a clean start. The primary health check (`systemctl is-active`) is unaffected.
 
 For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24 monitor-isolation coverage with a WARN.
+
+---
+
+### Q10: What happens to my `attach` or `monitor` session when a colleague stops or removes the IOC?
+
+The session ends immediately and cleanly. When another operator runs `stop` or `remove` on the IOC whose console you are holding, your console client receives EOF and exits as soon as the service goes down; the socket directory (`/run/procserv/<name>/`) is removed together with the unit, so no stale socket or hung session remains. Nothing needs to be cleaned up on your side — reconnect with `ioc-runner attach <name>` after the IOC is started again. (Verified on both reference platforms in the multi-user test plan, scenario S4.)
+
+---
+
+### Q11: `attach` says "Configuration for `<name>` not found" but the IOC is clearly running. Why?
+
+This is almost always a permission gate, not a missing configuration. Resolving a console target reads the IOC's `.conf` in `/etc/procServ.d/`, and that directory is `2770 root:ioc` — a user outside the `ioc` group cannot read it, so the lookup reports the configuration as not found before any socket access is attempted. The console socket itself (`0770 ioc-srv:ioc`) is a second gate behind it. Ask to be added to the `ioc` group if your role requires console access; read-only observation of service state works without it via `ioc-runner status <name>` or `systemctl status epics-@<name>.service`. The same boundary makes `ioc-runner list` show no sockets for non-`ioc` users (see the principal model in `PERMISSION_MODEL.md` and testplan scenarios S6/S10).

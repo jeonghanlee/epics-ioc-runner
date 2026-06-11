@@ -1,0 +1,13 @@
+# Site paths. Overridable from an uncommitted configure/CONFIG_SITE.local
+# without editing this tracked file. Only the user-home install path is a
+# site choice here; the system install path is owned by
+# setup-system-infra.bash (see CONFIG_VARS).
+
+# User-home install prefix. 'make install.user' deploys here with no root.
+HOME_BIN            := $(HOME)/.local/bin
+
+# User-home Bash completion (XDG auto-load location).
+USER_COMPLETION_DIR := $(HOME)/.local/share/bash-completion/completions
+
+-include $(TOP)/../CONFIG_SITE.local
+-include $(TOP)/configure/CONFIG_SITE.local

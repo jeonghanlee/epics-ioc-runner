@@ -3,7 +3,7 @@
 This guide describes how to run and test EPICS IOCs in an isolated, user-level systemd environment without requiring root or sudo privileges.
 
 ## Prerequisites
-Ensure that the core utilities **`procServ`** and **`con`** are installed on your system (`/usr/bin` or `/usr/local/bin`). You can build and install them from the following repositories:
+Ensure that the core utilities **`procServ`** and **`con`** are available. In local mode the runner searches `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin`, or honors an explicit path in `IOC_RUNNER_PROCSERV_TOOL` / `IOC_RUNNER_CON_TOOL` (full resolution order in the environment-variable section below). You can build and install them from the following repositories:
 * **con**: https://github.com/jeonghanlee/con
 * **procServ**: https://github.com/jeonghanlee/procServ-env
 
@@ -18,6 +18,8 @@ cd ~/gitsrc
 git clone https://your_git_url/tcmd.git
 cd tcmd/iocBoot/iocctrlslab-tcmd/
 ```
+
+> **Tip:** To call `ioc-runner` directly instead of the full `~/epics-ioc-runner/bin/ioc-runner` path, run `make install.user` from the `epics-ioc-runner` checkout. It deploys the CLI and Bash completion under `~/.local/bin` with no root. Ensure `~/.local/bin` is on your `PATH`.
 
 ## 2. Create the Configuration File
 Prepare the configuration file for the local isolated environment.
@@ -203,8 +205,17 @@ For isolated testing, CI pipelines, or multi-tenant workstations, the runner sup
 | `IOC_RUNNER_SYSTEMD_DIR` | Overrides both `LOCAL_SYSTEMD_DIR` and `SYSTEM_SYSTEMD_DIR` |
 | `IOC_RUNNER_RUN_DIR`     | Overrides both `LOCAL_RUN_DIR` and `SYSTEM_RUN_DIR` |
 | `IOC_RUNNER_CON_TOOL`    | Absolute path to a custom `con`-compatible binary |
+| `IOC_RUNNER_PROCSERV_TOOL` | Absolute path to a custom `procServ` binary (local-mode template generation) |
 
-Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}_<VAR>` > built-in default.
+Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}_<VAR>` > built-in default. When `IOC_RUNNER_CON_TOOL` / `IOC_RUNNER_PROCSERV_TOOL` are unset, the tool is searched in `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin` (the `~/.local/bin` entry is skipped when HOME cannot be resolved to a real home).
+
+### System-mode setup override (`bin/setup-system-infra.bash`)
+
+System-mode setup reads a separate variable, `IOC_RUNNER_PROCSERV_PATH`, distinct from the runner's `IOC_RUNNER_PROCSERV_TOOL`. It applies only while `bin/setup-system-infra.bash` generates the system template: system-mode setup uses this path as the procServ executable embedded in the system template's `ExecStart`. It takes a single path and replaces the default search list (`/usr/local/bin/procServ`, then `/usr/bin/procServ`) rather than prepending to it.
+
+| Variable | Default | Affects |
+|---|---|---|
+| `IOC_RUNNER_PROCSERV_PATH` | `/usr/local/bin/procServ`, then `/usr/bin/procServ` | system-mode setup: procServ executable in the generated template `ExecStart` |
 
 ### Example: sandboxed local run
 

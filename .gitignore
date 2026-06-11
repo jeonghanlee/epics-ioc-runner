@@ -7,3 +7,7 @@ work
 docs/sdlc/*/review_sessions/
 docs/*/review_sessions/
 docs/review_sessions/
+# Makefile site/release overrides (per-host, uncommitted).
+configure/*.local
+RELEASE.local
+CONFIG_SITE.local

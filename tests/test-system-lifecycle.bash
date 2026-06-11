@@ -64,16 +64,39 @@ declare -g SC_TOP
 SC_TOP="$(dirname "${BASH_SOURCE[0]}")"
 [[ "${SC_TOP}" != /* ]] && SC_TOP="${PWD}/${SC_TOP}"
 
-# Prefer the deployed copy: under sudo + NFS root_squash, root maps to
-# nobody and cannot execve a user-owned source-tree binary. Source-tree
-# fallback covers fresh checkouts where setup-system-infra.bash has not
-# run yet. See issue #45.
+# Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
+# the binary origin; the unset default is the source tree, matching the
+# developer inner loop. An NFS + root_squash host, where root maps to
+# nobody and cannot execve a user-owned source binary, runs system tests
+# with IOC_RUNNER_TEST_MODE=installed. Selection failures stop here,
+# before STEP 1, never deferred into the lifecycle body. See issue #45.
 declare -g RUNNER_SCRIPT
-if [[ -x /usr/local/bin/ioc-runner ]]; then
-    RUNNER_SCRIPT="/usr/local/bin/ioc-runner"
-else
-    RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
-fi
+function resolve_runner_script {
+    local mode="${IOC_RUNNER_TEST_MODE:-}"
+    local source_bin="${SC_TOP}/../bin/ioc-runner"
+    local installed_bin="/usr/local/bin/ioc-runner"
+    case "${mode}" in
+        ""|source)
+            RUNNER_SCRIPT="${source_bin}"
+            ;;
+        installed)
+            if [[ ! -x "${installed_bin}" ]]; then
+                printf "Error: installed ioc-runner not found\n" >&2
+                exit 1
+            fi
+            RUNNER_SCRIPT="${installed_bin}"
+            ;;
+        *)
+            printf "Error: invalid IOC_RUNNER_TEST_MODE '%s' (expected: source, installed)\n" "${mode}" >&2
+            exit 1
+            ;;
+    esac
+    if [[ "${RUNNER_SCRIPT}" == "${source_bin}" && ! -x "${RUNNER_SCRIPT}" ]]; then
+        printf "Error: source ioc-runner not found\n" >&2
+        exit 1
+    fi
+}
+resolve_runner_script
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SYSTEMD_DIR="/etc/systemd/system"
 declare -g SYSTEMD_WANTS_DIR="${SYSTEMD_DIR}/multi-user.target.wants"
@@ -98,6 +121,14 @@ declare -g BOOT_DIR=""
 declare -g CONF_FILE=""
 
 declare -g UDS_PATH="${RUN_DIR}/${IOC_NAME}/control"
+
+# Dedicated Channel Access server port for the test IOC. STEP 24 runs a
+# unicast (EPICS_CA_ADDR_LIST=127.0.0.1) search; when co-located IOCs share
+# the default UDP 5064 SO_REUSEPORT fanout group, the kernel delivers the
+# search to only one socket in that group, so the test PV can be absorbed by
+# another IOC. A dedicated port isolates the test IOC from the shared group,
+# deterministic regardless of IOC owner UID or host kernel. (#76)
+declare -g TEST_CA_PORT=""
 declare -g PERM_WORKSPACE="2770"
 declare -g OWNER_WORKSPACE="root:ioc"
 
@@ -265,6 +296,16 @@ function verify_infrastructure {
     verify_state "true" "${tmpl_exist}" "System template unit exists (${SYSTEMD_DIR}/epics-@.service)"
 }
 
+# Returns the first free UDP port at or above the candidate base, so the
+# dedicated test CA port never collides with an IOC already bound on the host.
+function pick_free_ca_port {
+    local port="${1:-5095}"
+    while ss -uHln "sport = :${port}" 2>/dev/null | grep -q .; do
+        port=$((port + 1))
+    done
+    printf '%s' "${port}"
+}
+
 function _setup_workspace {
     local step="$1"
     print_divider
@@ -285,6 +326,8 @@ function _setup_workspace {
 
     chgrp "${OWNER_WORKSPACE#*:}" "${WORKSPACE}"
     chmod "${PERM_WORKSPACE}" "${WORKSPACE}"
+
+    TEST_CA_PORT="$(pick_free_ca_port 5095)"
 
     _log "SUCCESS" "Test workspace created at ${WORKSPACE}"
 }
@@ -370,6 +413,9 @@ function test_generate_auto {
     cd "${BOOT_DIR}" || exit 1
     # System generation explicitly detects the target boot directory
     bash "${RUNNER_SCRIPT}" generate . >/dev/null
+    # Pin the test IOC to its dedicated CA server port through the conf, which
+    # the systemd template loads as an EnvironmentFile into the IOC environment.
+    printf 'EPICS_CA_SERVER_PORT="%s"\n' "${TEST_CA_PORT}" >> "${CONF_FILE}"
 
     local conf_exist="false"
     if [[ -f "${CONF_FILE}" ]]; then conf_exist="true"; fi
@@ -617,6 +663,8 @@ function test_channel_access {
 
     export EPICS_CA_ADDR_LIST="127.0.0.1"
     export EPICS_CA_AUTO_ADDR_LIST="NO"
+    # Reach the test IOC on its dedicated port; the server side is set in the conf.
+    export EPICS_CA_SERVER_PORT="${TEST_CA_PORT}"
 
     local read_start_time=${SECONDS}
     local pv_ok="false"
@@ -726,8 +774,10 @@ function test_monitor_isolation {
 }
 
 
-# test_crash_detection -- disabled; blocked by #7 (v1.1.0 log file redirect).
-# Requires 'adm' or 'systemd-journal' group to read the system journal under ioc-srv.
+# test_crash_detection: start a broken softIoc and verify the crash-loop
+# warning surfaces. Since 1.1.0 the warning comes from the inline log-file
+# scan in do_start_restart, run under the invoking engineer's UID, not the
+# system journal -- so no 'systemd-journal' or 'adm' group membership is needed.
 function test_crash_detection {
     local step="$1"
     print_divider

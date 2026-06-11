@@ -1,0 +1,62 @@
+.DEFAULT_GOAL := help
+
+.PHONY: help install setup install.user uninstall uninstall.user
+
+help: ## Show available targets
+	$(QUIET) printf "%s\n" "epics-ioc-runner install targets"
+	$(QUIET) printf "%s\n" "--------------------------------"
+	$(QUIET) printf "  %-16s %s\n" "Target" "Action"
+	$(QUIET) printf "  %-16s %s\n" "------" "------"
+	$(QUIET) printf "  %-16s %s\n" "install"        "System CLI install: ioc-runner + completion + RHEL symlink"
+	$(QUIET) printf "  %-16s %s\n" "setup"          "Full system infrastructure setup (--full)"
+	$(QUIET) printf "  %-16s %s\n" "install.user"   "User-home install, no root"
+	$(QUIET) printf "  %-16s %s\n" "uninstall"      "Reverse 'install' (system CLI only)"
+	$(QUIET) printf "  %-16s %s\n" "uninstall.user" "Reverse 'install.user'"
+	$(QUIET) printf "  %-16s %s\n" "vars"           "Print resolved configuration"
+	$(QUIET) printf "%s\n" ""
+	$(QUIET) printf "%s\n" "Run install/setup/uninstall as your user; sudo is invoked inside the recipe."
+	$(QUIET) printf "%s\n" "Full infrastructure teardown (setup --full): see docs/UNINSTALL.md."
+	$(QUIET) printf "%s\n" "Override HOME_BIN in configure/CONFIG_SITE.local."
+	$(QUIET) :
+
+## System CLI install: ioc-runner + completion + RHEL secure_path symlink.
+## Delegates to setup-system-infra.bash STEP 7 (no --full). Invoked from $(TOP)
+## with a relative script path and sudo internally, so it works in place even
+## on an NFS root_squash home (where 'sudo make' cannot read the includes).
+install:
+	$(QUIET) cd "$(TOP)" && sudo -n bash bin/setup-system-infra.bash
+
+## Full system infrastructure setup: accounts, group, dirs, sudoers, systemd,
+## logrotate, plus the CLI install above. Same relative-path sudo invocation.
+setup:
+	$(QUIET) cd "$(TOP)" && sudo -n bash bin/setup-system-infra.bash --full
+
+## User-home install: ioc-runner + completion under $(HOME)/.local (no root).
+install.user:
+	$(QUIET) mkdir -p "$(HOME_BIN)" "$(USER_COMPLETION_DIR)"
+	$(QUIET) install -m $(MODE_RUNNER) "$(RUNNER_SRC)" "$(USER_RUNNER_DEST)"
+	$(QUIET) "$(INJECT_VERSION)" "$(USER_RUNNER_DEST)" "$(TOP)"
+	$(QUIET) install -m $(MODE_COMPLETION) "$(COMPLETION_SRC)" "$(USER_COMPLETION_DEST)"
+	$(QUIET) printf "%s\n" "Installed $(USER_RUNNER_DEST)"
+	$(QUIET) printf "%s\n" "Installed $(USER_COMPLETION_DEST)"
+	$(QUIET) case ":$$PATH:" in \
+	    *":$(HOME_BIN):"*) : ;; \
+	    *) printf "%s\n" "note: $(HOME_BIN) is not in PATH" ;; \
+	esac
+
+## Reverse 'install': remove the system CLI wrapper, completion, and the
+## RHEL symlink only. Leaves the --full infrastructure and /var/backups in
+## place; for full teardown follow docs/UNINSTALL.md.
+uninstall:
+	$(QUIET) test -n "$(SYS_RUNNER_DEST)" -a -n "$(SYS_COMPLETION_DEST)" || \
+	    { printf "%s\n" "error: system paths unset; refusing to remove"; exit 1; }
+	$(QUIET) sudo -n rm -f "$(SYS_RUNNER_DEST)" "$(SYS_COMPLETION_DEST)"
+	$(QUIET) if [ -L "$(SYS_RUNNER_SYMLINK)" ] && [ "$$(readlink "$(SYS_RUNNER_SYMLINK)")" = "$(SYS_RUNNER_DEST)" ]; then sudo -n rm -f "$(SYS_RUNNER_SYMLINK)"; fi
+	$(QUIET) printf "%s\n" "Removed $(SYS_RUNNER_DEST), $(SYS_COMPLETION_DEST) (backups and infra left in place)"
+
+## Reverse 'install.user'.
+uninstall.user:
+	$(QUIET) rm -f "$(USER_RUNNER_DEST)" "$(USER_COMPLETION_DEST)"
+	$(QUIET) printf "%s\n" "Removed $(USER_RUNNER_DEST), $(USER_COMPLETION_DEST)"
+
+FORCE:

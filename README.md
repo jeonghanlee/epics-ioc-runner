@@ -6,7 +6,7 @@
 By eliminating heavy dependencies, this architecture adheres strictly to the **KISS (Keep It Simple, Stupid)** and **DRY (Don't Repeat Yourself)** principles, ensuring long-term maintainability across different Linux distributions.
 
 ## Prerequisites
-This architecture requires the following core utilities to be installed on your system (e.g., in `/usr/bin` or `/usr/local/bin`):
+This architecture requires the following core utilities to be installed on your system (e.g., in `~/.local/bin` for local-mode user installs, `/usr/local/bin`, or `/usr/bin`):
 * **procServ**: https://github.com/jeonghanlee/procServ-env
 * **con**: https://github.com/jeonghanlee/con (Recommended for clean detachment via Ctrl-A)
   * *Fallback*: If `con` is unavailable, the `attach` command automatically falls back to `socat` or `nc` (with `-U` UNIX Domain Socket support).
@@ -17,6 +17,18 @@ This architecture requires the following core utilities to be installed on your 
 * **Dual Execution Modes**: Supports both system-wide deployment (via RBAC and sudoers) and isolated local user environments for testing.
 * **Input Isolation (`monitor`)**: Safe, uni-directional console observation to prevent interleaving of unintended inputs during sensitive hardware operations.
 * **Advanced Peer Tracking (`inspect`)**: Deep Netlink inode correlation to map and isolate specific external users attached to UNIX Domain Sockets.
+
+## Installation
+
+A modular `configure/` Makefile wraps deployment; run `make help` to list targets. Run the system targets as your user (each invokes `sudo` inside the recipe, so they work in place even on an NFS `root_squash` home):
+
+```bash
+make setup          # System-wide: accounts, group, sudoers, systemd template, CLI
+make install        # System-wide CLI only (ioc-runner + completion + RHEL symlink)
+make install.user   # User-home install under ~/.local/bin (no root)
+```
+
+See the [System Installation Guide](docs/INSTALL.md) for the full procedure and a manual reference.
 
 ## Quick Start / Usage
 
@@ -56,9 +68,11 @@ ioc-runner start --local myioc
 
 ```text
 epics-ioc-runner/
+├── Makefile                      # Make front end (install / setup / install.user)
 ├── bin/
 │   ├── ioc-runner                # Front-end CLI wrapper
 │   └── setup-system-infra.bash   # Automated system infrastructure setup script
+├── configure/                    # Modular Makefile system (CONFIG / RULES / .local overrides)
 ├── docs/                         # Detailed system documentation
 ├── policy/                       # RBAC and Sudoers reference configurations
 ├── system-wide/                  # External management tool integrations

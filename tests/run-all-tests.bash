@@ -17,6 +17,7 @@ SC_TOP="${SC_RPATH%/*}"
 
 declare -g RUN_LOCAL=1
 declare -g RUN_SYSTEM=1
+declare -g TEST_MODE="source"
 
 function print_divider {
     printf "${BLUE}%s${NC}\n" "===================================================================================================="
@@ -48,9 +49,20 @@ while [[ $# -gt 0 ]]; do
             RUN_SYSTEM=1
             shift
             ;;
+        --source)
+            TEST_MODE="source"
+            shift
+            ;;
+        --installed)
+            TEST_MODE="installed"
+            shift
+            ;;
         -h|--help)
-            printf "Usage: bash %s [--local | --system]\n" "$(basename "$0")"
-            printf "  (Running without arguments executes all test phases)\n"
+            printf "Usage: bash %s [--local | --system] [--source | --installed]\n" "$(basename "$0")"
+            printf "  --local / --system   select permission mode (default: both)\n"
+            printf "  --source / --installed   select runner binary origin (default: source)\n"
+            printf "  The error-handling suite is static and runs on its own:\n"
+            printf "    bash %s/test-error-handling.bash\n" "$(dirname "$0")"
             exit 0
             ;;
         *)
@@ -66,6 +78,11 @@ if [[ -z "${EPICS_BASE}" ]]; then
     exit 1
 fi
 
+# Propagate the runner binary origin to the lifecycle scripts. Exported so
+# the non-root local path and the `sudo -E` system path both inherit it; the
+# privilege-drop path below re-adds it explicitly because `env -i` clears it.
+export IOC_RUNNER_TEST_MODE="${TEST_MODE}"
+
 if [[ ${RUN_SYSTEM} -eq 1 ]]; then
     # Cache sudo credentials upfront for uninterrupted system-wide execution
     printf "%s\n" "Caching sudo credentials for system infrastructure tests..."
@@ -73,11 +90,10 @@ if [[ ${RUN_SYSTEM} -eq 1 ]]; then
 fi
 
 # Execute tests based on selected mode.
-# Phase 1 / Phase 2 exercise local mode, which routes through
-# `systemctl --user` against the caller's user-mode systemd. When the
-# whole suite is invoked via `sudo -E`, root's user bus is typically
-# unreachable, so drop privilege back to ${SUDO_USER} for these two
-# phases. The system phases below stay root because they need it.
+# The local lifecycle routes through `systemctl --user` against the caller's
+# user-mode systemd. When the suite is invoked via `sudo -E`, root's user bus
+# is typically unreachable, so drop privilege back to ${SUDO_USER} for it. The
+# system phases below stay root because they need it.
 #
 # `sudo -u <user> -E` would carry the outer root process's HOME /
 # XDG_RUNTIME_DIR into the dropped shell whenever sudoers env_keep
@@ -101,18 +117,17 @@ if [[ ${RUN_LOCAL} -eq 1 ]]; then
             "EPICS_HOST_ARCH=${EPICS_HOST_ARCH:-}"
             "EPICS_MODULES=${EPICS_MODULES:-}"
             "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
+            "IOC_RUNNER_TEST_MODE=${TEST_MODE}"
         )
-        _run_test "Phase 1: Error Handling" sudo -u "${SUDO_USER}" env -i "${LOCAL_PHASE_ENV[@]}" bash "${SC_TOP}/test-error-handling.bash"
-        _run_test "Phase 2: Local Lifecycle" sudo -u "${SUDO_USER}" env -i "${LOCAL_PHASE_ENV[@]}" bash "${SC_TOP}/test-local-lifecycle.bash"
+        _run_test "Local Lifecycle" sudo -u "${SUDO_USER}" env -i "${LOCAL_PHASE_ENV[@]}" bash "${SC_TOP}/test-local-lifecycle.bash"
     else
-        _run_test "Phase 1: Error Handling" bash "${SC_TOP}/test-error-handling.bash"
-        _run_test "Phase 2: Local Lifecycle" bash "${SC_TOP}/test-local-lifecycle.bash"
+        _run_test "Local Lifecycle" bash "${SC_TOP}/test-local-lifecycle.bash"
     fi
 fi
 
 if [[ ${RUN_SYSTEM} -eq 1 ]]; then
-    _run_test "Phase 3: System Infrastructure" sudo bash "${SC_TOP}/test-system-infra.bash"
-    _run_test "Phase 4: System Lifecycle" sudo -E bash "${SC_TOP}/test-system-lifecycle.bash"
+    _run_test "System Infrastructure" sudo bash "${SC_TOP}/test-system-infra.bash"
+    _run_test "System Lifecycle" sudo -E bash "${SC_TOP}/test-system-lifecycle.bash"
 fi
 
 print_divider

@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.1.1 — Install Tooling Release
+
+### New Features
+
+- Modular Makefile install front end (EPICS `configure/` pattern):
+  `make install` / `make setup` for the system path, `make install.user`
+  for a no-root `~/.local/bin` copy with version injection;
+  `CONFIG_SITE.local` overrides the user-home path. (#72)
+- `--user` accepted as an alias for `--local` runtime mode, aligning
+  with `systemctl --user`. (#73)
+- procServ resolution overridable via `IOC_RUNNER_PROCSERV_TOOL`
+  (mirroring the existing `IOC_RUNNER_CON_TOOL`); `~/.local/bin`
+  prepended to both tool search lists, gated on a trusted `HOME`. (#74)
+
+### Fixes
+
+- Generated units emit `StandardOutput=journal`, clearing the Debian 13
+  systemd warning about the obsolete `syslog` output type; applies to
+  both the local user unit and the system template. (#75)
+- Lifecycle STEP 24 Channel Access test isolated from co-located IOCs
+  via a dedicated `EPICS_CA_SERVER_PORT`. (#76)
+
+### Hardening
+
+- System-mode chdir precheck rejects any `..` component in `IOC_CHDIR`
+  as a hard error — no confirmation prompt, no `--force` bypass. (#66)
+- `IOC_RUNNER_*_TOOL` overrides require a regular executable file
+  (`-f && -x`); an executable directory is rejected. (#78)
+
+### Tests
+
+- Lifecycle suites select the runner binary explicitly via
+  `IOC_RUNNER_TEST_MODE` (source/installed) and log the resolved
+  binary; the error suite runs standalone. (#69)
+- Error suite host-independent of procServ via a `_setup` mock. (#77)
+- Multi-user test plan added (`docs/testplan.md`) and executed on both
+  golden images as the release gate. (#91)
+
+### Documentation
+
+- Docs aligned with current behavior: tool resolver order, the
+  `IOC_RUNNER_PROCSERV_PATH` setup override, the rocky8 sudoers example
+  path, mode-qualified help text, and testplan/FAQ wording.
+  (#79, #80, #82, #88, #89, #90, #95)
+
+### Migration
+
+No breaking changes. Install the 1.1.1 runner (`make install` or the
+setup script). Existing deployed units keep running; to pick up the
+`journal` output type, re-run `setup-system-infra.bash --full` plus
+`systemctl daemon-reload` (system) or reinstall the IOC (local).
+
 ## 1.1.0 — Journal Decoupling Release
 
 ### Breaking Changes

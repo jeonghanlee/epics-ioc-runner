@@ -18,6 +18,16 @@ From the root of the repository, execute the following script as root using the 
 sudo ./bin/setup-system-infra.bash --full
 ```
 
+### Makefile front end
+A `configure/` Makefile wraps these invocations. Run the targets as your user (each calls `sudo` inside the recipe, so it works in place even on an NFS `root_squash` home):
+
+```bash
+make setup     # same as: sudo ./bin/setup-system-infra.bash --full
+make install   # same as: sudo ./bin/setup-system-infra.bash (CLI update only)
+```
+
+`make help` lists targets; `make vars` prints the resolved paths.
+
 > **Tip for Operations:** Later, if you only need to update the `ioc-runner` CLI script and its Bash completion to a newer version without touching the underlying systemd templates or permissions, simply run the script without any arguments:
 > `sudo ./bin/setup-system-infra.bash`
 
@@ -31,17 +41,18 @@ To apply the new group membership immediately to your current terminal session w
 newgrp ioc
 ```
 
-### Troubleshooting: NFS `root_squash` Error
-If you execute the setup script from an NFS-mounted directory (such as a networked home directory, common in RHEL/Rocky environments), you may encounter an error indicating that `ioc-runner` could not be found or read.
+### NFS `root_squash`
+On an NFS home exported with `root_squash`, `sudo` is downgraded to the
+anonymous `nobody` user, which cannot traverse a `0700` home by absolute path
+or `execve` a user-owned binary from it.
 
-This occurs because the NFS `root_squash` security feature forcibly downgrades the `sudo` (root) execution privileges to the anonymous `nobody` user, blocking the script from reading the repository files.
+The setup script is unaffected when run from the repository root: it reads its
+files by relative path (they are world-readable) and runs the version-stamp git
+step as the invoking user. `sudo ./bin/setup-system-infra.bash [--full]`
+therefore works in place from an NFS home — verified on `alsucl-psrv3`
+(Rocky 8) with `root_squash` active.
 
-**Workaround:** Copy the repository to a local filesystem partition (e.g., `/tmp` or `/opt`) before running the setup script.
-```bash
-cp -r /path/to/epics-ioc-runner /tmp/
-cd /tmp/epics-ioc-runner
-sudo ./bin/setup-system-infra.bash --full
-```
+The constraint affects the system test suite instead; see `tests/README.md`.
 
 ---
 
@@ -116,7 +127,7 @@ RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
 ExecStart=${PROCSERV_BIN} --foreground --logfile=/var/log/procserv/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
-StandardOutput=syslog
+StandardOutput=journal
 StandardError=inherit
 SyslogIdentifier=epics-%i
 
