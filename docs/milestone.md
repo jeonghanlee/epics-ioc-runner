@@ -12,8 +12,8 @@ released milestone's full record is preserved in the matching git tag
 (`git show <tag>:docs/milestone.md`). Released versions are therefore not
 retained in this file.
 
-**1.2.0 release target:** not yet set; the GitHub milestone `1.2.0` carries
-no due date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
+**1.2.0 release target:** 2026-07-31, per the GitHub milestone `1.2.0` due
+date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
@@ -104,7 +104,7 @@ ends with a reconcile pass comparing issue state against this register.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 12 open, no due date set. The work order is
+GitHub milestone `1.2.0` — 12 open, due 2026-07-31. The work order is
 M1-M12 plus the M13 release gate in the Active Register above; M13 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
