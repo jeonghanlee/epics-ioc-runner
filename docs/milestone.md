@@ -17,42 +17,99 @@ no due date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** the 1.2.0 cycle opened 2026-06-11 on
-`release-1.2.0` (register restart + `1.2.0-dev` bump as the first two
-commits). The work order for the 12 open items is not set — do not start
-items until the owner orders them. Known cluster structure for that
-ordering: the template cluster #53/#54/#81 touches the system unit template
-once as a group (#52 interacts via exit-signal semantics, #67 via timing);
-the guard-test cluster #84 folds with #81 (CI-10/CI-14 drift guards could
-join it); #86 revisits the helper contract alongside #81; the #68 wrapper
-owns the sudoers verb-scope questions (examined-Keep CI-20/CI-21 cluster
-there). Version is `1.2.0-dev` (`bin/ioc-runner:14`).
+**Next session entry point:** M1 (#92). The 1.2.0 work order M1-M12 was set
+2026-06-11: standalone items first (M1-M4), then the template and guard-test
+cluster (M5-M11), then the #68 wrapper design (M12). Cluster-internal order
+is grounded in the issue records: #81 (M5) runs first as a pure refactor
+gated by its own byte-equivalence acceptance criterion, so #53/#54 land
+afterward as one-place content edits through the single emitter; #84 (M6)
+folds its guard test with #81 while the emitter contract is fresh
+(CI-10/CI-14 drift guards may join); #86 (M7) rides the same helper-contract
+review; #52's exit-signal review (M8) feeds the #54 `Restart=` decision
+(M10); #67's polling design (M11) follows #54 because `Restart=` changes
+what a momentary `active` read means. The #68 wrapper (M12) owns the
+sudoers verb-scope questions (examined-Keep CI-20/CI-21 cluster there).
+The cycle test plan is `testplan_1.2.0.md` (per-milestone verification,
+dependency re-run matrix, release-gate sequence); the multi-user plan was
+renamed to `testplan_multiuser.md` as the standing release-gate step.
+Each milestone carries its verification as `M<n>.T<k>` subs in the Active
+Register, and M13 (release gate, no GitHub issue) closes the cycle.
+Version is `1.2.0-dev` (`bin/ioc-runner:14`).
 
 ## Active Register
 
-| Topic | Work unit | Type | Status | Evidence or next action |
-| :--- | :--- | :--- | :--- | :--- |
-| 1.2.0 | #68 distro-independent sudoers parity via validating `systemctl` wrapper | Carry-forward | Open | Closes the sudo < 1.9.10 residual risk from #57 (Rocky 8 / alsucl-psrv3 = 1.9.5p2). sudoers verb-scope redesign (CI-20) and IOC-name contract enforcement (CI-21) cluster here. P2-medium. |
-| 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1536-1547`; preserve the crash-pattern scan that follows. P3-low. |
-| 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure`; interacts with #67 and #52. Template cluster with #53/#81. |
-| 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance. Template cluster with #54/#81. |
-| 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Clusters with #54, #67. |
-| 1.2.0 | #81 generalize the duplicated procServ systemd unit template into one emitter | Coherence (CI-4) | Open | The unit contract is hand-maintained in two copies (`bin/ioc-runner:363-382` local user unit, `bin/setup-system-infra.bash:467-489` system unit); CI-1 (#75) already paid the round-trip. Single emitter + shared-contract guard test; template cluster with #53/#54. P3-low. |
-| 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; clusters with #81. refactor, P3-low. |
-| 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Revisits option A (unify the three caller references) or a helper-contract change; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Clusters with #81. `Refs #85`/`#83`. refactor, P3-low. |
-| 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Open | Hardcoded independently in `bin/ioc-runner:85-86` and `bin/setup-system-infra.bash:16-17`; honor `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` in both, default `ioc-srv`/`ioc`, plus a guard test pinning the shared defaults. enhancement, P2-medium. |
-| 1.2.0 | #92 crash-warning false positive after a manual `st.cmd` run | Run finding (#91, S7 / F-M2-1) | Open | Cross-owned `0600 .iocsh_history` between operator and `ioc-srv` runs; the history-load `ERROR` matches `CRASH_LOG_PATTERNS` (`bin/ioc-runner:91`). Candidates: FAQ Q5 `IOCSH_HISTSIZE=0` note and/or scan exclusion of the history-load line. bug, P3-low. |
-| 1.2.0 | #93 align install abort exit codes (`n` vs EOF) | Run finding (#91, PF8/S9 / OBS-1) | Open | Prompt `n` exits 0, stdin EOF exits 1; both mean not installed. Pick one convention (suggest nonzero), apply to both branches, pin with error-suite cases. enhancement, P3-low. |
-| 1.2.0 | #94 observer `list` shows no sockets while IOCs run | Run finding (#91, S6 / OBS-2) | Open | Non-`ioc` `list` exits 0 with an empty result while IOCs run (socket dirs `0770` untraversable); add a permission hint to the empty case or document. enhancement, P3-low. |
+Each milestone row is followed by its verification subs (`M<n>.T<k>`):
+T1 = change-specific verification, T2 = suite/regression cases, T3 =
+re-run of an earlier milestone's verification on a shared surface, T4 =
+amendment of the standing multi-user plan. Sub procedures are defined in
+[`testplan_1.2.0.md`](testplan_1.2.0.md). Each issue carries the same
+subs as a checkbox list in its Verification section on GitHub — GitHub
+is authoritative for sub status; this register mirrors it, the Evidence
+column of a sub is filled at completion, and every milestone closure
+ends with a reconcile pass comparing issue state against this register.
 
-**Tally:** Open 12 · Done 0 · In progress 0 · Blocked 0
+| M | Topic | Work unit | Type | Status | Evidence or next action |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| M1 | 1.2.0 | #92 crash-warning false positive after a manual `st.cmd` run | Run finding (#91, S7 / F-M2-1) | Open | Cross-owned `0600 .iocsh_history` between operator and `ioc-srv` runs; the history-load `ERROR` matches `CRASH_LOG_PATTERNS` (`bin/ioc-runner:91`). Candidates: FAQ Q5 `IOCSH_HISTSIZE=0` note and/or scan exclusion of the history-load line. bug, P3-low. |
+| M1.T1 | 1.2.0 | reproduce the cross-owned `.iocsh_history` warning on a VM golden; no warning after the fix | Test sub | Open | — |
+| M1.T2 | 1.2.0 | new history-load crash-scan case; existing crash-detection set green | Test sub | Open | — |
+| M2 | 1.2.0 | #93 align install abort exit codes (`n` vs EOF) | Run finding (#91, PF8/S9 / OBS-1) | Open | Prompt `n` exits 0, stdin EOF exits 1; both mean not installed. Pick one convention (suggest nonzero), apply to both branches, pin with error-suite cases. enhancement, P3-low. |
+| M2.T1 | 1.2.0 | both abort branches follow the chosen convention across install paths | Test sub | Open | — |
+| M2.T2 | 1.2.0 | two new error-suite cases pinning both exit codes | Test sub | Open | — |
+| M3 | 1.2.0 | #94 observer `list` shows no sockets while IOCs run | Run finding (#91, S6 / OBS-2) | Open | Non-`ioc` `list` exits 0 with an empty result while IOCs run (socket dirs `0770` untraversable); add a permission hint to the empty case or document. enhancement, P3-low. |
+| M3.T1 | 1.2.0 | non-`ioc` empty `list` carries the permission hint (or documented behavior) | Test sub | Open | — |
+| M3.T2 | 1.2.0 | suite case where test mode permits a non-`ioc` probe | Test sub | Open | — |
+| M3.T4 | 1.2.0 | amend `testplan_multiuser.md` S6 expected result | Test sub | Open | — |
+| M4 | 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Open | Hardcoded independently in `bin/ioc-runner:85-86` and `bin/setup-system-infra.bash:16-17`; honor `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` in both, default `ioc-srv`/`ioc`, plus a guard test pinning the shared defaults. enhancement, P2-medium. |
+| M4.T1 | 1.2.0 | user/group override honored by both scripts on a VM golden; default path unchanged | Test sub | Open | — |
+| M4.T2 | 1.2.0 | new shared-defaults guard test; system-infra suite green on defaults | Test sub | Open | — |
+| M5 | 1.2.0 | #81 generalize the duplicated procServ systemd unit template into one emitter | Coherence (CI-4) | Open | The unit contract is hand-maintained in two copies (`bin/ioc-runner:363-382` local user unit, `bin/setup-system-infra.bash:467-489` system unit); CI-1 (#75) already paid the round-trip. Single emitter + shared-contract guard test; pure refactor gated by byte-equivalence, so it precedes the #53/#54 content edits. P3-low. |
+| M5.T1 | 1.2.0 | must-agree byte-equivalence pre/post refactor, both modes; guard fails on a one-sided edit | Test sub | Open | — |
+| M5.T2 | 1.2.0 | new shared-contract guard test; both lifecycle suites green on top and on both VM gates | Test sub | Open | — |
+| M5.T3 | 1.2.0 | re-run M4.T2 (template emission rewritten in both scripts) | Test sub | Open | — |
+| M6 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; folds with the M5 guard test (CI-10/CI-14 may join). refactor, P3-low. |
+| M6.T1 | 1.2.0 | negative check per metadata copy; CI-10/CI-14 fold decision recorded | Test sub | Open | — |
+| M6.T2 | 1.2.0 | new static guard test pinning the shared `declare -g RUNNER_*`/`sed` contract | Test sub | Open | — |
+| M7 | 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Revisits option A (unify the three caller references) or a helper-contract change; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Rides the M5 helper-contract review. `Refs #85`/`#83`. refactor, P3-low. |
+| M7.T1 | 1.2.0 | decision first (unify / contract change / Keep verdict); if code changes, identical socket-path resolution for all three callers | Test sub | Open | — |
+| M7.T2 | 1.2.0 | both lifecycle suites green (attach/monitor/inspect paths) | Test sub | Open | — |
+| M8 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Exit-signal semantics feed the M10 `Restart=` decision. |
+| M8.T1 | 1.2.0 | child-kill positive and healthy-restart negative behavior on both goldens | Test sub | Open | — |
+| M8.T2 | 1.2.0 | new restart-negative and child-kill-positive cases; existing crash-detection set green | Test sub | Open | — |
+| M8.T3 | 1.2.0 | re-run M1.T2 (`CRASH_LOG_PATTERNS` / scan logic shared) | Test sub | Open | — |
+| M9 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance; system unit already carries `Wants`/`After` (mode-divergent fields per #81). One-place edit through the M5 emitter. |
+| M9.T1 | 1.2.0 | review first (Keep verdict if no change); `systemd-analyze verify` on a deployed unit if changed | Test sub | Open | — |
+| M9.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
+| M9.T3 | 1.2.0 | re-run the M5 shared-contract guard (template content via the emitter) | Test sub | Open | — |
+| M10 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure` using the M8 exit-signal findings; edits through the M5 emitter. |
+| M10.T1 | 1.2.0 | policy chosen from M8 findings; crash-loop behavior matches design incl. `SuccessExitStatus` interplay | Test sub | Open | — |
+| M10.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
+| M10.T3 | 1.2.0 | re-run the M5 guard and the crash-detection cases | Test sub | Open | — |
+| M11 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1536-1547`; preserve the crash-pattern scan that follows. Designed after M10 because `Restart=` changes what a momentary `active` read means. P3-low. |
+| M11.T1 | 1.2.0 | crash-looping IOC reported failed; healthy start/restart not slowed beyond the stabilization window | Test sub | Open | — |
+| M11.T2 | 1.2.0 | both lifecycle suites green (start/restart hot path) | Test sub | Open | — |
+| M11.T3 | 1.2.0 | re-run M1 + M8 crash cases (restart scan-window timing shared) | Test sub | Open | — |
+| M12 | 1.2.0 | #68 distro-independent sudoers parity via validating `systemctl` wrapper | Carry-forward | Open | Closes the sudo < 1.9.10 residual risk from #57 (Rocky 8 / alsucl-psrv3 = 1.9.5p2). sudoers verb-scope redesign (CI-20) and IOC-name contract enforcement (CI-21) cluster here. Largest design item; independent of M1-M11. P2-medium. |
+| M12.T1 | 1.2.0 | wrapper accepts in-contract and rejects out-of-contract names identically on both distros; sudoers narrowed; CI-20/CI-21 dispositions recorded | Test sub | Open | — |
+| M12.T2 | 1.2.0 | system suites on both goldens (two sudoers emission branches) | Test sub | Open | — |
+| M12.T3 | 1.2.0 | re-run multi-user sudo-gate subset S1/S6/S11 | Test sub | Open | — |
+| M12.T4 | 1.2.0 | amend `testplan_multiuser.md` S11 (residual risk closed) | Test sub | Open | — |
+| M13 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M12 close; gates the master merge + `1.2.0` tag. |
+| M13.T1 | 1.2.0 | cycle batch re-run of all M1-M12 change-specific verifications on the final tree | Test sub | Open | — |
+| M13.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
+| M13.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
+
+**Tally:** milestones Open 13 (12 work + 1 gate) · test subs Open 35 · Done 0 · Blocked 0
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 12 open, no due date set. The three template
-items #53, #54, and #81 form one cluster — all edit the system unit
-template, so it is touched once as a group.
+GitHub milestone `1.2.0` — 12 open, no due date set. The work order is
+M1-M12 plus the M13 release gate in the Active Register above; M13 is
+register-local with no GitHub issue. The three template items #53, #54,
+and #81 form one cluster — all edit the system unit template, so it is
+touched once as a group, with #81 first as the byte-equivalence-gated
+refactor.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -91,9 +148,12 @@ the 1.1.1 register: `git show 1.1.1:docs/milestone.md`.
 ## Notes
 
 - The `Backlog` GitHub milestone is empty.
-- The multi-user verification scenarios live in
-  [`testplan.md`](testplan.md) — a V&V/test-plan artifact, not a milestone
-  register item.
+- The cycle test plan is [`testplan_1.2.0.md`](testplan_1.2.0.md) —
+  per-milestone verification, dependency re-run matrix, and release-gate
+  sequence. The version-independent multi-user scenarios live in
+  [`testplan_multiuser.md`](testplan_multiuser.md) (renamed from
+  `testplan.md` this cycle), executed identically at every release gate.
+  Test plans are V&V artifacts, not milestone register items.
 - The released 1.1.1 record (full register including the four coherence
   sweeps and the #91 release-gate run) lives in git tag `1.1.1`:
   `git show 1.1.1:docs/milestone.md`.

@@ -1,11 +1,18 @@
-# EPICS IOC Runner — Test Plan
+# EPICS IOC Runner — Multi-User Test Plan
 
-This document is the test plan for `epics-ioc-runner` verification. The
-automated single-user suites and their invocation axes are documented in
-[`../tests/README.md`](../tests/README.md); this plan covers verification
-scenarios that span **multiple user principals** and **operational
-workflows** the automated lifecycle suites do not exercise. New test plans
-are added here.
+This document is the version-independent multi-user test plan for
+`epics-ioc-runner`. It covers verification scenarios that span **multiple
+user principals** and **operational workflows** the automated single-user
+suites (documented in [`../tests/README.md`](../tests/README.md)) do not
+exercise.
+
+Execution cadence: this plan runs identically at the end of every release
+cycle, as the final release-gate step after the cycle's `testplan_X.X.X.md`
+items are closed, and may additionally run on demand after any change that
+touches the permission model. Cycle-specific test plans live in
+`testplan_X.X.X.md`, not here; a scenario's expected result changes only
+when a released change alters the model, amended by the cycle plan that
+introduced the change.
 
 The permission model these scenarios verify is defined in
 [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md); operational behavior is
