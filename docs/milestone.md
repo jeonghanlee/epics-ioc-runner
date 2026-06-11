@@ -45,11 +45,13 @@ master merge). #85 done 2026-06-07 (`038619d`, F4 option B —
 documented the `do_inspect` alias as intentional; full caller-reference
 unification reconsidered in 1.2.0 as #86). With #85 closed, 1.1.1 has no open
 code work again. On 2026-06-10 the owner pulled the multi-user test plan run
-into 1.1.1 as a release gate (#91), so the next entry point is the #91 plan
-run (L1-L3, S1-S11 on both goldens; re-verify testbed accounts, ansible
-account-bake draft paused, scenario payload decision open), followed by the
-1.1.1 release sequence (master merge + annotated tag) at the end of the
-testing window. The 1.1.1 milestone is open for patches through the
+into 1.1.1 as a release gate (#91); the run completed the same day on both
+goldens (review session rs20260610_142947: 3-round plan review with two
+Reviewers, 24/24 asserted scenario instances PASS, S4/S10 assertions
+finalized into testplan.md, M4 release-gate acceptance by both Reviewers).
+Run findings spun off as #92/#93/#94 (1.2.0) and #95 (1.1.1, docs, fixed in
+the closure commit). The next entry point is the 1.1.1 release sequence
+(master merge + annotated tag) at the end of the testing window. The 1.1.1 milestone is open for patches through the
 July 2026 window, not frozen. The nine 1.2.0 items stay deferred (#81 from the
 2026-06-04 sweep, the unit-template generalization clustered with #53/#54; #84
 from the 2026-06-05 sweep, the git-metadata guard test clustered with #81; #87
@@ -95,12 +97,16 @@ master merge and close manually at verification.
 | 1.1.1 | #88 align testplan S9 and FAQ Q8 with the `..` abort | Coherence (CI-16) | Done (`release-1.1.1`) | S9 expected result split by variant: a non-writable path keeps warning + confirmation, a `..` path expects the unconditional pre-warning abort (no prompt, `--force` no bypass, #66); FAQ Q8 gained the exclusion sentence. Docs only; `git diff --check` clean, static suite parses source not docs. `Closes #88` on master merge; GitHub closed manually 2026-06-10. documentation, P3-low. |
 | 1.1.1 | #89 correct the rocky8 sudoers example systemctl path | Coherence (CI-17) | Done (`release-1.1.1`) | All seven grant lines `/bin/systemctl` -> `/usr/bin/systemctl`, matching the generator (`bin/setup-system-infra.bash:59`, both branches), the debian13 example, and INSTALL.md section 2.3; confirmed against the live setup-generated policy on `alsucl-psrv3` (2026-06-10). Reference doc only. `Closes #89` on master merge; GitHub closed manually 2026-06-10. documentation, P3-low. |
 | 1.1.1 | #90 qualify inspect/view help text by mode | Coherence (CI-19) | Done (`release-1.1.1`) | Usage text: inspect "(sudo in system mode)", view names conf + unit; CLI_REFERENCE root requirement qualified by mode and `sudo` dropped from the local usage line (sudo + `--local` addresses the root session). printf strings + docs; `bash -n` clean, error suite 103/103 on top. `Closes #90` on master merge; GitHub closed manually 2026-06-10. documentation, P3-low. |
-| 1.1.1 | #91 run the multi-user test plan (L1-L3, S1-S11) | External gate | Open — next entry point | Owner decision 2026-06-10: the multi-user plan run gates the 1.1.1 release sequence. Scenarios in `docs/testplan.md`; S4 observational / S10 probe finalize after the first run; the rocky8/debian13 golden pair covers both sudoers branches (S11). Preconditions: re-verify testbed accounts on the current goldens, ansible-provision account-bake draft paused, scenario IOC payload decision open. Findings become their own issues; the run changes no runner behavior. tests, P2-medium. |
+| 1.1.1 | #91 run the multi-user test plan (L1-L3, S1-S11) | External gate | Done (both goldens, M4-accepted) | Run 2026-06-10 on freshly recreated goldens (review session rs20260610_142947): plan v3 converged after 3 review rounds (2 Reviewers); 12 asserted scenarios x 2 OS all PASS against pre-registered acceptance criteria; S4/S10 observed and their assertions finalized into `docs/testplan.md`; S11 demonstrated on both sudoers branches (rocky8 glob: gate passes, systemd rejects; debian13 regex: sudo denies). Findings filed: #92/#93/#94 (1.2.0), #95 (1.1.1 docs). Runner behavior unchanged. GitHub issue closed manually 2026-06-10; `Closes #91` rides the closure commit. tests, P2-medium. |
+| 1.1.1 | #95 align testplan S6 remove-denial wording | Run finding (#91, OBS-3) | Done (`release-1.1.1`) | S6 expected result split: `start`/`stop` denied at the sudo gate; `remove` aborted by the runner stop-failure guard when its embedded stop is sudo-denied (observed on both goldens, `evidence/<vm>/S6.txt`). Docs only; applied with the #91 closure commit (`Closes #95`); GitHub closed manually at verification. documentation, P3-low. |
 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | Filed 2026-06-06. The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; clusters with #81. refactor, P3-low. |
 | 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Filed 2026-06-07. Revisits whether to truly unify the three `resolve_sock_path` caller references (option A) or change the helper contract; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Reconsidered in the 1.2.0 helper review, clusters with #81. `Refs #85`/`#83`. refactor, P3-low. |
 | 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Open | Filed 2026-06-08. The system account/group is hardcoded independently in `bin/ioc-runner:85-86` (validation `:631-636`, ownership `:546-547`, conf defaults `:886-887`) and `bin/setup-system-infra.bash:16-17` (account creation, template `User=`/`Group=` `:476-477`, dir ownership); the runner's identity notion and setup's must name the same OS account/group, with nothing enforcing it. Generalize (drawn too narrowly): honor `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` in both, default `ioc-srv`/`ioc`, plus a static guard test pinning the shared defaults. Latent (agrees today); enables site-specific accounts. enhancement, P2-medium. |
+| 1.2.0 | #92 crash-warning false positive after a manual `st.cmd` run | Run finding (#91, S7 / F-M2-1) | Open | Filed 2026-06-10. A manual operator run and the `ioc-srv` service runs leave a `0600 .iocsh_history` owned by whichever principal exited last; the other side's next iocsh start logs `ERROR Permission denied (13) loading '.iocsh_history'`, and `ERROR` is in the global `CRASH_LOG_PATTERNS` (`bin/ioc-runner:91`), so the start health check warns on a fully conforming directory. Reproduced on both goldens. Candidates: FAQ Q5 `IOCSH_HISTSIZE=0` note and/or scan exclusion of the history-load line. bug, P3-low. |
+| 1.2.0 | #93 align install abort exit codes (`n` vs EOF) | Run finding (#91, PF8/S9 / OBS-1) | Open | Filed 2026-06-10. Prompt answered `n` -> "Installation aborted by user.", exit 0; stdin EOF -> abort, exit 1. Both mean "not installed", so scripted callers misread the `n` path as success. Pick one convention (suggest nonzero), apply to both branches, pin with error-suite cases. enhancement, P3-low. |
+| 1.2.0 | #94 observer `list` shows no sockets while IOCs run | Run finding (#91, S6 / OBS-2) | Open | Filed 2026-06-10. For a non-`ioc` user, `list` exits 0 with "No active IOC sockets found" while IOCs are active (socket dirs `0770 ioc-srv:ioc` are untraversable) — indistinguishable from nothing running for exactly the read-only principal the model serves. Add a permission hint to the empty case or document the behavior. enhancement, P3-low. |
 
-**Tally:** Done 17 · Open 10 · Not started 0 · In progress 0 · Blocked 0
+**Tally:** Done 19 · Open 12 · Not started 0 · In progress 0 · Blocked 0
 
 ## Milestone 1.1.1
 
@@ -135,14 +141,16 @@ install front end, --user alias, procServ/con search-path override`.
 | [#88](https://github.com/jeonghanlee/epics-ioc-runner/issues/88) | Align testplan S9 and FAQ Q8 with the .. abort | documentation, P3-low | Coherence finding CI-16 (2026-06-09 sweep). S9 and FAQ Q8 described the pre-#66 warning + confirmation flow for an `IOC_CHDIR` containing `..`; the code aborts unconditionally before the warning path. Docs only. |
 | [#89](https://github.com/jeonghanlee/epics-ioc-runner/issues/89) | Fix rocky8 sudoers example systemctl path | documentation, P3-low | Coherence finding CI-17. The example granted `/bin/systemctl`; the generator, the debian13 example, INSTALL.md, and the live prod policy all use `/usr/bin/systemctl`. Reference doc only. |
 | [#90](https://github.com/jeonghanlee/epics-ioc-runner/issues/90) | Qualify inspect and view help text by mode | documentation, P3-low | Coherence finding CI-19. inspect requires sudo only in system mode; view prints conf + unit; the CLI_REFERENCE local usage line dropped a wrong `sudo`. printf strings + docs. |
-| [#91](https://github.com/jeonghanlee/epics-ioc-runner/issues/91) | Run the multi-user test plan for the 1.1.1 release | tests, P2-medium | Owner decision 2026-06-10: executing `docs/testplan.md` (L1-L3, S1-S11, both goldens) gates the release sequence. Verification run, no runner behavior change; findings spin off as their own issues. |
+| [#91](https://github.com/jeonghanlee/epics-ioc-runner/issues/91) | Run the multi-user test plan for the 1.1.1 release | tests, P2-medium | Owner decision 2026-06-10: executing `docs/testplan.md` (L1-L3, S1-S11, both goldens) gates the release sequence. Verification run, no runner behavior change; findings spin off as their own issues. Run complete 2026-06-10, M4-accepted; spin-offs #92/#93/#94 (1.2.0), #95 (1.1.1). |
+| [#95](https://github.com/jeonghanlee/epics-ioc-runner/issues/95) | Align testplan S6 remove-denial wording | documentation, P3-low | Run finding OBS-3 from #91. S6 said all three observer writes are denied at the sudo gate; observed: `start`/`stop` at the sudo gate, `remove` at the runner stop-failure guard. Docs only; fixed with the #91 closure commit. |
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch. GitHub
-milestone `1.2.0` — 9 open (the two #74 spin-offs #77/#78 were pulled into
+milestone `1.2.0` — 12 open (the two #74 spin-offs #77/#78 were pulled into
 1.1.1 on 2026-06-04; the 2026-06-04 coherence sweep then filed #81, the
-2026-06-05 sweep filed #84, and the 2026-06-08 sweep filed #87). The three
+2026-06-05 sweep filed #84, the 2026-06-08 sweep filed #87, and the
+2026-06-10 multi-user plan run filed #92/#93/#94). The three
 template items #53, #54, and #81 form one cluster — all edit the system unit
 template, so it is touched once as a group.
 
@@ -157,6 +165,9 @@ template, so it is touched once as a group.
 | [#84](https://github.com/jeonghanlee/epics-ioc-runner/issues/84) | Pin the shared git-metadata injection contract with a guard test | refactor, P3-low | Coherence finding CI-9. The hash/commit/install metadata + `sed` contract is implemented in three places (`bin/ioc-runner`, `bin/setup-system-infra.bash`, `configure/inject-runner-version.bash`); add a static guard test pinning the shared `declare -g RUNNER_*` / `sed` contract. Side effect of #72; clusters with #81. |
 | [#86](https://github.com/jeonghanlee/epics-ioc-runner/issues/86) | Reconsider unifying the socket-path reference across resolve_sock_path callers | refactor, P3-low | Follow-up from #85 (1.1.1 took option B, documenting the `do_inspect` alias). Revisit option A (unify all three callers) or a helper-contract refactor in the 1.2.0 helper review; clusters with #81. No behavior change. |
 | [#87](https://github.com/jeonghanlee/epics-ioc-runner/issues/87) | Make the system service account and group configurable from a single source | enhancement, P2-medium | Coherence finding CI-12 (2026-06-08 sweep). The system account/group is hardcoded as `ioc-srv`/`ioc` independently in `bin/ioc-runner:85-86` and `bin/setup-system-infra.bash:16-17`; deploying under a site-specific identity needs both edited in lockstep. Generalize to `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` honored by both (default `ioc-srv`/`ioc`), plus a guard test pinning the shared defaults. Latent today; this is a Generalize, not a bug. |
+| [#92](https://github.com/jeonghanlee/epics-ioc-runner/issues/92) | Crash-warning false positive after manual st.cmd run | bug, P3-low | Run finding F-M2-1 from #91 (S7). Cross-owned `0600 .iocsh_history` between operator manual runs and `ioc-srv` service runs; the history-load `ERROR` matches the global `CRASH_LOG_PATTERNS`, tripping the start health-check warning on a conforming directory. FAQ Q5 note and/or scan exclusion. |
+| [#93](https://github.com/jeonghanlee/epics-ioc-runner/issues/93) | Align install abort exit codes (n vs EOF) | enhancement, P3-low | Run finding OBS-1 from #91 (PF8/S9). Prompt `n` exits 0, EOF abort exits 1; both mean not installed. Pick one convention, apply to both branches, pin with error-suite cases. |
+| [#94](https://github.com/jeonghanlee/epics-ioc-runner/issues/94) | Observer list shows no sockets while IOCs run | enhancement, P3-low | Run finding OBS-2 from #91 (S6). Non-`ioc` `list` exits 0 with an empty result while IOCs run (socket dirs `0770` untraversable); add a permission hint to the empty case or document. |
 
 ## Coherence Sweep Findings (2026-06-04)
 

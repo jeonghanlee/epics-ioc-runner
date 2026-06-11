@@ -75,20 +75,20 @@ roles.
 | S1 | Shared management | opa, opb | opa `install` + `start foo`; opb `status` / `stop` / `restart foo` -> opb succeeds (both `%ioc`, one shared unit). | PERMISSION_MODEL.md "Access Boundary"; FAQ Q1 |
 | S2 | setgid conf collaboration | opa, opb | opa creates `/etc/procServ.d/foo.conf`; opb edits it -> directory `2770 root:ioc` setgid grants opb group-rw edit, file stays group `ioc`. | PERMISSION_MODEL.md "Setup-managed paths"; FAQ Q2 |
 | S3 | Concurrency | opa, opb | opa and opb `start` / `stop` different IOCs simultaneously -> no interference, both succeed, per-unit state correct. | independent systemd instances |
-| S4 | Removal while in use | opa, opb | opb has an IOC under `attach` / `monitor`; opa `stop` / `remove` it -> observe console-session and socket handling. **Assertion finalized after first run.** | FAQ Q6 |
+| S4 | Removal while in use | opa, opb | opb has an IOC under `attach` / `monitor`; opa `stop` / `remove` it -> opb's console session terminates immediately with EOF (clean client exit); the socket directory is removed with the unit; no hang and no stale socket remain. | FAQ Q6 |
 | S5 | Cross-operator log read | opb -> opa | opb reads an opa-started IOC log and runs the crash scan -> group `r--` read; the scan runs under opb's UID with no sudo. | PERMISSION_MODEL.md "Permission Lifecycle"; FAQ Q9 |
-| S6 | Observer negative control | obs | obs runs `status` / `is-active` / `list` / `cat <log>` / `ls` (succeed) versus `start` / `stop` / `remove` (all denied at the sudo gate). | PERMISSION_MODEL.md "Access Boundary"; FAQ Q1 |
+| S6 | Observer negative control | obs | obs runs `status` / `is-active` / `list` / `cat <log>` / `ls` (succeed) versus `start` / `stop` (denied at the sudo gate) and `remove` (aborted by the runner stop-failure guard when its embedded stop is sudo-denied). | PERMISSION_MODEL.md "Access Boundary"; FAQ Q1 |
 | S7 | Disable / manual run / re-enable | opa (+ opb) | opa `disable` + `stop` -> run `st.cmd` manually -> `start` + `enable`; opb observes the intermediate state -> conf unchanged, only runtime state changes, opb sees disabled/inactive correctly. | FAQ Q5 |
 | S8 | Crash-loop detection | opa | opa starts a deliberately failing IOC whose conf sets `CRASH_LOG_PATTERNS_EXTRA` -> the two-stage health check warns and the extra pattern matches. | FAQ Q6, Q7 |
 | S9 | `IOC_CHDIR` non-conformance | opa, root | `install` with an `IOC_CHDIR` not writable by `ioc-srv` (a home / NFS path) -> conformance warning + confirmation. `install` with a path containing `..` -> unconditional hard error before the warning flow, no prompt, `--force` does not bypass (#66). In both variants root and operator give the identical result (metadata read, no sudo). | FAQ Q8; PERMISSION_MODEL.md "Site-provisioned paths"; #66 |
-| S10 | Console socket access probe | opb, obs -> opa | opb and obs attempt `attach` / `monitor` / `inspect` on opa's IOC -> **to be determined empirically**; the UDS mode governs and is not covered by PERMISSION_MODEL.md. | FAQ Q6 |
+| S10 | Console socket access probe | opb, obs -> opa | opb and obs attempt `attach` / `monitor` / `inspect` on opa's IOC -> layered: a non-`ioc` principal is denied at conf resolution first (`/etc/procServ.d` `2770 root:ioc`), so the socket mode (`0770 ioc-srv:ioc`) is a second gate it never reaches; an `ioc` member attaches and monitors successfully; `inspect` is root-gated in system mode for every non-root principal regardless of `ioc` membership. Per-distro error wording and exit codes are not asserted. | FAQ Q6 |
 | S11 | sudo-version residual risk | opa | Outside `ioc-runner`, opa issues `sudo systemctl start 'epics-@bad name.service'` -> on `rocky8` (glob) the sudo gate passes but systemd rejects the name; on `debian13` (regex) the gate denies it. | PERMISSION_MODEL.md "Residual risk on sudo < 1.9.10 hosts"; #68 |
 
 ## Notes
 
-- S4 is observational and S10 is a probe: their assertions are recorded after
-  the first run rather than asserted up front, because the behavior is not
-  fixed by the current permission model.
+- The S4 and S10 expected results were finalized from the first plan run
+  (2026-06-10, both golden images) — they began as an observational scenario
+  and a probe because the behavior is not fixed by the permission model.
 - S11 documents a known least-privilege drift on sudo < 1.9.10, not an
   escalation path (`PERMISSION_MODEL.md` "Residual risk"). It is verified, not
   fixed, here; the fix is tracked as #68 (1.2.0).
