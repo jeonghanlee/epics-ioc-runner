@@ -50,6 +50,12 @@ unset _line
 
 declare -g MOCK_CON_BIN
 declare -g TEST_TMPDIR
+# Issue #98: assertion-count integrity. Every verify_* call appends one line
+# to TEST_TRACE_FILE; file appends survive subshells while the counter
+# variables do not, so executed-vs-counted divergence exposes an assertion
+# whose counter update was lost.
+declare -g TEST_TRACE_FILE=""
+declare -g TEST_EXECUTED=0
 
 # --- Interrupt & Exit Handling ---
 function _handle_exit {
@@ -57,6 +63,11 @@ function _handle_exit {
     if [[ $exit_code -ne 0 ]]; then
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
+    fi
+    # Snapshot the executed-assertion count before _cleanup removes the
+    # trace file with the rest of TEST_TMPDIR (#98).
+    if [[ -n "${TEST_TRACE_FILE}" && -f "${TEST_TRACE_FILE}" ]]; then
+        TEST_EXECUTED=$(wc -l < "${TEST_TRACE_FILE}")
     fi
     _cleanup
     print_summary
@@ -103,7 +114,14 @@ function print_summary {
     printf "${BLUE}%s${NC}\n" "                                   ERROR HANDLING TEST SUMMARY                                      "
     printf "${BLUE}%s${NC}\n" "===================================================================================================="
 
-    printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
+    # Issue #98: executed-vs-counted integrity. A mismatch means an assertion
+    # ran where its counter update was lost (e.g. inside a subshell); the
+    # suite result can no longer be trusted, so the run fails.
+    if [[ ${TEST_EXECUTED} -ne ${TEST_TOTAL} ]]; then
+        TEST_FAILED=$((TEST_FAILED + 1))
+        FAILED_DETAILS+=("Assertion-count integrity: ${TEST_EXECUTED} executed vs ${TEST_TOTAL} counted (#98)")
+    fi
+    printf "  %-20s : %d (executed: %d)\n" "Total Assertions" "${TEST_TOTAL}" "${TEST_EXECUTED}"
     printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
 
     if [[ ${TEST_FAILED} -gt 0 ]]; then
@@ -137,6 +155,9 @@ function verify_state {
     local actual="$2"
     local step_name="$3"
 
+    if [[ -n "${TEST_TRACE_FILE}" ]]; then
+        printf "%s\n" "${step_name}" >> "${TEST_TRACE_FILE}"
+    fi
     TEST_TOTAL=$((TEST_TOTAL + 1))
 
     if [[ "${expected}" == "${actual}" ]]; then
@@ -156,6 +177,9 @@ function verify_exit_code {
     local actual_exit="$2"
     local step_name="$3"
 
+    if [[ -n "${TEST_TRACE_FILE}" ]]; then
+        printf "%s\n" "${step_name}" >> "${TEST_TRACE_FILE}"
+    fi
     TEST_TOTAL=$((TEST_TOTAL + 1))
 
     if [[ "${expected_exit}" == "${actual_exit}" ]]; then
@@ -245,6 +269,11 @@ function _setup {
     print_sub_divider
 
     TEST_TMPDIR=$(mktemp -d)
+
+    # Issue #98: arm the assertion trace as early as possible so every
+    # subsequent verify_* call is recorded.
+    TEST_TRACE_FILE="${TEST_TMPDIR}/assertion_trace"
+    : > "${TEST_TRACE_FILE}"
 
     # Isolate local-mode CONF / SYSTEMD / RUN / LOG directories under
     # TEST_TMPDIR so a direct or sudo-elevated run cannot corrupt the
@@ -371,45 +400,32 @@ function test_generate_logic {
     local conf_file="${test_dir}/valid_ioc.conf"
 
     # Evaluates relative path expansion and automatic startup script resolution.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local generate .)
-        verify_exit_code "0" "${exit_code}" "Generate native dot path resolves successfully"
-    )
+    # Issue #98: the cd stays scoped inside the command substitution (its own
+    # subshell); the assertion runs in the parent shell so the counters hold.
+    exit_code=$(cd "${test_dir}" && _run bash "${RUNNER_SCRIPT}" --local generate .)
+    verify_exit_code "0" "${exit_code}" "Generate native dot path resolves successfully"
 
     local conf_exists="false"
     if [[ -f "${conf_file}" ]]; then conf_exists="true"; fi
     verify_state "true" "${conf_exists}" "Configuration artifact created dynamically"
 
     # Evaluates the internal cmp -s integration bypassing identical configuration files.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local generate .)
-        verify_exit_code "0" "${exit_code}" "Identical artifact natively bypasses overwrite and exits 0"
-    )
+    exit_code=$(cd "${test_dir}" && _run bash "${RUNNER_SCRIPT}" --local generate .)
+    verify_exit_code "0" "${exit_code}" "Identical artifact natively bypasses overwrite and exits 0"
 
     # Evaluates the ANSI diff engine and interactive prompt behavior using a mocked non-interactive shell.
     printf "\n# Modified\n" >> "${conf_file}"
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(_run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate . < /dev/null")
-        verify_exit_code "1" "${exit_code}" "Differential artifact prompt exits 1 on EOF"
-    )
+    exit_code=$(cd "${test_dir}" && _run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate . < /dev/null")
+    verify_exit_code "1" "${exit_code}" "Differential artifact prompt exits 1 on EOF"
 
     # Issue #93: a user decline (n) is an abort like EOF; both exit nonzero
     # so a scripted caller cannot mistake a declined overwrite for success.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(_run bash -c "printf 'n\n' | bash \"${RUNNER_SCRIPT}\" --local generate .")
-        verify_exit_code "1" "${exit_code}" "Differential artifact prompt exits 1 on user decline"
-    )
+    exit_code=$(cd "${test_dir}" && _run bash -c "printf 'n\n' | bash \"${RUNNER_SCRIPT}\" --local generate .")
+    verify_exit_code "1" "${exit_code}" "Differential artifact prompt exits 1 on user decline"
 
     # Evaluates the forced overwrite bypass mechanism for automation pipelines.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f generate .)
-        verify_exit_code "0" "${exit_code}" "Forced overwrite ignores diff constraint and exits 0"
-    )
+    exit_code=$(cd "${test_dir}" && _run bash "${RUNNER_SCRIPT}" --local -f generate .)
+    verify_exit_code "0" "${exit_code}" "Forced overwrite ignores diff constraint and exits 0"
 }
 
 function test_generate_errors {
@@ -495,11 +511,8 @@ function test_install_logic {
     ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
 
     # Evaluates implicit artifact location and syntax validation prior to routing.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" _run bash "${RUNNER_SCRIPT}" --local -f install .)
-        verify_exit_code "0" "${exit_code}" "Directory-based installation resolves artifact correctly"
-    )
+    exit_code=$(cd "${test_dir}" && IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" _run bash "${RUNNER_SCRIPT}" --local -f install .)
+    verify_exit_code "0" "${exit_code}" "Directory-based installation resolves artifact correctly"
 
     local installed_conf="${mock_conf_dir}/install_ioc.conf"
     local install_exists="false"
@@ -513,12 +526,9 @@ function test_install_logic {
     local eof_marker="# T5_EOF_PRESERVE_MARKER"
     printf "%s\n" "${eof_marker}" >> "${installed_conf}"
 
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+    exit_code=$(cd "${test_dir}" && IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
         _run bash -c "bash \"${RUNNER_SCRIPT}\" --local install . < /dev/null")
-        verify_exit_code "1" "${exit_code}" "Install overwrite prompt exits 1 on EOF"
-    )
+    verify_exit_code "1" "${exit_code}" "Install overwrite prompt exits 1 on EOF"
 
     local preserved="false"
     if [[ -f "${installed_conf}" ]] && grep -qF "${eof_marker}" "${installed_conf}" 2>/dev/null; then
@@ -528,12 +538,9 @@ function test_install_logic {
 
     # Issue #93: user decline (n) on the install overwrite prompt exits 1
     # and preserves the existing conf, matching the EOF abort convention.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+    exit_code=$(cd "${test_dir}" && IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
         _run bash -c "printf 'n\n' | bash \"${RUNNER_SCRIPT}\" --local install .")
-        verify_exit_code "1" "${exit_code}" "Install overwrite prompt exits 1 on user decline"
-    )
+    verify_exit_code "1" "${exit_code}" "Install overwrite prompt exits 1 on user decline"
 
     local declined_preserved="false"
     if [[ -f "${installed_conf}" ]] && grep -qF "${eof_marker}" "${installed_conf}" 2>/dev/null; then
@@ -688,13 +695,11 @@ function test_env_var_namespacing {
     ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
 
     # Case 1: Namespaced IOC_RUNNER_LOCAL_* variables route install to ns dirs.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf_dir}" \
-                    IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd_dir}" \
-                    _run bash "${RUNNER_SCRIPT}" --local -f install .)
-        verify_exit_code "0" "${exit_code}" "IOC_RUNNER_LOCAL_* routes --local install"
-    )
+    exit_code=$(cd "${test_dir}" && \
+                IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf_dir}" \
+                IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd_dir}" \
+                _run bash "${RUNNER_SCRIPT}" --local -f install .)
+    verify_exit_code "0" "${exit_code}" "IOC_RUNNER_LOCAL_* routes --local install"
 
     local ns_installed="${ns_conf_dir}/ns_ioc.conf"
     local ns_exists="false"
@@ -734,17 +739,15 @@ function test_env_var_precedence {
     ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
 
     # Install with contradicting unified + namespaced vars across all three pairs.
-    (
-        cd "${test_dir}" || exit 1
-        exit_code=$(IOC_RUNNER_CONF_DIR="${unified_conf}" \
-                    IOC_RUNNER_SYSTEMD_DIR="${unified_sysd}" \
-                    IOC_RUNNER_RUN_DIR="${unified_run}" \
-                    IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf}" \
-                    IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd}" \
-                    IOC_RUNNER_LOCAL_RUN_DIR="${ns_run}" \
-                    _run bash "${RUNNER_SCRIPT}" --local -f install .)
-        verify_exit_code "0" "${exit_code}" "Install succeeds with full precedence matrix"
-    )
+    exit_code=$(cd "${test_dir}" && \
+                IOC_RUNNER_CONF_DIR="${unified_conf}" \
+                IOC_RUNNER_SYSTEMD_DIR="${unified_sysd}" \
+                IOC_RUNNER_RUN_DIR="${unified_run}" \
+                IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf}" \
+                IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd}" \
+                IOC_RUNNER_LOCAL_RUN_DIR="${ns_run}" \
+                _run bash "${RUNNER_SCRIPT}" --local -f install .)
+    verify_exit_code "0" "${exit_code}" "Install succeeds with full precedence matrix"
 
     # CONF_DIR precedence: conf file lands in unified, not namespaced.
     local conf_in_unified="false" conf_in_ns="false"
