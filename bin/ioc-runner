@@ -975,10 +975,12 @@ EOF
                 rm -f "${tmp_conf}"
                 exit 1
             fi
+            # Issue #93: every abort exits nonzero; the requested action did
+            # not happen, so a decline must not read as success to callers.
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Generation aborted by user.\n"
                 rm -f "${tmp_conf}"
-                exit 0
+                exit 1
             fi
         fi
     fi
@@ -1134,9 +1136,10 @@ function do_install {
                     printf "\nInfo: Input stream closed (EOF). Aborting installation.\n" >&2
                     exit 1
                 fi
+                # Issue #93: abort exits nonzero (see the generate prompt).
                 if [[ ! "${precheck_confirm}" =~ ^[Yy]$ ]]; then
                     printf "Installation aborted by user.\n"
-                    exit 0
+                    exit 1
                 fi
             fi
         fi
@@ -1199,9 +1202,10 @@ function do_install {
                 printf "\nInfo: Input stream closed (EOF). Aborting installation.\n"
                 exit 1
             fi
+            # Issue #93: abort exits nonzero (see the generate prompt).
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Installation aborted by user.\n"
-                exit 0
+                exit 1
             fi
         else
             printf "Info: Overwriting existing configuration file '%s' (--force).\n" "${target_conf}"

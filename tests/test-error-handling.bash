@@ -396,6 +396,14 @@ function test_generate_logic {
         verify_exit_code "1" "${exit_code}" "Differential artifact prompt exits 1 on EOF"
     )
 
+    # Issue #93: a user decline (n) is an abort like EOF; both exit nonzero
+    # so a scripted caller cannot mistake a declined overwrite for success.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(_run bash -c "printf 'n\n' | bash \"${RUNNER_SCRIPT}\" --local generate .")
+        verify_exit_code "1" "${exit_code}" "Differential artifact prompt exits 1 on user decline"
+    )
+
     # Evaluates the forced overwrite bypass mechanism for automation pipelines.
     (
         cd "${test_dir}" || exit 1
@@ -517,6 +525,21 @@ function test_install_logic {
         preserved="true"
     fi
     verify_state "true" "${preserved}" "Install EOF abort preserves existing conf (marker retained)"
+
+    # Issue #93: user decline (n) on the install overwrite prompt exits 1
+    # and preserves the existing conf, matching the EOF abort convention.
+    (
+        cd "${test_dir}" || exit 1
+        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash -c "printf 'n\n' | bash \"${RUNNER_SCRIPT}\" --local install .")
+        verify_exit_code "1" "${exit_code}" "Install overwrite prompt exits 1 on user decline"
+    )
+
+    local declined_preserved="false"
+    if [[ -f "${installed_conf}" ]] && grep -qF "${eof_marker}" "${installed_conf}" 2>/dev/null; then
+        declined_preserved="true"
+    fi
+    verify_state "true" "${declined_preserved}" "Install decline abort preserves existing conf (marker retained)"
 }
 
 # T3 (Phase E): IOC_PORT atomic install. The write path in do_install
