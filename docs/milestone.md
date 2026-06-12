@@ -17,8 +17,9 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** M2 (#93). M1 (#92) closed 2026-06-12 (fix
-`0baa9df`, T1/T2 on both goldens). The 1.2.0 work order M1-M12 was set
+**Next session entry point:** M3 (#94). M1 (#92) closed 2026-06-12 (fix
+`0baa9df`) and M2 (#93) closed 2026-06-12 (fix `1e051ec`), both with
+T1/T2 on both goldens. The 1.2.0 work order M1-M12 was set
 2026-06-11: standalone items first (M1-M4), then the template and guard-test
 cluster (M5-M11), then the #68 wrapper design (M12). Cluster-internal order
 is grounded in the issue records: #81 (M5) runs first as a pure refactor
@@ -56,9 +57,9 @@ ends with a reconcile pass comparing issue state against this register.
 | M1 | 1.2.0 | #92 crash-warning false positive after a manual `st.cmd` run | Run finding (#91, S7 / F-M2-1) | Done | Closed 2026-06-12. Design Record in #92 (three-reviewer session rs20260611_163202): line-targeted `CRASH_LOG_EXCLUDE_PATTERNS` pre-filter + FAQ Q5 corrected knob (`EPICS_IOCSH_HISTFILE=/dev/null`). Fix `0baa9df`; T1/T2 verified on both goldens; verification record in the issue body. bug, P3-low. |
 | M1.T1 | 1.2.0 | reproduce the cross-owned `.iocsh_history` warning on a VM golden; no warning after the fix | Test sub | Done | PASS 2026-06-12, both goldens, system mode: service run naturally leaves `ioc-srv:ioc 0600`; operator manual run prints the benign `ERROR` and leaves `opa:ioc 0600`; subsequent `start` raises no warning. Raw-byte pin: exclusion regex matches exactly 1 line per real log (ANSI escapes + trailing CR confirmed). Evidence: session `evidence/<vm>/T1.txt` (local-only). |
 | M1.T2 | 1.2.0 | new history-load crash-scan case; existing crash-detection set green | Test sub | Done | 2026-06-12: error-handling 110/110 (top, rocky8, debian13); local lifecycle 55/55 rocky8, 56/56 debian13, 56/56 top — incl. 7 exclusion fixtures + 4 history-noise probe assertions; existing crash set green unchanged. |
-| M2 | 1.2.0 | #93 align install abort exit codes (`n` vs EOF) | Run finding (#91, PF8/S9 / OBS-1) | Open | Prompt `n` exits 0, stdin EOF exits 1; both mean not installed. Pick one convention (suggest nonzero), apply to both branches, pin with error-suite cases. enhancement, P3-low. |
-| M2.T1 | 1.2.0 | both abort branches follow the chosen convention across install paths | Test sub | Open | — |
-| M2.T2 | 1.2.0 | two new error-suite cases pinning both exit codes | Test sub | Open | — |
+| M2 | 1.2.0 | #93 align install abort exit codes (`n` vs EOF) | Run finding (#91, PF8/S9 / OBS-1) | Done | Closed 2026-06-12. Convention: every interactive abort exits 1; scope extended (owner-approved) to all three prompts sharing the split — generate overwrite, install precheck, install overwrite. Fix `1e051ec`; Design Record + verification record in #93. enhancement, P3-low. |
+| M2.T1 | 1.2.0 | both abort branches follow the chosen convention across install paths | Test sub | Done | PASS 2026-06-12, both goldens, 8/8 each: precheck n/EOF + nothing installed, overwrite n/EOF, generate n/EOF (installed runner). |
+| M2.T2 | 1.2.0 | two new error-suite cases pinning both exit codes | Test sub | Done | 2026-06-12: decline-branch cases + existing-conf preservation marker added; EOF pins pre-existed; error-handling green on top. Subshell-assertion counting defect found in the harness — separate issue. |
 | M3 | 1.2.0 | #94 observer `list` shows no sockets while IOCs run | Run finding (#91, S6 / OBS-2) | Open | Non-`ioc` `list` exits 0 with an empty result while IOCs run (socket dirs `0770` untraversable); add a permission hint to the empty case or document. enhancement, P3-low. |
 | M3.T1 | 1.2.0 | non-`ioc` empty `list` carries the permission hint (or documented behavior) | Test sub | Open | — |
 | M3.T2 | 1.2.0 | suite case where test mode permits a non-`ioc` probe | Test sub | Open | — |
@@ -105,12 +106,12 @@ ends with a reconcile pass comparing issue state against this register.
 | M14.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M14.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 13 (12 work + 1 gate), Done 1 (M1) · test subs Open 35, Done 2 (M1.T1, M1.T2) · Blocked 0
+**Tally:** milestones Open 12 (11 work + 1 gate), Done 2 (M1, M2) · test subs Open 33, Done 4 (M1.T1/T2, M2.T1/T2) · Blocked 0
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 12 open, 1 closed (#92), due 2026-07-31. The work order is
+GitHub milestone `1.2.0` — 11 open, 2 closed (#92, #93), due 2026-07-31. The work order is
 M1-M13 plus the M14 release gate in the Active Register above; M14 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is

@@ -98,3 +98,11 @@ milestone that surfaced them.
   root-free local-lifecycle probes rather than the system-lifecycle suite
   (root bypasses the `chmod 0` read denial); the cross-owned `0600`
   reproduction stays in M1.T1 on the VM goldens.
+- 2026-06-12 (M2): scope extended from the install prompts to the
+  generate overwrite prompt (same `n`=0 / EOF=1 split, owner-approved);
+  decline-branch cases pin all three prompts at exit 1. Two findings
+  spun off: the install precheck hint still recommends the ineffective
+  `IOCSH_HISTSIZE` knob (M1 residue), and `test-error-handling.bash`
+  assertions inside `( cd ... )` subshells print PASS/FAIL without
+  reaching the suite counters, so a subshell FAIL cannot fail the suite
+  (pre-existing; about ten assertions affected).
