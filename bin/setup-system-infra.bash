@@ -13,8 +13,12 @@ declare -g GREEN='\033[0;32m'
 declare -g BLUE='\033[0;34m'
 declare -g NC='\033[0m'
 
-declare -g SYSTEM_USER="ioc-srv"
-declare -g SYSTEM_GROUP="ioc"
+# Single configurable source for the system-mode service identity (#87).
+# bin/ioc-runner resolves the same IOC_RUNNER_SYSTEM_USER/GROUP overrides
+# with the same defaults; the shared defaults are pinned by a static guard
+# test in tests/test-error-handling.bash.
+declare -g SYSTEM_USER="${IOC_RUNNER_SYSTEM_USER:-ioc-srv}"
+declare -g SYSTEM_GROUP="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"

@@ -57,6 +57,14 @@ the ACL permissions and mask inherited by newly created entries, not
 write access to the parent directory. `IOC_CHDIR` needs the group-write
 model, not a default ACL.
 
+The service identity itself is configurable from a single source:
+both `bin/ioc-runner` and `bin/setup-system-infra.bash` resolve
+`IOC_RUNNER_SYSTEM_USER` / `IOC_RUNNER_SYSTEM_GROUP` with the shipped
+defaults `ioc-srv` / `ioc`. A site deploying under a different account
+or group sets the two variables once, for both the setup run and every
+runner invocation; the shared defaults are pinned by a static guard
+test.
+
 ### Local-mode paths
 
 Paths created by `ioc-runner --local install` under the invoking

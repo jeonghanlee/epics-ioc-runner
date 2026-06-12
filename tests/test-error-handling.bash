@@ -1177,6 +1177,53 @@ function test_list_empty {
     fi
 }
 
+
+# Validates the #87 single-source identity contract: bin/ioc-runner and
+# bin/setup-system-infra.bash resolve the same IOC_RUNNER_SYSTEM_USER /
+# IOC_RUNNER_SYSTEM_GROUP overrides with the same shipped defaults. A
+# one-sided edit of either declaration fails here before it can ship.
+function test_system_identity_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: System Identity Single-Source Guard (#87)"
+    print_sub_divider
+
+    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
+    local line field
+    local -A runner_env=() runner_def=() setup_env=() setup_def=()
+
+    while IFS= read -r line; do
+        for field in USER GROUP; do
+            if [[ "${line}" == "declare -g TARGET_SYSTEM_${field}="* ]]; then
+                runner_env[${field}]="${line#*\$\{}"
+                runner_env[${field}]="${runner_env[${field}]%%:-*}"
+                runner_def[${field}]="${line#*:-}"
+                runner_def[${field}]="${runner_def[${field}]%%\}*}"
+            fi
+        done
+    done < "${RUNNER_SCRIPT}"
+
+    while IFS= read -r line; do
+        for field in USER GROUP; do
+            if [[ "${line}" == "declare -g SYSTEM_${field}="* ]]; then
+                setup_env[${field}]="${line#*\$\{}"
+                setup_env[${field}]="${setup_env[${field}]%%:-*}"
+                setup_def[${field}]="${line#*:-}"
+                setup_def[${field}]="${setup_def[${field}]%%\}*}"
+            fi
+        done
+    done < "${setup_script}"
+
+    verify_state "IOC_RUNNER_SYSTEM_USER" "${runner_env[USER]:-}" "Runner user identity resolves the IOC_RUNNER_SYSTEM_USER override"
+    verify_state "IOC_RUNNER_SYSTEM_USER" "${setup_env[USER]:-}" "Setup user identity resolves the same override variable"
+    verify_state "ioc-srv" "${runner_def[USER]:-}" "Runner user default pinned to ioc-srv"
+    verify_state "${runner_def[USER]:-runner-unset}" "${setup_def[USER]:-setup-unset}" "User defaults agree across both scripts"
+    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${runner_env[GROUP]:-}" "Runner group identity resolves the IOC_RUNNER_SYSTEM_GROUP override"
+    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${setup_env[GROUP]:-}" "Setup group identity resolves the same override variable"
+    verify_state "ioc" "${runner_def[GROUP]:-}" "Runner group default pinned to ioc"
+    verify_state "${runner_def[GROUP]:-runner-unset}" "${setup_def[GROUP]:-setup-unset}" "Group defaults agree across both scripts"
+}
+
 function test_inspect_errors {
     local step="$1"
     print_divider
@@ -1431,6 +1478,7 @@ function run_all_tests {
         "test_ss_failure_aborts_list"
         "test_env_var_namespacing"
         "test_env_var_precedence"
+        "test_system_identity_guard"
         "test_log_dir_guard"
         "test_log_dir_xdg_fallback"
         "test_completion"

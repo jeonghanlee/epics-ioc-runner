@@ -82,8 +82,12 @@ declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
 
 # --- Target Identity Settings ---
-declare -g TARGET_SYSTEM_USER="ioc-srv"
-declare -g TARGET_SYSTEM_GROUP="ioc"
+# Single configurable source for the system-mode service identity (#87).
+# setup-system-infra.bash resolves the same IOC_RUNNER_SYSTEM_USER/GROUP
+# overrides with the same defaults; the shared defaults are pinned by a
+# static guard test in tests/test-error-handling.bash.
+declare -g TARGET_SYSTEM_USER="${IOC_RUNNER_SYSTEM_USER:-ioc-srv}"
+declare -g TARGET_SYSTEM_GROUP="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
 
 # --- Health Check Configuration ---
 # Regex pattern used to detect fatal errors or crash-loops in procServ logs immediately after startup.
