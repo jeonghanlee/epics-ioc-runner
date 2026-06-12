@@ -1,6 +1,6 @@
 # EPICS IOC Runner — Test Plan 1.2.0
 
-Cycle test plan for the 1.2.0 milestones M1-M12 (work order and issue
+Cycle test plan for the 1.2.0 milestones M1-M13 (work order and issue
 references in [`milestone.md`](milestone.md)). Drafted at cycle start
 (2026-06-11); cases discovered during the work are added under "Added
 During Cycle". Before the final release this plan is executed in full and
@@ -40,7 +40,7 @@ ends with a reconcile pass comparing issue state against the register.
 
 | M | Issue | Change-specific verification | Suite coverage and new cases |
 | :--- | :--- | :--- | :--- |
-| M1 | #92 | Reproduce on a VM golden: an operator's manual `st.cmd` run leaves a `0600` cross-owned `.iocsh_history`; a subsequent service start must not warn after the fix. Verify the chosen design (FAQ Q5 note and/or scan exclusion) against a real history-load `ERROR` line. | New crash-scan case: history-load line not flagged; existing crash-detection cases stay green (system lifecycle). |
+| M1 | #92 | Reproduce on a VM golden: an operator's manual `st.cmd` run leaves a `0600` cross-owned `.iocsh_history`; a subsequent service start must not warn after the fix. Verify the chosen design (per the #92 Design Record: `CRASH_LOG_EXCLUDE_PATTERNS` pre-filter + FAQ Q5 corrected knob) against a real history-load `ERROR` line, pinning the raw log bytes (`grep -a`; the line carries ANSI escapes). | New cases per the Design Record: raw-ANSI fixture set in error-handling (filter pins, `writing` variant, line-targeted proof, same-line residual) and root-free `chmod 0` probes with self-validation in local lifecycle; existing crash-detection cases stay green. |
 | M2 | #93 | Both abort branches (prompt `n`, stdin EOF) exit with the chosen convention; behavior identical across install paths. | New error-suite cases pinning both branches' exit codes. |
 | M3 | #94 | As a non-`ioc` principal with IOCs running: empty `list` result carries the permission hint (or the documented behavior). Amends `testplan_multiuser.md` S6. | Suite case where test mode permits a non-`ioc` probe; otherwise covered by the S6 re-run at the gate. |
 | M4 | #87 | On a VM golden: run setup and runner with `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` overrides — both scripts resolve the same identity; the default path is unchanged. | New guard test pinning the shared `ioc-srv`/`ioc` defaults; system-infra suite green on defaults. |
@@ -52,6 +52,7 @@ ends with a reconcile pass comparing issue state against the register.
 | M10 | #54 | `Restart=` policy chosen from the M8 exit-signal findings; crash-loop behavior under the chosen policy matches the design, including the `SuccessExitStatus` interplay. Re-runs the M5 guard and the crash-detection cases. | Both lifecycle suites green. |
 | M11 | #67 | A crash-looping IOC is reported failed, not "successfully started"; a healthy start/restart is not slowed beyond the stabilization window. Re-runs the M1 and M8 crash cases. | Both lifecycle suites green (start/restart hot path). |
 | M12 | #68 | The wrapper accepts in-contract IOC names and rejects out-of-contract names identically on both distros; the sudoers policy narrows to the wrapper; CI-20/CI-21 dispositions recorded. Amends `testplan_multiuser.md` S11 (residual risk closed). | System suites on both goldens (covering both sudoers emission branches); multi-user sudo-gate subset (S1, S6, S11) re-run. |
+| M13 | #96 | The ineffective `epicsEnvSet("IOCSH_HISTSIZE","0")` line is removed and the adjacent comment names the actual safeguard (group-writable probe directory); `test_logrotate_boundary` passes unchanged in behavior. | System-lifecycle suite green on both goldens. |
 
 ## Dependency Re-run Matrix
 
@@ -75,8 +76,8 @@ causes it.
 
 Executed in order before the final 1.2.0 release:
 
-1. **Cycle batch re-run** — all M1-M12 change-specific verifications
-   against the final tree, the first state in which all twelve changes
+1. **Cycle batch re-run** — all M1-M13 change-specific verifications
+   against the final tree, the first state in which all thirteen changes
    coexist.
 2. **Full suites and VM gate** — all four suites, local and system modes,
    on both goldens (`rocky8-iocrunner`, `debian13-iocrunner`), through the
@@ -90,4 +91,10 @@ Executed in order before the final 1.2.0 release:
 Cases discovered during the work are recorded here with the date and the
 milestone that surfaced them.
 
-(none yet)
+- 2026-06-11 (M1 design review): #96 added as M13 — the
+  `test_logrotate_boundary` probe's `IOCSH_HISTSIZE` history-disable line
+  is a no-op (EPICS source-verified); the release gate renumbered M13 to
+  M14. M1's suite coverage was placed in error-handling fixtures plus
+  root-free local-lifecycle probes rather than the system-lifecycle suite
+  (root bypasses the `chmod 0` read denial); the cross-owned `0600`
+  reproduction stays in M1.T1 on the VM goldens.

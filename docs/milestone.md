@@ -33,7 +33,9 @@ The cycle test plan is `testplan_1.2.0.md` (per-milestone verification,
 dependency re-run matrix, release-gate sequence); the multi-user plan was
 renamed to `testplan_multiuser.md` as the standing release-gate step.
 Each milestone carries its verification as `M<n>.T<k>` subs in the Active
-Register, and M13 (release gate, no GitHub issue) closes the cycle.
+Register, and M14 (release gate, no GitHub issue) closes the cycle. M13
+(#96) was added 2026-06-11 from the M1 design review; the gate was
+renumbered M13 to M14 to keep the gate on the last number.
 Version is `1.2.0-dev` (`bin/ioc-runner:14`).
 
 ## Active Register
@@ -50,9 +52,9 @@ ends with a reconcile pass comparing issue state against this register.
 
 | M | Topic | Work unit | Type | Status | Evidence or next action |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| M1 | 1.2.0 | #92 crash-warning false positive after a manual `st.cmd` run | Run finding (#91, S7 / F-M2-1) | Open | Cross-owned `0600 .iocsh_history` between operator and `ioc-srv` runs; the history-load `ERROR` matches `CRASH_LOG_PATTERNS` (`bin/ioc-runner:91`). Candidates: FAQ Q5 `IOCSH_HISTSIZE=0` note and/or scan exclusion of the history-load line. bug, P3-low. |
-| M1.T1 | 1.2.0 | reproduce the cross-owned `.iocsh_history` warning on a VM golden; no warning after the fix | Test sub | Open | — |
-| M1.T2 | 1.2.0 | new history-load crash-scan case; existing crash-detection set green | Test sub | Open | — |
+| M1 | 1.2.0 | #92 crash-warning false positive after a manual `st.cmd` run | Run finding (#91, S7 / F-M2-1) | Open | Design decided and recorded in #92 (Design Record 2026-06-11, three-reviewer session rs20260611_163202): line-targeted `CRASH_LOG_EXCLUDE_PATTERNS` pre-filter + FAQ Q5 corrected knob (`EPICS_IOCSH_HISTFILE=/dev/null`). Implemented in `0baa9df`; suites green on top. T1 at the next VM gate window. bug, P3-low. |
+| M1.T1 | 1.2.0 | reproduce the cross-owned `.iocsh_history` warning on a VM golden; no warning after the fix | Test sub | Open | Runs at the next VM gate window with raw-byte pin (`grep -a`). |
+| M1.T2 | 1.2.0 | new history-load crash-scan case; existing crash-detection set green | Test sub | Open | Implemented 2026-06-11: 7 error-handling assertions + 4 local-lifecycle probe assertions; error-handling 110/110, local lifecycle 56/56 on top (Debian). Golden re-run rides T1. |
 | M2 | 1.2.0 | #93 align install abort exit codes (`n` vs EOF) | Run finding (#91, PF8/S9 / OBS-1) | Open | Prompt `n` exits 0, stdin EOF exits 1; both mean not installed. Pick one convention (suggest nonzero), apply to both branches, pin with error-suite cases. enhancement, P3-low. |
 | M2.T1 | 1.2.0 | both abort branches follow the chosen convention across install paths | Test sub | Open | — |
 | M2.T2 | 1.2.0 | two new error-suite cases pinning both exit codes | Test sub | Open | — |
@@ -94,22 +96,26 @@ ends with a reconcile pass comparing issue state against this register.
 | M12.T2 | 1.2.0 | system suites on both goldens (two sudoers emission branches) | Test sub | Open | — |
 | M12.T3 | 1.2.0 | re-run multi-user sudo-gate subset S1/S6/S11 | Test sub | Open | — |
 | M12.T4 | 1.2.0 | amend `testplan_multiuser.md` S11 (residual risk closed) | Test sub | Open | — |
-| M13 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M12 close; gates the master merge + `1.2.0` tag. |
-| M13.T1 | 1.2.0 | cycle batch re-run of all M1-M12 change-specific verifications on the final tree | Test sub | Open | — |
-| M13.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
-| M13.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
+| M13 | 1.2.0 | #96 replace the ineffective `IOCSH_HISTSIZE` history-disable line in `test_logrotate_boundary` | Review follow-up (#92) | Open | The `epicsEnvSet` line cannot gate the history file (in-memory list only, EPICS source-verified); the probe passes because its directory is group-writable (`tests/test-system-lifecycle.bash:928-941`). Remove the line and correct the comment. Added 2026-06-11 from the M1 design review. tests, P3-low. |
+| M13.T1 | 1.2.0 | line removed and comment corrected; `test_logrotate_boundary` green | Test sub | Open | — |
+| M13.T2 | 1.2.0 | system-lifecycle suite green on both goldens | Test sub | Open | — |
+| M14 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M13 close; gates the master merge + `1.2.0` tag. |
+| M14.T1 | 1.2.0 | cycle batch re-run of all M1-M13 change-specific verifications on the final tree | Test sub | Open | — |
+| M14.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
+| M14.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 13 (12 work + 1 gate) · test subs Open 35 · Done 0 · Blocked 0
+**Tally:** milestones Open 14 (13 work + 1 gate) · test subs Open 37 · Done 0 · Blocked 0
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 12 open, due 2026-07-31. The work order is
-M1-M12 plus the M13 release gate in the Active Register above; M13 is
+GitHub milestone `1.2.0` — 13 open, due 2026-07-31. The work order is
+M1-M13 plus the M14 release gate in the Active Register above; M14 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
 touched once as a group, with #81 first as the byte-equivalence-gated
-refactor.
+refactor. #96 (M13) was added 2026-06-11 as a spin-off of the M1 design
+review.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -125,6 +131,7 @@ refactor.
 | [#92](https://github.com/jeonghanlee/epics-ioc-runner/issues/92) | Crash-warning false positive after manual st.cmd run | bug, P3-low | Run finding F-M2-1 from #91 (S7). Cross-owned `0600 .iocsh_history` between operator manual runs and `ioc-srv` service runs; the history-load `ERROR` matches the global `CRASH_LOG_PATTERNS`, tripping the start health-check warning on a conforming directory. FAQ Q5 note and/or scan exclusion. |
 | [#93](https://github.com/jeonghanlee/epics-ioc-runner/issues/93) | Align install abort exit codes (n vs EOF) | enhancement, P3-low | Run finding OBS-1 from #91 (PF8/S9). Prompt `n` exits 0, EOF abort exits 1; both mean not installed. Pick one convention, apply to both branches, pin with error-suite cases. |
 | [#94](https://github.com/jeonghanlee/epics-ioc-runner/issues/94) | Observer list shows no sockets while IOCs run | enhancement, P3-low | Run finding OBS-2 from #91 (S6). Non-`ioc` `list` exits 0 with an empty result while IOCs run (socket dirs `0770` untraversable); add a permission hint to the empty case or document. |
+| [#96](https://github.com/jeonghanlee/epics-ioc-runner/issues/96) | test_logrotate_boundary history knob is a no-op | tests, P3-low | Spin-off from the #92 design review (Independent). The `epicsEnvSet("IOCSH_HISTSIZE","0")` line in the probe `st.cmd` cannot disable the history file (EPICS source-verified: in-memory list only; path variable is `EPICS_IOCSH_HISTFILE`; in-`st.cmd` `epicsEnvSet` is too late); the test passes because the probe directory is group-writable. Remove the line, correct the comment. |
 
 ## Examined-Keep Ledger
 
