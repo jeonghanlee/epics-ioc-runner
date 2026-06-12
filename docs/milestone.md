@@ -35,9 +35,10 @@ The cycle test plan is `testplan_1.2.0.md` (per-milestone verification,
 dependency re-run matrix, release-gate sequence); the multi-user plan was
 renamed to `testplan_multiuser.md` as the standing release-gate step.
 Each milestone carries its verification as `M<n>.T<k>` subs in the Active
-Register, and M14 (release gate, no GitHub issue) closes the cycle. M13
-(#96) was added 2026-06-11 from the M1 design review; the gate was
-renumbered M13 to M14 to keep the gate on the last number.
+Register, and M16 (release gate, no GitHub issue) closes the cycle. The
+gate renumbers to stay on the last number as cycle-added items join:
+M13 (#96) added 2026-06-11 from the M1 design review; M14 (#97) and M15
+(#98) added 2026-06-12 from the M2 sweep.
 Version is `1.2.0-dev` (`bin/ioc-runner:14`).
 
 ## Active Register
@@ -101,23 +102,30 @@ ends with a reconcile pass comparing issue state against this register.
 | M13 | 1.2.0 | #96 replace the ineffective `IOCSH_HISTSIZE` history-disable line in `test_logrotate_boundary` | Review follow-up (#92) | Open | The `epicsEnvSet` line cannot gate the history file (in-memory list only, EPICS source-verified); the probe passes because its directory is group-writable (`tests/test-system-lifecycle.bash:928-941`). Remove the line and correct the comment. Added 2026-06-11 from the M1 design review. tests, P3-low. |
 | M13.T1 | 1.2.0 | line removed and comment corrected; `test_logrotate_boundary` green | Test sub | Open | — |
 | M13.T2 | 1.2.0 | system-lifecycle suite green on both goldens | Test sub | Open | — |
-| M14 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M13 close; gates the master merge + `1.2.0` tag. |
-| M14.T1 | 1.2.0 | cycle batch re-run of all M1-M13 change-specific verifications on the final tree | Test sub | Open | — |
-| M14.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
-| M14.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
+| M14 | 1.2.0 | #97 replace the ineffective `IOCSH_HISTSIZE` recommendation in the install precheck hint | Review follow-up (#92) | Open | The hint (`bin/ioc-runner:1128-1130`) sends operators to a knob proven a no-op in the #92 review; replace with guidance consistent with FAQ Q5/Q8 (`EPICS_IOCSH_HISTFILE=/dev/null`, scan exclusion note). M1 residue found in the M2 sweep. bug, P3-low. |
+| M14.T1 | 1.2.0 | hint text replaced; consistent with FAQ Q5/Q8 as corrected by #92 | Test sub | Open | — |
+| M14.T2 | 1.2.0 | error-handling suite green (install/precheck cases unchanged) | Test sub | Open | — |
+| M15 | 1.2.0 | #98 subshell assertions do not reach the error-suite counters | Review follow-up (#93) | Open | `( cd ... )` blocks lose `TEST_*` increments: 121 PASS printed vs 111 counted, and a subshell FAIL cannot fail the suite. Fix design options in #98; add a printed-equals-counted self-check. Worth closing before the next T2-heavy milestone. tests, P2-medium. |
+| M15.T1 | 1.2.0 | printed-assertion count equals counted total; a deliberate subshell FAIL fails the suite (negative check) | Test sub | Open | — |
+| M15.T2 | 1.2.0 | full error-handling suite green with reconciled counts; same-pattern sweep of the other suites recorded | Test sub | Open | — |
+| M16 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M15 close; gates the master merge + `1.2.0` tag. |
+| M16.T1 | 1.2.0 | cycle batch re-run of all M1-M15 change-specific verifications on the final tree | Test sub | Open | — |
+| M16.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
+| M16.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 12 (11 work + 1 gate), Done 2 (M1, M2) · test subs Open 33, Done 4 (M1.T1/T2, M2.T1/T2) · Blocked 0
+**Tally:** milestones Open 14 (13 work + 1 gate), Done 2 (M1, M2) · test subs Open 37, Done 4 (M1.T1/T2, M2.T1/T2) · Blocked 0
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 11 open, 2 closed (#92, #93), due 2026-07-31. The work order is
-M1-M13 plus the M14 release gate in the Active Register above; M14 is
+GitHub milestone `1.2.0` — 13 open, 2 closed (#92, #93), due 2026-07-31. The work order is
+M1-M15 plus the M16 release gate in the Active Register above; M16 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
 touched once as a group, with #81 first as the byte-equivalence-gated
 refactor. #96 (M13) was added 2026-06-11 as a spin-off of the M1 design
-review.
+review; #97 (M14) and #98 (M15) were added 2026-06-12 from the M2 sweep,
+with #98 worth pulling forward before the next T2-heavy milestone.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -134,6 +142,8 @@ review.
 | [#93](https://github.com/jeonghanlee/epics-ioc-runner/issues/93) | Align install abort exit codes (n vs EOF) | enhancement, P3-low | Run finding OBS-1 from #91 (PF8/S9). Prompt `n` exits 0, EOF abort exits 1; both mean not installed. Pick one convention, apply to both branches, pin with error-suite cases. |
 | [#94](https://github.com/jeonghanlee/epics-ioc-runner/issues/94) | Observer list shows no sockets while IOCs run | enhancement, P3-low | Run finding OBS-2 from #91 (S6). Non-`ioc` `list` exits 0 with an empty result while IOCs run (socket dirs `0770` untraversable); add a permission hint to the empty case or document. |
 | [#96](https://github.com/jeonghanlee/epics-ioc-runner/issues/96) | test_logrotate_boundary history knob is a no-op | tests, P3-low | Spin-off from the #92 design review (Independent). The `epicsEnvSet("IOCSH_HISTSIZE","0")` line in the probe `st.cmd` cannot disable the history file (EPICS source-verified: in-memory list only; path variable is `EPICS_IOCSH_HISTFILE`; in-`st.cmd` `epicsEnvSet` is too late); the test passes because the probe directory is group-writable. Remove the line, correct the comment. |
+| [#97](https://github.com/jeonghanlee/epics-ioc-runner/issues/97) | install precheck hint recommends the ineffective IOCSH_HISTSIZE knob | bug, P3-low | M1 residue found in the M2 sweep (Refs #92). The runtime hint (`bin/ioc-runner:1128-1130`) recommends the knob the #92 review proved a no-op; replace with FAQ Q5/Q8-consistent guidance. |
+| [#98](https://github.com/jeonghanlee/epics-ioc-runner/issues/98) | test-error-handling subshell assertions do not reach the suite counters | tests, P2-medium | Found adding the #93 decline cases. `( cd ... )` blocks lose counter increments (121 PASS printed vs 111 counted) and a subshell FAIL cannot fail the suite; fix options in the issue, plus a printed-equals-counted self-check and a same-pattern sweep of the other suites. |
 
 ## Examined-Keep Ledger
 

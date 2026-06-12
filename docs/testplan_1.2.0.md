@@ -1,6 +1,6 @@
 # EPICS IOC Runner — Test Plan 1.2.0
 
-Cycle test plan for the 1.2.0 milestones M1-M13 (work order and issue
+Cycle test plan for the 1.2.0 milestones M1-M15 (work order and issue
 references in [`milestone.md`](milestone.md)). Drafted at cycle start
 (2026-06-11); cases discovered during the work are added under "Added
 During Cycle". Before the final release this plan is executed in full and
@@ -53,6 +53,8 @@ ends with a reconcile pass comparing issue state against the register.
 | M11 | #67 | A crash-looping IOC is reported failed, not "successfully started"; a healthy start/restart is not slowed beyond the stabilization window. Re-runs the M1 and M8 crash cases. | Both lifecycle suites green (start/restart hot path). |
 | M12 | #68 | The wrapper accepts in-contract IOC names and rejects out-of-contract names identically on both distros; the sudoers policy narrows to the wrapper; CI-20/CI-21 dispositions recorded. Amends `testplan_multiuser.md` S11 (residual risk closed). | System suites on both goldens (covering both sudoers emission branches); multi-user sudo-gate subset (S1, S6, S11) re-run. |
 | M13 | #96 | The ineffective `epicsEnvSet("IOCSH_HISTSIZE","0")` line is removed and the adjacent comment names the actual safeguard (group-writable probe directory); `test_logrotate_boundary` passes unchanged in behavior. | System-lifecycle suite green on both goldens. |
+| M14 | #97 | The install precheck hint no longer recommends `IOCSH_HISTSIZE` or in-`st.cmd` `epicsEnvSet`; replacement text consistent with FAQ Q5/Q8 as corrected by #92. | Error-handling suite green (install/precheck cases unchanged). |
+| M15 | #98 | Printed-assertion count equals the counted total; a deliberately failing subshell assertion fails the suite (negative check during development); same-pattern sweep of the other suites recorded in the issue. | Full error-handling suite green with reconciled counts. |
 
 ## Dependency Re-run Matrix
 
@@ -76,8 +78,8 @@ causes it.
 
 Executed in order before the final 1.2.0 release:
 
-1. **Cycle batch re-run** — all M1-M13 change-specific verifications
-   against the final tree, the first state in which all thirteen changes
+1. **Cycle batch re-run** — all M1-M15 change-specific verifications
+   against the final tree, the first state in which all fifteen changes
    coexist.
 2. **Full suites and VM gate** — all four suites, local and system modes,
    on both goldens (`rocky8-iocrunner`, `debian13-iocrunner`), through the
@@ -106,3 +108,6 @@ milestone that surfaced them.
   assertions inside `( cd ... )` subshells print PASS/FAIL without
   reaching the suite counters, so a subshell FAIL cannot fail the suite
   (pre-existing; about ten assertions affected).
+- 2026-06-12 (post-M2 triage): the two findings filed as #97 (M14) and
+  #98 (M15), both milestone 1.2.0; the release gate renumbered M14 to
+  M16.
