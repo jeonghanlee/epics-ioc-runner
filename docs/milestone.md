@@ -20,8 +20,10 @@ GitHub release with curated notes from the changelog, milestone closed,
 **Next session entry point:** M5 (#81), opening the template and
 guard-test cluster (M5-M11). The standalone items M1-M4 (#92 fix
 `0baa9df`, #93 fix `1e051ec`, #94 fix `1e6cdbc`, #87 fix `234a580`)
-closed 2026-06-12, each verified on both goldens; M5 re-runs the M4
-guard per the dependency matrix. The 1.2.0 work order M1-M12 was set
+closed 2026-06-12, each verified on both goldens; M15 (#98, fix
+`36ad023`) was pulled forward and closed the same day, so the error
+suite counts are trustworthy for the cluster's guard tests. M5 re-runs
+the M4 guard per the dependency matrix. The 1.2.0 work order M1-M12 was set
 2026-06-11: standalone items first (M1-M4), then the template and guard-test
 cluster (M5-M11), then the #68 wrapper design (M12). Cluster-internal order
 is grounded in the issue records: #81 (M5) runs first as a pure refactor
@@ -107,27 +109,27 @@ ends with a reconcile pass comparing issue state against this register.
 | M14 | 1.2.0 | #97 replace the ineffective `IOCSH_HISTSIZE` recommendation in the install precheck hint | Review follow-up (#92) | Open | The hint (`bin/ioc-runner:1128-1130`) sends operators to a knob proven a no-op in the #92 review; replace with guidance consistent with FAQ Q5/Q8 (`EPICS_IOCSH_HISTFILE=/dev/null`, scan exclusion note). M1 residue found in the M2 sweep. bug, P3-low. |
 | M14.T1 | 1.2.0 | hint text replaced; consistent with FAQ Q5/Q8 as corrected by #92 | Test sub | Open | — |
 | M14.T2 | 1.2.0 | error-handling suite green (install/precheck cases unchanged) | Test sub | Open | — |
-| M15 | 1.2.0 | #98 subshell assertions do not reach the error-suite counters | Review follow-up (#93) | Open | `( cd ... )` blocks lose `TEST_*` increments: 121 PASS printed vs 111 counted, and a subshell FAIL cannot fail the suite. Fix design options in #98; add a printed-equals-counted self-check. Worth closing before the next T2-heavy milestone. tests, P2-medium. |
-| M15.T1 | 1.2.0 | printed-assertion count equals counted total; a deliberate subshell FAIL fails the suite (negative check) | Test sub | Open | — |
-| M15.T2 | 1.2.0 | full error-handling suite green with reconciled counts; same-pattern sweep of the other suites recorded | Test sub | Open | — |
+| M15 | 1.2.0 | #98 subshell assertions do not reach the error-suite counters | Review follow-up (#93) | Done | Closed 2026-06-12 (pulled forward before the cluster). Ten blocks de-subshelled (cd scoped in the command substitution) plus a permanent executed-vs-counted tripwire; quick-review gate, independent reviewer accept. Fix `36ad023`; Design Record in #98. tests, P2-medium. |
+| M15.T1 | 1.2.0 | printed-assertion count equals counted total; a deliberate subshell FAIL fails the suite (negative check) | Test sub | Done | 2026-06-12: 132 printed = 132 counted = 132 executed; planted-FAIL and reintroduced-subshell negatives both fail the suite (exit 1). |
+| M15.T2 | 1.2.0 | full error-handling suite green with reconciled counts; same-pattern sweep of the other suites recorded | Test sub | Done | 2026-06-12: error-handling 132/132 on top; sweep of the other three suites and the orchestrator clean (recorded in #98); summary format change breaks no consumer. |
 | M16 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M15 close; gates the master merge + `1.2.0` tag. |
 | M16.T1 | 1.2.0 | cycle batch re-run of all M1-M15 change-specific verifications on the final tree | Test sub | Open | — |
 | M16.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M16.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 12 (11 work + 1 gate), Done 4 (M1-M4) · test subs Open 32, Done 9 (M1.T1/T2, M2.T1/T2, M3.T1/T2/T4, M4.T1/T2) · Blocked 0
+**Tally:** milestones Open 11 (10 work + 1 gate), Done 5 (M1-M4, M15) · test subs Open 30, Done 11 (M1.T1/T2, M2.T1/T2, M3.T1/T2/T4, M4.T1/T2, M15.T1/T2) · Blocked 0
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 11 open, 4 closed (#92, #93, #94, #87), due 2026-07-31. The work order is
+GitHub milestone `1.2.0` — 10 open, 5 closed (#92, #93, #94, #87, #98), due 2026-07-31. The work order is
 M1-M15 plus the M16 release gate in the Active Register above; M16 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
 touched once as a group, with #81 first as the byte-equivalence-gated
 refactor. #96 (M13) was added 2026-06-11 as a spin-off of the M1 design
 review; #97 (M14) and #98 (M15) were added 2026-06-12 from the M2 sweep,
-with #98 worth pulling forward before the next T2-heavy milestone.
+and #98 was pulled forward and closed the same day.
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
