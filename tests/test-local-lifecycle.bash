@@ -938,6 +938,56 @@ EOF
     else
         _log "WARN" "truncate not found, skipping truncated log crash detection test."
     fi
+
+    # Issue #92: a pre-existing unreadable .iocsh_history makes iocsh emit the
+    # benign "ERROR Permission denied (N) loading '...'" line inside the startup
+    # scan window; CRASH_LOG_EXCLUDE_PATTERNS must clear it without weakening the
+    # scan. Root bypasses the chmod-0 read denial (CAP_DAC_OVERRIDE), so the line
+    # would never be emitted and the probes are skipped as root. Distinct from
+    # CrashTestHistory above, which covers historical-log-offset behavior.
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: chmod 0 cannot deny reads, skipping history-noise crash scan probes."
+    else
+        local histnoise_ioc_name="CrashTestHistNoise"
+        local histnoise_ioc_dir="${WORKSPACE}/crash_histnoise_ioc"
+        local histnoise_log="${local_log_dir}/${histnoise_ioc_name}.log"
+        local histnoise_emitted="false"
+        mkdir -p "${histnoise_ioc_dir}" "${local_log_dir}"
+
+        cat << EOF > "${histnoise_ioc_dir}/st.cmd"
+#!${softioc_bin}
+iocInit()
+EOF
+        chmod +x "${histnoise_ioc_dir}/st.cmd"
+        : > "${histnoise_ioc_dir}/.iocsh_history"
+        chmod 0 "${histnoise_ioc_dir}/.iocsh_history"
+        _install_crash_probe "${histnoise_ioc_name}" "${histnoise_ioc_dir}"
+        _run_crash_probe "${histnoise_ioc_name}" "false" "Crash detection: benign history-load ERROR excluded from scan"
+
+        # Self-validation: assert the benign line was actually emitted, so this
+        # case fails loudly instead of passing vacuously if the environment stops
+        # producing it (grep -a: the line carries raw ANSI escape bytes).
+        if grep -aq "loading '.*iocsh_history'" "${histnoise_log}" 2>/dev/null; then
+            histnoise_emitted="true"
+        fi
+        verify_state "true" "${histnoise_emitted}" "Crash detection: history-load ERROR present in probe log (self-validation)"
+
+        local histfatal_ioc_name="CrashTestHistFatal"
+        local histfatal_ioc_dir="${WORKSPACE}/crash_histfatal_ioc"
+        mkdir -p "${histfatal_ioc_dir}"
+
+        cat << EOF > "${histfatal_ioc_dir}/st.cmd"
+#!${softioc_bin}
+system "sleep 0.5"
+system "echo 'FATAL: real failure beside benign history noise'"
+system "kill -9 \$PPID"
+EOF
+        chmod +x "${histfatal_ioc_dir}/st.cmd"
+        : > "${histfatal_ioc_dir}/.iocsh_history"
+        chmod 0 "${histfatal_ioc_dir}/.iocsh_history"
+        _install_crash_probe "${histfatal_ioc_name}" "${histfatal_ioc_dir}"
+        _run_crash_probe "${histfatal_ioc_name}" "true" "Crash detection: real FATAL beside benign history noise still warns"
+    fi
 }
 
 function test_persistence {

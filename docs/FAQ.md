@@ -95,9 +95,9 @@ ioc-runner disable myioc
 # 2. Stop the running service (procServ + IOC)
 ioc-runner stop myioc
 
-# 3. Run the IOC manually for debugging
+# 3. Run the IOC manually for debugging (see the history-file note below)
 cd /opt/epics-iocs/flux-capacitor/iocBoot/iocFluxCap
-./st.cmd
+EPICS_IOCSH_HISTFILE=/dev/null ./st.cmd
 
 # 4. When debugging is complete, return to managed mode
 ioc-runner start myioc
@@ -105,6 +105,8 @@ ioc-runner enable myioc
 ```
 
 While the service is stopped, the `.conf` file remains in `/etc/procServ.d/` and the systemd template is unchanged. Only the runtime state is affected.
+
+**History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Launching with `EPICS_IOCSH_HISTFILE=/dev/null` disables the history file for the manual run, so no cross-owned file is left behind. `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file.
 
 ---
 
@@ -124,7 +126,7 @@ When `ioc-runner start` is executed, it performs a two-stage health check:
 
 1. **Primary check:** After a 5-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with the procServ log file path for troubleshooting.
 
-2. **Secondary check:** If the service appears active, it scans the new procServ log content from the current start or restart operation. If the log file cannot be read, it reports that startup logs could not be scanned rather than claiming a clean start. The case-insensitive crash indicators cover fatal process failures (`Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). If any pattern matches, it warns the engineer:
+2. **Secondary check:** If the service appears active, it scans the new procServ log content from the current start or restart operation. If the log file cannot be read, it reports that startup logs could not be scanned rather than claiming a clean start. The case-insensitive crash indicators cover fatal process failures (`Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). Known benign startup noise is removed line by line before matching (`CRASH_LOG_EXCLUDE_PATTERNS`): the iocsh history-file load/save failure (`ERROR Permission denied ... '.iocsh_history'`, see Q5) does not trigger the warning. If any remaining pattern matches, it warns the engineer:
 
    *"Warning: IOC is active, but procServ may be crash-looping or reporting fatal errors."*
 
@@ -156,7 +158,7 @@ Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Invalid regex s
 
 **No, not in system mode.** `procServ` runs as the `ioc-srv` service account, and the IOC payload inherits `IOC_CHDIR` as its working directory. At runtime, the IOC writes `.iocsh_history`, autosave files, save/restore snapshots, and any site-specific artifacts created by `st.cmd` to this directory. If the directory is not writable by `ioc-srv`, these writes fail silently.
 
-Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure emits `ERROR` lines into the procServ log file, which match the crash detection pattern (Q7) and cause `ioc-runner start` to report a crash-loop warning.
+Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure still emits `ERROR` lines into the procServ log file, but they are benign noise excluded from the crash scan (Q6), so the start warning does not surface this misconfiguration; the install-time `IOC_CHDIR` permission check described below is the dedicated guard.
 
 The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mode `2775`, or equivalent setgid + group write/execute, so `ioc-srv` writes via `ioc` group membership; see `INSTALL.md` Section 4).
 

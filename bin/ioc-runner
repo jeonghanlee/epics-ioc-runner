@@ -89,6 +89,13 @@ declare -g TARGET_SYSTEM_GROUP="ioc"
 # Regex pattern used to detect fatal errors or crash-loops in procServ logs immediately after startup.
 # Users can add custom error strings specific to their hardware or EPICS modules here (separated by '|').
 declare -g CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
+# Benign startup lines removed from the scan input before pattern matching (issue #92).
+# The iocsh history load/save failure is emitted with ANSI escapes around 'ERROR'
+# (EPICS Base iocsh.cpp via ERL_ERROR), so the regex anchors on the escape-free message
+# tail and must not span the escape boundary or anchor on end-of-line (pty may add CR).
+# Case-sensitive by design; not user-extensible (an over-broad exclusion would silently
+# disable crash detection).
+declare -g CRASH_LOG_EXCLUDE_PATTERNS="Permission denied \([0-9]+\) (loading|writing) '[^']*iocsh_history'"
 
 
 function print_divider {
@@ -521,6 +528,15 @@ function scan_file_for_crash_patterns {
         if [[ -n "${current_tailhash}" && "${current_tailhash}" != "${start_tailhash}" ]]; then
             scan_offset=0
         fi
+    fi
+
+    # Issue #92: line-targeted benign-noise pre-filter. The empty-value guard is
+    # mandatory: 'grep -v ""' removes every line and would blank the scan entirely.
+    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
+        if tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null | grep -vE "${CRASH_LOG_EXCLUDE_PATTERNS}" | grep -qiE "${patterns}"; then
+            return 0
+        fi
+        return 1
     fi
 
     if tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null | grep -qiE "${patterns}"; then

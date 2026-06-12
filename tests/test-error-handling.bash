@@ -27,14 +27,21 @@ SC_TOP="${SC_RPATH%/*}"
 
 declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 
-# Extract CRASH_LOG_PATTERNS from runner script via zero-fork parameter expansion.
+# Extract CRASH_LOG_PATTERNS and CRASH_LOG_EXCLUDE_PATTERNS from runner script via
+# zero-fork parameter expansion.
 # Source-and-execute is not viable: the runner auto-dispatches commands at module bottom.
 declare -g CRASH_LOG_PATTERNS=""
+declare -g CRASH_LOG_EXCLUDE_PATTERNS=""
 declare _line
 while IFS= read -r _line; do
     if [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS='* ]]; then
         CRASH_LOG_PATTERNS="${_line#*\"}"
         CRASH_LOG_PATTERNS="${CRASH_LOG_PATTERNS%\"}"
+    elif [[ "${_line}" == 'declare -g CRASH_LOG_EXCLUDE_PATTERNS='* ]]; then
+        CRASH_LOG_EXCLUDE_PATTERNS="${_line#*\"}"
+        CRASH_LOG_EXCLUDE_PATTERNS="${CRASH_LOG_EXCLUDE_PATTERNS%\"}"
+    fi
+    if [[ -n "${CRASH_LOG_PATTERNS}" && -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
         break
     fi
 done < "${RUNNER_SCRIPT}"
@@ -192,9 +199,30 @@ function _probe_log_dir {
     rm -f "${probe}"
 }
 
-# Asserts whether a fixture string matches CRASH_LOG_PATTERNS under the same
-# flags used by do_start_restart in ioc-runner (grep -qiE).
+# Asserts whether a fixture string matches CRASH_LOG_PATTERNS through the same
+# pipeline used by scan_file_for_crash_patterns in ioc-runner: the case-sensitive
+# benign-noise pre-filter (grep -vE), then the case-insensitive match (grep -qiE).
+# Mirrors the runner's empty-value guard so the mirror never blanks its input.
 function verify_match {
+    local expected="$1"
+    local fixture="$2"
+    local step_name="$3"
+    local actual="nomatch"
+
+    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
+        if printf "%s\n" "${fixture}" | grep -vE "${CRASH_LOG_EXCLUDE_PATTERNS}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
+            actual="match"
+        fi
+    elif printf "%s\n" "${fixture}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
+        actual="match"
+    fi
+    verify_state "${expected}" "${actual}" "${step_name}"
+}
+
+# Asserts a fixture against CRASH_LOG_PATTERNS alone, bypassing the benign-noise
+# pre-filter. Pins that an excluded fixture is cleared by the exclusion, not by a
+# pattern-set change.
+function verify_match_unfiltered {
     local expected="$1"
     local fixture="$2"
     local step_name="$3"
@@ -1140,6 +1168,49 @@ function test_crash_pattern_matching {
 }
 
 
+# Validates the issue #92 benign-noise exclusion contract: the iocsh history
+# load/save failure line is removed before pattern matching, the exclusion is
+# line-targeted, and the constant itself is pinned non-empty and well-formed.
+# Fixtures carry the raw ANSI escape bytes the EPICS errlog ERL_ERROR macro
+# emits around 'ERROR'; a regex spanning the escape boundary would not match.
+function test_crash_scan_exclusion {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Crash Scan Benign-Noise Exclusion (#92)"
+    print_sub_divider
+
+    local benign_loading=$'\033[31;1mERROR\033[0m Permission denied (13) loading \'/opt/epics-iocs/demo/iocBoot/iocdemo/.iocsh_history\''
+    local benign_writing=$'\033[31;1mERROR\033[0m Permission denied (13) writing \'.iocsh_history\''
+    local benign_plus_fatal="${benign_loading}"$'\nFATAL: real crash in the same window'
+    local same_line_collision="${benign_loading} FATAL: marker on the same physical line"
+
+    # Guard pins: an empty or invalid exclude regex must fail here, not at runtime.
+    local exclude_state="empty"
+    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
+        exclude_state="nonempty"
+    fi
+    verify_state "nonempty" "${exclude_state}" "Exclusion: constant extracted non-empty from runner script"
+
+    local compile_state="invalid"
+    if printf "%s\n" "compile probe" | grep -vE "${CRASH_LOG_EXCLUDE_PATTERNS}" >/dev/null 2>&1; then
+        compile_state="valid"
+    fi
+    verify_state "valid" "${compile_state}" "Exclusion: constant compiles under grep -E"
+
+    # The benign line matches the raw pattern set; the exclusion is what clears it.
+    verify_match_unfiltered "match"   "${benign_loading}" "Exclusion pin: history-load line matches patterns without filter"
+    verify_match "nomatch" "${benign_loading}"            "Exclusion: history-load line cleared through pipeline"
+    verify_match "nomatch" "${benign_writing}"            "Exclusion: history-write variant cleared through pipeline"
+
+    # Line-targeted proof: a real fatal marker on another line in the same window still matches.
+    verify_match "match"   "${benign_plus_fatal}"         "Exclusion: FATAL on another line in the window still matches"
+
+    # Accepted residual (#92 design record): a marker sharing the benign line is
+    # excluded with it; pinned as documented semantics, not engineered around.
+    verify_match "nomatch" "${same_line_collision}"       "Exclusion: same-line collision excluded (documented residual)"
+}
+
+
 # Validates the install-time CRASH_LOG_PATTERNS_EXTRA contract from #25:
 # valid extras are accepted, illegal characters and invalid regex syntax
 # are rejected before the conf reaches the runtime grep call.
@@ -1315,6 +1386,7 @@ function run_all_tests {
         "test_list_empty"
         "test_inspect_errors"
         "test_crash_pattern_matching"
+        "test_crash_scan_exclusion"
         "test_crash_pattern_extra"
         "test_tool_resolution"
     )
