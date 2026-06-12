@@ -1144,6 +1144,37 @@ function test_list_empty {
 
     exit_code=$(IOC_RUNNER_RUN_DIR="${TEST_TMPDIR}/empty_run" _run bash "${RUNNER_SCRIPT}" --local list)
     verify_exit_code "0" "${exit_code}" "'list' with no active sockets exits 0"
+
+    # Issue #94: an empty result caused by non-traversable (0770-style)
+    # socket directories carries a permission hint; a genuinely empty run
+    # dir does not. chmod 0 cannot deny root, so the hint case is skipped
+    # under EUID 0.
+    local output
+    local genuine_run="${TEST_TMPDIR}/genuine_empty_run"
+    mkdir -p "${genuine_run}"
+    output=$(IOC_RUNNER_RUN_DIR="${genuine_run}" bash "${RUNNER_SCRIPT}" --local list 2>&1)
+    local hint_absent="true"
+    if printf "%s" "${output}" | grep -q "not readable by this user"; then
+        hint_absent="false"
+    fi
+    verify_state "true" "${hint_absent}" "Genuinely empty list carries no permission hint"
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the non-traversable hint case (chmod 0 cannot deny root)."
+    else
+        local denied_run="${TEST_TMPDIR}/denied_run"
+        local denied_exit=0
+        local hint_present="false"
+        mkdir -p "${denied_run}/secret_ioc"
+        chmod 0 "${denied_run}/secret_ioc"
+        output=$(IOC_RUNNER_RUN_DIR="${denied_run}" bash "${RUNNER_SCRIPT}" --local list 2>&1) || denied_exit=$?
+        if printf "%s" "${output}" | grep -q "not readable by this user"; then
+            hint_present="true"
+        fi
+        verify_exit_code "0" "${denied_exit}" "'list' with a non-traversable socket dir exits 0"
+        verify_state "true" "${hint_present}" "Non-traversable socket dir appends the permission hint"
+        chmod 700 "${denied_run}/secret_ioc"
+    fi
 }
 
 function test_inspect_errors {

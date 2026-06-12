@@ -1344,6 +1344,7 @@ function do_list {
     local sockets=()
     local -A ioc_started_map=() ioc_perm_map=()
     local sock ts perm unit active rq sq path refcnt flags st inode key val b_id b_pid b_cpu b_mem i
+    local entry hint_needed
     while IFS= read -r -d '' sock && IFS= read -r -d '' ts && IFS= read -r -d '' perm; do
         sockets+=("${sock}")
         ioc_started_map["${sock}"]="${ts}"
@@ -1352,6 +1353,24 @@ function do_list {
 
     if [[ ${#sockets[@]} -eq 0 ]]; then
         printf "No active IOC sockets found in %s\n" "${RUN_DIR}"
+        # Issue #94: the 0770 socket directories are not traversable by a
+        # principal outside the ioc group, so an empty enumeration can mean
+        # permission denial rather than no running IOCs. Hint only in that
+        # case; a genuinely empty run dir keeps the original output.
+        hint_needed=0
+        if [[ ! -r "${RUN_DIR}" || ! -x "${RUN_DIR}" ]]; then
+            hint_needed=1
+        else
+            for entry in "${RUN_DIR}"/*/; do
+                if [[ -d "${entry}" && ( ! -r "${entry}" || ! -x "${entry}" ) ]]; then
+                    hint_needed=1
+                    break
+                fi
+            done
+        fi
+        if [[ ${hint_needed} -eq 1 ]]; then
+            printf "(socket directories are not readable by this user; use systemctl status for service state)\n"
+        fi
         return 0
     fi
 
