@@ -17,9 +17,9 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** M3 (#94). M1 (#92) closed 2026-06-12 (fix
-`0baa9df`) and M2 (#93) closed 2026-06-12 (fix `1e051ec`), both with
-T1/T2 on both goldens. The 1.2.0 work order M1-M12 was set
+**Next session entry point:** M4 (#87). M1 (#92, fix `0baa9df`), M2
+(#93, fix `1e051ec`), and M3 (#94, fix `1e6cdbc`) closed 2026-06-12,
+each verified on both goldens. The 1.2.0 work order M1-M12 was set
 2026-06-11: standalone items first (M1-M4), then the template and guard-test
 cluster (M5-M11), then the #68 wrapper design (M12). Cluster-internal order
 is grounded in the issue records: #81 (M5) runs first as a pure refactor
@@ -61,10 +61,10 @@ ends with a reconcile pass comparing issue state against this register.
 | M2 | 1.2.0 | #93 align install abort exit codes (`n` vs EOF) | Run finding (#91, PF8/S9 / OBS-1) | Done | Closed 2026-06-12. Convention: every interactive abort exits 1; scope extended (owner-approved) to all three prompts sharing the split — generate overwrite, install precheck, install overwrite. Fix `1e051ec`; Design Record + verification record in #93. enhancement, P3-low. |
 | M2.T1 | 1.2.0 | both abort branches follow the chosen convention across install paths | Test sub | Done | PASS 2026-06-12, both goldens, 8/8 each: precheck n/EOF + nothing installed, overwrite n/EOF, generate n/EOF (installed runner). |
 | M2.T2 | 1.2.0 | two new error-suite cases pinning both exit codes | Test sub | Done | 2026-06-12: decline-branch cases + existing-conf preservation marker added; EOF pins pre-existed; error-handling green on top. Subshell-assertion counting defect found in the harness — separate issue. |
-| M3 | 1.2.0 | #94 observer `list` shows no sockets while IOCs run | Run finding (#91, S6 / OBS-2) | Open | Non-`ioc` `list` exits 0 with an empty result while IOCs run (socket dirs `0770` untraversable); add a permission hint to the empty case or document. enhancement, P3-low. |
-| M3.T1 | 1.2.0 | non-`ioc` empty `list` carries the permission hint (or documented behavior) | Test sub | Open | — |
-| M3.T2 | 1.2.0 | suite case where test mode permits a non-`ioc` probe | Test sub | Open | — |
-| M3.T4 | 1.2.0 | amend `testplan_multiuser.md` S6 expected result | Test sub | Open | — |
+| M3 | 1.2.0 | #94 observer `list` shows no sockets while IOCs run | Run finding (#91, S6 / OBS-2) | Done | Closed 2026-06-12. Design Record in #94: empty-enumeration hint gated on unreadable entries; operator output byte-identical; exit 0 unchanged. Fix `1e6cdbc`. enhancement, P3-low. |
+| M3.T1 | 1.2.0 | non-`ioc` empty `list` carries the permission hint (or documented behavior) | Test sub | Done | PASS 2026-06-12, both goldens, 6/6 each: obs gets empty result + hint at exit 0; opa table unchanged, no hint. |
+| M3.T2 | 1.2.0 | suite case where test mode permits a non-`ioc` probe | Test sub | Done | 2026-06-12: three parent-shell assertions (genuine-empty no hint; `chmod 0` subdir hint + exit 0, `EUID` guard); error-handling 114/114 on top; local lifecycle 56/56 regression on top. |
+| M3.T4 | 1.2.0 | amend `testplan_multiuser.md` S6 expected result | Test sub | Done | S6 asserts the hint for the observer while IOCs run (committed with the fix, `1e6cdbc`). |
 | M4 | 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Open | Hardcoded independently in `bin/ioc-runner:85-86` and `bin/setup-system-infra.bash:16-17`; honor `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP` in both, default `ioc-srv`/`ioc`, plus a guard test pinning the shared defaults. enhancement, P2-medium. |
 | M4.T1 | 1.2.0 | user/group override honored by both scripts on a VM golden; default path unchanged | Test sub | Open | — |
 | M4.T2 | 1.2.0 | new shared-defaults guard test; system-infra suite green on defaults | Test sub | Open | — |
@@ -113,12 +113,12 @@ ends with a reconcile pass comparing issue state against this register.
 | M16.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M16.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 14 (13 work + 1 gate), Done 2 (M1, M2) · test subs Open 37, Done 4 (M1.T1/T2, M2.T1/T2) · Blocked 0
+**Tally:** milestones Open 13 (12 work + 1 gate), Done 3 (M1, M2, M3) · test subs Open 34, Done 7 (M1.T1/T2, M2.T1/T2, M3.T1/T2/T4) · Blocked 0
 
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 13 open, 2 closed (#92, #93), due 2026-07-31. The work order is
+GitHub milestone `1.2.0` — 12 open, 3 closed (#92, #93, #94), due 2026-07-31. The work order is
 M1-M15 plus the M16 release gate in the Active Register above; M16 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
