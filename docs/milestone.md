@@ -18,7 +18,13 @@ GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
 **Next session entry point:** M5 (#81), opening the template and
-guard-test cluster (M5-M11). The standalone items M1-M4 (#92 fix
+guard-test cluster (M5-M11) — gated on the cluster strategy
+authorization (U001) in review session rs20260612_143435 (local-only
+root `docs/review_sessions/20260612_143435_template_cluster_strategy/`;
+converged and reviewer-accepted 2026-06-12, with a pending strategy
+amendment: restart initiator/option/bundle analysis in the session's
+`01_restart_initiator_matrix.md`, the owner's support-contract
+declaration, then U001 before any M5 code). The standalone items M1-M4 (#92 fix
 `0baa9df`, #93 fix `1e051ec`, #94 fix `1e6cdbc`, #87 fix `234a580`)
 closed 2026-06-12, each verified on both goldens; M15 (#98, fix
 `36ad023`) was pulled forward and closed the same day, so the error
