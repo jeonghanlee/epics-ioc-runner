@@ -17,18 +17,31 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** M5 (#81), opening the template and
-guard-test cluster (M5-M11) — gated on the cluster strategy
-authorization (U001) in review session rs20260612_143435 (local-only
-root `docs/review_sessions/20260612_143435_template_cluster_strategy/`;
-converged and reviewer-accepted 2026-06-12, with a pending strategy
-amendment: restart initiator/option/bundle analysis in the session's
-`01_restart_initiator_matrix.md`, the owner's support-contract
-declaration, then U001 before any M5 code). The standalone items M1-M4 (#92 fix
-`0baa9df`, #93 fix `1e051ec`, #94 fix `1e6cdbc`, #87 fix `234a580`)
-closed 2026-06-12, each verified on both goldens; M15 (#98, fix
-`36ad023`) was pulled forward and closed the same day, so the error
-suite counts are trustworthy for the cluster's guard tests. M5 re-runs
+**Next session entry point:** U001 — authorize the C1+H restart-supervision
+strategy — then M5 (#81) opens the template and guard-test cluster (M5-M11).
+The strategy is decided in review session rs20260612_143435 (local-only root
+`docs/review_sessions/20260612_143435_template_cluster_strategy/`): the
+C2/`--oneshot` direction was withdrawn; the operator-first **C1+H** bundle
+(`Restart=always` + `StartLimitIntervalSec=0`, both modes via the M5 emitter;
+no `--oneshot`, no alarm unit) was confirmed by a ten-reviewer Round 4
+(convergence C003, `conv20260614_081643`). Eight open decisions **U001-U008**
+(see "Open strategy decisions" below) precede execution; the empirical
+measurements feeding them are M8.E1-E4 (E1/E2 done) plus the full-scale
+confirmatory campaign (res20260614_210000, both goldens). **The campaign
+overturned the bundle's `^T` harden: `--ignore=^T` does NOT disable the
+autorestart toggle; the real mechanism is `--autorestartcmd=''` — DECIDED
+2026-06-15 (U006), emitted by M5; the converged amendment text still needs that
+correction at U001.** The durable architecture record is the tracked ADR
+`docs/adr/0001-restart-supervision-c1h.md` (Accepted 2026-06-15; matrix,
+cost/trade, alternatives, evidence, application plan, self-contained); the
+session-local capstone `14_decision_summary_c1h.md` (ds20260615_093000) is its
+working origin.
+Note the **M10/M11 reversal**: the polling health check (M11) lands BEFORE
+`Restart=` (M10). The standalone items M1-M4 (#92 fix `0baa9df`, #93 fix
+`1e051ec`, #94 fix `1e6cdbc`, #87 fix `234a580`) closed 2026-06-12, each
+verified on both goldens; M15 (#98, fix `36ad023`) was pulled forward and
+closed the same day, so the error suite counts are trustworthy for the
+cluster's guard tests. M5 re-runs
 the M4 guard per the dependency matrix. The 1.2.0 work order M1-M12 was set
 2026-06-11: standalone items first (M1-M4), then the template and guard-test
 cluster (M5-M11), then the #68 wrapper design (M12). Cluster-internal order
@@ -38,8 +51,10 @@ afterward as one-place content edits through the single emitter; #84 (M6)
 folds its guard test with #81 while the emitter contract is fresh
 (CI-10/CI-14 drift guards may join); #86 (M7) rides the same helper-contract
 review; #52's exit-signal review (M8) feeds the #54 `Restart=` decision
-(M10); #67's polling design (M11) follows #54 because `Restart=` changes
-what a momentary `active` read means. The #68 wrapper (M12) owns the
+(M10); #67's polling design (M11) — **reversed under C1+H: M11 lands before
+M10** (poll-first, then `Restart=`, joint cutover gate), because the
+`Restart=always` auto-restart would make the old single `is-active` read
+misfire. The #68 wrapper (M12) owns the
 sudoers verb-scope questions (examined-Keep CI-20/CI-21 cluster there).
 The cycle test plan is `testplan_1.2.0.md` (per-milestone verification,
 dependency re-run matrix, release-gate sequence); the multi-user plan was
@@ -88,19 +103,23 @@ ends with a reconcile pass comparing issue state against this register.
 | M7 | 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Revisits option A (unify the three caller references) or a helper-contract change; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Rides the M5 helper-contract review. `Refs #85`/`#83`. refactor, P3-low. |
 | M7.T1 | 1.2.0 | decision first (unify / contract change / Keep verdict); if code changes, identical socket-path resolution for all three callers | Test sub | Open | — |
 | M7.T2 | 1.2.0 | both lifecycle suites green (attach/monitor/inspect paths) | Test sub | Open | — |
-| M8 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Follows up #11; extends #24 edge-case review. Exit-signal semantics feed the M10 `Restart=` decision. |
+| M8 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Reframed by the rs20260612_143435 strategy (C1+H, conv C003): now the C1+H confirmation census feeding the M10/M11 coupled pair. Empirical sub-measurements E1-E4 below. **These are PILOT/directional only — single-run-per-point, with instruments refined (and some flagged) in Round 6; do NOT treat the pilot numbers as settled (R10-F607). The authoritative results come from the plan-v3 measurement campaign (`09_measurement_plan_v2.md` -> v3).** Exit-signal semantics feed the M10 `Restart=` decision. |
 | M8.T1 | 1.2.0 | child-kill positive and healthy-restart negative behavior on both goldens | Test sub | Open | — |
 | M8.T2 | 1.2.0 | new restart-negative and child-kill-positive cases; existing crash-detection set green | Test sub | Open | — |
 | M8.T3 | 1.2.0 | re-run M1.T2 (`CRASH_LOG_PATTERNS` / scan logic shared) | Test sub | Open | — |
+| M8.E1 | 1.2.0 | stabilization window: measure healthy IOC procServ-fork -> `iocRun: All initialization complete` on both goldens; sets the M11 poll window and the `RestartSec` ceiling | Empirical (PILOT) | Pilot | 2026-06-14 (pilot, trivial softIoc = lower bound per R4-F501): **~0.82 s** both goldens (rocky8 0.815-0.828, debian13 0.815-0.820), marker `iocRun: All initialization complete` confirmed. Window is sub-second for a no-device IOC and is NOT device-connect (asyn is async, does not gate `is-active`). 5 s unjustified -> M11 polls the marker, not `sleep 5`. |
+| M8.E2 | 1.2.0 | log growth under `Restart=always`+`StartLimitIntervalSec=0` infinite loop (local vs system); decides U003 (=0 safety / log-cap need) | Empirical (PILOT) | Pilot | 2026-06-14 (pilot, single run per point; 664 B banner is NOT constant per R2-F503/R4-F502) fine RestartSec sweep (1.0-5.0s, 9 values), both goldens, faithful 664 B/launch (= measured procServ startup banner), `=0` loop. Never `failed` at any value (all `activating (auto-restart)`). Rate ∝ 1/RestartSec (0.80/s@1.0s -> 0.17/s@5.0s). **procServ logfile growth 48 MB/day@1.0s -> 27@2.0s -> 11 MB/day@5.0s** (LESS with larger RestartSec). So a broken `=0` loop costs tens of MB/day in the procServ logfile; local mode (no rotation) accrues it unbounded -> **U003 NEEDS a log size-cap / rotation, esp. the local-mode procServ logfile**; larger RestartSec also helps. Journal column DISCARDED (cumulative across the reused unit name — an artifact; the journal is operationally unused per FAQ Q9 and journald-capped anyway). |
+| M8.E3 | 1.2.0 | procServ `--holdoff` pacing: child crash loop with vs without `--holdoff`, measure restart rate; decides U005 | Empirical (PILOT) | Pilot | 2026-06-14 `--holdoff` sweep, both goldens, **single run per point; instrument flagged in Round 6 (R2-F603/R7-F604: child-level events need a child-restart detector, not unit state)**. Directional only: default holdoff was the slowest (~0.08/s, ~3 MB/day), `--holdoff=1` faster (~36 MB/day). **U005 is NOT settled by this** — the "keep default" lean is provisional pending the rigorous, replicated, fixed-instrument C3 in plan v3. |
+| M8.E4 | 1.2.0 | raw cycling trajectory (`ActiveState`/`SubState`/`NRestarts`) under `Restart=always`+`=0` for the M11 poll-bound design (M11 poll code not yet present) | Empirical (strategy) | In progress | 2026-06-14: raw trajectory captured via E2 — `activating (auto-restart)`, `NRestarts` monotonic, never `failed` on both goldens. The poll-logic test (max-timeout, verdict) still needs M11 code. |
 | M9 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance; system unit already carries `Wants`/`After` (mode-divergent fields per #81). One-place edit through the M5 emitter. |
 | M9.T1 | 1.2.0 | review first (Keep verdict if no change); `systemd-analyze verify` on a deployed unit if changed | Test sub | Open | — |
 | M9.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
 | M9.T3 | 1.2.0 | re-run the M5 shared-contract guard (template content via the emitter) | Test sub | Open | — |
-| M10 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Evaluate `always` vs `on-failure` using the M8 exit-signal findings; edits through the M5 emitter. |
+| M10 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Decided (rs20260612_143435 / C003, pending U001): `Restart=always` (forced by OOM/SIGKILL + `SuccessExitStatus`), `RestartSec` provisional (pin below the M8.E1 window), `StartLimitIntervalSec=0` + `StartLimitBurst=5` + `StartLimitAction=none` in `[Unit]`. Both modes via the M5 emitter. Coupled with M11 (poll first, then `Restart=`, one joint cutover gate). `=0` reverses #54's original acceptance criterion -> see U008. **Campaign finding (res20260614_210000, both goldens): procServ-death recovery is ~96 s (TimeoutStopSec-gated) — procServ execs its child with SIGTERM blocked, so `KillMode=control-group` cleanup stalls the full `TimeoutStopSec=90s` before `Restart=always` fires. M10 should add `KillMode=mixed` or a shorter `TimeoutStopSec` so an OOM/crash recovers in seconds, not ~96 s.** enhancement. |
 | M10.T1 | 1.2.0 | policy chosen from M8 findings; crash-loop behavior matches design incl. `SuccessExitStatus` interplay | Test sub | Open | — |
 | M10.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
 | M10.T3 | 1.2.0 | re-run the M5 guard and the crash-detection cases | Test sub | Open | — |
-| M11 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1536-1547`; preserve the crash-pattern scan that follows. Designed after M10 because `Restart=` changes what a momentary `active` read means. P3-low. |
+| M11 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1740-1782` (corrected from stale `1536-1547`); preserve the crash-pattern scan that follows. Coupled with M10 (rs20260612_143435 / C003): the poll lands FIRST (before `Restart=`), must use a MEASURED stabilization window (M8.E1, not a fixed 5 s), be `RestartSec`-aware, and carry a max-timeout (`failed` is non-terminal under `=0`). The `sleep 5` "device connection timeout" rationale is wrong (Type=simple: `is-active` is active at fork). **DECIDED 2026-06-14: poll reports "initializing" (not failed) while a slow IOC is still in iocInit; the max-timeout is derived per-IOC at M11 implementation time, NOT a fixed constant.** P3-low. |
 | M11.T1 | 1.2.0 | crash-looping IOC reported failed; healthy start/restart not slowed beyond the stabilization window | Test sub | Open | — |
 | M11.T2 | 1.2.0 | both lifecycle suites green (start/restart hot path) | Test sub | Open | — |
 | M11.T3 | 1.2.0 | re-run M1 + M8 crash cases (restart scan-window timing shared) | Test sub | Open | — |
@@ -123,7 +142,23 @@ ends with a reconcile pass comparing issue state against this register.
 | M16.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M16.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 11 (10 work + 1 gate), Done 5 (M1-M4, M15) · test subs Open 30, Done 11 (M1.T1/T2, M2.T1/T2, M3.T1/T2/T4, M4.T1/T2, M15.T1/T2) · Blocked 0
+**Tally:** milestones Open 11 (10 work + 1 gate), Done 5 (M1-M4, M15) · test subs Open 30, Done 11 (M1.T1/T2, M2.T1/T2, M3.T1/T2/T4, M4.T1/T2, M15.T1/T2) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
+
+## Open strategy decisions (rs20260612_143435 / C1+H)
+
+External gate: cluster execution (M8-M11) is gated on these. Full text in the
+session README; convergence C003 (`conv20260614_081643`) is the authority.
+
+| ID | Decision | Blocking | State |
+| --- | --- | --- | --- |
+| U001 | Authorize the C1+H strategy (+ amd v3 conditions) for M8-M11 execution | M8-M11 | open — awaiting C003 acceptance + amd v3 |
+| U002 | Confirm support contract (all four initiators; external PV restart needs no special handling under C1+H) | M10 record | open (near-formality) |
+| U003 | local-mode log-cap trade. **Owner inputs COMPLETE (User 2026-06-14): local disk 500 GB; IOC area 10 GB; unattended interval 1 month (30 d); N-IOC max 10; margin 50% (default).** Pre-registered threshold: per-IOC budget = 10 GB x 0.5 / 10 / 30 d = **~16.7 MB/day**. VERIFIED: local mode has NO log rotation (LOG_LAYOUT.md sec 5 + setup code — `logrotate.d/procserv` is system-only; local `$HOME/.local/state/procserv` is unbounded). Pilot-directional: default-holdoff child loop ~3 MB/day (UNDER 16.7) vs worst-case ~36-48 MB/day (OVER). Lean: add a local rotation/size-cap (cheap insurance; local has zero ceiling today); campaign confirms the actual rate vs 16.7 MB/day. | M10 reliability | **DECIDED 2026-06-14 (User): add a local-mode log size-cap/rotation** (per-user logrotate `copytruncate` or size trigger); system-mode weekly-rotation sufficiency verified by C9; full-scale campaign confirms the rate vs the 16.7 MB/day threshold. **CONFIRMED 2026-06-14 (res20260614_210000): C3 default-holdoff broken-IOC rate ~5 MB/day BOTH goldens (rocky8 5.1, debian13 4.9) — common case UNDER 16.7; realism caveat = terse softIoc init, so rotation covers the verbose/long-outage/multi-failure tail.** |
+| U004 | Fleet-synchronized restart storm — record as operational boundary vs bring in scope | M10 / out-of-cluster | open |
+| U005 | procServ `--holdoff` | M5/M10 emitter | **DECIDED 2026-06-14 (User): keep procServ DEFAULT `--holdoff`** (pilot + first principles: default is the most conservative; the lever for excess growth is U003 rotation, not a smaller holdoff). Full-scale campaign confirms the default-holdoff child-loop rate. |
+| U006 | `^T` autorestart-toggle harden — mechanism + home. **CAMPAIGN FINDING (res20260614_210000, both goldens, procServ 2.9.0-dev source verified): the C1+H plan to add `^T` to `--ignore` does NOT disable the toggle.** `--ignore`/ignChars only filters bytes forwarded to the child IOC's stdin (`processClass::Send`); procServ's console command keys (`^T` toggle, `^X` kill, `^R` restart, `^Q` quit) are matched on the raw input in `clientItem::processInput()` with NO ignChars check, and `^T`/`^X` are auto-added to ignChars anyway. The real disable is **`--autorestartcmd=''`** (sets toggleRestartChar=0) — verified live on both goldens. | M5 emitter | **DECIDED 2026-06-15 (User, option a): use `--autorestartcmd=''` to truly close the toggle foot-gun** — a stray `^T` would otherwise silently disable the IOC's procServ inner autorestart while procServ stays alive (so the outer `Restart=always` never fires either), leaving the IOC down and nothing `failed`. Maintenance autorestart-stop goes through the operation verbs (`ioc-runner`/`systemctl stop`, OP1), not a console keystroke. `--ignore=^T` is dropped (redundant/misleading); `--ignore=^D^C^]` stays (real child-stdin filter). Home: M5 emitter (it builds the procServ command line). **Carry-over:** the converged amendment `07_strategy_amendment_v2_c1h.md` and convergence C003 still spell the old `^T`→`--ignore` harden — correct that text when the bundle is revised at U001 authorization. |
+| U007 | M10/M11 bookkeeping — merge #54+#67, or keep separate with order reversed + joint gate | scope/bookkeeping | open |
+| U008 | #54 acceptance-criterion rewrite — `=0` reverses its "crash-loop -> diagnosable `failed`" criterion (follows U003) | scope/bookkeeping | open |
 
 ## Milestone 1.2.0
 
