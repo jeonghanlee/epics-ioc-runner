@@ -17,8 +17,9 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** **M5** (#81) — open the template and guard-test
-cluster (M5-M11). **U001 is authorized** (2026-06-16, User-delegated;
+**Next session entry point:** **M5** (#81) — the guard test landed (M5.T1/T2,
+commit 7a3aeb2); next is **M5 sub-2** (emit `--autorestartcmd=''` into both unit
+copies, which the guard then pins), then the rest of the M5-M11 cluster. **U001 is authorized** (2026-06-16, User-delegated;
 auth20260616_003202) on convergence **C005** (`conv20260616_002157`; Round 11
 11/11 + Round 12 15/15, converged), governing amendment **amd v4**
 (`17_strategy_amendment_v4_c1h.md`); **U002 closed**. The U006/`^T` correction and all Round-10/11
@@ -107,8 +108,8 @@ ends with a reconcile pass comparing issue state against this register.
 | M4.T1 | 1.2.0 | user/group override honored by both scripts on a VM golden; default path unchanged | Test sub | Done | PASS 2026-06-12, both goldens, 11/11 each: override setup/install/start E2E incl. single-source negative (no-override install rejects); default restore verified, infra suite green on restored defaults. |
 | M4.T2 | 1.2.0 | new shared-defaults guard test; system-infra suite green on defaults | Test sub | Done | 2026-06-12: 8 guard assertions (names + defaults agree, `ioc-srv`/`ioc` pinned); error-handling 122/122 top; one-off negative edit fails the guard; infra 40/40 rocky8, 41/41 debian13. |
 | M5 | 1.2.0 | #81 pin the duplicated procServ unit template with a shared-contract guard (examined-Keep, not merged) | Coherence (CI-4) | Open | **Re-scoped 2026-06-16 (#81 design conversation, option 3):** a true single emitter cuts against the runner's self-contained-single-file design (it cannot source a shared lib — cf. CI-15) and the two units are written in different contexts (system at install, local at `--local install` runtime); the duplication is therefore **examined-Keep (CI-4, see ledger)**, not merged. M5 adds a shared-contract guard pinning the must-agree rows across the two copies (`bin/ioc-runner:374-393`, `bin/setup-system-infra.bash:471-493`); drift fails the guard. `--autorestartcmd=''` (U006) is added to BOTH copies (sub-2), guard-pinned. M5.T1 reframes from byte-equivalence-pre/post-refactor to two-copy must-agree equivalence. The strategy docs' "single M5 emitter" wording is reconciled 2026-06-16 (mechanism note near the top + ADR 0001 + CI-4); outcome unchanged (identical in both modes). P3-low. |
-| M5.T1 | 1.2.0 | must-agree byte-equivalence pre/post refactor, both modes; guard fails on a one-sided edit | Test sub | Open | — |
-| M5.T2 | 1.2.0 | new shared-contract guard test; both lifecycle suites green on top and on both VM gates | Test sub | Open | — |
+| M5.T1 | 1.2.0 | must-agree equivalence across the two unit copies; guard fails on a one-sided edit | Test sub | Done | 2026-06-16: examined-Keep (CI-4, no refactor) — guard asserts the two copies' must-agree rows identical; negative one-sided drift (dropped local SIGKILL) -> guard FAIL (error-suite 133/134, exit 1). Commit 7a3aeb2. |
+| M5.T2 | 1.2.0 | new shared-contract guard test (static) + dynamic rendered-unit check on both goldens | Test sub | Done | 2026-06-16: static guard `test_template_contract_guard` in `tests/test-error-handling.bash` (commit 7a3aeb2) — error-suite 134/134 (executed==counted, #98 tripwire intact); dynamic rendered-unit agreement on both goldens (rocky8/239, debian13/257), normalizing binary/logdir/CONF_DIR. quick-review accept. |
 | M5.T3 | 1.2.0 | re-run M4.T2 (template emission rewritten in both scripts) | Test sub | Open | — |
 | M6 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; folds with the M5 guard test (CI-10/CI-14 may join). refactor, P3-low. |
 | M6.T1 | 1.2.0 | negative check per metadata copy; CI-10/CI-14 fold decision recorded | Test sub | Open | — |
