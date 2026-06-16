@@ -160,6 +160,23 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 | U007 | M10/M11 bookkeeping — merge #54+#67, or keep separate with order reversed + joint gate | scope/bookkeeping | open |
 | U008 | #54 acceptance-criterion rewrite — `=0` reverses its "crash-loop -> diagnosable `failed`" criterion (follows U003) | scope/bookkeeping | open |
 
+## Carry-forward (next round, out-of-cluster)
+
+- **Running-IOC hang detection (continuous / passive liveness visibility).**
+  A running IOC that *hangs* — process alive but not progressing (deadlock,
+  blocked I/O, CA/PVA unresponsive); emits no crash pattern and never exits
+  — is detected by NO current layer: systemd reads `active` / `NRestarts=0`
+  (liveness only), procServ restarts only on child *exit*, and the
+  `ioc-runner` crash scan is action-bound and matches crash *patterns*, not
+  silence. Start-time hang-in-init IS covered by the M11 measured-window poll
+  (max-timeout -> "initializing/failed"); the residual is the **running-time
+  hang**, which would need active health probing (heartbeat PV / periodic
+  `caget`/`pvget`) — new scope, to be examined together with U004
+  (fleet/monitoring boundary). Origin: amd v3 Round 10 review
+  (R9-F904 / R4-F002 / R8-F803; session rs20260612_143435). **Not a U001
+  gate** — the C1+H restart-supervision design is unaffected; deferred to a
+  future round.
+
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
