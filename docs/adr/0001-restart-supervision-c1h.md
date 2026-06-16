@@ -11,6 +11,15 @@ This record is self-contained: it states the chosen architecture, the
 alternatives weighed against it, the evidence, and the consequences, so it
 remains readable independently of any working session material.
 
+> **Correction note (2026-06-16, per Round 11 review / convergence C004,
+> `conv20260615_184033`).** The `RestartSec` and `StartLimitIntervalSec`
+> rationale below is corrected; the decision (C1+H, `--autorestartcmd=''`) is
+> unchanged and the Status stays Accepted. Two directives settled after this ADR
+> was first drafted are part of the current emitted unit: `KillMode=mixed` (see
+> Consequences) and `RuntimeDirectoryPreserve=restart` (the console-socket
+> directory is kept across an auto-restart). The full current directive set is in
+> C004.
+
 ---
 
 ## Context
@@ -65,7 +74,7 @@ procServ inner loop. Emitted identically into both modes through the M5 emitter
 
 [Service]
   Restart=always               # forced (not on-failure); see "Why each value"
-  RestartSec=2                 # pace the procServ-restart loop; < the M11 health window
+  RestartSec=2                 # pace the loop; the M11 poll (not RestartSec) owns the timing
   SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL   # unchanged under `always`
   ExecStart= … procServ --ignore=^D^C^] --autorestartcmd='' …
 ```
@@ -82,8 +91,8 @@ procServ inner loop. Emitted identically into both modes through the M5 emitter
 | Knob | Value | Reason |
 | --- | --- | --- |
 | `Restart=` | `always` | Forced, not chosen: `SuccessExitStatus` classifies an OOM/SIGKILL procServ death as "success", so `on-failure` would not revive it. `always` revives on any death. |
-| `RestartSec=` | `2` | Above systemd's 100 ms default so a fast-failing supervisor does not spin, but shorter than the M11 stabilization window so the health poll never reads the restart gap. |
-| `StartLimitIntervalSec=` | `0` | Disabling the limiter makes OP1 absolute — a unit can never strand in `failed` needing `reset-failed`. The side effect (a hopeless procServ retries forever) is paced by `RestartSec`, bounded by logrotate, and is loud (`activating (auto-restart)`, `NRestarts`, health-check), never silent. |
+| `RestartSec=` | `2` | Above systemd's 100 ms default so a fast-failing supervisor does not spin. The timing invariant lives in the M11 poll (poll max-bound > RestartSec + readiness time), not in RestartSec being below the window. |
+| `StartLimitIntervalSec=` | `0` | Disabling the limiter keeps OP1 in-band — a unit never strands in the `reset-failed`-requiring start-limit-hit state. Honest trade: no automatic circuit breaker (a hopeless procServ retries forever). systemd surfaces only procServ death (`activating (auto-restart)`, `NRestarts`); a child crash loop is caught by the Layer-2 log scan, and a `=0` loop is invisible to `systemctl --failed`. Log growth is bounded by the U003 local rotation, not by `=0`. |
 | `StartLimitBurst=` / `StartLimitAction=` | `5` / `none` | Burst is inert while interval=0 (emitted for explicitness); a host-level action on an accelerator floor is never acceptable. |
 | `--ignore` | `^D^C^]` | Filters control characters out of the child IOC's stdin. `^T` is intentionally NOT here — `--ignore` does not disable procServ command keys (see "Mechanism note"). |
 | `--autorestartcmd=` | `''` | The mechanism that actually disables the `^T` toggle, closing the silent dead-child/live-procServ trap. |
