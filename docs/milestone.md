@@ -17,9 +17,16 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** **M5** (#81) — the guard test landed (M5.T1/T2,
-commit 7a3aeb2); next is **M5 sub-2** (emit `--autorestartcmd=''` into both unit
-copies, which the guard then pins), then the rest of the M5-M11 cluster. **U001 is authorized** (2026-06-16, User-delegated;
+**Next session entry point:** **M6** (#84, git-metadata guard). **M5** (#81) is
+code-complete and verified 2026-06-16: the shared-contract guard landed (M5.T1/T2,
+commit 7a3aeb2) and **M5 sub-2** added `--autorestartcmd=''` to both unit copies
+(`bin/ioc-runner:385`, `bin/setup-system-infra.bash:485`) — static guard 134/134 on
+top, both goldens render the flag into the system and local units, no-regression
+suites green, and M5.T3 (re-run M4.T2) passed in the same run. **M16 (#99)** — a #93
+abort-convention residue (system-lifecycle 7b asserted exit 0) surfaced by that
+golden run — was fixed and verified 74/74 on both goldens the same day. Pending
+mechanical steps only: the M5 sub-2 commit, the #99 fix commit, and the #81/#99
+manual closes. **U001 is authorized** (2026-06-16, User-delegated;
 auth20260616_003202) on convergence **C005** (`conv20260616_002157`; Round 11
 11/11 + Round 12 15/15, converged), governing amendment **amd v4**
 (`17_strategy_amendment_v4_c1h.md`); **U002 closed**. The U006/`^T` correction and all Round-10/11
@@ -107,10 +114,10 @@ ends with a reconcile pass comparing issue state against this register.
 | M4 | 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Done | Closed 2026-06-12. Both scripts resolve `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP`, defaults unchanged; guard pins the shared contract; PERMISSION_MODEL.md documents the override. Fix `234a580`; Design Record + accepted residual (unvalidated admin env) in #87. enhancement, P2-medium. |
 | M4.T1 | 1.2.0 | user/group override honored by both scripts on a VM golden; default path unchanged | Test sub | Done | PASS 2026-06-12, both goldens, 11/11 each: override setup/install/start E2E incl. single-source negative (no-override install rejects); default restore verified, infra suite green on restored defaults. |
 | M4.T2 | 1.2.0 | new shared-defaults guard test; system-infra suite green on defaults | Test sub | Done | 2026-06-12: 8 guard assertions (names + defaults agree, `ioc-srv`/`ioc` pinned); error-handling 122/122 top; one-off negative edit fails the guard; infra 40/40 rocky8, 41/41 debian13. |
-| M5 | 1.2.0 | #81 pin the duplicated procServ unit template with a shared-contract guard (examined-Keep, not merged) | Coherence (CI-4) | Open | **Re-scoped 2026-06-16 (#81 design conversation, option 3):** a true single emitter cuts against the runner's self-contained-single-file design (it cannot source a shared lib — cf. CI-15) and the two units are written in different contexts (system at install, local at `--local install` runtime); the duplication is therefore **examined-Keep (CI-4, see ledger)**, not merged. M5 adds a shared-contract guard pinning the must-agree rows across the two copies (`bin/ioc-runner:374-393`, `bin/setup-system-infra.bash:471-493`); drift fails the guard. `--autorestartcmd=''` (U006) is added to BOTH copies (sub-2), guard-pinned. M5.T1 reframes from byte-equivalence-pre/post-refactor to two-copy must-agree equivalence. The strategy docs' "single M5 emitter" wording is reconciled 2026-06-16 (mechanism note near the top + ADR 0001 + CI-4); outcome unchanged (identical in both modes). P3-low. |
+| M5 | 1.2.0 | #81 pin the duplicated procServ unit template with a shared-contract guard (examined-Keep, not merged) | Coherence (CI-4) | Done | **Re-scoped 2026-06-16 (#81 design conversation, option 3):** a true single emitter cuts against the runner's self-contained-single-file design (it cannot source a shared lib — cf. CI-15) and the two units are written in different contexts (system at install, local at `--local install` runtime); the duplication is therefore **examined-Keep (CI-4, see ledger)**, not merged. M5 adds a shared-contract guard pinning the must-agree rows across the two copies (`bin/ioc-runner:374-393`, `bin/setup-system-infra.bash:471-493`); drift fails the guard. `--autorestartcmd=''` (U006) is added to BOTH copies (sub-2), guard-pinned. M5.T1 reframes from byte-equivalence-pre/post-refactor to two-copy must-agree equivalence. The strategy docs' "single M5 emitter" wording is reconciled 2026-06-16 (mechanism note near the top + ADR 0001 + CI-4); outcome unchanged (identical in both modes). **Sub-2 (`--autorestartcmd=''`) landed + verified 2026-06-16:** both copies emit the flag (`bin/ioc-runner:385`, `bin/setup-system-infra.bash:485`); static guard 134/134 (top); both goldens render it into the system AND local units (rocky8/debian13), no-regression local 55/56 · infra 40/41 · system-lifecycle 74/74. All subs T1/T2/T3 green; #81 manual close pends the sub-2 commit. P3-low. |
 | M5.T1 | 1.2.0 | must-agree equivalence across the two unit copies; guard fails on a one-sided edit | Test sub | Done | 2026-06-16: examined-Keep (CI-4, no refactor) — guard asserts the two copies' must-agree rows identical; negative one-sided drift (dropped local SIGKILL) -> guard FAIL (error-suite 133/134, exit 1). Commit 7a3aeb2. |
-| M5.T2 | 1.2.0 | new shared-contract guard test (static) + dynamic rendered-unit check on both goldens | Test sub | Done | 2026-06-16: static guard `test_template_contract_guard` in `tests/test-error-handling.bash` (commit 7a3aeb2) — error-suite 134/134 (executed==counted, #98 tripwire intact); dynamic rendered-unit agreement on both goldens (rocky8/239, debian13/257), normalizing binary/logdir/CONF_DIR. quick-review accept. |
-| M5.T3 | 1.2.0 | re-run M4.T2 (template emission rewritten in both scripts) | Test sub | Open | — |
+| M5.T2 | 1.2.0 | new shared-contract guard test (static) + dynamic rendered-unit check on both goldens | Test sub | Done | 2026-06-16: static guard `test_template_contract_guard` in `tests/test-error-handling.bash` (commit 7a3aeb2) — error-suite 134/134 (executed==counted, #98 tripwire intact); dynamic rendered-unit agreement on both goldens (rocky8/239, debian13/257), normalizing binary/logdir/CONF_DIR. quick-review accept. Re-confirmed 2026-06-16 with sub-2: rendered system AND local units on both goldens carry `--ignore=^D^C^] --autorestartcmd=''`. |
+| M5.T3 | 1.2.0 | re-run M4.T2 (template emission rewritten in both scripts) | Test sub | Done | 2026-06-16: M4.T2 re-run in the sub-2 campaign — error-handling 134/134 (top, incl. STEP 12 system-identity guard), system-infra 40/40 rocky8 / 41/41 debian13 on the goldens; shared defaults + must-agree contract intact. |
 | M6 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; folds with the M5 guard test (CI-10/CI-14 may join). refactor, P3-low. |
 | M6.T1 | 1.2.0 | negative check per metadata copy; CI-10/CI-14 fold decision recorded | Test sub | Open | — |
 | M6.T2 | 1.2.0 | new static guard test pinning the shared `declare -g RUNNER_*`/`sed` contract | Test sub | Open | — |
@@ -151,12 +158,15 @@ ends with a reconcile pass comparing issue state against this register.
 | M15 | 1.2.0 | #98 subshell assertions do not reach the error-suite counters | Review follow-up (#93) | Done | Closed 2026-06-12 (pulled forward before the cluster). Ten blocks de-subshelled (cd scoped in the command substitution) plus a permanent executed-vs-counted tripwire; quick-review gate, independent reviewer accept. Fix `36ad023`; Design Record in #98. tests, P2-medium. |
 | M15.T1 | 1.2.0 | printed-assertion count equals counted total; a deliberate subshell FAIL fails the suite (negative check) | Test sub | Done | 2026-06-12: 132 printed = 132 counted = 132 executed; planted-FAIL and reintroduced-subshell negatives both fail the suite (exit 1). |
 | M15.T2 | 1.2.0 | full error-handling suite green with reconciled counts; same-pattern sweep of the other suites recorded | Test sub | Done | 2026-06-12: error-handling 132/132 on top; sweep of the other three suites and the orchestrator clean (recorded in #98); summary format change breaks no consumer. |
-| M16 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M15 close; gates the master merge + `1.2.0` tag. |
-| M16.T1 | 1.2.0 | cycle batch re-run of all M1-M15 change-specific verifications on the final tree | Test sub | Open | — |
-| M16.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
-| M16.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
+| M16 | 1.2.0 | #99 stale install-decline exit-code assertion in test-system-lifecycle (post-#93 residue) | Review follow-up (#93) | Done | Verified 2026-06-16. Surfaced by the M5 sub-2 golden run: `test-system-lifecycle.bash` case 7b asserted exit 0 for an explicit `N` install decline, but #93 (`1e051ec`) made every interactive abort exit 1 and never updated this suite. Fix: line 1396 expected `0`->`1` + comment 1390 (no runner change). #99 manual close + fix commit pending. tests, P3-low. |
+| M16.T1 | 1.2.0 | 7b assertion expected value + comment corrected; case 7b green | Test sub | Done | 2026-06-16: `Prompt explicit N declines install (exit 1)` PASS on both goldens. |
+| M16.T2 | 1.2.0 | system-lifecycle suite green on both goldens | Test sub | Done | 2026-06-16: system-lifecycle 74/74 both goldens (rocky8, debian13), installed mode; 0 failed / 0 script errors. |
+| M17 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M16 close; gates the master merge + `1.2.0` tag. |
+| M17.T1 | 1.2.0 | cycle batch re-run of all M1-M16 change-specific verifications on the final tree | Test sub | Open | — |
+| M17.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
+| M17.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 11 (10 work + 1 gate), Done 5 (M1-M4, M15) · test subs Open 30, Done 11 (M1.T1/T2, M2.T1/T2, M3.T1/T2/T4, M4.T1/T2, M15.T1/T2) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
+**Tally:** milestones Open 10 (9 work + 1 gate), Done 7 (M1-M5, M15, M16) · test subs Open 27, Done 16 (through M5.T1/T2/T3, M15.T1/T2, M16.T1/T2) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
@@ -194,14 +204,15 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 10 open, 5 closed (#92, #93, #94, #87, #98), due 2026-07-31. The work order is
-M1-M15 plus the M16 release gate in the Active Register above; M16 is
+GitHub milestone `1.2.0` — 11 open, 5 closed (#92, #93, #94, #87, #98), due 2026-07-31; #99 added 2026-06-16 (open; fix verified both goldens, close pends the fix commit). The work order is
+M1-M16 plus the M17 release gate in the Active Register above; M17 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
 touched once as a group, with #81 first as the byte-equivalence-gated
 refactor. #96 (M13) was added 2026-06-11 as a spin-off of the M1 design
 review; #97 (M14) and #98 (M15) were added 2026-06-12 from the M2 sweep,
-and #98 was pulled forward and closed the same day.
+and #98 was pulled forward and closed the same day; #99 (M16) was added
+2026-06-16 as a spin-off of the M5 sub-2 golden run (a #93 residue).
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -220,6 +231,7 @@ and #98 was pulled forward and closed the same day.
 | [#96](https://github.com/jeonghanlee/epics-ioc-runner/issues/96) | test_logrotate_boundary history knob is a no-op | tests, P3-low | Spin-off from the #92 design review (Independent). The `epicsEnvSet("IOCSH_HISTSIZE","0")` line in the probe `st.cmd` cannot disable the history file (EPICS source-verified: in-memory list only; path variable is `EPICS_IOCSH_HISTFILE`; in-`st.cmd` `epicsEnvSet` is too late); the test passes because the probe directory is group-writable. Remove the line, correct the comment. |
 | [#97](https://github.com/jeonghanlee/epics-ioc-runner/issues/97) | install precheck hint recommends the ineffective IOCSH_HISTSIZE knob | bug, P3-low | M1 residue found in the M2 sweep (Refs #92). The runtime hint (`bin/ioc-runner:1128-1130`) recommends the knob the #92 review proved a no-op; replace with FAQ Q5/Q8-consistent guidance. |
 | [#98](https://github.com/jeonghanlee/epics-ioc-runner/issues/98) | test-error-handling subshell assertions do not reach the suite counters | tests, P2-medium | Found adding the #93 decline cases. `( cd ... )` blocks lose counter increments (121 PASS printed vs 111 counted) and a subshell FAIL cannot fail the suite; fix options in the issue, plus a printed-equals-counted self-check and a same-pattern sweep of the other suites. |
+| [#99](https://github.com/jeonghanlee/epics-ioc-runner/issues/99) | Stale install-decline exit-code assertion in test-system-lifecycle after #93 | tests, P3-low | Spin-off from the M5 sub-2 golden run (Refs #93). `test-system-lifecycle.bash` case 7b asserted exit 0 for an explicit `N` install decline; #93 made every interactive abort exit 1 but never updated this suite. Fix: line 1396 expected `0`->`1` + comment 1390 (no runner change). |
 
 ## Examined-Keep Ledger
 
