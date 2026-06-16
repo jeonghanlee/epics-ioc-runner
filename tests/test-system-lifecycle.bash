@@ -1387,13 +1387,13 @@ EOF
         bash "${RUNNER_SCRIPT}" install "${conf_file}" </dev/null >/dev/null 2>&1 || ec=$?
     verify_state "1" "${ec}" "Prompt EOF aborts install (exit 1)"
 
-    # 7b: explicit N -> declined, exit 0.
+    # 7b: explicit N -> declined, exit 1 (nonzero-abort convention, #93).
     sysd="${base}/s7b"; conf="${base}/c7b"
     mkdir -p "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
     ec=0
     printf 'N\n' | IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
         bash "${RUNNER_SCRIPT}" install "${conf_file}" >/dev/null 2>&1 || ec=$?
-    verify_state "0" "${ec}" "Prompt explicit N declines install (exit 0)"
+    verify_state "1" "${ec}" "Prompt explicit N declines install (exit 1)"
 
     # 7c: explicit Y -> proceeds, exit 0, conf deployed.
     sysd="${base}/s7c"; conf="${base}/c7c"
