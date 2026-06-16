@@ -1227,6 +1227,50 @@ function test_system_identity_guard {
     verify_state "${runner_def[GROUP]:-runner-unset}" "${setup_def[GROUP]:-setup-unset}" "Group defaults agree across both scripts"
 }
 
+# Extract the procServ unit-template heredoc body from a script (the block whose
+# Description names procServ), normalize the known mode-divergent variables
+# (procServ binary, log dir), and drop the mode-divergent rows. The remaining
+# lines are the must-agree contract. Assumes the heredoc uses the unquoted
+# <<EOF delimiter; converting it to <<'EOF' or <<-EOF yields an empty block,
+# which the caller catches loudly via its nonempty sentinel (fail-closed, never
+# a false pass).
+function _unit_must_agree_block {
+    awk '/<<EOF/{cap=1;buf="";next} cap&&/^[[:space:]]*EOF[[:space:]]*$/{if(buf~/Description=procServ for/){printf "%s",buf;exit} cap=0;next} cap{buf=buf $0 "\n"}' "$1" \
+      | sed 's/${procserv_bin}/@BIN@/g; s/${RESOLVED_PROCSERV_BIN}/@BIN@/g; s/${LOG_DIR}/@LOGDIR@/g; s/${SYSTEM_LOG_DIR}/@LOGDIR@/g' \
+      | grep -vE '^(Description=|Wants=|After=|UMask=|User=|Group=|WantedBy=)'
+}
+
+# Validates the #81 / CI-4 shared-contract: the must-agree rows of the procServ
+# systemd unit template are byte-identical between bin/ioc-runner (local user
+# unit) and bin/setup-system-infra.bash (system unit), after normalizing the
+# known mode-divergent variables. The two copies are examined-Keep (the runner
+# is self-contained and cannot share a sourced lib); this guard forbids a
+# one-sided drift of any must-agree row. Comparison is byte-exact (row order and
+# blank lines included) — deliberate lockstep. The dropped rows are principled
+# mode-divergences: UMask=0027 is local-only (the system unit keeps the default
+# for group-readable logs, see LOG_LAYOUT.md); User/Group and Wants/After are
+# system-only; WantedBy/Description differ by mode.
+function test_template_contract_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: procServ Unit Template Shared-Contract Guard (#81/CI-4)"
+    print_sub_divider
+
+    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
+    local local_blk system_blk extracted="empty"
+    local_blk="$(_unit_must_agree_block "${RUNNER_SCRIPT}")"
+    system_blk="$(_unit_must_agree_block "${setup_script}")"
+
+    if [[ -n "${local_blk}" && -n "${system_blk}" ]]; then extracted="nonempty"; fi
+    verify_state "nonempty" "${extracted}" "Both unit templates extracted from source"
+
+    if [[ "${local_blk}" != "${system_blk}" ]]; then
+        printf "${YELLOW}  must-agree drift (local < > system):${NC}\n"
+        diff <(printf '%s\n' "${local_blk}") <(printf '%s\n' "${system_blk}") || true
+    fi
+    verify_state "${local_blk}" "${system_blk}" "Unit template must-agree rows identical across both scripts"
+}
+
 function test_inspect_errors {
     local step="$1"
     print_divider
@@ -1482,6 +1526,7 @@ function run_all_tests {
         "test_env_var_namespacing"
         "test_env_var_precedence"
         "test_system_identity_guard"
+        "test_template_contract_guard"
         "test_log_dir_guard"
         "test_log_dir_xdg_fallback"
         "test_completion"
