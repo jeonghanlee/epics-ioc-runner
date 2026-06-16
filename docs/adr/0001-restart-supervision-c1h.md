@@ -97,7 +97,7 @@ procServ inner loop. Emitted identically into both modes through the M5 emitter
 | `--ignore` | `^D^C^]` | Filters control characters out of the child IOC's stdin. `^T` is intentionally NOT here — `--ignore` does not disable procServ command keys (see "Mechanism note"). |
 | `--autorestartcmd=` | `''` | The mechanism that actually disables the `^T` toggle, closing the silent dead-child/live-procServ trap. |
 | `--oneshot` | excluded | Breaks OP2 (drops the console socket on every child exit) and OP1 (its start-limit `failed` needs `reset-failed`). |
-| `OnFailure=` | excluded | New infrastructure (OP5); under C1+H every down-state is loud or self-healing, so there is nothing silent left to alarm on. |
+| `OnFailure=` | excluded | New infrastructure (OP5); down-states are covered by Layer-3 revival and the Layer-2 crash scan (a silent hang is tracked as an out-of-cluster carry-forward, not an alarm-unit case), so an alarm unit adds deployment surface without closing a real gap. |
 
 ### Mechanism note (the corrected `^T` harden)
 
@@ -188,10 +188,11 @@ on each.
 | local log growth | broken-IOC crash loop ≈ **5 MB/day**, under the 16.7 MB/day budget |
 | logrotate | `copytruncate` works against the fd-holding procServ; plain `create` silently breaks |
 
-Version facts: every directive is valid on systemd 239 and 257; support floor
-is **systemd 229** (`StartLimit*` introduced v229). **`StartLimit*` must be in
-`[Unit]`** — a `[Service]` placement is silently rejected (`Unknown lvalue`),
-observed live on systemd 239.
+Version facts: every directive is valid on systemd 239 and 257. The `StartLimit*`
+directive-support floor is **systemd 229**; `RuntimeDirectoryPreserve=restart`
+raises the directive-support floor to **v235**, still well under the **v239**
+deployment floor. **`StartLimit*` must be in `[Unit]`** — a `[Service]` placement
+is silently rejected (`Unknown lvalue`), observed live on systemd 239.
 
 ---
 
@@ -243,7 +244,9 @@ force.
    including the `KillMode`/`TimeoutStopSec` fix.
 4. **Documentation, with the code:** `ARCHITECTURE.md` (systemd ≥ 239 floor;
    `StartLimit*` in `[Unit]` vs `Restart*` in `[Service]`); `INSTALL.md`
-   (systemd prerequisite; sync the triplicated `--ignore` string); `FAQ.md` +
+   (systemd prerequisite; sync the triplicated `--autorestartcmd=''` token — the
+   `--ignore` string is unchanged; the manual-setup unit needs the full C1+H
+   `[Unit]`/`[Service]` set); `FAQ.md` +
    `ioc-runner` help (console-control change: `^T` toggle removed, `^X` kept).
 
 **Out of scope for U001:** `--oneshot`, an `OnFailure=` alarm unit, any
