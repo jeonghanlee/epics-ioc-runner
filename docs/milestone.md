@@ -17,11 +17,11 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** U001 — authorize the C1+H bundle (convergence
-**C005** `conv20260616_002157`, governing amendment **amd v4**
-`17_strategy_amendment_v4_c1h.md`; validated Round 11 11/11 + Round 12 15/15,
-**converged**) for M8-M11 execution — then M5 (#81) opens the template and
-guard-test cluster (M5-M11). The U006/`^T` correction and all Round-10/11
+**Next session entry point:** **M5** (#81) — open the template and guard-test
+cluster (M5-M11). **U001 is authorized** (2026-06-16, User-delegated;
+auth20260616_003202) on convergence **C005** (`conv20260616_002157`; Round 11
+11/11 + Round 12 15/15, converged), governing amendment **amd v4**
+(`17_strategy_amendment_v4_c1h.md`); **U002 closed**. The U006/`^T` correction and all Round-10/11
 conditions are applied (amd v4 + ADR 0001 + this register); see C005 for the
 close-out. The narrative below is the historical journey record (C003/amd v3
 are superseded by C005/amd v4).
@@ -157,8 +157,8 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 
 | ID | Decision | Blocking | State |
 | --- | --- | --- | --- |
-| U001 | Authorize the C1+H strategy (+ amd v3 conditions) for M8-M11 execution | M8-M11 | open — awaiting C003 acceptance + amd v3 |
-| U002 | Confirm support contract (all four initiators; external PV restart needs no special handling under C1+H) | M10 record | open (near-formality) |
+| U001 | Authorize the C1+H strategy for M8-M11 execution | M8-M11 | **authorized 2026-06-16** (User-delegated; convergence C005, auth20260616_003202) |
+| U002 | Confirm support contract (all four initiators; external PV restart needs no special handling under C1+H) | M10 record | **closed 2026-06-16** (near-formality, with U001) |
 | U003 | local-mode log-cap trade. **Owner inputs COMPLETE (User 2026-06-14): local disk 500 GB; IOC area 10 GB; unattended interval 1 month (30 d); N-IOC max 10; margin 50% (default).** Pre-registered threshold: per-IOC budget = 10 GB x 0.5 / 10 / 30 d = **~16.7 MB/day**. VERIFIED: local mode has NO log rotation (LOG_LAYOUT.md sec 5 + setup code — `logrotate.d/procserv` is system-only; local `$HOME/.local/state/procserv` is unbounded). Pilot-directional: default-holdoff child loop ~3 MB/day (UNDER 16.7) vs worst-case ~36-48 MB/day (OVER). Lean: add a local rotation/size-cap (cheap insurance; local has zero ceiling today); campaign confirms the actual rate vs 16.7 MB/day. | M10 reliability | **DECIDED 2026-06-14 (User): add a local-mode log size-cap/rotation** (per-user logrotate `copytruncate` or size trigger); system-mode weekly-rotation sufficiency verified by C9; full-scale campaign confirms the rate vs the 16.7 MB/day threshold. **CONFIRMED 2026-06-14 (res20260614_210000): C3 default-holdoff broken-IOC rate ~5 MB/day BOTH goldens (rocky8 5.1, debian13 4.9) — common case UNDER 16.7; realism caveat = terse softIoc init, so rotation covers the verbose/long-outage/multi-failure tail.** |
 | U004 | Fleet-synchronized restart storm — record as operational boundary vs bring in scope | M10 / out-of-cluster | open |
 | U005 | procServ `--holdoff` | M5/M10 emitter | **DECIDED 2026-06-14 (User): keep procServ DEFAULT `--holdoff`** (pilot + first principles: default is the most conservative; the lever for excess growth is U003 rotation, not a smaller holdoff). Full-scale campaign confirms the default-holdoff child-loop rate. |
