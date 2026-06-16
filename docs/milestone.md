@@ -25,6 +25,13 @@ auth20260616_003202) on convergence **C005** (`conv20260616_002157`; Round 11
 conditions are applied (amd v4 + ADR 0001 + this register); see C005 for the
 close-out. The narrative below is the historical journey record (C003/amd v3
 are superseded by C005/amd v4).
+
+**Mechanism note (2026-06-16, #81 option 3):** M5/#81 is **examined-Keep + a
+shared-contract guard**, not a single emitter (see CI-4 in the Examined-Keep
+Ledger). Where this register says "via the M5 emitter" / "single emitter" (the
+M9/M10 rows and the narrative below), read it as the **guarded two-copy
+contract** — both modes stay identical, enforced by the guard, not one emitter.
+Outcome unchanged.
 The strategy is decided in review session rs20260612_143435 (local-only root
 `docs/review_sessions/20260612_143435_template_cluster_strategy/`): the
 C2/`--oneshot` direction was withdrawn; the operator-first **C1+H** bundle
@@ -99,7 +106,7 @@ ends with a reconcile pass comparing issue state against this register.
 | M4 | 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Done | Closed 2026-06-12. Both scripts resolve `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP`, defaults unchanged; guard pins the shared contract; PERMISSION_MODEL.md documents the override. Fix `234a580`; Design Record + accepted residual (unvalidated admin env) in #87. enhancement, P2-medium. |
 | M4.T1 | 1.2.0 | user/group override honored by both scripts on a VM golden; default path unchanged | Test sub | Done | PASS 2026-06-12, both goldens, 11/11 each: override setup/install/start E2E incl. single-source negative (no-override install rejects); default restore verified, infra suite green on restored defaults. |
 | M4.T2 | 1.2.0 | new shared-defaults guard test; system-infra suite green on defaults | Test sub | Done | 2026-06-12: 8 guard assertions (names + defaults agree, `ioc-srv`/`ioc` pinned); error-handling 122/122 top; one-off negative edit fails the guard; infra 40/40 rocky8, 41/41 debian13. |
-| M5 | 1.2.0 | #81 generalize the duplicated procServ systemd unit template into one emitter | Coherence (CI-4) | Open | The unit contract is hand-maintained in two copies (`bin/ioc-runner:363-382` local user unit, `bin/setup-system-infra.bash:467-489` system unit); CI-1 (#75) already paid the round-trip. Single emitter + shared-contract guard test; pure refactor gated by byte-equivalence, so it precedes the #53/#54 content edits. P3-low. |
+| M5 | 1.2.0 | #81 pin the duplicated procServ unit template with a shared-contract guard (examined-Keep, not merged) | Coherence (CI-4) | Open | **Re-scoped 2026-06-16 (#81 design conversation, option 3):** a true single emitter cuts against the runner's self-contained-single-file design (it cannot source a shared lib — cf. CI-15) and the two units are written in different contexts (system at install, local at `--local install` runtime); the duplication is therefore **examined-Keep (CI-4, see ledger)**, not merged. M5 adds a shared-contract guard pinning the must-agree rows across the two copies (`bin/ioc-runner:374-393`, `bin/setup-system-infra.bash:471-493`); drift fails the guard. `--autorestartcmd=''` (U006) is added to BOTH copies (sub-2), guard-pinned. M5.T1 reframes from byte-equivalence-pre/post-refactor to two-copy must-agree equivalence. The strategy docs' "single M5 emitter" wording is reconciled 2026-06-16 (mechanism note near the top + ADR 0001 + CI-4); outcome unchanged (identical in both modes). P3-low. |
 | M5.T1 | 1.2.0 | must-agree byte-equivalence pre/post refactor, both modes; guard fails on a one-sided edit | Test sub | Open | — |
 | M5.T2 | 1.2.0 | new shared-contract guard test; both lifecycle suites green on top and on both VM gates | Test sub | Open | — |
 | M5.T3 | 1.2.0 | re-run M4.T2 (template emission rewritten in both scripts) | Test sub | Open | — |
@@ -222,6 +229,7 @@ the 1.1.1 register: `git show 1.1.1:docs/milestone.md`.
 
 | ID | Sweep | Finding | Why Keep |
 | --- | --- | --- | --- |
+| CI-4 | #81 (examined-Keep 2026-06-16) | procServ systemd unit template duplicated in two copies (`bin/ioc-runner` local user unit, `bin/setup-system-infra.bash` system unit). | Structural: the runner is a single self-contained executable that cannot source a shared lib (cf. CI-15), and the two units are written in different contexts (system at install time, local at `--local install` runtime); a true single runtime emitter would need a new installed artifact against that self-containment. Kept as two copies, with the M5 shared-contract guard pinning the must-agree rows so they cannot drift. Supersedes #81's original "single emitter" framing (option 3, design conversation 2026-06-16). |
 | CI-5 | 2026-06-04 | Tool resolution uses `-x` only in the search loop but `-f && -x` in the override branch. | Principled asymmetry: search paths are fixed trusted defaults, the override is arbitrary user input (#78 scoped to it deliberately). |
 | CI-6 | 2026-06-04 | Keep-3 backup-prune policy implemented twice (system timestamp name vs local `mktemp`). | Mode-appropriate divergence: system setup is one-shot per file, so the same-second overwrite is unreachable; local install is repeatable and uses `mktemp`. |
 | CI-10 | 2026-06-05 | Completion command/option list is a separate copy of the runner command set. | Copies agree (14 commands, identical options); a drift-guard could fold into the #84/#81 guard-test cluster. |

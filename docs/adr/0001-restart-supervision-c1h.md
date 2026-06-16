@@ -19,6 +19,12 @@ remains readable independently of any working session material.
 > Consequences) and `RuntimeDirectoryPreserve=restart` (the console-socket
 > directory is kept across an auto-restart). The full current directive set is in
 > C004.
+>
+> **Mechanism (2026-06-16, #81 option 3):** M5/#81 is examined-Keep + a
+> shared-contract guard, NOT a single emitter (the runner is self-contained —
+> cf. CI-15; see register CI-4). Read "the single M5 template emitter" / "via
+> the M5 emitter" below as the guarded two-copy contract — identical in both
+> modes, enforced by the guard. (C005 `conv20260616_002157` supersedes C004.)
 
 ---
 
