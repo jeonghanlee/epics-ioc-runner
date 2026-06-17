@@ -1183,8 +1183,11 @@ function test_list_empty {
 
 # Validates the #87 single-source identity contract: bin/ioc-runner and
 # bin/setup-system-infra.bash resolve the same IOC_RUNNER_SYSTEM_USER /
-# IOC_RUNNER_SYSTEM_GROUP overrides with the same shipped defaults. A
-# one-sided edit of either declaration fails here before it can ship.
+# IOC_RUNNER_SYSTEM_GROUP / IOC_RUNNER_SYSTEM_LOG_DIR overrides with the same
+# shipped defaults. A one-sided edit of either declaration fails here before it
+# can ship. LOG_DIR joins the family per CI-14 (Refs #87): the runner declares
+# it as SYSTEM_LOG_DIR (no TARGET_ prefix, unlike USER/GROUP), so the runner
+# side maps each field to its declaration name explicitly.
 function test_system_identity_guard {
     local step="$1"
     print_divider
@@ -1194,10 +1197,13 @@ function test_system_identity_guard {
     local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
     local line field
     local -A runner_env=() runner_def=() setup_env=() setup_def=()
+    # The runner names USER/GROUP with a TARGET_ prefix but the log dir as a
+    # bare SYSTEM_LOG_DIR; map each field to its runner-side declaration name.
+    local -A runner_decl=( [USER]="TARGET_SYSTEM_USER" [GROUP]="TARGET_SYSTEM_GROUP" [LOG_DIR]="SYSTEM_LOG_DIR" )
 
     while IFS= read -r line; do
-        for field in USER GROUP; do
-            if [[ "${line}" == "declare -g TARGET_SYSTEM_${field}="* ]]; then
+        for field in USER GROUP LOG_DIR; do
+            if [[ "${line}" == "declare -g ${runner_decl[${field}]}="* ]]; then
                 runner_env[${field}]="${line#*\$\{}"
                 runner_env[${field}]="${runner_env[${field}]%%:-*}"
                 runner_def[${field}]="${line#*:-}"
@@ -1207,7 +1213,7 @@ function test_system_identity_guard {
     done < "${RUNNER_SCRIPT}"
 
     while IFS= read -r line; do
-        for field in USER GROUP; do
+        for field in USER GROUP LOG_DIR; do
             if [[ "${line}" == "declare -g SYSTEM_${field}="* ]]; then
                 setup_env[${field}]="${line#*\$\{}"
                 setup_env[${field}]="${setup_env[${field}]%%:-*}"
@@ -1225,6 +1231,10 @@ function test_system_identity_guard {
     verify_state "IOC_RUNNER_SYSTEM_GROUP" "${setup_env[GROUP]:-}" "Setup group identity resolves the same override variable"
     verify_state "ioc" "${runner_def[GROUP]:-}" "Runner group default pinned to ioc"
     verify_state "${runner_def[GROUP]:-runner-unset}" "${setup_def[GROUP]:-setup-unset}" "Group defaults agree across both scripts"
+    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${runner_env[LOG_DIR]:-}" "Runner log dir resolves the IOC_RUNNER_SYSTEM_LOG_DIR override"
+    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${setup_env[LOG_DIR]:-}" "Setup log dir resolves the same override variable"
+    verify_state "/var/log/procserv" "${runner_def[LOG_DIR]:-}" "Runner log dir default pinned to /var/log/procserv"
+    verify_state "${runner_def[LOG_DIR]:-runner-unset}" "${setup_def[LOG_DIR]:-setup-unset}" "Log dir defaults agree across both scripts"
 }
 
 # Extract the procServ unit-template heredoc body from a script (the block whose
@@ -1269,6 +1279,57 @@ function test_template_contract_guard {
         diff <(printf '%s\n' "${local_blk}") <(printf '%s\n' "${system_blk}") || true
     fi
     verify_state "${local_blk}" "${system_blk}" "Unit template must-agree rows identical across both scripts"
+}
+
+# Extract the set of RUNNER_* metadata variables an installer injects via sed,
+# i.e. the names targeted by s/^declare -g RUNNER_X=. Sorted and deduplicated.
+# An empty result trips the caller's nonempty sentinel (fail-closed), so a
+# rewrite of the injection lines that stops matching fails loudly, not silently.
+function _metadata_injection_targets {
+    grep -oE 's/\^declare -g RUNNER_[A-Z_]+=' "$1" 2>/dev/null \
+      | grep -oE 'RUNNER_[A-Z_]+' \
+      | sort -u
+}
+
+# Validates the #84 / CI-9 shared-contract: the git-metadata injection targets
+# agree across the runner declaration anchor (bin/ioc-runner) and the two
+# installers that sed them in (bin/setup-system-infra.bash,
+# configure/inject-runner-version.bash). The metadata is hand-maintained in
+# three places; a one-sided rename, a dropped injection line, or a field added
+# to one injector only would silently leave the installed binary reporting the
+# placeholder value with no install error. The guard forbids that drift:
+# (1) both injectors must target the same RUNNER_* set, and (2) every injected
+# name must have a matching declaration anchor in the runner, so the sed regex
+# keeps matching its target. RUNNER_VERSION is the source-controlled value (not
+# injected) and is intentionally excluded.
+function test_metadata_contract_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Git-Metadata Injection Shared-Contract Guard (#84/CI-9)"
+    print_sub_divider
+
+    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
+    local inject_script="${SC_TOP}/../configure/inject-runner-version.bash"
+    local setup_set inject_set anchor_set missing extracted="empty"
+
+    setup_set="$(_metadata_injection_targets "${setup_script}")"
+    inject_set="$(_metadata_injection_targets "${inject_script}")"
+    anchor_set="$(grep -oE '^declare -g RUNNER_[A-Z_]+=' "${RUNNER_SCRIPT}" | grep -oE 'RUNNER_[A-Z_]+' | sort -u)"
+
+    if [[ -n "${setup_set}" && -n "${inject_set}" ]]; then extracted="nonempty"; fi
+    verify_state "nonempty" "${extracted}" "Metadata sed targets extracted from both injectors"
+
+    if [[ "${setup_set}" != "${inject_set}" ]]; then
+        printf "${YELLOW}  injector drift (setup < > inject):${NC}\n"
+        diff <(printf '%s\n' "${setup_set}") <(printf '%s\n' "${inject_set}") || true
+    fi
+    verify_state "${setup_set}" "${inject_set}" "Both injectors target the same RUNNER_* metadata set"
+
+    missing="$(comm -23 <(printf '%s\n' "${setup_set}") <(printf '%s\n' "${anchor_set}"))"
+    if [[ -n "${missing}" ]]; then
+        printf "${YELLOW}  injected names with no declaration anchor:${NC}\n%s\n" "${missing}"
+    fi
+    verify_state "" "${missing}" "Every injected RUNNER_* has a declaration anchor in the runner"
 }
 
 function test_inspect_errors {
@@ -1527,6 +1588,7 @@ function run_all_tests {
         "test_env_var_precedence"
         "test_system_identity_guard"
         "test_template_contract_guard"
+        "test_metadata_contract_guard"
         "test_log_dir_guard"
         "test_log_dir_xdg_fallback"
         "test_completion"
