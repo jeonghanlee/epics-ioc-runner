@@ -1133,9 +1133,9 @@ function do_install {
             printf "\n" >&2
             printf "         Note: the .iocsh_history error is benign and already excluded\n" >&2
             printf "         from the start crash scan (see FAQ Q5/Q6). To suppress the\n" >&2
-            printf "         history file itself, launch with EPICS_IOCSH_HISTFILE=/dev/null\n" >&2
-            printf "         (not IOCSH_HISTSIZE, which only bounds the in-memory list and\n" >&2
-            printf "         does not gate the file). This does not address autosave or\n" >&2
+            printf "         history file itself, set EPICS_IOCSH_HISTFILE to an empty\n" >&2
+            printf "         string (not IOCSH_HISTSIZE, which only bounds the in-memory\n" >&2
+            printf "         list and does not gate the file). This does not address autosave or\n" >&2
             printf "         save/restore write failures.\n" >&2
             if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
                 printf "         Proceed anyway? [y/N]: " >&2

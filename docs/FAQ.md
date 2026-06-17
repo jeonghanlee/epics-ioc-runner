@@ -97,7 +97,8 @@ ioc-runner stop myioc
 
 # 3. Run the IOC manually for debugging (see the history-file note below)
 cd /opt/epics-iocs/flux-capacitor/iocBoot/iocFluxCap
-EPICS_IOCSH_HISTFILE=/dev/null ./st.cmd
+export EPICS_IOCSH_HISTFILE=   # empty string disables the history file (EPICS docs)
+./st.cmd
 
 # 4. When debugging is complete, return to managed mode
 ioc-runner start myioc
@@ -106,7 +107,7 @@ ioc-runner enable myioc
 
 While the service is stopped, the `.conf` file remains in `/etc/procServ.d/` and the systemd template is unchanged. Only the runtime state is affected.
 
-**History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Launching with `EPICS_IOCSH_HISTFILE=/dev/null` disables the history file for the manual run, so no cross-owned file is left behind. `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file.
+**History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file for the manual run, so no cross-owned file is left behind. `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file. EPICS documents the empty-string disable in the EPICS Base 7.0 release notes (https://docs.epics-controls.org/projects/base/en/r7.0.9/RELEASE_NOTES.html).
 
 ---
 
@@ -170,7 +171,7 @@ stat -c '%G %a' "${IOC_CHDIR}"
 
 Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time check also validates the absolute path, the non-symlinked leaf, and parent traversal. If the directory does not conform, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains. One case is excluded from this warning flow: an `IOC_CHDIR` containing a `..` path component is malformed input, not a permission mismatch — `install` rejects it outright with a hard error, no confirmation prompt, and `--force` does not bypass it.
 
-**Partial mitigation:** Launching with `EPICS_IOCSH_HISTFILE=/dev/null` disables the history file and so removes the error (see Q5); `IOCSH_HISTSIZE` does not (it only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup). Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
+**Partial mitigation:** Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file and so removes the error (see Q5); `IOCSH_HISTSIZE` does not (it only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup). Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
 
 **Local mode:** `--local` deployments run as the invoking user, so this constraint does not apply.
 
