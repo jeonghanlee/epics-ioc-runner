@@ -17,11 +17,12 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** the remaining 1.2.0 work — quick standalone **M13**
-(#96) and **M14** (#97) (test + install-hint fixes), then the **M8-M11 C1+H
-cluster** (gated on U004/U007/U008 + the plan-v3 campaign) and **M12** (#68)
-wrapper. **M7** (#86) closed 2026-06-17 (Keep B: the documented `do_inspect`
-alias is the end state, no code change). **M6**
+**Next session entry point:** the remaining 1.2.0 work is the **M8-M11 C1+H
+cluster** (gated on U004/U007/U008 + the plan-v3 campaign) and the **M12** (#68)
+sudoers wrapper. **M13** (#96) and **M14** (#97) closed 2026-06-17 (the no-op
+IOCSH_HISTSIZE sweep across the two lifecycle probes, the install hint, and the
+FAQ; commits 30cb8d7, 1f074cb). **M7** (#86) closed 2026-06-17 (Keep B: the
+documented `do_inspect` alias is the end state, no code change). **M6**
 (#84) closed 2026-06-16: the git-metadata injection guard landed (commit 96fc886,
 error suite 141/141 on top, executed==counted); the same commit extended #87's
 `test_system_identity_guard` with `SYSTEM_LOG_DIR` (CI-14, Refs #87). **M5** (#81)
@@ -152,12 +153,12 @@ ends with a reconcile pass comparing issue state against this register.
 | M12.T2 | 1.2.0 | system suites on both goldens (two sudoers emission branches) | Test sub | Open | — |
 | M12.T3 | 1.2.0 | re-run multi-user sudo-gate subset S1/S6/S11 | Test sub | Open | — |
 | M12.T4 | 1.2.0 | amend `testplan_multiuser.md` S11 (residual risk closed) | Test sub | Open | — |
-| M13 | 1.2.0 | #96 replace the ineffective `IOCSH_HISTSIZE` history-disable line in `test_logrotate_boundary` | Review follow-up (#92) | Open | The `epicsEnvSet` line cannot gate the history file (in-memory list only, EPICS source-verified); the probe passes because its directory is group-writable (`tests/test-system-lifecycle.bash:928-941`). Remove the line and correct the comment. Added 2026-06-11 from the M1 design review. tests, P3-low. |
-| M13.T1 | 1.2.0 | line removed and comment corrected; `test_logrotate_boundary` green | Test sub | Open | — |
-| M13.T2 | 1.2.0 | system-lifecycle suite green on both goldens | Test sub | Open | — |
-| M14 | 1.2.0 | #97 replace the ineffective `IOCSH_HISTSIZE` recommendation in the install precheck hint | Review follow-up (#92) | Open | The hint (`bin/ioc-runner:1128-1130`) sends operators to a knob proven a no-op in the #92 review; replace with guidance consistent with FAQ Q5/Q8 (`EPICS_IOCSH_HISTFILE=/dev/null`, scan exclusion note). M1 residue found in the M2 sweep. bug, P3-low. |
-| M14.T1 | 1.2.0 | hint text replaced; consistent with FAQ Q5/Q8 as corrected by #92 | Test sub | Open | — |
-| M14.T2 | 1.2.0 | error-handling suite green (install/precheck cases unchanged) | Test sub | Open | — |
+| M13 | 1.2.0 | #96 replace the ineffective `IOCSH_HISTSIZE` history-disable line in `test_logrotate_boundary` | Review follow-up (#92) | Done | **Closed 2026-06-17 (commit 30cb8d7).** The `epicsEnvSet` line was a no-op (in-memory list only; file gated by `EPICS_IOCSH_HISTFILE`; in-`st.cmd` `epicsEnvSet` too late). Removed + comment corrected to name the group-writable probe dir as the real safeguard; identical line swept from the permission-enforcement probe too. tests, P3-low. |
+| M13.T1 | 1.2.0 | line removed and comment corrected; `test_logrotate_boundary` green | Test sub | Done | 2026-06-17: line + both-probe sweep done; `test_logrotate_boundary` (STEP 28) green on both goldens. |
+| M13.T2 | 1.2.0 | system-lifecycle suite green on both goldens | Test sub | Done | 2026-06-17: system-lifecycle 74/74 both goldens (rocky8, debian13), installed mode; STEP 28/29 green, 0 failed. |
+| M14 | 1.2.0 | #97 replace the ineffective `IOCSH_HISTSIZE` recommendation in the install precheck hint | Review follow-up (#92) | Done | **Closed 2026-06-17 (commit 1f074cb).** Hint now points to `EPICS_IOCSH_HISTFILE=/dev/null` + the scan-exclusion note (not the no-op `IOCSH_HISTSIZE`). Also corrected the FAQ partial-mitigation note, which contradicted the Q5 history-file note in the same file. bug, P3-low. |
+| M14.T1 | 1.2.0 | hint text replaced; consistent with FAQ Q5/Q8 as corrected by #92 | Test sub | Done | 2026-06-17: hint rewritten (`bin/ioc-runner`) + FAQ note corrected; consistent with FAQ Q5/Q6 (`EPICS_IOCSH_HISTFILE=/dev/null`, error already scan-excluded). |
+| M14.T2 | 1.2.0 | error-handling suite green (install/precheck cases unchanged) | Test sub | Done | 2026-06-17: error-handling suite green on top (no assertion checks the hint text; install/precheck cases unchanged); `bash -n` clean both scripts. |
 | M15 | 1.2.0 | #98 subshell assertions do not reach the error-suite counters | Review follow-up (#93) | Done | Closed 2026-06-12 (pulled forward before the cluster). Ten blocks de-subshelled (cd scoped in the command substitution) plus a permanent executed-vs-counted tripwire; quick-review gate, independent reviewer accept. Fix `36ad023`; Design Record in #98. tests, P2-medium. |
 | M15.T1 | 1.2.0 | printed-assertion count equals counted total; a deliberate subshell FAIL fails the suite (negative check) | Test sub | Done | 2026-06-12: 132 printed = 132 counted = 132 executed; planted-FAIL and reintroduced-subshell negatives both fail the suite (exit 1). |
 | M15.T2 | 1.2.0 | full error-handling suite green with reconciled counts; same-pattern sweep of the other suites recorded | Test sub | Done | 2026-06-12: error-handling 132/132 on top; sweep of the other three suites and the orchestrator clean (recorded in #98); summary format change breaks no consumer. |
@@ -171,7 +172,7 @@ ends with a reconcile pass comparing issue state against this register.
 | M18.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M18.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 8 (7 work + 1 gate), Done 10 (M1-M7, M15, M16, M17) · test subs Open 23, Done 21 (through M7.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
+**Tally:** milestones Open 6 (5 work + 1 gate), Done 12 (M1-M7, M13, M14, M15, M16, M17) · test subs Open 19, Done 25 (through M7.T1/T2, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
@@ -209,7 +210,7 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 8 open, 9 closed (#81, #84, #86, #87, #92, #93, #94, #98, #99), due 2026-07-31; #100 added 2026-06-16. The work order is
+GitHub milestone `1.2.0` — 6 open, 11 closed (#81, #84, #86, #87, #92, #93, #94, #96, #97, #98, #99), due 2026-07-31; #100 added 2026-06-16. The work order is
 M1-M17 plus the M18 release gate in the Active Register above; M18 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
