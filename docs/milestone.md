@@ -21,7 +21,9 @@ GitHub release with curated notes from the changelog, milestone closed,
 cluster** (gated on U004/U007/U008 + the plan-v3 campaign) and the **M12** (#68)
 sudoers wrapper. **M13** (#96) and **M14** (#97) closed 2026-06-17 (the no-op
 IOCSH_HISTSIZE sweep across the two lifecycle probes, the install hint, and the
-FAQ; commits 30cb8d7, 1f074cb). **M7** (#86) closed 2026-06-17 (Keep B: the
+FAQ; commits 30cb8d7, 1f074cb). **M18** (#101) closed 2026-06-17 (history-disable
+guidance aligned to the EPICS-documented empty-string form, commit c847232).
+**M7** (#86) closed 2026-06-17 (Keep B: the
 documented `do_inspect` alias is the end state, no code change). **M6**
 (#84) closed 2026-06-16: the git-metadata injection guard landed (commit 96fc886,
 error suite 141/141 on top, executed==counted); the same commit extended #87's
@@ -167,12 +169,15 @@ ends with a reconcile pass comparing issue state against this register.
 | M16.T2 | 1.2.0 | system-lifecycle suite green on both goldens | Test sub | Done | 2026-06-16: system-lifecycle 74/74 both goldens (rocky8, debian13), installed mode; 0 failed / 0 script errors. |
 | M17 | 1.2.0 | #100 record the examined-Keep -> guard promotion test as the Ledger standing rule | Review follow-up (#84) | Done | Verified 2026-06-16. The M6 ten-reviewer session (conv20260616_151322) derived the promotion test; recorded in the Examined-Keep Ledger preamble below, validated against all ten Ledger rows (reproduces every Keep; CI-4/CI-9 the only promotes). docs, area/architecture, P3-low. |
 | M17.T1 | 1.2.0 | the promotion test recorded in the Ledger in one-pass-applicable form | Test sub | Done | 2026-06-16: gates A/B/C/D + fate-ordering + cost framing recorded in the Examined-Keep Ledger preamble (Refs #100). |
-| M18 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M17 close; gates the master merge + `1.2.0` tag. |
-| M18.T1 | 1.2.0 | cycle batch re-run of all M1-M17 change-specific verifications on the final tree | Test sub | Open | — |
-| M18.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
-| M18.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
+| M18 | 1.2.0 | #101 align iocsh history-disable guidance to the EPICS-documented empty-string form | Review follow-up (#97) | Done | **Closed 2026-06-17 (commit c847232).** EPICS documents the disable as `EPICS_IOCSH_HISTFILE=` (empty string, Base 7.0 release notes), not `/dev/null`; switched the FAQ debug example + two history notes + the install hint to the empty-string disable in a non-prefix shape (a dropped space cannot misfire), and recorded the EPICS reference in FAQ Q5. Error suite green, `bash -n` clean. docs, P3-low. |
+| M18.T1 | 1.2.0 | all four /dev/null history references use the documented empty-string disable; reference cited | Test sub | Done | 2026-06-17: FAQ:100/109/173 + `bin/ioc-runner` hint switched; no `/dev/null` history guidance remains; EPICS Base 7.0 release-notes URL cited in FAQ Q5. |
+| M18.T2 | 1.2.0 | error-handling suite green; `bash -n` clean; no runner behavior change | Test sub | Done | 2026-06-17: error suite green on top (hint text not asserted); `bash -n` clean on `bin/ioc-runner`. |
+| M19 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M18 close; gates the master merge + `1.2.0` tag. |
+| M19.T1 | 1.2.0 | cycle batch re-run of all M1-M18 change-specific verifications on the final tree | Test sub | Open | — |
+| M19.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
+| M19.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 6 (5 work + 1 gate), Done 12 (M1-M7, M13, M14, M15, M16, M17) · test subs Open 19, Done 25 (through M7.T1/T2, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
+**Tally:** milestones Open 6 (5 work + 1 gate), Done 13 (M1-M7, M13, M14, M15-M18) · test subs Open 19, Done 27 (through M7.T1/T2, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1, M18.T1/T2) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
@@ -210,7 +215,7 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 6 open, 11 closed (#81, #84, #86, #87, #92, #93, #94, #96, #97, #98, #99), due 2026-07-31; #100 added 2026-06-16. The work order is
+GitHub milestone `1.2.0` — 6 open, 12 closed (#81, #84, #86, #87, #92, #93, #94, #96, #97, #98, #99, #101), due 2026-07-31; #100 added 2026-06-16. The work order is
 M1-M17 plus the M18 release gate in the Active Register above; M18 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
@@ -240,6 +245,7 @@ and #98 was pulled forward and closed the same day; #99 (M16) was added
 | [#98](https://github.com/jeonghanlee/epics-ioc-runner/issues/98) | test-error-handling subshell assertions do not reach the suite counters | tests, P2-medium | Found adding the #93 decline cases. `( cd ... )` blocks lose counter increments (121 PASS printed vs 111 counted) and a subshell FAIL cannot fail the suite; fix options in the issue, plus a printed-equals-counted self-check and a same-pattern sweep of the other suites. |
 | [#99](https://github.com/jeonghanlee/epics-ioc-runner/issues/99) | Stale install-decline exit-code assertion in test-system-lifecycle after #93 | tests, P3-low | Spin-off from the M5 sub-2 golden run (Refs #93). `test-system-lifecycle.bash` case 7b asserted exit 0 for an explicit `N` install decline; #93 made every interactive abort exit 1 but never updated this suite. Fix: line 1396 expected `0`->`1` + comment 1390 (no runner change). |
 | [#100](https://github.com/jeonghanlee/epics-ioc-runner/issues/100) | Record the examined-Keep to guard promotion test as the Ledger standing rule | docs, area/architecture, P3-low | From the M6 (#84) ten-reviewer review (conv20260616_151322). Record the promotion test (gates A/B/C/D + fate-ordering + cost) as the Ledger's standing rule. Refs #84. |
+| [#101](https://github.com/jeonghanlee/epics-ioc-runner/issues/101) | Align iocsh history-disable guidance to the EPICS-documented empty-string form | docs, P3-low | The FAQ + install hint disabled the history file via `EPICS_IOCSH_HISTFILE=/dev/null`; EPICS documents the disable as an empty string (Base 7.0 release notes). Switch to the documented empty-string form (non-prefix shape) and cite the reference. Refs #92, #96, #97. |
 
 ## Examined-Keep Ledger
 
