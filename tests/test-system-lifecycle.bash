@@ -931,12 +931,14 @@ function test_logrotate_boundary {
     chown "${OWNER_WORKSPACE}" "${rot_ioc_dir}"
     chmod 2775 "${rot_ioc_dir}"
 
-    # Healthy IOC: stays up and emits no crash pattern of its own. Disable the
-    # iocsh history file so a write failure on it cannot leak a crash pattern
-    # into the startup scan window.
+    # Healthy IOC: stays up and emits no crash pattern of its own. The probe dir
+    # is group-writable (2775 above), so the iocsh history-file write succeeds
+    # and cannot leak a crash pattern into the startup scan window. No knob is
+    # needed: IOCSH_HISTSIZE does not gate the file (it bounds the in-memory list
+    # only; the file is gated by EPICS_IOCSH_HISTFILE), and an epicsEnvSet inside
+    # st.cmd runs after history setup anyway.
     cat << EOF > "${rot_ioc_dir}/st.cmd"
 #!${softioc_bin}
-epicsEnvSet("IOCSH_HISTSIZE","0")
 system "sleep 0.5"
 EOF
     chmod +x "${rot_ioc_dir}/st.cmd"
@@ -1154,7 +1156,6 @@ function test_permission_enforcement {
 
     cat << EOF > "${perm_ioc_dir}/st.cmd"
 #!${softioc_bin}
-epicsEnvSet("IOCSH_HISTSIZE","0")
 system "sleep 0.5"
 EOF
     chmod +x "${perm_ioc_dir}/st.cmd"
