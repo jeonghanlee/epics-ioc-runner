@@ -17,16 +17,15 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** **M6** (#84, git-metadata guard). **M5** (#81) is
-code-complete and verified 2026-06-16: the shared-contract guard landed (M5.T1/T2,
-commit 7a3aeb2) and **M5 sub-2** added `--autorestartcmd=''` to both unit copies
-(`bin/ioc-runner:385`, `bin/setup-system-infra.bash:485`) — static guard 134/134 on
-top, both goldens render the flag into the system and local units, no-regression
-suites green, and M5.T3 (re-run M4.T2) passed in the same run. **M16 (#99)** — a #93
-abort-convention residue (system-lifecycle 7b asserted exit 0) surfaced by that
-golden run — was fixed and verified 74/74 on both goldens the same day. Pending
-mechanical steps only: the M5 sub-2 commit, the #99 fix commit, and the #81/#99
-manual closes. **U001 is authorized** (2026-06-16, User-delegated;
+**Next session entry point:** **M7** (#86, socket-path reference review). **M6**
+(#84) closed 2026-06-16: the git-metadata injection guard landed (commit 96fc886,
+error suite 141/141 on top, executed==counted); the same commit extended #87's
+`test_system_identity_guard` with `SYSTEM_LOG_DIR` (CI-14, Refs #87). **M5** (#81)
+closed 2026-06-16 (sub-2 `--autorestartcmd=''`, commit 77f1556) and **M16** (#99)
+closed 2026-06-16 (commit 72b1351); both verified on both goldens. The M6 review
+session (rs20260616_144324, convergence conv20260616_151322; local-only) recorded a
+standing **examined-Keep -> guard promotion test** (now **M17**, #100) in the
+Examined-Keep Ledger below. **U001 is authorized** (2026-06-16, User-delegated;
 auth20260616_003202) on convergence **C005** (`conv20260616_002157`; Round 11
 11/11 + Round 12 15/15, converged), governing amendment **amd v4**
 (`17_strategy_amendment_v4_c1h.md`); **U002 closed**. The U006/`^T` correction and all Round-10/11
@@ -114,13 +113,13 @@ ends with a reconcile pass comparing issue state against this register.
 | M4 | 1.2.0 | #87 generalize the hardcoded system user/group (`ioc-srv`/`ioc`) into a single configurable source | Coherence (CI-12) | Done | Closed 2026-06-12. Both scripts resolve `IOC_RUNNER_SYSTEM_USER`/`IOC_RUNNER_SYSTEM_GROUP`, defaults unchanged; guard pins the shared contract; PERMISSION_MODEL.md documents the override. Fix `234a580`; Design Record + accepted residual (unvalidated admin env) in #87. enhancement, P2-medium. |
 | M4.T1 | 1.2.0 | user/group override honored by both scripts on a VM golden; default path unchanged | Test sub | Done | PASS 2026-06-12, both goldens, 11/11 each: override setup/install/start E2E incl. single-source negative (no-override install rejects); default restore verified, infra suite green on restored defaults. |
 | M4.T2 | 1.2.0 | new shared-defaults guard test; system-infra suite green on defaults | Test sub | Done | 2026-06-12: 8 guard assertions (names + defaults agree, `ioc-srv`/`ioc` pinned); error-handling 122/122 top; one-off negative edit fails the guard; infra 40/40 rocky8, 41/41 debian13. |
-| M5 | 1.2.0 | #81 pin the duplicated procServ unit template with a shared-contract guard (examined-Keep, not merged) | Coherence (CI-4) | Done | **Re-scoped 2026-06-16 (#81 design conversation, option 3):** a true single emitter cuts against the runner's self-contained-single-file design (it cannot source a shared lib — cf. CI-15) and the two units are written in different contexts (system at install, local at `--local install` runtime); the duplication is therefore **examined-Keep (CI-4, see ledger)**, not merged. M5 adds a shared-contract guard pinning the must-agree rows across the two copies (`bin/ioc-runner:374-393`, `bin/setup-system-infra.bash:471-493`); drift fails the guard. `--autorestartcmd=''` (U006) is added to BOTH copies (sub-2), guard-pinned. M5.T1 reframes from byte-equivalence-pre/post-refactor to two-copy must-agree equivalence. The strategy docs' "single M5 emitter" wording is reconciled 2026-06-16 (mechanism note near the top + ADR 0001 + CI-4); outcome unchanged (identical in both modes). **Sub-2 (`--autorestartcmd=''`) landed + verified 2026-06-16:** both copies emit the flag (`bin/ioc-runner:385`, `bin/setup-system-infra.bash:485`); static guard 134/134 (top); both goldens render it into the system AND local units (rocky8/debian13), no-regression local 55/56 · infra 40/41 · system-lifecycle 74/74. All subs T1/T2/T3 green; #81 manual close pends the sub-2 commit. P3-low. |
+| M5 | 1.2.0 | #81 pin the duplicated procServ unit template with a shared-contract guard (examined-Keep, not merged) | Coherence (CI-4) | Done | **Re-scoped 2026-06-16 (#81 design conversation, option 3):** a true single emitter cuts against the runner's self-contained-single-file design (it cannot source a shared lib — cf. CI-15) and the two units are written in different contexts (system at install, local at `--local install` runtime); the duplication is therefore **examined-Keep (CI-4, see ledger)**, not merged. M5 adds a shared-contract guard pinning the must-agree rows across the two copies (`bin/ioc-runner:374-393`, `bin/setup-system-infra.bash:471-493`); drift fails the guard. `--autorestartcmd=''` (U006) is added to BOTH copies (sub-2), guard-pinned. M5.T1 reframes from byte-equivalence-pre/post-refactor to two-copy must-agree equivalence. The strategy docs' "single M5 emitter" wording is reconciled 2026-06-16 (mechanism note near the top + ADR 0001 + CI-4); outcome unchanged (identical in both modes). **Sub-2 (`--autorestartcmd=''`) landed + verified 2026-06-16:** both copies emit the flag (`bin/ioc-runner:385`, `bin/setup-system-infra.bash:485`); static guard 134/134 (top); both goldens render it into the system AND local units (rocky8/debian13), no-regression local 55/56 · infra 40/41 · system-lifecycle 74/74. All subs T1/T2/T3 green; #81 closed 2026-06-16 (sub-2 commit 77f1556). P3-low. |
 | M5.T1 | 1.2.0 | must-agree equivalence across the two unit copies; guard fails on a one-sided edit | Test sub | Done | 2026-06-16: examined-Keep (CI-4, no refactor) — guard asserts the two copies' must-agree rows identical; negative one-sided drift (dropped local SIGKILL) -> guard FAIL (error-suite 133/134, exit 1). Commit 7a3aeb2. |
 | M5.T2 | 1.2.0 | new shared-contract guard test (static) + dynamic rendered-unit check on both goldens | Test sub | Done | 2026-06-16: static guard `test_template_contract_guard` in `tests/test-error-handling.bash` (commit 7a3aeb2) — error-suite 134/134 (executed==counted, #98 tripwire intact); dynamic rendered-unit agreement on both goldens (rocky8/239, debian13/257), normalizing binary/logdir/CONF_DIR. quick-review accept. Re-confirmed 2026-06-16 with sub-2: rendered system AND local units on both goldens carry `--ignore=^D^C^] --autorestartcmd=''`. |
 | M5.T3 | 1.2.0 | re-run M4.T2 (template emission rewritten in both scripts) | Test sub | Done | 2026-06-16: M4.T2 re-run in the sub-2 campaign — error-handling 134/134 (top, incl. STEP 12 system-identity guard), system-infra 40/40 rocky8 / 41/41 debian13 on the goldens; shared defaults + must-agree contract intact. |
-| M6 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Open | The hash/commit/install metadata + `sed` contract is triplicated (`bin/ioc-runner:14-17`/`199-214`, `setup:563-585`, `inject-runner-version.bash:16-31`); add a static guard test pinning the shared declaration/`sed` lines. Side effect of #72; folds with the M5 guard test (CI-10/CI-14 may join). refactor, P3-low. |
-| M6.T1 | 1.2.0 | negative check per metadata copy; CI-10/CI-14 fold decision recorded | Test sub | Open | — |
-| M6.T2 | 1.2.0 | new static guard test pinning the shared `declare -g RUNNER_*`/`sed` contract | Test sub | Open | — |
+| M6 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Done | **Closed 2026-06-16.** `test_metadata_contract_guard` (commit 96fc886) pins the three injected `RUNNER_*` names + their declaration anchor across the runner and both installers; error suite 141/141 on top (executed==counted). CI-10/CI-14 fold decided in the M6 ten-reviewer review (conv20260616_151322): CI-10 keep (Ledger), CI-14 promoted to #87 (same commit). refactor, P3-low. |
+| M6.T1 | 1.2.0 | negative check per metadata copy; CI-10/CI-14 fold decision recorded | Test sub | Done | 2026-06-16: one-sided breaks fail the guard — dropped/renamed injector target -> set-mismatch FAIL; injected field with no anchor -> missing-anchor FAIL; anchor rename -> suite fails (runner breaks first). Fold decision recorded in conv20260616_151322 (CI-10 keep; CI-14 -> #87). |
+| M6.T2 | 1.2.0 | new static guard test pinning the shared `declare -g RUNNER_*`/`sed` contract | Test sub | Done | 2026-06-16: `test_metadata_contract_guard` lands in `tests/test-error-handling.bash` (commit 96fc886); error suite 141/141 on top, executed==counted (#98 tripwire intact). Static guard; dynamic re-confirm rides the M18 release gate. |
 | M7 | 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Revisits option A (unify the three caller references) or a helper-contract change; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Rides the M5 helper-contract review. `Refs #85`/`#83`. refactor, P3-low. |
 | M7.T1 | 1.2.0 | decision first (unify / contract change / Keep verdict); if code changes, identical socket-path resolution for all three callers | Test sub | Open | — |
 | M7.T2 | 1.2.0 | both lifecycle suites green (attach/monitor/inspect paths) | Test sub | Open | — |
@@ -161,12 +160,14 @@ ends with a reconcile pass comparing issue state against this register.
 | M16 | 1.2.0 | #99 stale install-decline exit-code assertion in test-system-lifecycle (post-#93 residue) | Review follow-up (#93) | Done | Verified 2026-06-16. Surfaced by the M5 sub-2 golden run: `test-system-lifecycle.bash` case 7b asserted exit 0 for an explicit `N` install decline, but #93 (`1e051ec`) made every interactive abort exit 1 and never updated this suite. Fix: line 1396 expected `0`->`1` + comment 1390 (no runner change). #99 manual close + fix commit pending. tests, P3-low. |
 | M16.T1 | 1.2.0 | 7b assertion expected value + comment corrected; case 7b green | Test sub | Done | 2026-06-16: `Prompt explicit N declines install (exit 1)` PASS on both goldens. |
 | M16.T2 | 1.2.0 | system-lifecycle suite green on both goldens | Test sub | Done | 2026-06-16: system-lifecycle 74/74 both goldens (rocky8, debian13), installed mode; 0 failed / 0 script errors. |
-| M17 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M16 close; gates the master merge + `1.2.0` tag. |
-| M17.T1 | 1.2.0 | cycle batch re-run of all M1-M16 change-specific verifications on the final tree | Test sub | Open | — |
-| M17.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
-| M17.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
+| M17 | 1.2.0 | #100 record the examined-Keep -> guard promotion test as the Ledger standing rule | Review follow-up (#84) | Done | Verified 2026-06-16. The M6 ten-reviewer session (conv20260616_151322) derived the promotion test; recorded in the Examined-Keep Ledger preamble below, validated against all ten Ledger rows (reproduces every Keep; CI-4/CI-9 the only promotes). docs, area/architecture, P3-low. |
+| M17.T1 | 1.2.0 | the promotion test recorded in the Ledger in one-pass-applicable form | Test sub | Done | 2026-06-16: gates A/B/C/D + fate-ordering + cost framing recorded in the Examined-Keep Ledger preamble (Refs #100). |
+| M18 | 1.2.0 | release gate (no GitHub issue; defined by `testplan_1.2.0.md` "Release Gate") | Release gate | Open | Runs after M1-M17 close; gates the master merge + `1.2.0` tag. |
+| M18.T1 | 1.2.0 | cycle batch re-run of all M1-M17 change-specific verifications on the final tree | Test sub | Open | — |
+| M18.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
+| M18.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 10 (9 work + 1 gate), Done 7 (M1-M5, M15, M16) · test subs Open 27, Done 16 (through M5.T1/T2/T3, M15.T1/T2, M16.T1/T2) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
+**Tally:** milestones Open 9 (8 work + 1 gate), Done 9 (M1-M6, M15, M16, M17) · test subs Open 25, Done 19 (through M6.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
@@ -204,15 +205,16 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 11 open, 5 closed (#92, #93, #94, #87, #98), due 2026-07-31; #99 added 2026-06-16 (open; fix verified both goldens, close pends the fix commit). The work order is
-M1-M16 plus the M17 release gate in the Active Register above; M17 is
+GitHub milestone `1.2.0` — 9 open, 8 closed (#81, #84, #87, #92, #93, #94, #98, #99), due 2026-07-31; #100 added 2026-06-16. The work order is
+M1-M17 plus the M18 release gate in the Active Register above; M18 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
 touched once as a group, with #81 first as the byte-equivalence-gated
 refactor. #96 (M13) was added 2026-06-11 as a spin-off of the M1 design
 review; #97 (M14) and #98 (M15) were added 2026-06-12 from the M2 sweep,
 and #98 was pulled forward and closed the same day; #99 (M16) was added
-2026-06-16 as a spin-off of the M5 sub-2 golden run (a #93 residue).
+2026-06-16 as a spin-off of the M5 sub-2 golden run (a #93 residue); #100
+(M17) was added 2026-06-16 from the M6 review (the examined-Keep promotion test).
 
 | Issue | Title | Priority | Notes |
 | --- | --- | --- | --- |
@@ -232,6 +234,7 @@ and #98 was pulled forward and closed the same day; #99 (M16) was added
 | [#97](https://github.com/jeonghanlee/epics-ioc-runner/issues/97) | install precheck hint recommends the ineffective IOCSH_HISTSIZE knob | bug, P3-low | M1 residue found in the M2 sweep (Refs #92). The runtime hint (`bin/ioc-runner:1128-1130`) recommends the knob the #92 review proved a no-op; replace with FAQ Q5/Q8-consistent guidance. |
 | [#98](https://github.com/jeonghanlee/epics-ioc-runner/issues/98) | test-error-handling subshell assertions do not reach the suite counters | tests, P2-medium | Found adding the #93 decline cases. `( cd ... )` blocks lose counter increments (121 PASS printed vs 111 counted) and a subshell FAIL cannot fail the suite; fix options in the issue, plus a printed-equals-counted self-check and a same-pattern sweep of the other suites. |
 | [#99](https://github.com/jeonghanlee/epics-ioc-runner/issues/99) | Stale install-decline exit-code assertion in test-system-lifecycle after #93 | tests, P3-low | Spin-off from the M5 sub-2 golden run (Refs #93). `test-system-lifecycle.bash` case 7b asserted exit 0 for an explicit `N` install decline; #93 made every interactive abort exit 1 but never updated this suite. Fix: line 1396 expected `0`->`1` + comment 1390 (no runner change). |
+| [#100](https://github.com/jeonghanlee/epics-ioc-runner/issues/100) | Record the examined-Keep to guard promotion test as the Ledger standing rule | docs, area/architecture, P3-low | From the M6 (#84) ten-reviewer review (conv20260616_151322). Record the promotion test (gates A/B/C/D + fate-ordering + cost) as the Ledger's standing rule. Refs #84. |
 
 ## Examined-Keep Ledger
 
@@ -240,15 +243,32 @@ forward so the next sweep closes them fast instead of re-opening the same
 seams. Full per-finding records (evidence offsets, fate reasoning) live in
 the 1.1.1 register: `git show 1.1.1:docs/milestone.md`.
 
+**Promotion test (the standing rule, #100 / M17, derived in the M6 review
+conv20260616_151322).** Default is Keep; promotion to an enforced guard carries
+the burden and runs four ordered gates (the first FAIL stops at Keep): **A** the
+copies must be must-agree, not a principled divergence; **B** present reason = a
+one-sided drift that is silent AND functional (not cosmetic, not
+loud-self-guarding); **C** net of existing equivalent-kind direct coverage; **D**
+placement decided separately from promotion, by contract kind (fold into an
+existing guard only on matching mechanism + extraction shape, else a separate
+guard — never pin multiple kinds in one guard). Try eliminate
+(single-source / machine-derive) before guarding; a guard is second-best, built
+only when elimination is blocked by an architectural invariant or is
+disproportionate to blast radius. Record which fate was chosen and which
+declined. The file-drawer dividend is banked once, at the Ledger line — price the
+counterfactual as re-confirming a one-line verdict minus coverage, never full
+re-derivation. The rule reproduces every Keep below; CI-4 and CI-9 are the only
+promotes.
+
 | ID | Sweep | Finding | Why Keep |
 | --- | --- | --- | --- |
 | CI-4 | #81 (examined-Keep 2026-06-16) | procServ systemd unit template duplicated in two copies (`bin/ioc-runner` local user unit, `bin/setup-system-infra.bash` system unit). | Structural: the runner is a single self-contained executable that cannot source a shared lib (cf. CI-15), and the two units are written in different contexts (system at install time, local at `--local install` runtime); a true single runtime emitter would need a new installed artifact against that self-containment. Kept as two copies, with the M5 shared-contract guard pinning the must-agree rows so they cannot drift. Supersedes #81's original "single emitter" framing (option 3, design conversation 2026-06-16). |
 | CI-5 | 2026-06-04 | Tool resolution uses `-x` only in the search loop but `-f && -x` in the override branch. | Principled asymmetry: search paths are fixed trusted defaults, the override is arbitrary user input (#78 scoped to it deliberately). |
 | CI-6 | 2026-06-04 | Keep-3 backup-prune policy implemented twice (system timestamp name vs local `mktemp`). | Mode-appropriate divergence: system setup is one-shot per file, so the same-second overwrite is unreachable; local install is repeatable and uses `mktemp`. |
-| CI-10 | 2026-06-05 | Completion command/option list is a separate copy of the runner command set. | Copies agree (14 commands, identical options); a drift-guard could fold into the #84/#81 guard-test cluster. |
+| CI-10 | 2026-06-05 | Completion command/option list is a separate copy of the runner command set. | Examined-Keep, reaffirmed in the M6 review (2026-06-16, conv20260616_151322): fails promotion Gate B — drift is cosmetic; dispatch is fail-closed (`bin/ioc-runner:1820`), so a stale completion is a loud reject or discoverability gap, never a silent wrong action. `commands=` has never drifted; the one `opts=` co-edit (a4d3bef) stayed in sync (the seam holding, not drift). Eliminate (generate from the dispatch set) examined and declined (self-containment + cosmetic surface). |
 | CI-11 | 2026-06-05 | `RUN_DIR` divergence aborts but `IOC_RUNNER_SYSTEM_CONF_DIR` divergence has no guard. | Principled asymmetry by failure mode: diverged RUN_DIR fails silently and aims `rm -rf` wrong; diverged CONF_DIR fails loudly at `start`. |
 | CI-13 | 2026-06-08 | systemd unit-name prefix `epics-@` duplicated across setup and runner call sites. | Internal naming convention with no user reason to vary; local mode is self-consistent in one file. |
-| CI-14 | 2026-06-08 | System log-dir default literal `/var/log/procserv` declared in both scripts. | Both read the same `IOC_RUNNER_SYSTEM_LOG_DIR` override, so the user case is already generalized; only the default literal could diverge by source edit (could fold into the #84 guard test). |
+| CI-14 | 2026-06-08 | System log-dir default literal `/var/log/procserv` declared in both scripts. | **Promoted 2026-06-16** (M6 review, User decision): `SYSTEM_LOG_DIR` added to `test_system_identity_guard` (#87 `SYSTEM_*` family, commit 96fc886, Refs #87) — kind-correct home, not the CI-9 sed guard (which normalizes `${SYSTEM_LOG_DIR}` away). Closes the runner-side default drift the golden suites leave uncaught (their coverage is indirect/setup-side, missing `bin/ioc-runner:52`). No longer an open Keep. |
 | CI-15 | 2026-06-08 | Bash-completion re-derives the conf-dir fallback chain and default literals. | Architectural: a sourced completion function cannot source the runner; it reads the same env overrides, and drift degrades only tab-completion. |
 | CI-20 | 2026-06-09 | sudoers policy grants `status` although the runner never uses sudo for status. | Principled superset serving operators running `sudo systemctl status` by hand; read-only verb. Verb-scope redesign belongs to #68. |
 | CI-21 | 2026-06-09 | IOC-name contract regex maintained in four copies (runner, setup, example, INSTALL.md). | Copies agree and the parity is documented on both sides; enforcement is exactly the #68 wrapper scope. |
