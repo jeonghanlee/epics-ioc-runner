@@ -17,7 +17,11 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** **M7** (#86, socket-path reference review). **M6**
+**Next session entry point:** the remaining 1.2.0 work — quick standalone **M13**
+(#96) and **M14** (#97) (test + install-hint fixes), then the **M8-M11 C1+H
+cluster** (gated on U004/U007/U008 + the plan-v3 campaign) and **M12** (#68)
+wrapper. **M7** (#86) closed 2026-06-17 (Keep B: the documented `do_inspect`
+alias is the end state, no code change). **M6**
 (#84) closed 2026-06-16: the git-metadata injection guard landed (commit 96fc886,
 error suite 141/141 on top, executed==counted); the same commit extended #87's
 `test_system_identity_guard` with `SYSTEM_LOG_DIR` (CI-14, Refs #87). **M5** (#81)
@@ -120,9 +124,9 @@ ends with a reconcile pass comparing issue state against this register.
 | M6 | 1.2.0 | #84 pin the git-metadata injection contract with a guard test | Coherence (CI-9) | Done | **Closed 2026-06-16.** `test_metadata_contract_guard` (commit 96fc886) pins the three injected `RUNNER_*` names + their declaration anchor across the runner and both installers; error suite 141/141 on top (executed==counted). CI-10/CI-14 fold decided in the M6 ten-reviewer review (conv20260616_151322): CI-10 keep (Ledger), CI-14 promoted to #87 (same commit). refactor, P3-low. |
 | M6.T1 | 1.2.0 | negative check per metadata copy; CI-10/CI-14 fold decision recorded | Test sub | Done | 2026-06-16: one-sided breaks fail the guard — dropped/renamed injector target -> set-mismatch FAIL; injected field with no anchor -> missing-anchor FAIL; anchor rename -> suite fails (runner breaks first). Fold decision recorded in conv20260616_151322 (CI-10 keep; CI-14 -> #87). |
 | M6.T2 | 1.2.0 | new static guard test pinning the shared `declare -g RUNNER_*`/`sed` contract | Test sub | Done | 2026-06-16: `test_metadata_contract_guard` lands in `tests/test-error-handling.bash` (commit 96fc886); error suite 141/141 on top, executed==counted (#98 tripwire intact). Static guard; dynamic re-confirm rides the M18 release gate. |
-| M7 | 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Open | Revisits option A (unify the three caller references) or a helper-contract change; #85 documented the `do_inspect` alias as intentional (option B) in 1.1.1. Rides the M5 helper-contract review. `Refs #85`/`#83`. refactor, P3-low. |
-| M7.T1 | 1.2.0 | decision first (unify / contract change / Keep verdict); if code changes, identical socket-path resolution for all three callers | Test sub | Open | — |
-| M7.T2 | 1.2.0 | both lifecycle suites green (attach/monitor/inspect paths) | Test sub | Open | — |
+| M7 | 1.2.0 | #86 reconsider unifying the socket-path reference across `resolve_sock_path` callers | Review follow-up (#85) | Done | **Keep B, closed 2026-06-17 (no code change).** The documented `do_inspect` alias (`bin/ioc-runner:1588-1591`, "the naming split is intentional", from #85) is the end state. By the M17 promotion-test discipline: cosmetic cross-caller naming only, no functional drift -> Gate B fails; option A / helper-contract refactor would touch a stable ~70-line block for uniformity alone (the Generalize trap). `Refs #85`/`#83`. refactor, P3-low. |
+| M7.T1 | 1.2.0 | decision first (unify / contract change / Keep verdict); if code changes, identical socket-path resolution for all three callers | Test sub | Done | 2026-06-17: decision = Keep B (no code change). The intentional-alias comment at `bin/ioc-runner:1588-1590` stands; all three callers resolve via `resolve_sock_path` -> `RESOLVED_SOCK_PATH` identically (the alias is a local readability rebind, not a behavior difference). |
+| M7.T2 | 1.2.0 | both lifecycle suites green (attach/monitor/inspect paths) | Test sub | Done | 2026-06-17: no code change -> attach/monitor/inspect paths unaffected; existing suite-green code stands. Re-run rides the M18 release gate. |
 | M8 | 1.2.0 | #52 review procServ child-exit signals for crash-loop detection | Carry-forward | Open | Reframed by the rs20260612_143435 strategy (C1+H, conv C003): now the C1+H confirmation census feeding the M10/M11 coupled pair. Empirical sub-measurements E1-E4 below. **These are PILOT/directional only — single-run-per-point, with instruments refined (and some flagged) in Round 6; do NOT treat the pilot numbers as settled (R10-F607). The authoritative results come from the plan-v3 measurement campaign (`09_measurement_plan_v2.md` -> v3).** Exit-signal semantics feed the M10 `Restart=` decision. |
 | M8.T1 | 1.2.0 | child-kill positive and healthy-restart negative behavior on both goldens | Test sub | Open | — |
 | M8.T2 | 1.2.0 | new restart-negative and child-kill-positive cases; existing crash-detection set green | Test sub | Open | — |
@@ -167,7 +171,7 @@ ends with a reconcile pass comparing issue state against this register.
 | M18.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M18.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 9 (8 work + 1 gate), Done 9 (M1-M6, M15, M16, M17) · test subs Open 25, Done 19 (through M6.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
+**Tally:** milestones Open 8 (7 work + 1 gate), Done 10 (M1-M7, M15, M16, M17) · test subs Open 23, Done 21 (through M7.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1) · empirical subs (strategy) 4: ALL PILOT/directional, none settled — E1/E2/E3 ran (single-run-per-point), E4 needs M11 code; authoritative results await the plan-v3 campaign · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
@@ -205,7 +209,7 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 ## Milestone 1.2.0
 
 Larger follow-ups requiring design or behavior changes beyond a patch.
-GitHub milestone `1.2.0` — 9 open, 8 closed (#81, #84, #87, #92, #93, #94, #98, #99), due 2026-07-31; #100 added 2026-06-16. The work order is
+GitHub milestone `1.2.0` — 8 open, 9 closed (#81, #84, #86, #87, #92, #93, #94, #98, #99), due 2026-07-31; #100 added 2026-06-16. The work order is
 M1-M17 plus the M18 release gate in the Active Register above; M18 is
 register-local with no GitHub issue. The three template items #53, #54,
 and #81 form one cluster — all edit the system unit template, so it is
