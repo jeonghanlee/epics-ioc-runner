@@ -18,7 +18,7 @@ GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
 **Next session entry point:** the remaining 1.2.0 work is the **M8-M11 C1+H
-cluster** (gated on U004/U007/U008 + the plan-v3 campaign) and the **M12** (#68)
+cluster** (gated on the plan-v3 campaign; U004/U007/U008 decided 2026-06-17) and the **M12** (#68)
 sudoers wrapper. **M13** (#96) and **M14** (#97) closed 2026-06-17 (the no-op
 IOCSH_HISTSIZE sweep across the two lifecycle probes, the install hint, and the
 FAQ; commits 30cb8d7, 1f074cb). **M18** (#101) closed 2026-06-17 (history-disable
@@ -189,13 +189,23 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
 | U001 | Authorize the C1+H strategy for M8-M11 execution | M8-M11 | **authorized 2026-06-16** (User-delegated; convergence C005, auth20260616_003202) |
 | U002 | Confirm support contract (all four initiators; external PV restart needs no special handling under C1+H) | M10 record | **closed 2026-06-16** (near-formality, with U001) |
 | U003 | local-mode log-cap trade. **Owner inputs COMPLETE (User 2026-06-14): local disk 500 GB; IOC area 10 GB; unattended interval 1 month (30 d); N-IOC max 10; margin 50% (default).** Pre-registered threshold: per-IOC budget = 10 GB x 0.5 / 10 / 30 d = **~16.7 MB/day**. VERIFIED: local mode has NO log rotation (LOG_LAYOUT.md sec 5 + setup code — `logrotate.d/procserv` is system-only; local `$HOME/.local/state/procserv` is unbounded). Pilot-directional: default-holdoff child loop ~3 MB/day (UNDER 16.7) vs worst-case ~36-48 MB/day (OVER). Lean: add a local rotation/size-cap (cheap insurance; local has zero ceiling today); campaign confirms the actual rate vs 16.7 MB/day. | M10 reliability | **DECIDED 2026-06-14 (User): add a local-mode log size-cap/rotation** (per-user logrotate `copytruncate` or size trigger); system-mode weekly-rotation sufficiency verified by C9; full-scale campaign confirms the rate vs the 16.7 MB/day threshold. **CONFIRMED 2026-06-14 (res20260614_210000): C3 default-holdoff broken-IOC rate ~5 MB/day BOTH goldens (rocky8 5.1, debian13 4.9) — common case UNDER 16.7; realism caveat = terse softIoc init, so rotation covers the verbose/long-outage/multi-failure tail.** |
-| U004 | Fleet-synchronized restart storm — record as operational boundary vs bring in scope | M10 / out-of-cluster | open |
+| U004 | Fleet-synchronized restart storm — record as operational boundary vs bring in scope | M10 / out-of-cluster | **RESOLVED 2026-06-17 (User, finding): not an A/B choice. B (unit-layer storm de-sync) is structurally infeasible — systemd service units have no native restart jitter in any version (`RandomizedDelaySec` is timer-only); `RestartSteps`/`RestartMaxDelaySec` (v254+) slow the rate but do not break phase-sync and are absent on Rocky 8 (systemd 239); the only buildable form, an `ExecStartPre` random sleep, fights the M11 measured-window poll. So: unit-layer mitigation RETIRED (wrong layer); the storm is an OPERATIONAL BOUNDARY (site monitoring + staggered/orchestrated recovery + shared-service capacity, not the runner); fleet monitoring / running-IOC health-probe is the genuine carry-forward (Backlog #102). M10 unaffected; the cluster strategy gate now clears to the plan-v3 campaign only.** |
 | U005 | procServ `--holdoff` | M5/M10 emitter | **DECIDED 2026-06-14 (User): keep procServ DEFAULT `--holdoff`** (pilot + first principles: default is the most conservative; the lever for excess growth is U003 rotation, not a smaller holdoff). Full-scale campaign confirms the default-holdoff child-loop rate. |
 | U006 | `^T` autorestart-toggle harden — mechanism + home. **CAMPAIGN FINDING (res20260614_210000, both goldens, procServ 2.9.0-dev source verified): the C1+H plan to add `^T` to `--ignore` does NOT disable the toggle.** `--ignore`/ignChars only filters bytes forwarded to the child IOC's stdin (`processClass::Send`); procServ's console command keys (`^T` toggle, `^X` kill, `^R` restart, `^Q` quit) are matched on the raw input in `clientItem::processInput()` with NO ignChars check, and `^T`/`^X` are auto-added to ignChars anyway. The real disable is **`--autorestartcmd=''`** (sets toggleRestartChar=0) — verified live on both goldens. | M5 emitter | **DECIDED 2026-06-15 (User, option a): use `--autorestartcmd=''` to truly close the toggle foot-gun** — a stray `^T` would otherwise silently disable the IOC's procServ inner autorestart while procServ stays alive (so the outer `Restart=always` never fires either), leaving the IOC down and nothing `failed`. Maintenance autorestart-stop goes through the operation verbs (`ioc-runner`/`systemctl stop`, OP1), not a console keystroke. `--ignore=^T` is dropped (redundant/misleading); `--ignore=^D^C^]` stays (real child-stdin filter). Home: M5 emitter (it builds the procServ command line). **Applied 2026-06-16:** the correction is in amd v4 (`17_strategy_amendment_v4_c1h.md`, supersedes `07_*`) and ADR 0001; convergence C005 (`conv20260616_002157`, supersedes C003) validated it (Round 11 11/11 + Round 12 15/15). |
-| U007 | M10/M11 bookkeeping — merge #54+#67, or keep separate with order reversed + joint gate | scope/bookkeeping | open |
-| U008 | #54 acceptance-criterion rewrite — `=0` reverses its "crash-loop -> diagnosable `failed`" criterion (follows U003) | scope/bookkeeping | open |
+| U007 | M10/M11 bookkeeping — merge #54+#67, or keep separate with order reversed + joint gate | scope/bookkeeping | **DECIDED 2026-06-17 (User, option B): keep #54 and #67 as separate issues; M11 (#67 poll) lands FIRST, then M10 (#54 `Restart=`), enforced by a joint cutover gate (#54 not merged until #67 is in). The two touch different surfaces (systemd unit template via the M5 emitter vs `bin/ioc-runner:1740-1782` poll logic) and each keeps its own issue record; the atomic-landing requirement is met by the joint gate, not by merging.** |
+| U008 | #54 acceptance-criterion rewrite — `=0` reverses its "crash-loop -> diagnosable `failed`" criterion (follows U003) | scope/bookkeeping | **DECIDED 2026-06-17 (User, `KillMode=mixed` as primary): `=0` removed the systemd `failed` end-state, so #54's original "crash-loop -> diagnosable `failed`" criterion is rewritten to — (1) under `Restart=always`+`=0`, a crash-looping IOC stays `activating (auto-restart)` with monotonic `NRestarts`; that is the healthy state, never `failed`; (2) diagnosability moves to the M11 (#67) poll's max-timeout verdict (runner-side "initializing/failed"), not systemd `failed`; (3) recovery is bounded by `KillMode=mixed` (the child ignores SIGTERM, so SIGKILL it immediately instead of stalling the full `TimeoutStopSec`), target seconds not ~96 s — the exact threshold is MEASURED and frozen from the plan-v3 campaign (both goldens, replicated) at M10 execution; a shorter `TimeoutStopSec` is a deferred backstop only if the campaign shows need. The `=0`-loop log growth is bounded by U003's local-mode rotation/size-cap. The criterion shape is decided now; the numeric threshold is the only deferral and adds no new gate (M10 already waits on the campaign). The rewritten text lands in #54's issue body + the M10/M10.T1 rows + `testplan_1.2.0.md` at M10 execution (needs the issue-edit step).** |
 
 ## Carry-forward (next round, out-of-cluster)
+
+- **Fleet-synchronized restart storm — operational boundary (not the runner layer).**
+  Under `Restart=always`+`=0` a common-cause outage (shared NFS/network/gateway,
+  power) can drop many IOCs into phase-synchronized restart (thundering herd).
+  Unit-layer de-sync is structurally infeasible (no native systemd service-unit
+  jitter in any version; `RestartSteps` backoff does not break phase-sync and is
+  absent on Rocky 8 239; an `ExecStartPre` random sleep fights the M11 poll).
+  Handled at the site/operations layer (monitoring + staggered recovery +
+  shared-service capacity), grouped with the running-IOC hang detection below.
+  Filed as Backlog #102. Origin: U004, resolved 2026-06-17.
 
 - **Running-IOC hang detection (continuous / passive liveness visibility).**
   A running IOC that *hangs* — process alive but not progressing (deadlock,
@@ -206,8 +216,8 @@ session README; convergence C003 (`conv20260614_081643`) is the authority.
   silence. Start-time hang-in-init IS covered by the M11 measured-window poll
   (max-timeout -> "initializing/failed"); the residual is the **running-time
   hang**, which would need active health probing (heartbeat PV / periodic
-  `caget`/`pvget`) — new scope, to be examined together with U004
-  (fleet/monitoring boundary). Origin: amd v3 Round 10 review
+  `caget`/`pvget`) — new scope, grouped with the fleet restart-storm boundary above
+  (U004 resolved 2026-06-17; both filed as Backlog #102). Origin: amd v3 Round 10 review
   (R9-F904 / R4-F002 / R8-F803; session rs20260612_143435). **Not a U001
   gate** — the C1+H restart-supervision design is unaffected; deferred to a
   future round.
