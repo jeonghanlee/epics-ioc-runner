@@ -98,7 +98,7 @@ run) and force a rotation with `logrotate -f /etc/logrotate.d/procserv`.
 
 | Symptom | Cause | Action |
 | --- | --- | --- |
-| `startup logs could not be scanned` warning | log file missing or unreadable at start | `stat <LOG_DIR>/<name>.log`; check the directory exists with the modes in section 2/3 |
+| `startup log could not be read` warning | log file missing or unreadable at start | `stat <LOG_DIR>/<name>.log`; check the directory exists with the modes in section 2/3 |
 | `journalctl -u epics-@<name>.service` returns empty | IOC output goes to the log file, not the journal | read `<LOG_DIR>/<name>.log` with `tail`/`grep` instead |
 | log looks truncated right after rotation | `copytruncate` truncated the live file | inspect `<name>.log.1.gz` for the rotated content |
 | local-mode log not found | wrong `XDG_STATE_HOME`, or linger not enabled | `ls "${XDG_STATE_HOME:-$HOME/.local/state}/procserv"` |

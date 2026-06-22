@@ -123,13 +123,17 @@ ioc-runner attach myioc
 ```
 
 **Layer 2 — ioc-runner health checks (startup verification):**
-When `ioc-runner start` is executed, it performs a two-stage health check:
+When `ioc-runner start` (or `restart`) is executed, it polls the procServ log for the EPICS readiness marker (`All initialization complete`) instead of waiting a fixed interval. The verdict depends on what appears before, at, and after that marker:
 
-1. **Primary check:** After a 5-second settling period (to account for hardware connection timeouts), it verifies `systemctl is-active`. If the service has already failed, an error is reported immediately with the procServ log file path for troubleshooting.
+1. **Before the marker (up to a 30-second readiness timeout):** a fatal-subset token — `FATAL`, `Segmentation fault`, `undefined symbol`, `error while loading`, `Unbalanced quote` — reports an immediate hard failure (`Error: IOC '<name>' failed to initialize (fatal error before iocInit).`, exit 1). A procServ death banner that recurs (the child dies and relaunches before initialization) reports a pre-iocInit crash loop (`Error: IOC '<name>' is crash-looping before reaching iocInit.`, exit 1). Ambiguous tokens — `ERROR`, `Can't open`, `cannot open`, `No such file or directory`, `Invalid directory path` — never fail on their own: a healthy IOC may print them (a missing optional file, a skipped path) and reach initialization a moment later.
 
-2. **Secondary check:** If the service appears active, it scans the new procServ log content from the current start or restart operation. If the log file cannot be read, it reports that startup logs could not be scanned rather than claiming a clean start. The case-insensitive crash indicators cover fatal process failures (`Segmentation fault`), generic fatal markers (`ERROR`, `FATAL`), iocsh parser failures (`Unbalanced quote`, `Invalid directory path`), and missing-file or linker errors (`Can't open`, `cannot open`, `undefined symbol`, `No such file or directory`, `error while loading`). Known benign startup noise is removed line by line before matching (`CRASH_LOG_EXCLUDE_PATTERNS`): the iocsh history-file load/save failure (`ERROR Permission denied ... '.iocsh_history'`, see Q5) does not trigger the warning. If any remaining pattern matches, it warns the engineer:
+2. **At the marker (confirmed over a short ~3-second dwell):** a procServ death banner emitted after the marker reports a crash loop (`Error: IOC '<name>' is crash-looping.`, exit 1) — the only standalone failure trigger in this phase. A crash pattern emitted while the IOC stays alive (for example a device-connection `ERROR`) is reported as a warning, not a failure:
 
-   *"Warning: IOC is active, but procServ may be crash-looping or reporting fatal errors."*
+   *"Warning: IOC is active but reported errors after initialization (check device connections)."*
+
+3. **Readiness timeout (no marker within the window):** if the unit is still active, it reports that the IOC is active but did not report initialization complete (a warning, exit 0 — the case of a slow device connection or a gateway IOC); if the unit is not active, it reports a hard failure (exit 1). If the log cannot be read, it says the startup log could not be read rather than claiming a clean start.
+
+A `start` on an IOC that is already running short-circuits to `IOC '<name>' is already running.` once a clean, marked startup is confirmed in the existing log. Known benign startup noise is removed line by line before crash matching (`CRASH_LOG_EXCLUDE_PATTERNS`): the iocsh history-file load/save failure (`ERROR Permission denied ... '.iocsh_history'`, see Q5) is never a crash indicator.
 
 **Layer 3 — systemd (daemon lifecycle):**
 `systemd` manages the `procServ` process itself. If `procServ` is killed by the OOM killer or encounters an unrecoverable error, `systemd` handles the cleanup. The `SuccessExitStatus` directive ensures that normal shutdown signals (SIGTERM, SIGKILL) are not falsely reported as failures. See `docs/EXIT_SIGNAL_HANDLING.md` for the full technical explanation.
@@ -138,13 +142,15 @@ When `ioc-runner start` is executed, it performs a two-stage health check:
 
 ### Q7: How are the crash detection patterns configured?
 
-The patterns used by the secondary health check are defined as a global variable at the top of the `ioc-runner` script:
+The patterns used by the startup health check are defined as a global variable at the top of the `ioc-runner` script:
 
 ```bash
 CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 ```
 
-For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script:
+This set is partitioned into two subsets (`CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, whose union is the set above): fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens are corroborating only (they confirm a crash already signalled by a death banner, but never fail an otherwise-healthy IOC). See Q6 for how each subset is used.
+
+For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. These per-IOC tokens are corroborating only — they raise a warning on a still-alive IOC, never a standalone startup failure:
 
 ```bash
 # In the IOC conf
@@ -180,7 +186,7 @@ Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time 
 
 IOC console output is written to the dedicated procServ log file (`/var/log/procserv/<name>.log`, mode `0644`), so reading it needs no `systemd-journal` membership — `ioc` group membership gates privileged IOC management, not log reads. The systemd journal is only an optional service-metadata diagnostic: reading it with `journalctl -u epics-@myioc.service` still requires the `adm` or `systemd-journal` group and returns empty without it.
 
-`ioc-runner`'s secondary crash-loop detection reads the procServ log file, so crash detection does not require journal group membership. If the procServ log file cannot be read, the runner reports that startup logs could not be scanned instead of claiming a clean start. The primary health check (`systemctl is-active`) is unaffected.
+`ioc-runner`'s startup crash detection reads the procServ log file (it polls that file for the readiness marker and for crash indicators), so crash detection does not require journal group membership. If the procServ log file cannot be read, the runner reports that the startup log could not be read instead of claiming a clean start. The `systemctl is-active` check used at the readiness timeout is unaffected.
 
 For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24 monitor-isolation coverage with a WARN.
 
