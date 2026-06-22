@@ -837,26 +837,31 @@ function _remove_crash_probe {
 
 function _run_crash_probe {
     local ioc_name="$1"
-    local expected_warning="$2"
+    local expected_kind="$2"   # "fatal" -> exit 1 failed-to-init; "healthy" -> exit 0 success
     local assertion_name="$3"
     local output
     local exit_code=0
-    local start_ok="true"
-    local warning_detected="false"
+    local rc_ok="false"
+    local msg_ok="false"
 
+    # M11/#67: a pre-iocInit FATAL-subset token is now a hard failure (exit 1 with
+    # the "failed to initialize" verdict), not the old active-IOC Warning. A healthy
+    # IOC reaches the marker and reports success (exit 0); pre-offset / benign noise
+    # is correctly ignored.
     output=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || exit_code=$?
-    if [[ ${exit_code} -ne 0 ]]; then
-        start_ok="false"
-    fi
-    if printf "%s" "${output}" | grep -q "procServ may be crash-looping"; then
-        warning_detected="true"
-    fi
-
     _remove_crash_probe "${ioc_name}"
-    if [[ "${expected_warning}" == "false" ]]; then
-        verify_state "true" "${start_ok}" "${assertion_name}: start completed"
+
+    if [[ "${expected_kind}" == "fatal" ]]; then
+        if [[ "${exit_code}" == "1" ]]; then rc_ok="true"; fi
+        verify_state "true" "${rc_ok}" "${assertion_name}: exit 1"
+        if printf "%s" "${output}" | grep -q "failed to initialize"; then msg_ok="true"; fi
+        verify_state "true" "${msg_ok}" "${assertion_name}: failed-to-initialize verdict"
+    else
+        if [[ "${exit_code}" == "0" ]]; then rc_ok="true"; fi
+        verify_state "true" "${rc_ok}" "${assertion_name}: exit 0 (healthy)"
+        if printf "%s" "${output}" | grep -q "successfully started"; then msg_ok="true"; fi
+        verify_state "true" "${msg_ok}" "${assertion_name}: success verdict"
     fi
-    verify_state "${expected_warning}" "${warning_detected}" "${assertion_name}"
 }
 
 function test_crash_detection {
@@ -884,7 +889,7 @@ system "kill -9 \$PPID"
 EOF
     chmod +x "${fatal_ioc_dir}/st.cmd"
     _install_crash_probe "${fatal_ioc_name}" "${fatal_ioc_dir}"
-    _run_crash_probe "${fatal_ioc_name}" "true" "Crash detection: FATAL softIoc child kill warning"
+    _run_crash_probe "${fatal_ioc_name}" "fatal" "Crash detection: FATAL softIoc child kill -> exit 1"
 
     local parse_ioc_name="CrashTestParse"
     local parse_ioc_dir="${WORKSPACE}/crash_parse_ioc"
@@ -896,7 +901,7 @@ dbLoadRecords("missing.db
 EOF
     chmod +x "${parse_ioc_dir}/st.cmd"
     _install_crash_probe "${parse_ioc_name}" "${parse_ioc_dir}"
-    _run_crash_probe "${parse_ioc_name}" "true" "Crash detection: iocsh parse error warning"
+    _run_crash_probe "${parse_ioc_name}" "fatal" "Crash detection: iocsh parse error -> exit 1"
 
     local history_ioc_name="CrashTestHistory"
     local history_ioc_dir="${WORKSPACE}/crash_history_ioc"
@@ -909,7 +914,7 @@ EOF
     chmod +x "${history_ioc_dir}/st.cmd"
     _install_crash_probe "${history_ioc_name}" "${history_ioc_dir}"
     printf "%s\n" "FATAL: historical startup failure before current start" > "${local_log_dir}/${history_ioc_name}.log"
-    _run_crash_probe "${history_ioc_name}" "false" "Crash detection: historical fatal log ignored for healthy start"
+    _run_crash_probe "${history_ioc_name}" "healthy" "Crash detection: historical fatal log ignored for healthy start"
 
     local truncate_bin
     truncate_bin=$(command -v truncate || true)
@@ -934,7 +939,7 @@ system "kill -9 \$PPID"
 EOF
         chmod +x "${truncate_ioc_dir}/st.cmd"
         _install_crash_probe "${truncate_ioc_name}" "${truncate_ioc_dir}"
-        _run_crash_probe "${truncate_ioc_name}" "true" "Crash detection: truncated log scans new fatal content"
+        _run_crash_probe "${truncate_ioc_name}" "fatal" "Crash detection: truncated log scans new fatal content -> exit 1"
     else
         _log "WARN" "truncate not found, skipping truncated log crash detection test."
     fi
@@ -962,7 +967,7 @@ EOF
         : > "${histnoise_ioc_dir}/.iocsh_history"
         chmod 0 "${histnoise_ioc_dir}/.iocsh_history"
         _install_crash_probe "${histnoise_ioc_name}" "${histnoise_ioc_dir}"
-        _run_crash_probe "${histnoise_ioc_name}" "false" "Crash detection: benign history-load ERROR excluded from scan"
+        _run_crash_probe "${histnoise_ioc_name}" "healthy" "Crash detection: benign history-load ERROR excluded from scan"
 
         # Self-validation: assert the benign line was actually emitted, so this
         # case fails loudly instead of passing vacuously if the environment stops
@@ -986,7 +991,7 @@ EOF
         : > "${histfatal_ioc_dir}/.iocsh_history"
         chmod 0 "${histfatal_ioc_dir}/.iocsh_history"
         _install_crash_probe "${histfatal_ioc_name}" "${histfatal_ioc_dir}"
-        _run_crash_probe "${histfatal_ioc_name}" "true" "Crash detection: real FATAL beside benign history noise still warns"
+        _run_crash_probe "${histfatal_ioc_name}" "fatal" "Crash detection: real FATAL beside benign history noise -> exit 1"
     fi
 }
 

@@ -812,17 +812,18 @@ EOF
 
     bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
 
-    local output
-    output=$(bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1 || true)
-
-    local warning_detected="false"
-    if printf "%s" "${output}" | grep -q "Warning"; then
-        warning_detected="true"
-    fi
+    local output rc=0
+    output=$(bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1) || rc=$?
 
     bash "${RUNNER_SCRIPT}" remove "${bad_ioc_name}" >/dev/null 2>&1 || true
 
-    verify_state "true" "${warning_detected}" "Crash-loop warning detected for broken softIoc"
+    # M11/#67: a FATAL-subset token before iocInit is a hard failure (exit 1 with
+    # the failed-to-initialize verdict), not the old active-IOC Warning.
+    local rc_ok="false" msg_ok="false"
+    if [[ "${rc}" == "1" ]]; then rc_ok="true"; fi
+    if printf "%s" "${output}" | grep -q "failed to initialize"; then msg_ok="true"; fi
+    verify_state "true" "${rc_ok}" "Broken softIoc (FATAL pre-init) -> exit 1"
+    verify_state "true" "${msg_ok}" "Broken softIoc -> failed-to-initialize verdict"
 }
 
 # T1 (Phase E): crash detection without journal access. An operator who is an
@@ -885,14 +886,17 @@ EOF
 
     # The operator (no systemd-journal) starts the IOC; crash detection must
     # still warn, proving it reads the log file rather than the journal.
-    local output
-    output=$(runuser -u "${operator}" -- bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1 || true)
+    local output rc=0
+    output=$(runuser -u "${operator}" -- bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1) || rc=$?
 
-    local warning_detected="false"
-    if printf "%s" "${output}" | grep -q "Warning"; then
-        warning_detected="true"
-    fi
-    verify_state "true" "${warning_detected}" "Crash warning emitted for journal-less operator"
+    # M11/#67: the unbalanced-quote parse error (Unbalanced quote, a FATAL token)
+    # before iocInit -> exit 1 failed-to-initialize, read from the dedicated log
+    # file (not the journal), proving journal-less detection still works.
+    local rc_ok="false" msg_ok="false"
+    if [[ "${rc}" == "1" ]]; then rc_ok="true"; fi
+    if printf "%s" "${output}" | grep -q "failed to initialize"; then msg_ok="true"; fi
+    verify_state "true" "${rc_ok}" "Journal-less operator: crash -> exit 1"
+    verify_state "true" "${msg_ok}" "Journal-less operator: failed-to-initialize verdict (reads log file, not journal)"
 
     bash "${RUNNER_SCRIPT}" remove "${bad_ioc_name}" >/dev/null 2>&1 || true
     userdel "${operator}" 2>/dev/null || true
@@ -920,6 +924,13 @@ function test_logrotate_boundary {
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping logrotate boundary test."
         return 0
     fi
+
+    # M11/#67: the T2 fixtures intentionally never call iocInit (they stay in the
+    # pre-marker phase so an in-window FATAL is a deterministic exit-1), so the
+    # marker-less clean cases would otherwise wait out the full readiness timeout.
+    # Shrink the readiness timeout via the test seam (D025) to keep T2 fast.
+    export IOC_RUNNER_TEST_MAX_INIT_TIMEOUT=8
+    export IOC_RUNNER_TEST_CONFIRM_DWELL=1
 
     local rot_ioc_name="RotateTestIOC-SYS"
     local rot_ioc_dir="${WORKSPACE}/rotate_ioc"
@@ -981,11 +992,14 @@ EOF
     local output
     output=$(bash "${RUNNER_SCRIPT}" restart "${rot_ioc_name}" 2>&1 || true)
 
+    # M11/#67: the historical FATAL now lives only in the rotated file, outside the
+    # post-restart scan window, so no crash verdict (failed-to-initialize) is raised
+    # -- the marker-less clean restart yields only the readiness-timeout Warning.
     local false_positive="false"
-    if printf "%s" "${output}" | grep -q "crash-looping or reporting fatal errors"; then
+    if printf "%s" "${output}" | grep -q "failed to initialize"; then
         false_positive="true"
     fi
-    verify_state "false" "${false_positive}" "No false crash warning from rotated historical FATAL pattern"
+    verify_state "false" "${false_positive}" "No false crash verdict from rotated historical FATAL pattern"
 
     # --- T2 sub-case A: new-inode replacement during the sleep window (#58)
     # Background a restart and gate the log mutation on the unit's
@@ -1049,10 +1063,10 @@ EOF
     verify_state "true" "${sub_a_inode_changed}" "T2 sub-case A: active log inode actually changed after replacement"
 
     local sub_a_caught="false"
-    if grep -q "crash-looping or reporting fatal errors" "${sub_a_out}" 2>/dev/null; then
+    if grep -q "failed to initialize" "${sub_a_out}" 2>/dev/null; then
         sub_a_caught="true"
     fi
-    verify_state "true" "${sub_a_caught}" "T2 sub-case A: in-window new-inode replacement triggers crash warning"
+    verify_state "true" "${sub_a_caught}" "T2 sub-case A: in-window new-inode replacement triggers crash verdict (exit 1)"
 
     rm -f "${sub_a_old}"
 
@@ -1100,12 +1114,13 @@ EOF
     wait "${sub_b_pid}" || true
 
     local sub_b_caught="false"
-    if grep -q "crash-looping or reporting fatal errors" "${sub_b_out}" 2>/dev/null; then
+    if grep -q "failed to initialize" "${sub_b_out}" 2>/dev/null; then
         sub_b_caught="true"
     fi
-    verify_state "true" "${sub_b_caught}" "T2 sub-case B: in-window same-inode regrow-past triggers crash warning via tailhash mismatch"
+    verify_state "true" "${sub_b_caught}" "T2 sub-case B: in-window same-inode regrow-past triggers crash verdict via tailhash mismatch"
 
     bash "${RUNNER_SCRIPT}" remove "${rot_ioc_name}" >/dev/null 2>&1 || true
+    unset IOC_RUNNER_TEST_MAX_INIT_TIMEOUT IOC_RUNNER_TEST_CONFIRM_DWELL
 }
 
 # T5 (Phase E): permission enforcement. A user outside the ioc group must be

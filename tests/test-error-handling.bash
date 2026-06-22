@@ -31,17 +31,30 @@ declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 # zero-fork parameter expansion.
 # Source-and-execute is not viable: the runner auto-dispatches commands at module bottom.
 declare -g CRASH_LOG_PATTERNS=""
+declare -g CRASH_LOG_PATTERNS_FATAL=""
+declare -g CRASH_LOG_PATTERNS_AMBIGUOUS=""
 declare -g CRASH_LOG_EXCLUDE_PATTERNS=""
 declare _line
+# Order matters: the _FATAL / _AMBIGUOUS clauses are tested before the bare
+# CRASH_LOG_PATTERNS= clause. The bare glob anchors on '=' so it cannot capture
+# the '_FATAL='/'_AMBIGUOUS=' lines, but listing the specific keys first keeps the
+# intent explicit (M11/#67 subset extraction for the DRY-base guard).
 while IFS= read -r _line; do
-    if [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS='* ]]; then
+    if [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS_FATAL='* ]]; then
+        CRASH_LOG_PATTERNS_FATAL="${_line#*\"}"
+        CRASH_LOG_PATTERNS_FATAL="${CRASH_LOG_PATTERNS_FATAL%\"}"
+    elif [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS_AMBIGUOUS='* ]]; then
+        CRASH_LOG_PATTERNS_AMBIGUOUS="${_line#*\"}"
+        CRASH_LOG_PATTERNS_AMBIGUOUS="${CRASH_LOG_PATTERNS_AMBIGUOUS%\"}"
+    elif [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS='* ]]; then
         CRASH_LOG_PATTERNS="${_line#*\"}"
         CRASH_LOG_PATTERNS="${CRASH_LOG_PATTERNS%\"}"
     elif [[ "${_line}" == 'declare -g CRASH_LOG_EXCLUDE_PATTERNS='* ]]; then
         CRASH_LOG_EXCLUDE_PATTERNS="${_line#*\"}"
         CRASH_LOG_EXCLUDE_PATTERNS="${CRASH_LOG_EXCLUDE_PATTERNS%\"}"
     fi
-    if [[ -n "${CRASH_LOG_PATTERNS}" && -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
+    if [[ -n "${CRASH_LOG_PATTERNS}" && -n "${CRASH_LOG_PATTERNS_FATAL}" \
+          && -n "${CRASH_LOG_PATTERNS_AMBIGUOUS}" && -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
         break
     fi
 done < "${RUNNER_SCRIPT}"
@@ -224,9 +237,10 @@ function _probe_log_dir {
 }
 
 # Asserts whether a fixture string matches CRASH_LOG_PATTERNS through the same
-# pipeline used by scan_file_for_crash_patterns in ioc-runner: the case-sensitive
-# benign-noise pre-filter (grep -vE), then the case-insensitive match (grep -qiE).
-# Mirrors the runner's empty-value guard so the mirror never blanks its input.
+# pipeline the runner's startup-signal reader (read_startup_signals) uses: the
+# case-sensitive benign-noise pre-filter (grep -vE), then the case-insensitive
+# match (grep -qiE). Mirrors the runner's empty-value guard so the mirror never
+# blanks its input.
 function verify_match {
     local expected="$1"
     local fixture="$2"
@@ -256,6 +270,40 @@ function verify_match_unfiltered {
         actual="match"
     fi
     verify_state "${expected}" "${actual}" "${step_name}"
+}
+
+# DRY-base guard (M11/#67): the spelled-out base CRASH_LOG_PATTERNS must be exactly
+# the union of the fatal and ambiguous subsets, compared as SETS (split on '|',
+# sorted) so token order and the outer parentheses do not matter. The base is a
+# literal (the zero-fork scraper above cannot expand a derived form), so this guard
+# is what enforces the subsets as the single source of truth.
+function verify_base_subset_union {
+    local step_name="$1"
+    local base actual="unequal"
+    base="${CRASH_LOG_PATTERNS#\(}"
+    base="${base%\)}"
+    if [[ "$(printf '%s' "${base}" | tr '|' '\n' | sort)" \
+          == "$(printf '%s' "${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS}" | tr '|' '\n' | sort)" ]]; then
+        actual="equal"
+    fi
+    verify_state "equal" "${actual}" "${step_name}"
+}
+
+# Asserts a fixture matches the named subset regex (fatal | ambiguous), pinning the
+# fatal-vs-ambiguous split at the token level (M11/#67, D031).
+function verify_match_subset {
+    local subset="$1"
+    local fixture="$2"
+    local step_name="$3"
+    local regex="" actual="nomatch"
+    case "${subset}" in
+        fatal)     regex="${CRASH_LOG_PATTERNS_FATAL}" ;;
+        ambiguous) regex="${CRASH_LOG_PATTERNS_AMBIGUOUS}" ;;
+    esac
+    if [[ -n "${regex}" ]] && printf '%s\n' "${fixture}" | grep -qiE "${regex}"; then
+        actual="match"
+    fi
+    verify_state "match" "${actual}" "${step_name}"
 }
 
 # ==============================================================================
@@ -1374,6 +1422,18 @@ function test_crash_pattern_matching {
     verify_match "nomatch" "iocInit: All initialization complete"   "Negative: iocInit complete line"
     verify_match "nomatch" "## EPICS R7.0.7 banner"                 "Negative: EPICS banner"
     verify_match "nomatch" "Starting iocsh.bash"                    "Negative: startup banner"
+
+    # M11/#67: the spelled-out base must equal the fatal|ambiguous union (set eq).
+    verify_base_subset_union "DRY-base CRASH_LOG_PATTERNS == fatal|ambiguous subsets"
+
+    # M11/#67: subset membership — fatal tokens are the standalone pre-marker
+    # exit-1 triggers; ambiguous tokens are corroborating-only. Asserted via the
+    # extracted subset regexes so a future mis-split is caught here.
+    verify_match_subset "fatal"     "FATAL: aborting"                  "Subset: FATAL is fatal"
+    verify_match_subset "fatal"     "undefined symbol: epicsRingNew"   "Subset: undefined symbol is fatal"
+    verify_match_subset "ambiguous" "Can't open db/example.db"         "Subset: Can't open is ambiguous"
+    verify_match_subset "ambiguous" "ERROR: device timeout"            "Subset: ERROR is ambiguous"
+    verify_match_subset "ambiguous" "config: Invalid directory path, ignored" "Subset: Invalid directory path is ambiguous (benign EPICS warning)"
 }
 
 
