@@ -17,12 +17,13 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** **M11 (#67) closed 2026-06-22** (rs20260617_170153,
-closure20260622_031635; commits 44b9191 + c7e30e6, both goldens). The remaining
-1.2.0 work is the rest of the **M8-M11 C1+H cluster** — **M10 (#54 `Restart=`)**
-now unblocked for implementation (M11 poll landed first per the joint cutover
-gate; gated on U001), plus **M9 (#85)** and the campaign carry-forwards — and the
-**M12** (#68)
+**Next session entry point:** **M11 (#67) and M10 (#54) both closed 2026-06-22**
+(M11 rs20260617_170153 / closure20260622_031635; M10 rs20260622_052533, both
+goldens — `KillMode=mixed` recovery ~2.3 s). The joint cutover gate (poll-first,
+then `Restart=`) is complete. The remaining 1.2.0 work is **M8 (#52)** and **M9
+(#53)** of the C1+H cluster (the campaign carry-forwards), the **U003** local-log
+rotation (now a named forward dependency of M10's `--user` `=0` log growth, see
+UD-M10-A), and the **M12** (#68)
 sudoers wrapper. **M13** (#96) and **M14** (#97) closed 2026-06-17 (the no-op
 IOCSH_HISTSIZE sweep across the two lifecycle probes, the install hint, and the
 FAQ; commits 30cb8d7, 1f074cb). **M18** (#101) closed 2026-06-17 (history-disable
@@ -146,10 +147,10 @@ ends with a reconcile pass comparing issue state against this register.
 | M9.T1 | 1.2.0 | review first (Keep verdict if no change); `systemd-analyze verify` on a deployed unit if changed | Test sub | Open | — |
 | M9.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
 | M9.T3 | 1.2.0 | re-run the M5 shared-contract guard (template content via the emitter) | Test sub | Open | — |
-| M10 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Open | Decided (rs20260612_143435 / C003, pending U001): `Restart=always` (forced by OOM/SIGKILL + `SuccessExitStatus`), `RestartSec=2` (the M11 poll owns the timing: poll max-bound > RestartSec + readiness, not RestartSec below the window), `StartLimitIntervalSec=0` + `StartLimitBurst=5` + `StartLimitAction=none` in `[Unit]`. Both modes via the M5 emitter. Coupled with M11 (poll first, then `Restart=`, one joint cutover gate). `=0` reverses #54's original acceptance criterion -> see U008. **Campaign finding (res20260614_210000, both goldens): procServ-death recovery is ~96 s (TimeoutStopSec-gated) — procServ execs its child with SIGTERM blocked, so `KillMode=control-group` cleanup stalls the full `TimeoutStopSec=90s` before `Restart=always` fires. M10 should add `KillMode=mixed` or a shorter `TimeoutStopSec` so an OOM/crash recovers in seconds, not ~96 s.** enhancement. |
-| M10.T1 | 1.2.0 | policy chosen from M8 findings; crash-loop behavior matches design incl. `SuccessExitStatus` interplay | Test sub | Open | — |
-| M10.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
-| M10.T3 | 1.2.0 | re-run the M5 guard and the crash-detection cases | Test sub | Open | — |
+| M10 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Done | **Closed 2026-06-22 (rs20260622_052533, 5-reviewer impl review + both goldens).** Both unit copies (system `bin/setup-system-infra.bash`, local `bin/ioc-runner`, M5 must-agree) carry `[Unit]` `StartLimitIntervalSec=0`/`StartLimitBurst=5`/`StartLimitAction=none` and `[Service]` `Restart=always`/`RestartSec=2`/`KillMode=mixed`. **U008 acceptance criterion (rewritten):** under `Restart=always`+`=0` a crash-looping IOC stays `activating (auto-restart)` with monotonic `NRestarts`, NEVER systemd `failed` (the healthy C1+H state); diagnosability of a genuinely broken IOC is the M11 (#67) poll verdict, not systemd `failed`; recovery is bounded by `KillMode=mixed`. **Frozen measurement (D-M10-1, both goldens): procServ-death recovery `KillMode=mixed` 2.33 s (rocky8/239) · 2.34 s (debian13/257) vs `control-group` ~92 s** — the ~96 s campaign stall removed (~40x). `=0` never-failed verified (7 SIGKILLs > Burst=5 -> active/Result=success both goldens). **U003 forward dependency (UD-M10-A, User 2026-06-22):** the local-mode `=0` log growth is bounded by U003 local-log rotation WHEN IMPLEMENTED; U003 is decided-but-unimplemented, so a crash-looping `--user` IOC has an interim unbounded-local-log gap (system mode unaffected — logrotate present). A shorter `TimeoutStopSec` stays a deferred backstop (not needed; mixed suffices). P3-low. |
+| M10.T1 | 1.2.0 | policy chosen from M8 findings; crash-loop behavior matches design incl. `SuccessExitStatus` interplay | Test sub | Done | 2026-06-22: `Restart=always` over `on-failure` is required because `SuccessExitStatus` marks SIGKILL as success (R1); commanded `stop` stays inactive (not auto-restarted), OOM/crash restarts — verified on the golden. A positive presence assertion for the six directives added to the CI-4 shared-contract guard (`test-error-handling.bash`, 148/148). |
+| M10.T2 | 1.2.0 | both lifecycle suites green | Test sub | Done | 2026-06-22: local-lifecycle rocky8 59 / debian13 60; system-lifecycle 76/76 both goldens against the re-rendered M10 template. |
+| M10.T3 | 1.2.0 | re-run the M5 guard and the crash-detection cases | Test sub | Done | 2026-06-22: M5 must-agree guard PASS with the six new rows auto-pinned (one-sided drift FAILs); crash-detection cases green in both lifecycle suites; error-handling 148/148. |
 | M11 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Done | **Closed 2026-06-22 (rs20260617_170153, closure20260622_031635; commits 44b9191 code+tests, c7e30e6 docs).** `do_start_restart` polls the procServ log for the readiness marker `All initialization complete` (no fixed sleep): a fatal-subset token or recurring death banner pre-marker -> exit 1; a ~3 s post-marker dwell (post-marker banner -> crash-loop exit 1); marker-less-but-active -> Warning exit 0 (D034); a `start` on an already-running IOC short-circuits (clean-tail check). Design converged over 10 review rounds (plan v9, Round 10 17/17 ACCEPT) + 5 OQ measurements both goldens (OQ6 -> D035 verb-aware teardown) + 3 code-review rounds (5/11/13). **Golden-confirmed correction (D031):** `Invalid directory path` is a benign EPICS pre-iocInit warning -> reclassified fatal->ambiguous (base 10-token union unchanged). Verified both goldens: smoke 5/5, system-lifecycle 76/76, local 59/60. M10 (#54 `Restart=`) stays Open (poll-first, joint cutover gate). P3-low. |
 | M11.T1 | 1.2.0 | crash-looping IOC reported failed; healthy start/restart not slowed beyond the stabilization window | Test sub | Done | 2026-06-22: crash-looping/fatal -> exit 1 "failed to initialize" (system-lifecycle broken-softIoc + T1 journal-less, both goldens); healthy start reaches the marker in ~4 s (golden smoke C1), fast-path sub-second. |
 | M11.T2 | 1.2.0 | both lifecycle suites green (start/restart hot path) | Test sub | Done | 2026-06-22: local-lifecycle green both goldens (rocky8 59, debian13 60); system-lifecycle 76/76 both goldens. |
@@ -181,7 +182,7 @@ ends with a reconcile pass comparing issue state against this register.
 | M19.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M19.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 5 (4 work + 1 gate), Done 14 (M1-M7, M11, M13, M14, M15-M18) · test subs Open 16, Done 30 (through M7.T1/T2, M11.T1/T2/T3, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1, M18.T1/T2) · empirical subs (strategy) 4: campaign COMPLETE (res20260614_210000, plan v5, both goldens) supersedes the E1-E4 pilots — E1->C1 (~0.82 s window), E2/E3->C3 (~5 MB/day, U003/U005), E4->C8 (~96 s trajectory; M11 poll verdict landed 2026-06-22); reproducibility re-run PASSED 2026-06-17 (both goldens, 8/8 case verdicts reproduce res20260614_210000) · Blocked 0
+**Tally:** milestones Open 4 (3 work + 1 gate), Done 15 (M1-M7, M10, M11, M13, M14, M15-M18) · test subs Open 13, Done 33 (through M7.T1/T2, M10.T1/T2/T3, M11.T1/T2/T3, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1, M18.T1/T2) · empirical subs (strategy) 4: campaign COMPLETE (res20260614_210000, plan v5, both goldens) supersedes the E1-E4 pilots — E1->C1 (~0.82 s window), E2/E3->C3 (~5 MB/day, U003/U005), E4->C8 (~96 s trajectory; M11 poll landed 2026-06-22, M10 `KillMode=mixed` recovery frozen ~2.3 s both goldens 2026-06-22); reproducibility re-run PASSED 2026-06-17 (both goldens, 8/8 case verdicts reproduce res20260614_210000) · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
