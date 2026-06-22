@@ -1327,6 +1327,19 @@ function test_template_contract_guard {
         diff <(printf '%s\n' "${local_blk}") <(printf '%s\n' "${system_blk}") || true
     fi
     verify_state "${local_blk}" "${system_blk}" "Unit template must-agree rows identical across both scripts"
+
+    # M10/#54 (M10.T1): the byte-exact compare above catches a one-sided drift, but
+    # a two-sided removal of a shared row would still agree. Assert each M10 restart
+    # directive is PRESENT in the must-agree block so a both-copies removal fails.
+    local m10_row m10_present="all"
+    for m10_row in "StartLimitIntervalSec=0" "StartLimitBurst=5" "StartLimitAction=none" \
+                   "Restart=always" "RestartSec=2" "KillMode=mixed"; do
+        if ! printf '%s\n' "${local_blk}" | grep -qxF "${m10_row}"; then
+            m10_present="missing:${m10_row}"
+            break
+        fi
+    done
+    verify_state "all" "${m10_present}" "M10 restart directives present in the unit must-agree block"
 }
 
 # Extract the set of RUNNER_* metadata variables an installer injects via sed,

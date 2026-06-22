@@ -402,6 +402,9 @@ function deploy_local_template {
 [Unit]
 Description=procServ for %i (Local User)
 AssertFileNotEmpty=${CONF_DIR}/%i.conf
+StartLimitIntervalSec=0
+StartLimitBurst=5
+StartLimitAction=none
 
 [Service]
 Type=simple
@@ -411,6 +414,9 @@ RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
 ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
+Restart=always
+RestartSec=2
+KillMode=mixed
 StandardOutput=journal
 StandardError=inherit
 SyslogIdentifier=epics-%i
