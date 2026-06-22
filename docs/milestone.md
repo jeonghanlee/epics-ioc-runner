@@ -17,8 +17,12 @@ date. 1.1.1 was released 2026-06-11 (merge `25f6adc`, tag `1.1.1`,
 GitHub release with curated notes from the changelog, milestone closed,
 `release-1.1.0` branch deleted per the two-releases-back retention rule).
 
-**Next session entry point:** the remaining 1.2.0 work is the **M8-M11 C1+H
-cluster** (campaign COMPLETE — res20260614_210000, plan v5, both goldens; U004/U007/U008 decided 2026-06-17; reproducibility re-run PASSED 2026-06-17, both goldens, 8/8 case verdicts reproduce — ready for M9->M11->M10 implementation) and the **M12** (#68)
+**Next session entry point:** **M11 (#67) closed 2026-06-22** (rs20260617_170153,
+closure20260622_031635; commits 44b9191 + c7e30e6, both goldens). The remaining
+1.2.0 work is the rest of the **M8-M11 C1+H cluster** — **M10 (#54 `Restart=`)**
+now unblocked for implementation (M11 poll landed first per the joint cutover
+gate; gated on U001), plus **M9 (#85)** and the campaign carry-forwards — and the
+**M12** (#68)
 sudoers wrapper. **M13** (#96) and **M14** (#97) closed 2026-06-17 (the no-op
 IOCSH_HISTSIZE sweep across the two lifecycle probes, the install hint, and the
 FAQ; commits 30cb8d7, 1f074cb). **M18** (#101) closed 2026-06-17 (history-disable
@@ -146,10 +150,10 @@ ends with a reconcile pass comparing issue state against this register.
 | M10.T1 | 1.2.0 | policy chosen from M8 findings; crash-loop behavior matches design incl. `SuccessExitStatus` interplay | Test sub | Open | — |
 | M10.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
 | M10.T3 | 1.2.0 | re-run the M5 guard and the crash-detection cases | Test sub | Open | — |
-| M11 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Open | `bin/ioc-runner:1740-1782` (corrected from stale `1536-1547`); preserve the crash-pattern scan that follows. Coupled with M10 (rs20260612_143435 / C003): the poll lands FIRST (before `Restart=`), must use a MEASURED stabilization window (M8.E1, not a fixed 5 s), be `RestartSec`-aware, and carry a max-timeout (`failed` is non-terminal under `=0`). The `sleep 5` "device connection timeout" rationale is wrong (Type=simple: `is-active` is active at fork). **DECIDED 2026-06-14: poll reports "initializing" (not failed) while a slow IOC is still in iocInit; the max-timeout is derived per-IOC at M11 implementation time, NOT a fixed constant.** P3-low. |
-| M11.T1 | 1.2.0 | crash-looping IOC reported failed; healthy start/restart not slowed beyond the stabilization window | Test sub | Open | — |
-| M11.T2 | 1.2.0 | both lifecycle suites green (start/restart hot path) | Test sub | Open | — |
-| M11.T3 | 1.2.0 | re-run M1 + M8 crash cases (restart scan-window timing shared) | Test sub | Open | — |
+| M11 | 1.2.0 | #67 replace start/restart fixed `sleep 5` with active-state polling | Carry-forward | Done | **Closed 2026-06-22 (rs20260617_170153, closure20260622_031635; commits 44b9191 code+tests, c7e30e6 docs).** `do_start_restart` polls the procServ log for the readiness marker `All initialization complete` (no fixed sleep): a fatal-subset token or recurring death banner pre-marker -> exit 1; a ~3 s post-marker dwell (post-marker banner -> crash-loop exit 1); marker-less-but-active -> Warning exit 0 (D034); a `start` on an already-running IOC short-circuits (clean-tail check). Design converged over 10 review rounds (plan v9, Round 10 17/17 ACCEPT) + 5 OQ measurements both goldens (OQ6 -> D035 verb-aware teardown) + 3 code-review rounds (5/11/13). **Golden-confirmed correction (D031):** `Invalid directory path` is a benign EPICS pre-iocInit warning -> reclassified fatal->ambiguous (base 10-token union unchanged). Verified both goldens: smoke 5/5, system-lifecycle 76/76, local 59/60. M10 (#54 `Restart=`) stays Open (poll-first, joint cutover gate). P3-low. |
+| M11.T1 | 1.2.0 | crash-looping IOC reported failed; healthy start/restart not slowed beyond the stabilization window | Test sub | Done | 2026-06-22: crash-looping/fatal -> exit 1 "failed to initialize" (system-lifecycle broken-softIoc + T1 journal-less, both goldens); healthy start reaches the marker in ~4 s (golden smoke C1), fast-path sub-second. |
+| M11.T2 | 1.2.0 | both lifecycle suites green (start/restart hot path) | Test sub | Done | 2026-06-22: local-lifecycle green both goldens (rocky8 59, debian13 60); system-lifecycle 76/76 both goldens. |
+| M11.T3 | 1.2.0 | re-run M1 + M8 crash cases (restart scan-window timing shared) | Test sub | Done | 2026-06-22: crash-pattern scan re-run via the decomposed reader (`test-error-handling.bash` green incl. DRY-base set-equality guard + #92 exclusion); T2 logrotate boundary + sub-cases A/B green via the test timeout seam. |
 | M12 | 1.2.0 | #68 distro-independent sudoers parity via validating `systemctl` wrapper | Carry-forward | Open | Closes the sudo < 1.9.10 residual risk from #57 (Rocky 8 / alsucl-psrv3 = 1.9.5p2). sudoers verb-scope redesign (CI-20) and IOC-name contract enforcement (CI-21) cluster here. Largest design item; independent of M1-M11. P2-medium. |
 | M12.T1 | 1.2.0 | wrapper accepts in-contract and rejects out-of-contract names identically on both distros; sudoers narrowed; CI-20/CI-21 dispositions recorded | Test sub | Open | — |
 | M12.T2 | 1.2.0 | system suites on both goldens (two sudoers emission branches) | Test sub | Open | — |
@@ -177,7 +181,7 @@ ends with a reconcile pass comparing issue state against this register.
 | M19.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M19.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 6 (5 work + 1 gate), Done 13 (M1-M7, M13, M14, M15-M18) · test subs Open 19, Done 27 (through M7.T1/T2, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1, M18.T1/T2) · empirical subs (strategy) 4: campaign COMPLETE (res20260614_210000, plan v5, both goldens) supersedes the E1-E4 pilots — E1->C1 (~0.82 s window), E2/E3->C3 (~5 MB/day, U003/U005), E4->C8 (~96 s trajectory; poll verdict still needs M11 code); reproducibility re-run PASSED 2026-06-17 (both goldens, 8/8 case verdicts reproduce res20260614_210000) · Blocked 0
+**Tally:** milestones Open 5 (4 work + 1 gate), Done 14 (M1-M7, M11, M13, M14, M15-M18) · test subs Open 16, Done 30 (through M7.T1/T2, M11.T1/T2/T3, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1, M18.T1/T2) · empirical subs (strategy) 4: campaign COMPLETE (res20260614_210000, plan v5, both goldens) supersedes the E1-E4 pilots — E1->C1 (~0.82 s window), E2/E3->C3 (~5 MB/day, U003/U005), E4->C8 (~96 s trajectory; M11 poll verdict landed 2026-06-22); reproducibility re-run PASSED 2026-06-17 (both goldens, 8/8 case verdicts reproduce res20260614_210000) · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
@@ -293,6 +297,7 @@ promotes.
 | CI-15 | 2026-06-08 | Bash-completion re-derives the conf-dir fallback chain and default literals. | Architectural: a sourced completion function cannot source the runner; it reads the same env overrides, and drift degrades only tab-completion. |
 | CI-20 | 2026-06-09 | sudoers policy grants `status` although the runner never uses sudo for status. | Principled superset serving operators running `sudo systemctl status` by hand; read-only verb. Verb-scope redesign belongs to #68. |
 | CI-21 | 2026-06-09 | IOC-name contract regex maintained in four copies (runner, setup, example, INSTALL.md). | Copies agree and the parity is documented on both sides; enforcement is exactly the #68 wrapper scope. |
+| CI-22 | M11/#67 (2026-06-22) | The M11 startup-poll pinned strings and token partition must agree across code, tests, and docs: readiness marker `All initialization complete` and death banner `@@@ Child process is shutting down` (literals in `bin/ioc-runner`, both goldens emit them per OQ1/OQ2/OQ5/OQ6); `CRASH_LOG_PATTERNS` = `CRASH_LOG_PATTERNS_FATAL` (5) \| `CRASH_LOG_PATTERNS_AMBIGUOUS` (5), with `Invalid directory path` in the ambiguous subset (benign EPICS warning, golden-confirmed). | Guard-pinned, not refactored: the base literal is spelled out because the `test-error-handling.bash` scraper reads the script as text and cannot expand a derived form; `verify_base_subset_union` asserts base == fatal\|ambiguous (set-equal) and `verify_match_subset` pins membership, so any drift fails the suite. Same examined-Keep + guard pattern as CI-4. |
 
 ## Notes
 
