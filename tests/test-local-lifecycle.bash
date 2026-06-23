@@ -856,6 +856,14 @@ function _run_crash_probe {
         verify_state "true" "${rc_ok}" "${assertion_name}: exit 1"
         if printf "%s" "${output}" | grep -q "failed to initialize"; then msg_ok="true"; fi
         verify_state "true" "${msg_ok}" "${assertion_name}: failed-to-initialize verdict"
+    elif [[ "${expected_kind}" == "crashloop" ]]; then
+        # M8/#52: a SILENT pre-iocInit crash loop (the child killed by signal,
+        # recurring death banner, NO fatal token) is caught by the banner-count
+        # path, not a fatal-subset token -> exit 1 with the crash-looping verdict.
+        if [[ "${exit_code}" == "1" ]]; then rc_ok="true"; fi
+        verify_state "true" "${rc_ok}" "${assertion_name}: exit 1"
+        if printf "%s" "${output}" | grep -q "crash-looping"; then msg_ok="true"; fi
+        verify_state "true" "${msg_ok}" "${assertion_name}: crash-looping verdict"
     else
         if [[ "${exit_code}" == "0" ]]; then rc_ok="true"; fi
         verify_state "true" "${rc_ok}" "${assertion_name}: exit 0 (healthy)"
@@ -890,6 +898,23 @@ EOF
     chmod +x "${fatal_ioc_dir}/st.cmd"
     _install_crash_probe "${fatal_ioc_name}" "${fatal_ioc_dir}"
     _run_crash_probe "${fatal_ioc_name}" "fatal" "Crash detection: FATAL softIoc child kill -> exit 1"
+
+    # M8/#52: a SILENT pre-iocInit crash loop — the child is killed by signal
+    # repeatedly with NO fatal token in its own output. procServ records the death
+    # banner and "The process was killed by signal N"; detection must fire on the
+    # recurring-banner count, not a fatal-subset token. (golden-confirmed both VMs)
+    local silent_ioc_name="CrashTestSilentLoop"
+    local silent_ioc_dir="${WORKSPACE}/crash_silent_ioc"
+    mkdir -p "${silent_ioc_dir}"
+
+    cat << EOF > "${silent_ioc_dir}/st.cmd"
+#!${softioc_bin}
+epicsThreadSleep 0.3
+system "kill -9 \$PPID"
+EOF
+    chmod +x "${silent_ioc_dir}/st.cmd"
+    _install_crash_probe "${silent_ioc_name}" "${silent_ioc_dir}"
+    _run_crash_probe "${silent_ioc_name}" "crashloop" "Crash detection: silent child-kill loop (no fatal token) -> exit 1 crash-looping"
 
     local parse_ioc_name="CrashTestParse"
     local parse_ioc_dir="${WORKSPACE}/crash_parse_ioc"
