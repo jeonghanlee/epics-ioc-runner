@@ -427,6 +427,128 @@ EOF
     run_systemctl daemon-reload
 }
 
+# Deploy best-effort per-user procServ log rotation (U003/M19, issue #103).
+# Local mode has no rotation otherwise; under Restart=always a crash-looping
+# --user IOC would grow its log unbounded with no operator action. The config
+# plus a oneshot service and an hourly timer are user-global (one timer rotates
+# all of LOG_DIR/*.log), deployed idempotently by content diff so repeat per-IOC
+# installs do not churn. This function NEVER aborts the IOC install: a missing
+# logrotate, an invalid config, or an unreachable user bus only warns. Removal
+# is operator-managed (never-auto-remove); there is no --local uninstall verb.
+function deploy_local_logrotate {
+    if ! resolve_logrotate_tool; then
+        print_divider >&2
+        printf "Warning: 'logrotate' not found; local log rotation is NOT installed.\n" >&2
+        printf "         Install logrotate, then re-run 'ioc-runner --local install' to enable it.\n" >&2
+        printf "         Without rotation, %s/*.log can grow unbounded under a crash loop.\n" "${LOG_DIR}" >&2
+        print_divider >&2
+        return 0
+    fi
+
+    local cfg_dir="${CONF_DIR%/*}/ioc-runner"
+    local cfg_path="${cfg_dir}/logrotate.conf"
+    local svc_path="${SYSTEMD_DIR}/epics-logrotate.service"
+    local tmr_path="${SYSTEMD_DIR}/epics-logrotate.timer"
+
+    install -d -m 0700 "${cfg_dir}"
+    mkdir -p "${SYSTEMD_DIR}"
+
+    # Render to same-directory temps so the later mv is a true atomic rename
+    # (a /tmp temp would make mv a cross-filesystem copy+unlink).
+    local tmp_cfg tmp_svc tmp_tmr
+    tmp_cfg=$(mktemp "${cfg_path}.XXXXXX" 2>/dev/null) || { printf "Warning: cannot stage logrotate config; rotation not installed.\n" >&2; return 0; }
+    tmp_svc=$(mktemp "${svc_path}.XXXXXX" 2>/dev/null) || { rm -f "${tmp_cfg}"; printf "Warning: cannot stage logrotate units; rotation not installed.\n" >&2; return 0; }
+    tmp_tmr=$(mktemp "${tmr_path}.XXXXXX" 2>/dev/null) || { rm -f "${tmp_cfg}" "${tmp_svc}"; printf "Warning: cannot stage logrotate units; rotation not installed.\n" >&2; return 0; }
+
+    # The config glob uses the resolved absolute LOG_DIR (same value baked into
+    # the unit --logfile=), so procServ and logrotate never resolve to different
+    # paths. maxsize needs logrotate >= 3.8.1 (both goldens ship well above it).
+    cat > "${tmp_cfg}" <<EOF
+${LOG_DIR}/*.log {
+    weekly
+    maxsize 50M
+    rotate 8
+    copytruncate
+    compress
+    missingok
+    notifempty
+    nodateext
+}
+EOF
+
+    # Oneshot service: no [Install] (enable the timer, never the service). The
+    # %t specifier resolves to /run/user/<uid> at unit-run time under the user
+    # manager, keeping the logrotate state host-local (avoids a shared-NFS state
+    # race) without resolving the path in the install shell.
+    cat > "${tmp_svc}" <<EOF
+[Unit]
+Description=Rotate procServ user logs (local mode)
+
+[Service]
+Type=oneshot
+ExecStart=${LOGROTATE_TOOL_PATH} --state %t/ioc-runner-logrotate.state ${cfg_path}
+Nice=10
+IOSchedulingClass=idle
+EOF
+
+    cat > "${tmp_tmr}" <<EOF
+[Unit]
+Description=Hourly procServ user log rotation (local mode)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    # Syntax-gate the generated config (dry run; writes no state). A failure here
+    # warns and skips the deploy without aborting the IOC install -- unlike
+    # system mode, which exits. Distinct from the binary-absent branch above.
+    if ! "${LOGROTATE_TOOL_PATH}" -d "${tmp_cfg}" >/dev/null 2>&1; then
+        print_divider >&2
+        printf "Warning: generated logrotate config failed validation; rotation NOT installed.\n" >&2
+        printf "         logrotate: %s (maxsize requires logrotate >= 3.8.1).\n" "${LOGROTATE_TOOL_PATH}" >&2
+        print_divider >&2
+        rm -f "${tmp_cfg}" "${tmp_svc}" "${tmp_tmr}"
+        return 0
+    fi
+
+    # Install only on content difference (idempotent across repeat per-IOC
+    # installs and self-healing across an ioc-runner upgrade); track unit changes
+    # so daemon-reload runs only when a unit file actually changed.
+    local units_changed=0
+    if cmp -s "${tmp_cfg}" "${cfg_path}"; then rm -f "${tmp_cfg}"; else mv -f "${tmp_cfg}" "${cfg_path}"; fi
+    if cmp -s "${tmp_svc}" "${svc_path}"; then rm -f "${tmp_svc}"; else mv -f "${tmp_svc}" "${svc_path}"; units_changed=1; fi
+    if cmp -s "${tmp_tmr}" "${tmr_path}"; then rm -f "${tmp_tmr}"; else mv -f "${tmp_tmr}" "${tmr_path}"; units_changed=1; fi
+
+    if (( units_changed )); then
+        # || true keeps a no-user-bus host from aborting the IOC install here
+        # (best-effort contract); deploy_local_template already reloaded.
+        run_systemctl daemon-reload || true
+    fi
+
+    # Arm the timer (enabled survives a manager restart). Guard on is-enabled so
+    # repeat installs do not churn; a no-linger / no-bus host warns but the IOC
+    # install still succeeds.
+    if ! run_systemctl is-enabled --quiet epics-logrotate.timer 2>/dev/null; then
+        if ! run_systemctl enable --now epics-logrotate.timer 2>/dev/null; then
+            printf "Warning: could not enable epics-logrotate.timer (no user bus / linger?).\n" >&2
+            printf "         Rotation starts on next login; run 'loginctl enable-linger %s' for headless operation.\n" "$(id -un)" >&2
+        fi
+    fi
+
+    # Linger advisory (non-fatal): like the IOC units, the timer fires only while
+    # the user manager runs.
+    local linger
+    linger=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
+    if [[ "${linger}" != "yes" ]]; then
+        printf "Note: user lingering is off; 'loginctl enable-linger %s' to run IOCs and log rotation while logged out.\n" "$(id -un)" >&2
+    fi
+}
+
 # Parse a specific key from a configuration file using only bash built-ins
 function read_conf_var {
     local conf_file="$1"
@@ -843,6 +965,41 @@ function resolve_procserv_tool {
     exit 1
 }
 
+# LOGROTATE_SEARCH_PATHS: the systemd user manager runs services with a minimal
+# PATH that need not include /usr/sbin (where logrotate ships), so the local
+# rotation unit must carry an absolute logrotate path resolved at deploy time.
+declare -g -a LOGROTATE_SEARCH_PATHS=("/usr/sbin/logrotate" "/sbin/logrotate" "/usr/bin/logrotate")
+declare -g LOGROTATE_TOOL_PATH=""
+
+# Resolve the logrotate executable to an absolute path. Unlike
+# resolve_procserv_tool this returns non-zero (does not exit) when logrotate is
+# absent, because local log rotation is best-effort and must never abort an IOC
+# install (U003/M19).
+function resolve_logrotate_tool {
+    LOGROTATE_TOOL_PATH="${IOC_RUNNER_LOGROTATE_TOOL:-}"
+    if [[ -n "${LOGROTATE_TOOL_PATH}" ]]; then
+        [[ -x "${LOGROTATE_TOOL_PATH}" ]] && return 0
+        LOGROTATE_TOOL_PATH=""
+    fi
+
+    local path
+    for path in "${LOGROTATE_SEARCH_PATHS[@]}"; do
+        if [[ -x "${path}" ]]; then
+            LOGROTATE_TOOL_PATH="${path}"
+            return 0
+        fi
+    done
+
+    local found
+    found=$(command -v logrotate 2>/dev/null || true)
+    if [[ -n "${found}" ]]; then
+        LOGROTATE_TOOL_PATH="${found}"
+        return 0
+    fi
+
+    return 1
+}
+
 # Resolve and validate the UDS socket path for an IOC.
 # Sets RESOLVED_SOCK_PATH on success.
 declare -g RESOLVED_SOCK_PATH=""
@@ -1225,6 +1382,16 @@ function do_install {
             exit 1
         fi
     else
+        # LOG_DIR must be absolute before it is baked into the unit --logfile=
+        # and the logrotate config glob; a relative value would make procServ
+        # and logrotate resolve different paths (U003/M19).
+        if [[ "${LOG_DIR}" != /* || "${LOG_DIR}" == *[[:space:]]* ]]; then
+            printf "Error: resolved local log directory '%s' must be an absolute path with no whitespace.\n" "${LOG_DIR}" >&2
+            printf "       (whitespace would split the logrotate '<dir>/*.log' glob into two patterns.)\n" >&2
+            printf "       Set IOC_RUNNER_LOG_DIR / IOC_RUNNER_LOCAL_LOG_DIR / XDG_STATE_HOME accordingly.\n" >&2
+            exit 1
+        fi
+
         # Ensure the resolved local log directory (LOG_DIR, which honors
         # IOC_RUNNER_LOG_DIR / IOC_RUNNER_LOCAL_LOG_DIR) exists before the
         # template is emitted, so the
@@ -1232,6 +1399,7 @@ function do_install {
         # systemctl --user start.
         install -d -m 0750 "${LOG_DIR}"
         deploy_local_template
+        deploy_local_logrotate
     fi
 
     local state

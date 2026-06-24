@@ -55,6 +55,15 @@ if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}
     printf "  sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald\n" >&2
 fi
 
+# U003/M19: the local log-rotation steps need logrotate. Hosts without it
+# cannot verify rotation; mark it unavailable so those steps skip with a WARN
+# rather than fail (deploy_local_logrotate itself warns and skips).
+declare -g LOGROTATE_AVAILABLE="true"
+if ! command -v logrotate >/dev/null 2>&1; then
+    LOGROTATE_AVAILABLE="false"
+    printf "${YELLOW}%s${NC}\n" "WARN: logrotate not found; U003/M19 rotation steps will be skipped." >&2
+fi
+
 if [[ -z "${EPICS_HOST_ARCH}" ]]; then
     export EPICS_HOST_ARCH="linux-x86_64"
 fi
@@ -134,6 +143,16 @@ function _handle_exit {
         SCRIPT_ERROR=1
         printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
     fi
+
+    # U003/M19: unconditionally disarm the user log-rotation timer on every exit
+    # path (success, assertion-fail, set -e abort, SIGINT). The pipeline arms a
+    # real ~/.config/systemd/user timer at the first --local install; an aborted
+    # run must not leave it enabled, or it would later fail hourly against the
+    # removed workspace config. Runs even under KEEP_WORKSPACE=1 (re-arm by
+    # re-running install). SYSTEMD_USER_DIR is declared unconditionally above.
+    systemctl --user disable --now epics-logrotate.timer >/dev/null 2>&1 || true
+    rm -f "${SYSTEMD_USER_DIR}/epics-logrotate.service" "${SYSTEMD_USER_DIR}/epics-logrotate.timer"
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
         if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
@@ -263,6 +282,13 @@ function cleanup_previous_state {
     bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
 
     rm -f "${SYSTEMD_USER_DIR}/epics-@.service"
+
+    # U003/M19: remove any residual user log-rotation units from a prior run.
+    # A normal per-IOC remove leaves these in place (never-auto-remove), so the
+    # suite tears them down explicitly to start from a clean state.
+    systemctl --user disable --now epics-logrotate.timer >/dev/null 2>&1 || true
+    rm -f "${SYSTEMD_USER_DIR}/epics-logrotate.service" "${SYSTEMD_USER_DIR}/epics-logrotate.timer"
+
     systemctl --user daemon-reload || true
 
     _log "SUCCESS" "Cleaned up residual processes, templates, and configurations."
@@ -1057,6 +1083,166 @@ function test_remove {
     verify_state "inactive" "${state}"   "Service completely stopped (inactive)"
 }
 
+# U003/M19.T1: --local install deploys the per-user logrotate config + the
+# oneshot service + the hourly timer, idempotently. Runs while the IOC is
+# installed-but-inactive so the idempotency re-install is not blocked.
+function test_local_logrotate {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Local Log Rotation Deploy (U003/M19.T1)"
+    print_sub_divider
+
+    if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "logrotate unavailable; skipping M19.T1."
+        return 0
+    fi
+
+    local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
+    local svc="${SYSTEMD_USER_DIR}/epics-logrotate.service"
+    local tmr="${SYSTEMD_USER_DIR}/epics-logrotate.timer"
+    # The test shell has no LOG_DIR; resolve it like the runner (mirror the
+    # crash-probe step) so the glob-pin checks the real deployed path.
+    local log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
+
+    local cfg_exist="false"; [[ -f "${cfg}" ]] && cfg_exist="true"
+    verify_state "true" "${cfg_exist}" "M19.T1: logrotate config deployed"
+    local svc_exist="false"; [[ -f "${svc}" ]] && svc_exist="true"
+    verify_state "true" "${svc_exist}" "M19.T1: epics-logrotate.service deployed"
+    local tmr_exist="false"; [[ -f "${tmr}" ]] && tmr_exist="true"
+    verify_state "true" "${tmr_exist}" "M19.T1: epics-logrotate.timer deployed"
+
+    if [[ "${cfg_exist}" == "true" ]]; then
+        local d_ok="true" directive
+        for directive in "weekly" "maxsize 50M" "rotate 8" "copytruncate" "compress" "missingok" "notifempty" "nodateext"; do
+            grep -qF "${directive}" "${cfg}" || d_ok="false"
+        done
+        grep -qF "${log_dir}/*.log {" "${cfg}" || d_ok="false"
+        verify_state "true" "${d_ok}" "M19.T1: config pins the rotation contract + LOG_DIR glob"
+
+        local su_absent="true"; grep -qE '^[[:space:]]*su ' "${cfg}" && su_absent="false"
+        verify_state "true" "${su_absent}" "M19.T1: no 'su' directive (single-user dir)"
+
+        local validate_ok="true"; logrotate -d "${cfg}" >/dev/null 2>&1 || validate_ok="false"
+        verify_state "true" "${validate_ok}" "M19.T1: logrotate -d validates the config"
+    fi
+
+    # Timer armed (the user bus is up in this suite, as the IOC lifecycle steps need it).
+    local enabled; enabled=$(systemctl --user is-enabled epics-logrotate.timer 2>/dev/null || true)
+    verify_state "enabled" "${enabled}" "M19.T1: timer enabled"
+
+    # Idempotency: a repeat install must run deploy_local_logrotate (assert it
+    # exits 0) and rewrite nothing. The units (not the config) are what
+    # units_changed gates, so stat both unit mtimes too, not just the config.
+    if [[ "${cfg_exist}" == "true" ]]; then
+        local cfg_b svc_b tmr_b rc=0
+        cfg_b=$(stat -c %Y "${cfg}" 2>/dev/null || echo 0)
+        svc_b=$(stat -c %Y "${svc}" 2>/dev/null || echo 0)
+        tmr_b=$(stat -c %Y "${tmr}" 2>/dev/null || echo 0)
+        sleep 1
+        bash "${RUNNER_SCRIPT}" --local -f install "${CONF_FILE}" >/dev/null 2>&1 || rc=$?
+        verify_state "0" "${rc}" "M19.T1: repeat install succeeds (re-runs deploy)"
+        local cfg_a svc_a tmr_a
+        cfg_a=$(stat -c %Y "${cfg}" 2>/dev/null || echo 0)
+        svc_a=$(stat -c %Y "${svc}" 2>/dev/null || echo 0)
+        tmr_a=$(stat -c %Y "${tmr}" 2>/dev/null || echo 0)
+        verify_state "${cfg_b}-${svc_b}-${tmr_b}" "${cfg_a}-${svc_a}-${tmr_a}" "M19.T1: repeat install rewrites nothing (config + units stable)"
+    fi
+}
+
+# U003/M19.T2: forced rotation via copytruncate produces a compressed archive and
+# truncates the live file in place (no IOC restart, no fd reopen).
+function test_logrotate_rotation {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Local Log Rotation copytruncate (U003/M19.T2)"
+    print_sub_divider
+
+    if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "logrotate unavailable; skipping M19.T2."
+        return 0
+    fi
+    local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
+    if [[ ! -f "${cfg}" ]]; then
+        verify_state "true" "false" "M19.T2: config present for rotation test"
+        return 0
+    fi
+
+    local log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
+    install -d -m 0750 "${log_dir}"
+    local probe="${log_dir}/rotateprobe.log"
+    printf 'seed line for copytruncate\n' > "${probe}"
+    local state; state=$(mktemp)
+    logrotate -f --state "${state}" "${cfg}" >/dev/null 2>&1 || true
+
+    local archived="false"; [[ -f "${probe}.1.gz" ]] && archived="true"
+    verify_state "true" "${archived}" "M19.T2: copytruncate produced rotateprobe.log.1.gz"
+    local truncated="false"; [[ -f "${probe}" && ! -s "${probe}" ]] && truncated="true"
+    verify_state "true" "${truncated}" "M19.T2: live log truncated in place (copytruncate)"
+
+    rm -f "${probe}" "${probe}".*.gz "${state}"
+}
+
+# U003/M19.T3: maxsize triggers a rotation before the weekly mark. Scaled to a
+# tiny cap so it does not require a 50M file; a fresh state means a rotation here
+# is attributable to size, not the (unseen) weekly interval.
+function test_logrotate_maxsize {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Local Log Rotation maxsize path (U003/M19.T3)"
+    print_sub_divider
+
+    if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "logrotate unavailable; skipping M19.T3."
+        return 0
+    fi
+    local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
+    if [[ ! -f "${cfg}" ]]; then
+        verify_state "true" "false" "M19.T3: config present for maxsize test"
+        return 0
+    fi
+
+    local tcfg; tcfg=$(mktemp)
+    sed 's/maxsize 50M/maxsize 1k/' "${cfg}" > "${tcfg}"
+    local log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
+    install -d -m 0750 "${log_dir}"
+    local probe="${log_dir}/maxprobe.log"
+    head -c 4096 /dev/zero | tr '\0' 'x' > "${probe}"
+    local state; state=$(mktemp)
+    logrotate --state "${state}" "${tcfg}" >/dev/null 2>&1 || true
+
+    local rotated="false"; [[ -f "${probe}.1.gz" ]] && rotated="true"
+    verify_state "true" "${rotated}" "M19.T3: maxsize rotates the log before the weekly mark"
+
+    rm -f "${probe}" "${probe}".*.gz "${state}" "${tcfg}"
+}
+
+# U003/M19: a per-IOC remove must leave the shared timer (never-auto-remove);
+# then perform the documented manual teardown and confirm it removes the timer.
+function test_logrotate_teardown {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Local Log Rotation Teardown (U003/M19, never-auto-remove)"
+    print_sub_divider
+
+    if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "logrotate unavailable; skipping M19 teardown checks."
+        return 0
+    fi
+    local tmr="${SYSTEMD_USER_DIR}/epics-logrotate.timer"
+
+    local survived="false"; [[ -f "${tmr}" ]] && survived="true"
+    verify_state "true" "${survived}" "M19: per-IOC remove leaves the shared timer (never-auto-remove)"
+
+    # Documented manual teardown (operator action) + host hygiene.
+    systemctl --user disable --now epics-logrotate.timer >/dev/null 2>&1 || true
+    rm -f "${SYSTEMD_USER_DIR}/epics-logrotate.service" "${tmr}"
+    rm -f "${CONF_DIR%/*}/ioc-runner/logrotate.conf"
+    systemctl --user daemon-reload || true
+
+    local gone="true"; [[ -f "${tmr}" ]] && gone="false"
+    verify_state "true" "${gone}" "M19: manual teardown removes the timer"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -1072,6 +1258,9 @@ function run_all_tests {
         "test_install_explicit"
         "test_cleanup_install"
         "test_install_dir"
+        "test_local_logrotate"
+        "test_logrotate_rotation"
+        "test_logrotate_maxsize"
         "test_start"
         "test_status"
         "test_view"
@@ -1088,6 +1277,7 @@ function run_all_tests {
         "test_crash_detection"
         "test_persistence"
         "test_remove"
+        "test_logrotate_teardown"
     )
 
     # Record which ioc-runner binary this run exercises, so captured
