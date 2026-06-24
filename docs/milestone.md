@@ -21,10 +21,12 @@ GitHub release with curated notes from the changelog, milestone closed,
 (M11 rs20260617_170153 / closure20260622_031635; M10 rs20260622_052533, both
 goldens — `KillMode=mixed` recovery ~2.3 s). The joint cutover gate (poll-first,
 then `Restart=`) is complete, and **M8 (#52) closed 2026-06-22** (silent-loop
-detection disposition verified, both goldens). The remaining 1.2.0 work is **M9
-(#53)** of the C1+H cluster, the **U003** local-log rotation (a named forward
-dependency of M10's `--user` `=0` log growth, see UD-M10-A), and the **M12** (#68)
-sudoers wrapper. **M13** (#96) and **M14** (#97) closed 2026-06-17 (the no-op
+detection disposition verified, both goldens). **M9 (#53) closed 2026-06-23**
+(examined-Keep on `Requires`/`Wants`/`Before`/`After`, 5-reviewer convergence
+rs20260623_095055, no code change; ADR 0001 line 72 strengthened, network-online
+deliberate exclusion in the Ledger). The remaining 1.2.0 work is the **U003**
+local-log rotation (a named forward dependency of M10's `--user` `=0` log growth,
+see UD-M10-A) and the **M12** (#68) sudoers wrapper. **M13** (#96) and **M14** (#97) closed 2026-06-17 (the no-op
 IOCSH_HISTSIZE sweep across the two lifecycle probes, the install hint, and the
 FAQ; commits 30cb8d7, 1f074cb). **M18** (#101) closed 2026-06-17 (history-disable
 guidance aligned to the EPICS-documented empty-string form, commit c847232).
@@ -143,10 +145,10 @@ ends with a reconcile pass comparing issue state against this register.
 | M8.E2 | 1.2.0 | log growth under `Restart=always`+`StartLimitIntervalSec=0` infinite loop (local vs system); decides U003 (=0 safety / log-cap need) | Empirical (campaign) | Superseded -> C3 | 2026-06-14 (pilot, single run per point; 664 B banner is NOT constant per R2-F503/R4-F502) fine RestartSec sweep (1.0-5.0s, 9 values), both goldens, faithful 664 B/launch (= measured procServ startup banner), `=0` loop. Never `failed` at any value (all `activating (auto-restart)`). Rate ∝ 1/RestartSec (0.80/s@1.0s -> 0.17/s@5.0s). **procServ logfile growth 48 MB/day@1.0s -> 27@2.0s -> 11 MB/day@5.0s** (LESS with larger RestartSec). So a broken `=0` loop costs tens of MB/day in the procServ logfile; local mode (no rotation) accrues it unbounded -> **U003 NEEDS a log size-cap / rotation, esp. the local-mode procServ logfile**; larger RestartSec also helps. Journal column DISCARDED (cumulative across the reused unit name — an artifact; the journal is operationally unused per FAQ Q9 and journald-capped anyway). |
 | M8.E3 | 1.2.0 | procServ `--holdoff` pacing: child crash loop with vs without `--holdoff`, measure restart rate; decides U005 | Empirical (campaign) | Superseded -> C3 | 2026-06-14 `--holdoff` sweep, both goldens, **single run per point; instrument flagged in Round 6 (R2-F603/R7-F604: child-level events need a child-restart detector, not unit state)**. Directional only: default holdoff was the slowest (~0.08/s, ~3 MB/day), `--holdoff=1` faster (~36 MB/day). **U005 is NOT settled by this** — the "keep default" lean is provisional pending the rigorous, replicated, fixed-instrument C3 in plan v3. |
 | M8.E4 | 1.2.0 | raw cycling trajectory (`ActiveState`/`SubState`/`NRestarts`) under `Restart=always`+`=0` for the M11 poll-bound design (M11 poll code not yet present) | Empirical (campaign) | Partial -> C8 | 2026-06-14: raw trajectory captured via E2 — `activating (auto-restart)`, `NRestarts` monotonic, never `failed` on both goldens. The poll-logic test (max-timeout, verdict) still needs M11 code. |
-| M9 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Open | Per systemd unit-ordering guidance; system unit already carries `Wants`/`After` (mode-divergent fields per #81). One-place edit through the M5 emitter. |
-| M9.T1 | 1.2.0 | review first (Keep verdict if no change); `systemd-analyze verify` on a deployed unit if changed | Test sub | Open | — |
-| M9.T2 | 1.2.0 | both lifecycle suites green | Test sub | Open | — |
-| M9.T3 | 1.2.0 | re-run the M5 shared-contract guard (template content via the emitter) | Test sub | Open | — |
+| M9 | 1.2.0 | #53 review missing `Requires`/`Wants` (and `Before`/`After`) in template unit | Carry-forward | Done | **examined-Keep, closed 2026-06-23 (5-reviewer convergence rs20260623_095055, conv20260623_095929; no code change).** Keep on all four sub-questions, 5/5 agreement, no dissent: **Q1 `Requires=`** — wrong strength for passive targets (no ordering benefit; hazardous stop-propagation teardown of a running IOC; startup already gated by `AssertFileNotEmpty=`). **Q2 system set** — `Wants=time-sync.target` + `After=network.target remote-fs.target time-sync.target` complete; `network-online.target` rejected as a template default (CA/PVA wildcard-bind + inbound-search response tolerate late addresses; wait-online fragile on multi-homed hosts; per-instance boot regression), `nss-lookup.target` N/A, NFS already covered by `remote-fs.target`. **Q3 local absence** — only valid end state: user instance has no `network`/`remote-fs`/`time-sync` target (copying = dead text), `basic.target` implicit via `DefaultDependencies=yes`. **Q4 `Before=`** — EPICS async late-binding makes server-before-consumer a false constraint, no consumer to name. ADR 0001 line 72 strengthened to cite the divergence reason. The `network-online.target` deliberate exclusion is recorded in the Examined-Keep Ledger (per-host drop-in is the escape hatch). GitHub #53 manual close + register/ADR commit are owner steps. P3-low. |
+| M9.T1 | 1.2.0 | review first (Keep verdict if no change); `systemd-analyze verify` on a deployed unit if changed | Test sub | Done | 2026-06-23: decision = Keep (no change), reached via the 5-reviewer convergence (systemd-semantics / EPICS-operational / Examined-Keep-discipline / adversarial-completeness / user-manager lenses). No deployed-unit `systemd-analyze verify` needed — no directive changed. |
+| M9.T2 | 1.2.0 | both lifecycle suites green | Test sub | Done | 2026-06-23: no code change -> emitted units unchanged; existing suite-green state stands. Re-run rides the M19 release gate. |
+| M9.T3 | 1.2.0 | re-run the M5 shared-contract guard (template content via the emitter) | Test sub | Done | 2026-06-23: no template content change -> M5 must-agree guard unaffected. Re-run rides the M19 release gate. |
 | M10 | 1.2.0 | #54 add `Restart=` policy to system template unit | Carry-forward | Done | **Closed 2026-06-22 (rs20260622_052533, 5-reviewer impl review + both goldens).** Both unit copies (system `bin/setup-system-infra.bash`, local `bin/ioc-runner`, M5 must-agree) carry `[Unit]` `StartLimitIntervalSec=0`/`StartLimitBurst=5`/`StartLimitAction=none` and `[Service]` `Restart=always`/`RestartSec=2`/`KillMode=mixed`. **U008 acceptance criterion (rewritten):** under `Restart=always`+`=0` a crash-looping IOC stays `activating (auto-restart)` with monotonic `NRestarts`, NEVER systemd `failed` (the healthy C1+H state); diagnosability of a genuinely broken IOC is the M11 (#67) poll verdict, not systemd `failed`; recovery is bounded by `KillMode=mixed`. **Frozen measurement (D-M10-1, both goldens): procServ-death recovery `KillMode=mixed` 2.33 s (rocky8/239) · 2.34 s (debian13/257) vs `control-group` ~92 s** — the ~96 s campaign stall removed (~40x). `=0` never-failed verified (7 SIGKILLs > Burst=5 -> active/Result=success both goldens). **U003 forward dependency (UD-M10-A, User 2026-06-22):** the local-mode `=0` log growth is bounded by U003 local-log rotation WHEN IMPLEMENTED; U003 is decided-but-unimplemented, so a crash-looping `--user` IOC has an interim unbounded-local-log gap (system mode unaffected — logrotate present). A shorter `TimeoutStopSec` stays a deferred backstop (not needed; mixed suffices). P3-low. |
 | M10.T1 | 1.2.0 | policy chosen from the completed C1+H confirmation census (res20260614_210000, the empirical work #52/M8 was reframed into — the census is COMPLETE even though #52/M8 stays open on its formal closure); crash-loop behavior matches design incl. `SuccessExitStatus` interplay | Test sub | Done | 2026-06-22: `Restart=always` over `on-failure` is required because `SuccessExitStatus` marks SIGKILL as success (R1); commanded `stop` stays inactive (not auto-restarted), OOM/crash restarts — verified on the golden. A positive presence assertion for the six directives added to the CI-4 shared-contract guard (`test-error-handling.bash`, 148/148). |
 | M10.T2 | 1.2.0 | both lifecycle suites green | Test sub | Done | 2026-06-22: local-lifecycle rocky8 59 / debian13 60; system-lifecycle 76/76 both goldens against the re-rendered M10 template. |
@@ -182,7 +184,7 @@ ends with a reconcile pass comparing issue state against this register.
 | M19.T2 | 1.2.0 | all four suites, both modes, both goldens, clone-and-test + install-and-test | Test sub | Open | — |
 | M19.T3 | 1.2.0 | `testplan_multiuser.md` executed identically (S6/S11 amendments in effect) | Test sub | Open | — |
 
-**Tally:** milestones Open 3 (2 work + 1 gate), Done 16 (M1-M8, M10, M11, M13, M14, M15-M18) · test subs Open 10, Done 36 (through M7.T1/T2, M8.T1/T2/T3, M10.T1/T2/T3, M11.T1/T2/T3, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1, M18.T1/T2) · empirical subs (strategy) 4: campaign COMPLETE (res20260614_210000, plan v5, both goldens) supersedes the E1-E4 pilots — E1->C1 (~0.82 s window), E2/E3->C3 (~5 MB/day, U003/U005), E4->C8 (~96 s trajectory; M11 poll landed 2026-06-22, M10 `KillMode=mixed` recovery frozen ~2.3 s both goldens 2026-06-22); reproducibility re-run PASSED 2026-06-17 (both goldens, 8/8 case verdicts reproduce res20260614_210000) · Blocked 0
+**Tally:** milestones Open 2 (1 work + 1 gate), Done 17 (M1-M11, M13, M14, M15-M18) · test subs Open 7, Done 39 (through M7.T1/T2, M8.T1/T2/T3, M9.T1/T2/T3, M10.T1/T2/T3, M11.T1/T2/T3, M13.T1/T2, M14.T1/T2, M15.T1/T2, M16.T1/T2, M17.T1, M18.T1/T2) · empirical subs (strategy) 4: campaign COMPLETE (res20260614_210000, plan v5, both goldens) supersedes the E1-E4 pilots — E1->C1 (~0.82 s window), E2/E3->C3 (~5 MB/day, U003/U005), E4->C8 (~96 s trajectory; M11 poll landed 2026-06-22, M10 `KillMode=mixed` recovery frozen ~2.3 s both goldens 2026-06-22); reproducibility re-run PASSED 2026-06-17 (both goldens, 8/8 case verdicts reproduce res20260614_210000) · Blocked 0
 
 ## Open strategy decisions (rs20260612_143435 / C1+H)
 
@@ -299,9 +301,34 @@ promotes.
 | CI-20 | 2026-06-09 | sudoers policy grants `status` although the runner never uses sudo for status. | Principled superset serving operators running `sudo systemctl status` by hand; read-only verb. Verb-scope redesign belongs to #68. |
 | CI-21 | 2026-06-09 | IOC-name contract regex maintained in four copies (runner, setup, example, INSTALL.md). | Copies agree and the parity is documented on both sides; enforcement is exactly the #68 wrapper scope. |
 | CI-22 | M11/#67 (2026-06-22) | The M11 startup-poll pinned strings and token partition must agree across code, tests, and docs: readiness marker `All initialization complete` and death banner `@@@ Child process is shutting down` (literals in `bin/ioc-runner`, both goldens emit them per OQ1/OQ2/OQ5/OQ6); `CRASH_LOG_PATTERNS` = `CRASH_LOG_PATTERNS_FATAL` (5) \| `CRASH_LOG_PATTERNS_AMBIGUOUS` (5), with `Invalid directory path` in the ambiguous subset (benign EPICS warning, golden-confirmed). | Guard-pinned, not refactored: the base literal is spelled out because the `test-error-handling.bash` scraper reads the script as text and cannot expand a derived form; `verify_base_subset_union` asserts base == fatal\|ambiguous (set-equal) and `verify_match_subset` pins membership, so any drift fails the suite. Same examined-Keep + guard pattern as CI-4. |
+| CI-23 | M9/#53 (2026-06-23) | `network-online.target` is deliberately **excluded** from the system unit's `Wants=`/`After=` ordering (the unit orders `After=network.target remote-fs.target time-sync.target` only). | Examined and excluded by the M9 5-reviewer convergence (rs20260623_095055): an EPICS CA/PVA server binds the wildcard address and answers inbound UDP searches, so it tolerates an interface that acquires its address after start; `network-online.target` pulls in `*-wait-online`, which is fragile on this project's multi-homed IOC hosts (it can report "online" on the wrong interface) and imposes a per-instance boot delay. The correct escape hatch for a site that genuinely needs early beacon enumeration is a per-host systemd drop-in (`…service.d/*.conf` adding `Wants=`/`After=network-online.target`), not a template default. No guard (single-emitter directive, not a must-agree cross-copy contract). |
 
 ## Notes
 
+- **Decision-rationale SOT model (where the "why" lives).** The durable,
+  in-repository source of truth for *why* each decision was made is, by layer:
+  (1) **ADR** (`docs/adr/`) for architecture decisions — restart supervision +
+  the unit ordering and startup-poll classification (ADR 0001); see
+  `docs/adr/README.md` for the decision-record map; (2) **this register** — the
+  Active Register row states each milestone's rationale inline, the **Examined-Keep
+  Ledger** (with its `Why Keep` column) is the SOT for coherence Keep/promote
+  decisions, and the **Open strategy decisions** table (U001-U008) holds the
+  strategy rationale; (3) **topic docs** (`PERMISSION_MODEL.md`, `LOG_LAYOUT.md`,
+  `EXIT_SIGNAL_HANDLING.md`, `ARCHITECTURE.md`, `FAQ.md`) for subsystem specs.
+  Where a row cites "Design Record in #N" (M1/#92, M2/#93, M3/#94, M15/#98), the
+  essential design rationale is reproduced **in-repo** — both in that Active
+  Register row and in the Milestone 1.2.0 issue-list section above; the GitHub
+  issue body is retained as the *original full record* (alternatives weighed) and
+  is external provenance, not the sole home.
+- **Review-session references are local-only provenance.** Artifact IDs cited in
+  this register (`rs…`, `conv…`, `res…`, `ds…`, `auth…`) name review sessions
+  under `docs/review_sessions/`, which is `.gitignore`d and removed at each
+  session's closure — they are an audit-trail pointer, not the home of the
+  rationale. Every cited decision's "why" is reproduced in this register (and in
+  the ADR where architecture-level), so a deleted session loses no rationale. The
+  portable trail across machines is this register + the ADRs + the milestone
+  closure snapshot commits / release-tag register snapshots
+  (`git show <tag>:docs/milestone.md`).
 - The `Backlog` GitHub milestone is empty.
 - The cycle test plan is [`testplan_1.2.0.md`](testplan_1.2.0.md) —
   per-milestone verification, dependency re-run matrix, and release-gate

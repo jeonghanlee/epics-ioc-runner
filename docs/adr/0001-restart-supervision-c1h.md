@@ -70,7 +70,13 @@ Adopt the operator-first **C1+H** bundle ("belt + harden"): complete Layer 3
 with a systemd restart belt, and harden the `^T` trap, while keeping the
 procServ inner loop. Emitted identically into both modes through the M5 emitter
 (modulo the principled mode divergences: `Wants=`/`After=`, `User=`/`Group=`,
-`UMask`, `WantedBy`, `Description`).
+`UMask`, `WantedBy`, `Description`). The `Wants=`/`After=` divergence is
+structural, not an omission: the system unit orders against `network.target`,
+`remote-fs.target`, and `time-sync.target`, none of which exist in the
+`systemctl --user` instance, so the local unit cannot name them; its
+`basic.target` ordering is supplied implicitly by `DefaultDependencies=yes`.
+(Confirmed by the M9/#53 ordering review, rs20260623_095055 — examined-Keep on
+`Requires`/`Wants`/`Before`/`After`.)
 
 ```
 [Unit]
@@ -117,6 +123,119 @@ kill, `^R` restart, `^Q` quit — are matched against the raw input in
 `^T`/`^X` to `ignChars` anyway. The working disable is `--autorestartcmd=''`,
 which sets the toggle character to 0 so the guard `if (toggleRestartChar && …)`
 short-circuits.
+
+### Unit ordering and dependencies (M9 / #53)
+
+The `[Unit]` ordering/dependency directives were reviewed separately (M9/#53,
+**examined-Keep on all four** of `Requires`/`Wants`/`Before`/`After`; 5-reviewer
+convergence `rs20260623_095055`, no code change). The system unit carries
+`Wants=time-sync.target` + `After=network.target remote-fs.target
+time-sync.target` and no `Requires=`/`Before=`; the local user unit carries no
+ordering at all. Both are deliberate — the reasons and the rejected scenarios:
+
+- **No `Requires=` (Q1).** `Requires=` carries no start ordering (that is
+  `After=`'s role per `systemd.unit(5)`), so it adds nothing on the start side;
+  its stop-propagation would couple a running IOC's lifetime to a passive
+  target. Concrete hazard: `Requires=remote-fs.target` on a control IOC means a
+  transient NFS-server blip *stops the live IOC* — converting a degraded
+  file-access condition into a loss of control, and amplifying one NFS outage
+  into mass IOC teardown across the floor. The one hard startup prerequisite
+  (the conf file) is gated by `AssertFileNotEmpty=` instead, which gates *start*
+  without coupling *teardown*. Passive `.target` units are ordered with
+  `After=`, never bound with `Requires=`.
+
+- **No `network-online.target` (Q2) — the rejected scenario, recorded so it is
+  not re-opened.** The apparent case: a CA/PVA server binds network addresses,
+  and `After=network.target` is a passive sync point that does not guarantee an
+  address is configured; the documented pattern for "needs an address at start"
+  is `Wants=` + `After=network-online.target`. Rejected on four grounds:
+  (1) the EPICS CA server (`rsrv`) and the PVA server bind the **wildcard
+  address** (`INADDR_ANY`), not a specific interface, so the listener accepts
+  connections on addresses configured after start; (2) discovery is **pull as
+  well as push** — the IOC answers inbound UDP name searches on the interface
+  that received them, so connectivity does not depend on the outbound beacon
+  address list being correct at start; (3) `network-online.target` is a **weak
+  guarantee on this project's multi-homed hosts** (Service / PVA-CA / Access
+  subnets) — wait-online can report "online" on one interface while the
+  PVA-bearing one is still coming up, so it would not even reliably fix the
+  enumeration it appears to fix; (4) it pulls in `*-wait-online`, a
+  **per-instance boot-time regression** (long timeouts / hangs on no-carrier or
+  multi-homed interfaces) imposed on every enabled IOC. `nss-lookup.target` does
+  not apply (address lists are IP/broadcast; CA/PVA self-identity uses
+  `gethostname()`, not a blocking DNS lookup at start). The source-on-NFS need
+  is already met by the `remote-fs.target` already present in `After=`.
+  - **Operational escape hatch:** a site that genuinely needs early beacon
+    interface-enumeration on a reliably-late-addressed interface adds a
+    **per-host systemd drop-in**
+    (`…/epics-@<inst>.service.d/*.conf` with `Wants=`/`After=network-online.target`),
+    decided per host — not a template default.
+
+- **Local user unit carries no ordering (Q3).** See the Decision paragraph
+  above: the system targets do not exist in the `systemctl --user` instance, so
+  copying them would be dead text; `basic.target` ordering is implicit via
+  `DefaultDependencies=yes`; the unit is a leaf with no peer user unit, and the
+  NFS-home prerequisite is satisfied (via PAM/login) before `systemd --user`
+  starts.
+
+- **No `Before=` (Q4).** `Before=` is warranted only when a consumer unit must
+  start after the IOC. EPICS CA/PVA is asynchronous and late-binding: clients
+  (OPIs, archivers, gateways) search and reconnect whenever the server appears,
+  in any order, and are typically off-host and independently supervised;
+  same-host in-process consumers (autosave, sequencer) run inside the IOC via
+  `st.cmd`, not as separate units. A `Before=` would assert an ordering the
+  protocol does not need and couple unrelated lifecycles.
+
+### Startup poll classification (M11 / #67)
+
+`do_start_restart` replaces the former fixed `sleep 5` + single state read with
+an **active-state poll of the procServ log** for the readiness marker
+`All initialization complete` (10-round design, plan v9; 5 OQ measurements both
+goldens; 3 code-review rounds; closure `rs20260617_170153`). The classification
+rules and the reasons they were chosen:
+
+- **Why poll, not `sleep 5`.** The M8/#52 census measured healthy
+  procServ-fork → readiness at **~0.82 s** for a no-device IOC (both goldens), so
+  `sleep 5` was both too slow for the common case and, worse, **unsafe**: a unit
+  crash-looping under `Restart=` (M10) can momentarily read `active` at second 5
+  and pass (the original #67 defect). The poll waits for the marker, not a fixed
+  duration, and treats `activating (auto-restart)` as not-settled.
+
+- **Token partition.** `CRASH_LOG_PATTERNS` = `CRASH_LOG_PATTERNS_FATAL` (5) |
+  `CRASH_LOG_PATTERNS_AMBIGUOUS` (5); the base set is the union (set-equal,
+  guard-pinned — register CI-22). The split lets a pre-marker **fatal** token
+  fail fast (exit 1) while an **ambiguous** token does not, by itself, condemn a
+  start that otherwise reaches the marker.
+
+- **D031 — `Invalid directory path` reclassified fatal → ambiguous.**
+  Golden-confirmed as a **benign EPICS pre-iocInit warning** (an IOC printing it
+  still initializes), so classifying it fatal produced false start failures.
+  Moved to the ambiguous subset; the base 10-token union is unchanged, so the
+  crash-scan coverage CI-22 pins is unaffected.
+
+- **D034 — marker-less-but-active → Warning, exit 0.** An IOC that reaches
+  `active` but never emits the readiness marker (e.g. a custom `st.cmd` that does
+  not call `iocInit`) must not be reported as a failure — the operator's IOC is
+  running. The poll emits a Warning and exits 0 rather than condemning a live IOC
+  on a missing string.
+
+- **D035 — verb-aware teardown (OQ6).** Measured on both goldens: the teardown
+  path differs by verb, so the poll's failure handling is verb-aware, not uniform.
+
+- **Recurring death banner (≥ 2) → crash-loop.** A **silent** pre-iocInit crash
+  loop (child killed by signal, no fatal token) emits no fatal string; it is
+  caught by counting the recurring death banner `@@@ Child process is shutting
+  down` (≥ 2 → exit 1). This is the M8/#52 silent-loop disposition.
+
+- **Post-marker dwell (~3 s).** After the marker, a short dwell catches an IOC
+  that initializes then immediately crash-loops (post-marker banner → exit 1). A
+  `start` on an already-running IOC short-circuits via a clean-tail check.
+
+The literals (`All initialization complete`, `@@@ Child process is shutting
+down`) and the fatal/ambiguous partition must agree across `bin/ioc-runner`, the
+tests, and the docs; the agreement is **guard-pinned** (CI-22:
+`verify_base_subset_union` set-equality + `verify_match_subset` membership), not
+refactored, because the `test-error-handling.bash` scraper reads the script as
+text and cannot expand a derived form.
 
 ---
 
