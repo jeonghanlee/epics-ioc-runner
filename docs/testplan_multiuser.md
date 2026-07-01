@@ -109,7 +109,10 @@ without a login terminal.
 - **Principal switching**: `sudo -niu <user>`. For local mode (`systemctl
   --user`), also pass `env XDG_RUNTIME_DIR=/run/user/<uid>
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`, after
-  `loginctl enable-linger <user>`.
+  `loginctl enable-linger <user>`. The runtime dir `/run/user/<uid>` can lag a
+  few seconds behind `enable-linger` (seen on debian13); verify it exists
+  before the local run, and force it with `systemctl start user@<uid>` if
+  missing.
 - **Prompt- or console-bearing commands need a pty, a timeout, and EOF.**
   Under a non-interactive `sudo -niu`, commands that can prompt (`install`
   confirmation, `remove`) or hold a console (`attach`, `monitor`) hang. EOF
