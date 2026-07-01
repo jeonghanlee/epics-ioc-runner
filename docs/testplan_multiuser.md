@@ -19,6 +19,32 @@ The permission model these scenarios verify is defined in
 described in [`FAQ.md`](FAQ.md). This plan references both rather than
 restating them.
 
+## Why the Plan Runs in Full
+
+Each cycle this plan runs in its entirety — every L and S scenario on both
+goldens — not a spot-check of the scenarios a cycle happened to touch. The
+full run is the contract, for three structural reasons:
+
+- **A prior pass is not this tree's pass.** The release gate is the first
+  state in which all of a cycle's changes coexist (`testplan_X.X.X.md`
+  "Release Gate"). Multi-user behavior is an emergent property of the whole
+  permission surface, not of any single change; a scenario that passed a
+  previous cycle passed against a different tree, so it is re-established
+  against the tree that actually ships.
+- **The defect lives in the seam.** Each change can be individually correct
+  while the fault sits in the overlap between two — a seam invisible to a
+  reader of one issue or one file. Only running every scenario together, on
+  the final tree, exercises those seams; a "what changed" spot-check is
+  structurally blind to them.
+- **A null result is a result worth recording.** "Re-ran, still passes" is
+  not wasted work. Skipping a scenario because it passed before files the
+  verdict in a private drawer, and the next cycle pays the full cost of
+  asking the same question from the start. Recording the full run is what
+  stops the question from being re-litigated every release.
+
+The cost of the full run is bounded and known; the cost of a missed seam or
+a re-litigated verdict is neither.
+
 ## Principal Model
 
 System mode gates privileged state changes on `ioc` group membership at a
@@ -48,17 +74,31 @@ so the pair covers both branches of scenario S11 without extra setup.
 | `rocky8-iocrunner` | 1.9.5p2 | glob fallback (`epics-@*.service`) |
 | `debian13-iocrunner` | >= 1.9.10 | anchored per-verb regex |
 
-Required accounts (precondition for a run; the accounts and group
-memberships must exist before the scenarios execute):
+### User Fixtures
 
-| Mode | Accounts |
-| :--- | :--- |
-| system | `opa`, `opb` in the `ioc` group (two operators); `obs` not in `ioc` (observer); `root` for installer actions. `ioc-srv` is created by `setup-system-infra.bash`. |
-| local | `usera`, `userb` — ordinary login users, no `ioc` group, no sudo. |
+The scenarios require a fixed set of principal accounts, provisioned before
+the run. These definitions are the canonical fixture and must match exactly:
+a scenario's `ioc` / non-`ioc` outcome is meaningless if the membership is
+wrong, so the fixture is specified here rather than left to the run.
 
-Baking these accounts into the golden image (consistent with the existing
-`ansible-provision` flow) keeps each run focused on behavior rather than
-environment setup.
+| Account | Mode | `ioc` group | linger | Role in the plan |
+| :--- | :--- | :---: | :---: | :--- |
+| `opa` | system | yes | — | operator; state changes permitted |
+| `opb` | system | yes | — | second operator; shared-asset and cross-operator scenarios |
+| `obs` | system | no | — | observer negative control; denied at the sudo gate |
+| `usera` | local | no | yes | local-mode user A; session isolation |
+| `userb` | local | no | yes | local-mode user B; cross-user negative |
+| `ioc-srv` | system | — | — | non-login service account; created by `setup-system-infra.bash` |
+| `root` | system | — | — | installer actions only |
+
+Provisioning is owned by the `ansible-provision` `test_users` role
+(`roles/test_users`): `opa`/`opb` via `useradd` + `usermod -aG ioc`; `obs`
+via `useradd` with no group; `usera`/`userb` via `useradd` + `loginctl
+enable-linger`. The role is **not wired into `site.yml`**, so it is **not
+baked into the golden** — the accounts are provisioned per run (apply the
+role, or run its equivalent `useradd` commands, on the booted golden after
+`setup-system-infra.bash --full` has created the `ioc` group). Wiring the
+role into the bake is a tracked follow-up in `ansible-provision`.
 
 ## Local-Mode Scenarios
 
