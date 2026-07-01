@@ -100,6 +100,46 @@ role, or run its equivalent `useradd` commands, on the booted golden after
 `setup-system-infra.bash --full` has created the `ioc` group). Wiring the
 role into the bake is a tracked follow-up in `ansible-provision`.
 
+## Execution Harness
+
+The scenarios switch between principals and drive `ioc-runner`
+non-interactively. The mechanics below are the validated way to do that
+without a login terminal.
+
+- **Principal switching**: `sudo -niu <user>`. For local mode (`systemctl
+  --user`), also pass `env XDG_RUNTIME_DIR=/run/user/<uid>
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`, after
+  `loginctl enable-linger <user>`.
+- **Prompt- or console-bearing commands need a pty, a timeout, and EOF.**
+  Under a non-interactive `sudo -niu`, commands that can prompt (`install`
+  confirmation, `remove`) or hold a console (`attach`, `monitor`) hang. EOF
+  alone (`</dev/null`) is not enough: such a command requires a terminal, so
+  wrap it in a pty --
+  `timeout -k 2 <N> script -qec "<cmd>" /dev/null </dev/null`. For an
+  interactive console hold, feed a fifo-held stdin in place of `/dev/null` and
+  let the server-side `stop` / `remove` end the client with EOF. A **manual
+  `./st.cmd` run** (S7) likewise needs a held stdin (`sleep <N> | ./st.cmd`) or
+  iocsh exits at once on EOF; expect a benign cross-owned `.iocsh_history`
+  ERROR that the crash scan excludes (#92).
+- **Payload and where to put it**: a `softIoc` executable-shebang `st.cmd`
+  (`#!<abs softIoc>` then `iocInit`) is a sufficient stay-alive IOC, reused
+  across local and system modes and both goldens; `ioc-runner generate
+  <iocBoot>` produces the `.conf`. Put the iocBoot dir where the running
+  account can reach it: **system mode `/opt/epics-iocs/<name>`** (setgid
+  `2770 root:ioc`, so an operator can write it and `ioc-srv` can read/exec),
+  **local mode `~/iocBoot/<name>`**. For S8, append `system "echo <TOKEN>"`
+  after `iocInit` in `st.cmd` and set `CRASH_LOG_PATTERNS_EXTRA="<TOKEN>"` in
+  the `.conf`.
+- **Avoid login shells for the driver.** `bash -lc` pulls in shell aliases and
+  EPICS-env banners that corrupt piped output; run the steps from a driver
+  script (non-login `bash <file>`) that sources the EPICS environment itself.
+- **Where state lives** (the log-read and socket scenarios need exact paths):
+  - Log: system `/var/log/procserv/<name>.log` (`ioc-srv:ioc`, group `r--`);
+    local `~/.local/state/procserv/<name>.log` (`0640 <user>:<user>`, and
+    `$HOME` is `0700` so a peer is blocked at the home dir too).
+  - Socket: system `/run/procserv/<name>/control`; local
+    `/run/user/<uid>/procserv/<name>/control`.
+
 ## Local-Mode Scenarios
 
 Local mode runs as the invoking user through `systemctl --user`; the
@@ -139,3 +179,9 @@ roles.
 - S11 documents a known least-privilege drift on sudo < 1.9.10, not an
   escalation path (`PERMISSION_MODEL.md` "Residual risk"). It is verified, not
   fixed, here; the fix is tracked as #68 (1.2.0).
+- Scenario order matters where an IOC is torn down: **S4 removes its IOC**, so
+  run any IOC-dependent probe (e.g. S10 on the same IOC) before S4, and
+  re-create the payload for a later scenario that needs it. Local IOCs (L1-L3)
+  and system IOCs (S1-S10) accumulate across a run; between runs clean up with
+  `ioc-runner [--local] remove <name>`, and `pkill -u <user>` any process left
+  stuck by a missing pty.
