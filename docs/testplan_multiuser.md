@@ -136,6 +136,13 @@ without a login terminal.
 - **Avoid login shells for the driver.** `bash -lc` pulls in shell aliases and
   EPICS-env banners that corrupt piped output; run the steps from a driver
   script (non-login `bash <file>`) that sources the EPICS environment itself.
+- **EPICS env on a multi-OS golden: never glob `*/*`.** A golden can carry
+  several OS EPICS trees (`/opt/epics/1.2.0/{debian-13,rocky-8.10,rocky-10.1,
+  ubuntu-24.04}`), so `source /opt/epics/1.2.0/*/*/setEpicsEnv.bash` picks the
+  alphabetically-first (debian-13) and is wrong on rocky8 (its `snc` then fails
+  on a missing `libreadline`). Guard the source with `[ -z "$EPICS_BASE" ]`
+  (rocky8 auto-loads via `profile.d`; debian13 does not), or source the exact
+  per-OS path.
 - **Where state lives** (the log-read and socket scenarios need exact paths):
   - Log: system `/var/log/procserv/<name>.log` (`ioc-srv:ioc`, group `r--`);
     local `~/.local/state/procserv/<name>.log` (`0640 <user>:<user>`, and
