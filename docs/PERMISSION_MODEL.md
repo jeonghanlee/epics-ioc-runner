@@ -57,6 +57,14 @@ the ACL permissions and mask inherited by newly created entries, not
 write access to the parent directory. `IOC_CHDIR` needs the group-write
 model, not a default ACL.
 
+The service identity itself is configurable from a single source:
+both `bin/ioc-runner` and `bin/setup-system-infra.bash` resolve
+`IOC_RUNNER_SYSTEM_USER` / `IOC_RUNNER_SYSTEM_GROUP` with the shipped
+defaults `ioc-srv` / `ioc`. A site deploying under a different account
+or group sets the two variables once, for both the setup run and every
+runner invocation; the shared defaults are pinned by a static guard
+test.
+
 ### Local-mode paths
 
 Paths created by `ioc-runner --local install` under the invoking
@@ -203,7 +211,7 @@ Create, Manage, and Track (read).
 | Create | adhoc file (probe, manual archive) | engineer ∈ `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | `<engineer>:ioc 0664` |
 | Manage | append log records | `ioc-srv` | `<ioc>.log` | procServ `write(logFileFD, ...)` during IOC runtime | owner `w` bit |
 | Manage | start / stop / restart IOC | engineer ∈ `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` → `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ...` against `epics-@<name>.service` (regex form on sudo >= 1.9.10, glob fallback otherwise) |
-| Manage | rotate (Phase B-3 #15, pending) | `root` (cron) | `<ioc>.log` | `logrotate -f /etc/logrotate.d/procserv` with `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
+| Manage | rotate (system mode, deployed) | `root` (cron) | `<ioc>.log` | `logrotate -f /etc/logrotate.d/procserv` with `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
 | Track | crash detection scan | engineer ∈ `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
 | Track | manual read | engineer ∈ `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |
 | Track | read-only inspection | engineer ∉ `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |

@@ -94,14 +94,49 @@ state-changing operations is the `%ioc` sudoers gate, not the file mode.
 Validate the policy with `logrotate -d /etc/logrotate.d/procserv` (dry
 run) and force a rotation with `logrotate -f /etc/logrotate.d/procserv`.
 
+### Local (`--user`) mode
+
+`ioc-runner --local install` deploys per-user rotation without root or
+`/etc/logrotate.d`: a logrotate config at `~/.config/ioc-runner/logrotate.conf`
+plus a user systemd timer that runs it.
+
+- **Units:** `epics-logrotate.service` (`Type=oneshot`) and
+  `epics-logrotate.timer`, under `systemctl --user`. Inspect with
+  `systemctl --user status epics-logrotate.timer`.
+- **Schedule:** `OnCalendar=hourly`, `Persistent=true`. The hourly fire is what
+  makes the size cap effective; `weekly` still drives time-based retention.
+- **Policy:** `weekly` + `maxsize 50M` + `rotate 8` + `copytruncate` +
+  `compress` + `missingok` + `notifempty` + `nodateext`. `maxsize` rotates a log
+  early if it exceeds 50M before the weekly mark, bounding a crash-loop between
+  weekly rotations. `su` is not used (the directory is a single-user `0750`).
+- **State:** the logrotate state file is host-local at
+  `$XDG_RUNTIME_DIR/ioc-runner-logrotate.state` (the unit's `%t` specifier), so
+  per-host timers on a shared NFS `$HOME` do not race on one state file.
+- **Method:** `copytruncate`, same as system mode. The console UDS socket lives
+  under `RuntimeDirectory` (`/run/user/<uid>`), not `LOG_DIR`, so rotation never
+  touches it.
+- **Linger:** the timer fires only while the user manager runs; enable headless
+  operation with `loginctl enable-linger <user>` (the same requirement the IOC
+  units have).
+- **logrotate absent:** if `logrotate` is not installed the deploy is skipped
+  with a warning and the IOC install still succeeds; install logrotate and
+  re-run `ioc-runner --local install`.
+- **Removal (manual):** removal is operator-managed — per-IOC `remove` leaves
+  the shared timer in place. To remove rotation entirely: `systemctl --user
+  disable --now epics-logrotate.timer`, delete
+  `~/.config/ioc-runner/logrotate.conf` and
+  `~/.config/systemd/user/epics-logrotate.service` /
+  `epics-logrotate.timer`, then `systemctl --user daemon-reload`.
+
 ## 6. Troubleshooting
 
 | Symptom | Cause | Action |
 | --- | --- | --- |
-| `startup logs could not be scanned` warning | log file missing or unreadable at start | `stat <LOG_DIR>/<name>.log`; check the directory exists with the modes in section 2/3 |
+| `startup log could not be read` warning | log file missing or unreadable at start | `stat <LOG_DIR>/<name>.log`; check the directory exists with the modes in section 2/3 |
 | `journalctl -u epics-@<name>.service` returns empty | IOC output goes to the log file, not the journal | read `<LOG_DIR>/<name>.log` with `tail`/`grep` instead |
 | log looks truncated right after rotation | `copytruncate` truncated the live file | inspect `<name>.log.1.gz` for the rotated content |
 | local-mode log not found | wrong `XDG_STATE_HOME`, or linger not enabled | `ls "${XDG_STATE_HOME:-$HOME/.local/state}/procserv"` |
+| local rotation not happening | timer not enabled, linger off, or `logrotate` absent | `systemctl --user list-timers \| grep epics-logrotate`; `loginctl enable-linger "$USER"`; confirm `logrotate` is installed |
 | engineer-created file in the dir lands at `0664` | shell `umask 0022` + directory default ACL `g:ioc:rw` | expected; `procServ`-created files stay `0644` |
 
 ## Cross-References

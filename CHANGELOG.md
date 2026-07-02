@@ -1,5 +1,79 @@
 # Changelog
 
+## 1.2.0 — Restart Supervision Release
+
+### New Features
+
+- Restart supervision (C1+H, ADR 0001): both unit copies carry
+  `Restart=always` with `StartLimitIntervalSec=0` / `StartLimitBurst=5` /
+  `StartLimitAction=none`, `RestartSec=2`, and `KillMode=mixed`. A
+  crash-looping IOC stays `activating (auto-restart)` and never reaches
+  systemd `failed`; procServ-death recovery is bounded at ~2.3 s
+  (vs ~92 s under `control-group`). (#54)
+- Startup readiness polling replaces the fixed `sleep 5`: `start` /
+  `restart` poll the procServ log for the initialization marker, report
+  a fatal token or a recurring death banner before the marker as a
+  failed initialization (exit 1), watch a short post-marker dwell for
+  crash loops, and downgrade marker-less-but-active starts to a
+  warning. (#67)
+- Silent crash-loop detection: a pre-iocInit loop that emits no fatal
+  token is caught by the recurring death-banner count. (#52)
+- Local-mode procServ log rotation: `--local install` deploys a
+  per-user logrotate config plus `epics-logrotate.{service,timer}`
+  (hourly timer, `maxsize 50M`, weekly, `rotate 8`, `copytruncate`)
+  idempotently; the shared timer is never auto-removed by a per-IOC
+  `remove`. (#103)
+- System service account and group configurable from a single source
+  (`IOC_RUNNER_SYSTEM_USER` / `IOC_RUNNER_SYSTEM_GROUP`); defaults
+  unchanged. (#87)
+- Observer `list` prints a permission hint when socket directories are
+  not readable by the invoking user. (#94)
+
+### Fixes
+
+- Crash-warning false positive after a manual `st.cmd` run removed via
+  a line-targeted `CRASH_LOG_EXCLUDE_PATTERNS` pre-filter; the FAQ
+  history knob corrected. (#92)
+- Interactive abort exit codes unified: declining any install or
+  generate prompt (`n` or EOF) exits 1. (#93)
+- Install precheck hint now names the effective
+  `EPICS_IOCSH_HISTFILE` knob (#97), and the history-disable guidance
+  uses the EPICS-documented empty-string form. (#101)
+
+### Hardening
+
+- A shared-contract guard pins the must-agree rows across the two
+  procServ unit-template copies; a one-sided edit fails the error
+  suite. `--autorestartcmd=''` lands in both copies, closing the `^T`
+  autorestart-toggle foot-gun. (#81)
+- The git-metadata injection contract is pinned by a guard test across
+  the runner and both installers. (#84)
+- Examined-Keep dispositions recorded: the unit dependency set is kept
+  with the `network-online.target` exclusion documented (#53); the
+  validating `systemctl` wrapper is reviewed and not adopted, keeping
+  the documented sudoers residual accepted (#68); the socket-path
+  alias is kept (#86); the examined-Keep to guard promotion test is
+  the Ledger standing rule. (#100)
+
+### Tests
+
+- Subshell assertions reach the suite counters, with a permanent
+  executed-vs-counted tripwire. (#98)
+- Stale install-decline exit-code assertion corrected in the
+  system-lifecycle suite (#99); the no-op `IOCSH_HISTSIZE` history
+  knob removed from the lifecycle probes. (#96)
+- Multi-user test plan gains the User Fixtures table, an Execution
+  Harness (pty/EOF, payload locations, state paths), and the full-run
+  rationale; executed on both golden images as the release gate.
+
+### Migration
+
+No breaking changes. Install the 1.2.0 runner, then re-run
+`setup-system-infra.bash --full` plus `systemctl daemon-reload` so
+deployed system units pick up the restart-supervision directives;
+local IOCs pick them up (and the log rotation) on the next
+`--local install` of the IOC.
+
 ## 1.1.1 — Install Tooling Release
 
 ### New Features

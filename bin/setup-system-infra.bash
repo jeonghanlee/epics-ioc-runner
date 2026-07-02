@@ -13,8 +13,12 @@ declare -g GREEN='\033[0;32m'
 declare -g BLUE='\033[0;34m'
 declare -g NC='\033[0m'
 
-declare -g SYSTEM_USER="ioc-srv"
-declare -g SYSTEM_GROUP="ioc"
+# Single configurable source for the system-mode service identity (#87).
+# bin/ioc-runner resolves the same IOC_RUNNER_SYSTEM_USER/GROUP overrides
+# with the same defaults; the shared defaults are pinned by a static guard
+# test in tests/test-error-handling.bash.
+declare -g SYSTEM_USER="${IOC_RUNNER_SYSTEM_USER:-ioc-srv}"
+declare -g SYSTEM_GROUP="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
 declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
@@ -470,6 +474,9 @@ Description=procServ for %i
 Wants=time-sync.target
 After=network.target remote-fs.target time-sync.target
 AssertFileNotEmpty=${CONF_DIR}/%i.conf
+StartLimitIntervalSec=0
+StartLimitBurst=5
+StartLimitAction=none
 
 [Service]
 Type=simple
@@ -478,8 +485,11 @@ Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
+Restart=always
+RestartSec=2
+KillMode=mixed
 StandardOutput=journal
 StandardError=inherit
 SyslogIdentifier=epics-%i

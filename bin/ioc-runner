@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.1.1"
+declare -g RUNNER_VERSION="1.2.0"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
@@ -82,13 +82,51 @@ declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
 
 # --- Target Identity Settings ---
-declare -g TARGET_SYSTEM_USER="ioc-srv"
-declare -g TARGET_SYSTEM_GROUP="ioc"
+# Single configurable source for the system-mode service identity (#87).
+# setup-system-infra.bash resolves the same IOC_RUNNER_SYSTEM_USER/GROUP
+# overrides with the same defaults; the shared defaults are pinned by a
+# static guard test in tests/test-error-handling.bash.
+declare -g TARGET_SYSTEM_USER="${IOC_RUNNER_SYSTEM_USER:-ioc-srv}"
+declare -g TARGET_SYSTEM_GROUP="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
 
 # --- Health Check Configuration ---
-# Regex pattern used to detect fatal errors or crash-loops in procServ logs immediately after startup.
-# Users can add custom error strings specific to their hardware or EPICS modules here (separated by '|').
+# Crash/fatal detection tokens for procServ startup logs (M11/#67). The detection
+# set is split into two subsets; the base CRASH_LOG_PATTERNS below is their union.
+# A static guard test (tests/test-error-handling.bash) asserts the union holds, so
+# the subsets remain the single source of truth even though the base is spelled out
+# as a literal (the zero-fork test scraper reads the base line as text and cannot
+# expand a derived form).
+#
+# Fatal subset: a standalone pre-marker exit-1 trigger (failed-to-init). These name
+# a process that cannot run, not a transient that may recover.
+declare -g CRASH_LOG_PATTERNS_FATAL="FATAL|Segmentation fault|undefined symbol|error while loading|Unbalanced quote"
+# Ambiguous subset: corroborating only, NEVER a standalone trigger. A benign
+# first-boot IOC may print these (a missing optional .sav, an absent optional
+# include) and still reach iocInit a moment later. 'Invalid directory path' lives
+# here, not in the fatal subset: real EPICS emits "Invalid directory path, ignored"
+# as a benign pre-iocInit warning (the path is skipped and startup continues), so a
+# standalone pre-marker exit-1 on it false-fails a healthy IOC (golden-confirmed).
+declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="ERROR|Can't open|cannot open|No such file or directory|Invalid directory path"
+# Base detection set = the union of the two subsets above. Per-IOC custom strings
+# go in the CRASH_LOG_PATTERNS_EXTRA .conf key (issue #25); those are corroborating
+# only, never a standalone trigger.
 declare -g CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
+# Benign startup lines removed from the scan input before pattern matching (issue #92).
+# The iocsh history load/save failure is emitted with ANSI escapes around 'ERROR'
+# (EPICS Base iocsh.cpp via ERL_ERROR), so the regex anchors on the escape-free message
+# tail and must not span the escape boundary or anchor on end-of-line (pty may add CR).
+# Case-sensitive by design; not user-extensible (an over-broad exclusion would silently
+# disable crash detection).
+declare -g CRASH_LOG_EXCLUDE_PATTERNS="Permission denied \([0-9]+\) (loading|writing) '[^']*iocsh_history'"
+
+# M11 (#67) active-state poll: pinned readiness marker, death banner, and timing.
+# The IOC_RUNNER_TEST_* env overrides are a test-acceleration seam only
+# (D002/D025), not a supported operator knob; the operational defaults are fixed.
+declare -g IOC_READY_MARKER="All initialization complete"
+declare -g IOC_DEATH_BANNER="@@@ Child process is shutting down"
+declare -g MAX_INIT_TIMEOUT="${IOC_RUNNER_TEST_MAX_INIT_TIMEOUT:-30}"
+declare -g CONFIRM_DWELL="${IOC_RUNNER_TEST_CONFIRM_DWELL:-3}"
+declare -g POLL_INTERVAL="${IOC_RUNNER_TEST_POLL_INTERVAL:-0.2}"
 
 
 function print_divider {
@@ -364,6 +402,9 @@ function deploy_local_template {
 [Unit]
 Description=procServ for %i (Local User)
 AssertFileNotEmpty=${CONF_DIR}/%i.conf
+StartLimitIntervalSec=0
+StartLimitBurst=5
+StartLimitAction=none
 
 [Service]
 Type=simple
@@ -371,8 +412,11 @@ UMask=0027
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
+Restart=always
+RestartSec=2
+KillMode=mixed
 StandardOutput=journal
 StandardError=inherit
 SyslogIdentifier=epics-%i
@@ -381,6 +425,128 @@ SyslogIdentifier=epics-%i
 WantedBy=default.target
 EOF
     run_systemctl daemon-reload
+}
+
+# Deploy best-effort per-user procServ log rotation (U003/M19, issue #103).
+# Local mode has no rotation otherwise; under Restart=always a crash-looping
+# --user IOC would grow its log unbounded with no operator action. The config
+# plus a oneshot service and an hourly timer are user-global (one timer rotates
+# all of LOG_DIR/*.log), deployed idempotently by content diff so repeat per-IOC
+# installs do not churn. This function NEVER aborts the IOC install: a missing
+# logrotate, an invalid config, or an unreachable user bus only warns. Removal
+# is operator-managed (never-auto-remove); there is no --local uninstall verb.
+function deploy_local_logrotate {
+    if ! resolve_logrotate_tool; then
+        print_divider >&2
+        printf "Warning: 'logrotate' not found; local log rotation is NOT installed.\n" >&2
+        printf "         Install logrotate, then re-run 'ioc-runner --local install' to enable it.\n" >&2
+        printf "         Without rotation, %s/*.log can grow unbounded under a crash loop.\n" "${LOG_DIR}" >&2
+        print_divider >&2
+        return 0
+    fi
+
+    local cfg_dir="${CONF_DIR%/*}/ioc-runner"
+    local cfg_path="${cfg_dir}/logrotate.conf"
+    local svc_path="${SYSTEMD_DIR}/epics-logrotate.service"
+    local tmr_path="${SYSTEMD_DIR}/epics-logrotate.timer"
+
+    install -d -m 0700 "${cfg_dir}"
+    mkdir -p "${SYSTEMD_DIR}"
+
+    # Render to same-directory temps so the later mv is a true atomic rename
+    # (a /tmp temp would make mv a cross-filesystem copy+unlink).
+    local tmp_cfg tmp_svc tmp_tmr
+    tmp_cfg=$(mktemp "${cfg_path}.XXXXXX" 2>/dev/null) || { printf "Warning: cannot stage logrotate config; rotation not installed.\n" >&2; return 0; }
+    tmp_svc=$(mktemp "${svc_path}.XXXXXX" 2>/dev/null) || { rm -f "${tmp_cfg}"; printf "Warning: cannot stage logrotate units; rotation not installed.\n" >&2; return 0; }
+    tmp_tmr=$(mktemp "${tmr_path}.XXXXXX" 2>/dev/null) || { rm -f "${tmp_cfg}" "${tmp_svc}"; printf "Warning: cannot stage logrotate units; rotation not installed.\n" >&2; return 0; }
+
+    # The config glob uses the resolved absolute LOG_DIR (same value baked into
+    # the unit --logfile=), so procServ and logrotate never resolve to different
+    # paths. maxsize needs logrotate >= 3.8.1 (both goldens ship well above it).
+    cat > "${tmp_cfg}" <<EOF
+${LOG_DIR}/*.log {
+    weekly
+    maxsize 50M
+    rotate 8
+    copytruncate
+    compress
+    missingok
+    notifempty
+    nodateext
+}
+EOF
+
+    # Oneshot service: no [Install] (enable the timer, never the service). The
+    # %t specifier resolves to /run/user/<uid> at unit-run time under the user
+    # manager, keeping the logrotate state host-local (avoids a shared-NFS state
+    # race) without resolving the path in the install shell.
+    cat > "${tmp_svc}" <<EOF
+[Unit]
+Description=Rotate procServ user logs (local mode)
+
+[Service]
+Type=oneshot
+ExecStart=${LOGROTATE_TOOL_PATH} --state %t/ioc-runner-logrotate.state ${cfg_path}
+Nice=10
+IOSchedulingClass=idle
+EOF
+
+    cat > "${tmp_tmr}" <<EOF
+[Unit]
+Description=Hourly procServ user log rotation (local mode)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    # Syntax-gate the generated config (dry run; writes no state). A failure here
+    # warns and skips the deploy without aborting the IOC install -- unlike
+    # system mode, which exits. Distinct from the binary-absent branch above.
+    if ! "${LOGROTATE_TOOL_PATH}" -d "${tmp_cfg}" >/dev/null 2>&1; then
+        print_divider >&2
+        printf "Warning: generated logrotate config failed validation; rotation NOT installed.\n" >&2
+        printf "         logrotate: %s (maxsize requires logrotate >= 3.8.1).\n" "${LOGROTATE_TOOL_PATH}" >&2
+        print_divider >&2
+        rm -f "${tmp_cfg}" "${tmp_svc}" "${tmp_tmr}"
+        return 0
+    fi
+
+    # Install only on content difference (idempotent across repeat per-IOC
+    # installs and self-healing across an ioc-runner upgrade); track unit changes
+    # so daemon-reload runs only when a unit file actually changed.
+    local units_changed=0
+    if cmp -s "${tmp_cfg}" "${cfg_path}"; then rm -f "${tmp_cfg}"; else mv -f "${tmp_cfg}" "${cfg_path}"; fi
+    if cmp -s "${tmp_svc}" "${svc_path}"; then rm -f "${tmp_svc}"; else mv -f "${tmp_svc}" "${svc_path}"; units_changed=1; fi
+    if cmp -s "${tmp_tmr}" "${tmr_path}"; then rm -f "${tmp_tmr}"; else mv -f "${tmp_tmr}" "${tmr_path}"; units_changed=1; fi
+
+    if (( units_changed )); then
+        # || true keeps a no-user-bus host from aborting the IOC install here
+        # (best-effort contract); deploy_local_template already reloaded.
+        run_systemctl daemon-reload || true
+    fi
+
+    # Arm the timer (enabled survives a manager restart). Guard on is-enabled so
+    # repeat installs do not churn; a no-linger / no-bus host warns but the IOC
+    # install still succeeds.
+    if ! run_systemctl is-enabled --quiet epics-logrotate.timer 2>/dev/null; then
+        if ! run_systemctl enable --now epics-logrotate.timer 2>/dev/null; then
+            printf "Warning: could not enable epics-logrotate.timer (no user bus / linger?).\n" >&2
+            printf "         Rotation starts on next login; run 'loginctl enable-linger %s' for headless operation.\n" "$(id -un)" >&2
+        fi
+    fi
+
+    # Linger advisory (non-fatal): like the IOC units, the timer fires only while
+    # the user manager runs.
+    local linger
+    linger=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
+    if [[ "${linger}" != "yes" ]]; then
+        printf "Note: user lingering is off; 'loginctl enable-linger %s' to run IOCs and log rotation while logged out.\n" "$(id -un)" >&2
+    fi
 }
 
 # Parse a specific key from a configuration file using only bash built-ins
@@ -485,49 +651,89 @@ function get_file_tailhash {
     printf "%s" "${hash}"
 }
 
-function scan_file_for_crash_patterns {
+# Resolve the rotation-aware scan offset for a captured (offset, inode, tailhash)
+# triple (M11/#67, D030; the rotation/truncation precedence logic formerly inside
+# the retired single-shot crash scanner, now single-sourced for both poll phases).
+# Echoes the byte offset to scan from: the captured offset normally, or 0 when a
+# rotation/truncation is detected. Empty inode/tailhash skip their respective
+# checks (used by the phase-2 post-marker window, which carries no fingerprint).
+function resolve_scan_offset {
     local log_file="$1"
     local start_offset="$2"
     local start_inode="$3"
     local start_tailhash="$4"
-    local patterns="$5"
     local current_size current_inode current_tailhash
-    local scan_offset
-
-    if [[ ! -r "${log_file}" ]]; then
-        return 2
-    fi
 
     current_size=$(get_file_size "${log_file}")
     current_inode=$(get_file_inode "${log_file}")
-    scan_offset="${start_offset}"
 
-    # Rotation/truncation detection, in precedence order:
-    # 1. Inode changed -> file was replaced (rename-style rotation or
-    #    "file appeared after capture"); scan from 0.
-    # 2. Current size below captured size -> truncated in place
-    #    (copytruncate path while regrowth has not passed the old
-    #    offset); scan from 0.
-    # 3. Same inode, size >= captured offset, but the byte window
-    #    ending at the captured offset no longer matches its
-    #    capture-time fingerprint -> copytruncate-then-regrow-past;
-    #    scan from 0.
+    # 1. Inode changed -> file replaced (rename-style rotation); scan from 0.
+    # 2. Current size below captured offset -> truncated in place; scan from 0.
+    # 3. Same inode, size >= offset, but the byte window ending at the captured
+    #    offset no longer matches its capture-time fingerprint -> copytruncate-
+    #    then-regrow-past; scan from 0.
     if [[ -n "${start_inode}" && -n "${current_inode}" && "${current_inode}" != "${start_inode}" ]]; then
-        scan_offset=0
-    elif [[ "${current_size}" -lt "${scan_offset}" ]]; then
-        scan_offset=0
-    elif [[ -n "${start_tailhash}" ]]; then
+        printf "0"
+        return
+    fi
+    if [[ "${current_size}" -lt "${start_offset}" ]]; then
+        printf "0"
+        return
+    fi
+    if [[ -n "${start_tailhash}" ]]; then
         current_tailhash=$(get_file_tailhash "${log_file}" "${start_offset}")
         if [[ -n "${current_tailhash}" && "${current_tailhash}" != "${start_tailhash}" ]]; then
-            scan_offset=0
+            printf "0"
+            return
         fi
     fi
 
-    if tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null | grep -qiE "${patterns}"; then
-        return 0
+    printf "%s" "${start_offset}"
+}
+
+# Read the log window once (from scan_offset) and report startup signals as a
+# fixed-field stdout line: "<marker_rel> <banner_count> <fatal_present> <corro_present>"
+# (M11/#67, D028/D029). marker_rel is the byte offset of the readiness marker
+# within the window (first occurrence) or -1 if absent; banner_count counts death
+# banners (RAW); fatal_present / corro_present are 1/0 over the #92-filtered crash
+# scan, for the fatal subset and the full effective set respectively. Every grep
+# is errexit-guarded (grep exits 1 on no-match under 'set -e').
+function read_startup_signals {
+    local log_file="$1"
+    local scan_offset="$2"
+    local effective_patterns="$3"
+    local window filtered marker_out marker_rel banner_count fatal_present corro_present
+
+    window=$(tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null || printf "")
+
+    # Feed grep from a here-string, never 'printf | grep': under 'set -o pipefail'
+    # an early-exiting grep (-m1 / -q) closes the pipe, the writer takes SIGPIPE
+    # (141), and the pipeline reports failure -> a PRESENT signal would read as
+    # ABSENT on a large window. A here-string materializes the input first.
+    marker_rel=-1
+    if marker_out=$(grep -aboFm1 -- "${IOC_READY_MARKER}" 2>/dev/null <<< "${window}"); then
+        marker_rel="${marker_out%%:*}"
     fi
 
-    return 1
+    banner_count=$(grep -aFc -- "${IOC_DEATH_BANNER}" 2>/dev/null <<< "${window}" || true)
+
+    # Issue #92: drop benign-noise lines before the crash scan (D026). The empty
+    # guard is mandatory: 'grep -v ""' would blank the whole window.
+    filtered="${window}"
+    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
+        filtered=$(grep -avE -- "${CRASH_LOG_EXCLUDE_PATTERNS}" 2>/dev/null <<< "${window}" || true)
+    fi
+
+    fatal_present=0
+    if grep -qaiE -- "${CRASH_LOG_PATTERNS_FATAL}" 2>/dev/null <<< "${filtered}"; then
+        fatal_present=1
+    fi
+    corro_present=0
+    if grep -qaiE -- "${effective_patterns}" 2>/dev/null <<< "${filtered}"; then
+        corro_present=1
+    fi
+
+    printf '%s %s %s %s' "${marker_rel}" "${banner_count}" "${fatal_present}" "${corro_present}"
 }
 
 function print_log_file_hint {
@@ -759,6 +965,41 @@ function resolve_procserv_tool {
     exit 1
 }
 
+# LOGROTATE_SEARCH_PATHS: the systemd user manager runs services with a minimal
+# PATH that need not include /usr/sbin (where logrotate ships), so the local
+# rotation unit must carry an absolute logrotate path resolved at deploy time.
+declare -g -a LOGROTATE_SEARCH_PATHS=("/usr/sbin/logrotate" "/sbin/logrotate" "/usr/bin/logrotate")
+declare -g LOGROTATE_TOOL_PATH=""
+
+# Resolve the logrotate executable to an absolute path. Unlike
+# resolve_procserv_tool this returns non-zero (does not exit) when logrotate is
+# absent, because local log rotation is best-effort and must never abort an IOC
+# install (U003/M19).
+function resolve_logrotate_tool {
+    LOGROTATE_TOOL_PATH="${IOC_RUNNER_LOGROTATE_TOOL:-}"
+    if [[ -n "${LOGROTATE_TOOL_PATH}" ]]; then
+        [[ -x "${LOGROTATE_TOOL_PATH}" ]] && return 0
+        LOGROTATE_TOOL_PATH=""
+    fi
+
+    local path
+    for path in "${LOGROTATE_SEARCH_PATHS[@]}"; do
+        if [[ -x "${path}" ]]; then
+            LOGROTATE_TOOL_PATH="${path}"
+            return 0
+        fi
+    done
+
+    local found
+    found=$(command -v logrotate 2>/dev/null || true)
+    if [[ -n "${found}" ]]; then
+        LOGROTATE_TOOL_PATH="${found}"
+        return 0
+    fi
+
+    return 1
+}
+
 # Resolve and validate the UDS socket path for an IOC.
 # Sets RESOLVED_SOCK_PATH on success.
 declare -g RESOLVED_SOCK_PATH=""
@@ -959,10 +1200,12 @@ EOF
                 rm -f "${tmp_conf}"
                 exit 1
             fi
+            # Issue #93: every abort exits nonzero; the requested action did
+            # not happen, so a decline must not read as success to callers.
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Generation aborted by user.\n"
                 rm -f "${tmp_conf}"
-                exit 0
+                exit 1
             fi
         fi
     fi
@@ -1109,18 +1352,22 @@ function do_install {
             printf "         emit permission errors on startup that trigger crash detection\n" >&2
             printf "         false positives.\n" >&2
             printf "\n" >&2
-            printf "         Hint: To silence only the .iocsh_history error, add\n" >&2
-            printf "         epicsEnvSet(\"IOCSH_HISTSIZE\",\"0\") to st.cmd. This does not\n" >&2
-            printf "         address autosave or save/restore write failures.\n" >&2
+            printf "         Note: the .iocsh_history error is benign and already excluded\n" >&2
+            printf "         from the start crash scan (see FAQ Q5/Q6). To suppress the\n" >&2
+            printf "         history file itself, set EPICS_IOCSH_HISTFILE to an empty\n" >&2
+            printf "         string (not IOCSH_HISTSIZE, which only bounds the in-memory\n" >&2
+            printf "         list and does not gate the file). This does not address autosave or\n" >&2
+            printf "         save/restore write failures.\n" >&2
             if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
                 printf "         Proceed anyway? [y/N]: " >&2
                 if ! read -r precheck_confirm; then
                     printf "\nInfo: Input stream closed (EOF). Aborting installation.\n" >&2
                     exit 1
                 fi
+                # Issue #93: abort exits nonzero (see the generate prompt).
                 if [[ ! "${precheck_confirm}" =~ ^[Yy]$ ]]; then
                     printf "Installation aborted by user.\n"
-                    exit 0
+                    exit 1
                 fi
             fi
         fi
@@ -1135,6 +1382,16 @@ function do_install {
             exit 1
         fi
     else
+        # LOG_DIR must be absolute before it is baked into the unit --logfile=
+        # and the logrotate config glob; a relative value would make procServ
+        # and logrotate resolve different paths (U003/M19).
+        if [[ "${LOG_DIR}" != /* || "${LOG_DIR}" == *[[:space:]]* ]]; then
+            printf "Error: resolved local log directory '%s' must be an absolute path with no whitespace.\n" "${LOG_DIR}" >&2
+            printf "       (whitespace would split the logrotate '<dir>/*.log' glob into two patterns.)\n" >&2
+            printf "       Set IOC_RUNNER_LOG_DIR / IOC_RUNNER_LOCAL_LOG_DIR / XDG_STATE_HOME accordingly.\n" >&2
+            exit 1
+        fi
+
         # Ensure the resolved local log directory (LOG_DIR, which honors
         # IOC_RUNNER_LOG_DIR / IOC_RUNNER_LOCAL_LOG_DIR) exists before the
         # template is emitted, so the
@@ -1142,6 +1399,7 @@ function do_install {
         # systemctl --user start.
         install -d -m 0750 "${LOG_DIR}"
         deploy_local_template
+        deploy_local_logrotate
     fi
 
     local state
@@ -1183,9 +1441,10 @@ function do_install {
                 printf "\nInfo: Input stream closed (EOF). Aborting installation.\n"
                 exit 1
             fi
+            # Issue #93: abort exits nonzero (see the generate prompt).
             if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
                 printf "Installation aborted by user.\n"
-                exit 0
+                exit 1
             fi
         else
             printf "Info: Overwriting existing configuration file '%s' (--force).\n" "${target_conf}"
@@ -1324,6 +1583,7 @@ function do_list {
     local sockets=()
     local -A ioc_started_map=() ioc_perm_map=()
     local sock ts perm unit active rq sq path refcnt flags st inode key val b_id b_pid b_cpu b_mem i
+    local entry hint_needed
     while IFS= read -r -d '' sock && IFS= read -r -d '' ts && IFS= read -r -d '' perm; do
         sockets+=("${sock}")
         ioc_started_map["${sock}"]="${ts}"
@@ -1332,6 +1592,24 @@ function do_list {
 
     if [[ ${#sockets[@]} -eq 0 ]]; then
         printf "No active IOC sockets found in %s\n" "${RUN_DIR}"
+        # Issue #94: the 0770 socket directories are not traversable by a
+        # principal outside the ioc group, so an empty enumeration can mean
+        # permission denial rather than no running IOCs. Hint only in that
+        # case; a genuinely empty run dir keeps the original output.
+        hint_needed=0
+        if [[ ! -r "${RUN_DIR}" || ! -x "${RUN_DIR}" ]]; then
+            hint_needed=1
+        else
+            for entry in "${RUN_DIR}"/*/; do
+                if [[ -d "${entry}" && ( ! -r "${entry}" || ! -x "${entry}" ) ]]; then
+                    hint_needed=1
+                    break
+                fi
+            done
+        fi
+        if [[ ${hint_needed} -eq 1 ]]; then
+            printf "(socket directories are not readable by this user; use systemctl status for service state)\n"
+        fi
         return 0
     fi
 
@@ -1689,28 +1967,22 @@ function do_start_restart {
     fi
 
     local log_file="${LOG_DIR}/${IOC_NAME}.log"
+    local unit="epics-@${IOC_NAME}.service"
     local log_start_offset log_start_inode log_start_tailhash
     log_start_offset=$(get_file_size "${log_file}")
     log_start_inode=$(get_file_inode "${log_file}")
     log_start_tailhash=$(get_file_tailhash "${log_file}" "${log_start_offset}")
 
-    run_systemctl "${action}" "epics-@${IOC_NAME}.service"
+    # Capture the prior unit state so a no-op `start` on an already-running IOC
+    # can be reported at once instead of waiting out the readiness timeout.
+    local pre_active
+    pre_active=$(run_systemctl is-active "${unit}" 2>/dev/null || true)
 
+    run_systemctl "${action}" "${unit}"
 
-    # Allow time for device connection timeouts
-    sleep 5
-
-    local post_state
-    post_state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
-
-    if [[ "${post_state}" != "active" ]]; then
-        printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
-        printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
-        print_log_file_hint "${log_file}"
-        exit 1
-    fi
-
-    # Issue #25: append per-IOC CRASH_LOG_PATTERNS_EXTRA when present.
+    # Issue #25: per-IOC CRASH_LOG_PATTERNS_EXTRA, corroborating only (D033). The
+    # empty-value guard keeps an unset key from appending a trailing '|' (which
+    # would match every line).
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
     local extra_patterns=""
     if [[ -f "${target_conf}" ]]; then
@@ -1721,22 +1993,130 @@ function do_start_restart {
         effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}"
     fi
 
-    local scan_status=0
-    if scan_file_for_crash_patterns "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}" "${effective_patterns}"; then
-        scan_status=0
-    else
-        scan_status=$?
+    # Fast path: `start` on an already-active unit is a systemd no-op; no fresh
+    # readiness marker will appear. Short-circuit to "already running" ONLY when
+    # the existing log shows a completed init with NO death banner since the most
+    # recent marker; otherwise fall through to the normal poll, which catches an
+    # IOC that is "active" but actually crash-looping (procServ stays up while its
+    # child loops under autorestart). (R4)
+    if [[ "${action}" == "start" && "${pre_active}" == "active" ]]; then
+        if [[ "$(run_systemctl is-active "${unit}" 2>/dev/null || true)" == "active" ]]; then
+            local fp_last fp_sig fp_banner fp_healthy=0
+            fp_last=$(grep -aboF -- "${IOC_READY_MARKER}" "${log_file}" 2>/dev/null | tail -n1 || true)
+            if [[ -n "${fp_last}" ]]; then
+                fp_sig=$(read_startup_signals "${log_file}" "$(( ${fp_last%%:*} + ${#IOC_READY_MARKER} ))" "${effective_patterns}")
+                read -r _ fp_banner _ _ <<< "${fp_sig}"
+                if (( fp_banner == 0 )); then
+                    fp_healthy=1
+                fi
+            fi
+            if [[ ${fp_healthy} -eq 1 ]]; then
+                printf "IOC '%s' is already running.\n" "${IOC_NAME}"
+                return 0
+            fi
+        fi
     fi
 
-    if [[ ${scan_status} -eq 0 ]]; then
-        printf "\nWarning: IOC '%s' is active, but procServ may be crash-looping or reporting fatal errors.\n" "${IOC_NAME}" >&2
-        print_log_file_hint "${log_file}"
-    elif [[ ${scan_status} -eq 2 ]]; then
-        printf "\nWarning: IOC '%s' is active, but startup logs could not be scanned.\n" "${IOC_NAME}" >&2
-        print_log_file_hint "${log_file}"
-    else
-        printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
+    # D035: a `restart` re-opens the logfile same-inode-append, so procServ's one
+    # commanded-teardown banner lands in the scan window (OQ6, both goldens).
+    # Subtract it so the recurring-banner threshold means the same for both verbs.
+    # Gate on pre_active: a `restart` of an already-stopped unit tears down no live
+    # child and emits no commanded banner, so subtracting there would mask a
+    # genuine pre-iocInit crash loop (R3).
+    local teardown_adjust=0
+    if [[ "${action}" == "restart" && "${pre_active}" == "active" ]]; then
+        teardown_adjust=1
     fi
+
+    # D010: guard the (test-overridable) timing against malformed values so a bad
+    # test seam cannot abort the poll under 'set -e' (operational defaults fixed).
+    if [[ ! "${MAX_INIT_TIMEOUT}" =~ ^[1-9][0-9]*$ ]]; then
+        MAX_INIT_TIMEOUT=30
+    fi
+    if [[ ! "${CONFIRM_DWELL}" =~ ^[0-9]+$ ]]; then
+        CONFIRM_DWELL=3
+    fi
+    if [[ ! "${POLL_INTERVAL}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+        POLL_INTERVAL=0.2
+    fi
+
+    # Phase 1: poll for the readiness marker (up to MAX_INIT_TIMEOUT seconds).
+    local scan_offset signals marker_rel banner_count fatal_present corro_present
+    local deadline=$((SECONDS + MAX_INIT_TIMEOUT))
+    local marker_seen=0 marker_abs=0
+    while [[ ${SECONDS} -lt ${deadline} ]]; do
+        scan_offset=$(resolve_scan_offset "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}")
+        signals=$(read_startup_signals "${log_file}" "${scan_offset}" "${effective_patterns}")
+        read -r marker_rel banner_count fatal_present corro_present <<< "${signals}"
+
+        if [[ "${marker_rel}" != "-1" ]]; then
+            marker_seen=1
+            marker_abs=$((scan_offset + marker_rel))
+            break
+        fi
+        if [[ "${fatal_present}" == "1" ]]; then
+            printf "\nError: IOC '%s' failed to initialize (fatal error before iocInit).\n" "${IOC_NAME}" >&2
+            print_log_file_hint "${log_file}"
+            exit 1
+        fi
+        if (( banner_count - teardown_adjust >= 2 )); then
+            printf "\nError: IOC '%s' is crash-looping before reaching iocInit.\n" "${IOC_NAME}" >&2
+            print_log_file_hint "${log_file}"
+            exit 1
+        fi
+        sleep "${POLL_INTERVAL}"
+    done
+
+    # Phase 1 timeout: no marker within MAX_INIT_TIMEOUT (D034/D005).
+    if [[ ${marker_seen} -eq 0 ]]; then
+        local post_state
+        post_state=$(run_systemctl is-active "${unit}" 2>/dev/null || true)
+        if [[ "${post_state}" == "active" ]]; then
+            if [[ ! -r "${log_file}" ]]; then
+                printf "\nWarning: IOC '%s' is active, but its startup log could not be read.\n" "${IOC_NAME}" >&2
+            else
+                printf "\nWarning: IOC '%s' is active but did not report initialization complete within %ss.\n" "${IOC_NAME}" "${MAX_INIT_TIMEOUT}" >&2
+            fi
+            print_log_file_hint "${log_file}"
+            return 0
+        fi
+        printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${post_state}" >&2
+        printf "  -> Troubleshooting: Check the logs by running the following command:\n" >&2
+        print_log_file_hint "${log_file}"
+        exit 1
+    fi
+
+    # Phase 2: confirm over a short dwell, evaluated AFTER the marker byte position
+    # (D021/D027). The ONLY standalone exit-1 trigger here is a post-marker death
+    # banner; crash patterns / re-init markers / _EXTRA are corroborating only.
+    local post_marker_offset=$((marker_abs + ${#IOC_READY_MARKER}))
+    local dwell_deadline=$((SECONDS + CONFIRM_DWELL))
+    local p_off p_sig p_marker p_banner p_fatal p_corro
+    while [[ ${SECONDS} -lt ${dwell_deadline} ]]; do
+        p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "" "")
+        p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
+        read -r p_marker p_banner p_fatal p_corro <<< "${p_sig}"
+        if (( p_banner >= 1 )); then
+            printf "\nError: IOC '%s' is crash-looping.\n" "${IOC_NAME}" >&2
+            print_log_file_hint "${log_file}"
+            exit 1
+        fi
+        sleep "${POLL_INTERVAL}"
+    done
+
+    # Dwell completed with no post-marker death banner. A corroborating crash
+    # pattern / _EXTRA token while the IOC is alive is a Warning, not a failure
+    # (D027/D033).
+    p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "" "")
+    p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
+    read -r p_marker p_banner p_fatal p_corro <<< "${p_sig}"
+    if (( p_corro >= 1 )); then
+        printf "\nWarning: IOC '%s' is active but reported errors after initialization (check device connections).\n" "${IOC_NAME}" >&2
+        print_log_file_hint "${log_file}"
+        return 0
+    fi
+
+    printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
 }
 
 case "${COMMAND_ACTION}" in
