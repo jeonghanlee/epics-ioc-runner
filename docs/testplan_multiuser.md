@@ -94,11 +94,14 @@ wrong, so the fixture is specified here rather than left to the run.
 Provisioning is owned by the `ansible-provision` `test_users` role
 (`roles/test_users`): `opa`/`opb` via `useradd` + `usermod -aG ioc`; `obs`
 via `useradd` with no group; `usera`/`userb` via `useradd` + `loginctl
-enable-linger`. The role is **not wired into `site.yml`**, so it is **not
-baked into the golden** — the accounts are provisioned per run (apply the
-role, or run its equivalent `useradd` commands, on the booted golden after
-`setup-system-infra.bash --full` has created the `ioc` group). Wiring the
-role into the bake is a tracked follow-up in `ansible-provision`.
+enable-linger`. **The role is baked into the iocrunner golden** (the bake
+applies `07_test_users.yml` after the nfs_sim step — ansible-provision
+Phase C, 2026-07-05): a fresh variant boots with the accounts present;
+verify with `getent group ioc` (lists `opa,opb`) and the linger listing
+(`usera userb`). The role is still never imported by `site.yml`. Only on
+goldens baked BEFORE Phase C do the accounts need per-run provisioning
+(apply the role, or its equivalent `useradd` commands, after
+`setup-system-infra.bash --full` has created the `ioc` group).
 
 ## Execution Harness
 
