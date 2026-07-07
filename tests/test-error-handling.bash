@@ -1211,10 +1211,10 @@ EOF
     grep -q "contains a '..' component" "${dotdot_stderr}" 2>/dev/null && has_dotdot_msg="true"
     verify_state "true" "${has_dotdot_msg}" "'..' rejection error references the '..' component"
 
-    # 5b. Boundary form: IOC_CHDIR exactly '..'. The interior/trailing globs do
-    #     not match a bare '..', so this closes the whole-string position. '..'
-    #     always resolves to an existing directory (the CWD parent), so it
-    #     reaches the precheck independent of the test's working directory.
+    # 5b. Boundary form: IOC_CHDIR exactly '..'. Since M6/#109 the absolute-path
+    #     check in validate_conf rejects it FIRST (a bare '..' is relative); the
+    #     whole-string/leading '..' globs at the system precheck remain as
+    #     defense-in-depth behind this shield.
     cat <<EOF > "${bad_conf}"
 IOC_NAME="test"
 IOC_USER="ioc-srv"
@@ -1228,8 +1228,43 @@ EOF
     verify_exit_code "1" "${bare_ec}" "Install with bare '..' IOC_CHDIR exits 1"
 
     local has_bare_msg="false"
-    grep -q "contains a '..' component" "${bare_stderr}" 2>/dev/null && has_bare_msg="true"
-    verify_state "true" "${has_bare_msg}" "bare '..' rejection error references the '..' component"
+    grep -q "IOC_CHDIR must be an absolute path" "${bare_stderr}" 2>/dev/null && has_bare_msg="true"
+    verify_state "true" "${has_bare_msg}" "bare '..' rejected by the absolute-path requirement (M6/#109)"
+
+    # 6. Relative IOC_CHDIR is a validation error in any mode (M6/#109).
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="relative/boot/dir"
+IOC_CMD="true"
+EOF
+    local relchdir_stderr="${TEST_TMPDIR}/relchdir_stderr"
+    local relchdir_ec=0
+    bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}" >/dev/null 2>"${relchdir_stderr}" || relchdir_ec=$?
+    verify_exit_code "1" "${relchdir_ec}" "Install with relative IOC_CHDIR exits 1"
+
+    local has_relchdir_msg="false"
+    grep -q "IOC_CHDIR must be an absolute path" "${relchdir_stderr}" 2>/dev/null && has_relchdir_msg="true"
+    verify_state "true" "${has_relchdir_msg}" "relative IOC_CHDIR error names the absolute-path requirement"
+
+    # 7. Multi-word IOC_CMD violates the U-3 single-word contract (M6/#109).
+    #    Chosen value has no illegal characters so it pins the H3 check alone.
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${dummy_dir}"
+IOC_CMD="softIoc -d test.db"
+EOF
+    local mwcmd_stderr="${TEST_TMPDIR}/mwcmd_stderr"
+    local mwcmd_ec=0
+    bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}" >/dev/null 2>"${mwcmd_stderr}" || mwcmd_ec=$?
+    verify_exit_code "1" "${mwcmd_ec}" "Install with multi-word IOC_CMD exits 1"
+
+    local has_mwcmd_msg="false"
+    grep -q "IOC_CMD must be a single word" "${mwcmd_stderr}" 2>/dev/null && has_mwcmd_msg="true"
+    verify_state "true" "${has_mwcmd_msg}" "multi-word IOC_CMD error names the single-word contract"
 }
 
 function test_attach_errors {
@@ -1639,6 +1674,45 @@ function test_crash_pattern_extra {
 }
 
 
+# Validates the global CONF_DIR absolute/whitespace guard (M6/#109):
+# relative or whitespace values exit 1 with the named error on any verb;
+# an absolute override stays accepted.
+function test_conf_dir_guard {
+    local step="$1"
+    local stderr_cap="${TEST_TMPDIR}/conf_dir_guard_stderr"
+    local ec has_msg
+
+    print_divider
+    _log "INFO" "STEP ${step}: CONF_DIR Absolute/Whitespace Guard (#109)"
+    print_sub_divider
+
+    # Case 1: relative unified override -> exit 1, named error, read-only verb.
+    ec=0
+    IOC_RUNNER_CONF_DIR="relative/conf" \
+        bash "${RUNNER_SCRIPT}" --local list >/dev/null 2>"${stderr_cap}" || ec=$?
+    verify_exit_code "1" "${ec}" "relative IOC_RUNNER_CONF_DIR exits 1 on list"
+    has_msg="false"
+    grep -q "resolved configuration directory" "${stderr_cap}" 2>/dev/null && has_msg="true"
+    verify_state "true" "${has_msg}" "relative CONF_DIR error names the resolved directory"
+
+    # Case 2: whitespace in the namespaced override -> exit 1, named error.
+    #    Message-asserted because a status verb can exit 1 for other reasons
+    #    (unknown-name gate); the named error pins the guard itself.
+    ec=0
+    IOC_RUNNER_LOCAL_CONF_DIR="${TEST_TMPDIR}/conf dir" \
+        bash "${RUNNER_SCRIPT}" --local status fake-ioc >/dev/null 2>"${stderr_cap}" || ec=$?
+    verify_exit_code "1" "${ec}" "whitespace CONF_DIR exits 1 on status"
+    has_msg="false"
+    grep -q "resolved configuration directory" "${stderr_cap}" 2>/dev/null && has_msg="true"
+    verify_state "true" "${has_msg}" "whitespace CONF_DIR error names the resolved directory"
+
+    # Case 3: absolute override passes the guard (no over-firing).
+    ec=0
+    IOC_RUNNER_CONF_DIR="${TEST_TMPDIR}/local-config/procServ.d" \
+        bash "${RUNNER_SCRIPT}" --local list >/dev/null 2>"${stderr_cap}" || ec=$?
+    verify_exit_code "0" "${ec}" "absolute CONF_DIR passes the guard"
+}
+
 # Validates #74/#78 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
 # and the home-bin search-path default. Each case is self-contained -- it
 # supplies its own stub via the override or a HOME-redirected ~/.local/bin.
@@ -1772,6 +1846,7 @@ function run_all_tests {
         "test_metadata_contract_guard"
         "test_log_dir_guard"
         "test_log_dir_xdg_fallback"
+        "test_conf_dir_guard"
         "test_completion"
         "test_ioc_name_validation"
         "test_validation_errors"

@@ -1305,8 +1305,10 @@ EOF
     verify_state "0" "${ec}" "Untraversable-parent install with -f exits 0"
     chmod 0755 "${p3}"  # restore so cleanup can recurse
 
-    # Case 4: relative IOC_CHDIR (helper rejects non-absolute). The dir must exist
-    # relative to the runner CWD for validate_conf to pass, so we cd into case_root.
+    # Case 4: relative IOC_CHDIR. Since M6/#109 validate_conf rejects any
+    # non-absolute IOC_CHDIR outright (hard error, no -f bypass); the cd into
+    # case_root keeps the directory resolvable so the absolute-path check is
+    # what fires, not the missing-directory check.
     name="PrecheckRel-SYS"
     local case_root="${base}/relcase"; chdir="reldir"; conf_file="${base}/${name}.conf"
     sysd="${base}/s4"; conf="${base}/c4"
@@ -1325,10 +1327,10 @@ EOF
     IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
         bash -c "cd \"${case_root}\" && bash \"${RUNNER_SCRIPT}\" -f install \"${conf_file}\"" \
         >/dev/null 2>"${stderr_cap}" || ec=$?
-    local warned4="clean"
-    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned4="warned"
-    verify_state "warned" "${warned4}" "Relative IOC_CHDIR warns (non-absolute rejected)"
-    verify_state "0" "${ec}" "Relative-path install with -f exits 0"
+    local rejected4="clean"
+    grep -q "IOC_CHDIR must be an absolute path" "${stderr_cap}" 2>/dev/null && rejected4="rejected"
+    verify_state "rejected" "${rejected4}" "Relative IOC_CHDIR is a hard validation error (M6/#109)"
+    verify_state "1" "${ec}" "Relative-path install exits 1 despite -f"
 
     # Case 5: IOC_CHDIR is a symlink to a conforming target (symlinked leaf rejected).
     name="PrecheckLink-SYS"

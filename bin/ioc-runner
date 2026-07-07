@@ -326,6 +326,14 @@ if [[ "${EXEC_MODE}" == "system" && "${RUN_DIR}" != "/run/procserv" ]]; then
     exit 1
 fi
 
+# The conf directory is baked into EnvironmentFile= lines and used in
+# globs; a relative or whitespace value corrupts both (#109).
+if [[ "${CONF_DIR}" != /* || "${CONF_DIR}" == *[[:space:]]* ]]; then
+    printf "Error: resolved configuration directory '%s' must be an absolute path with no whitespace.\n" "${CONF_DIR}" >&2
+    printf "       Set IOC_RUNNER_CONF_DIR / IOC_RUNNER_LOCAL_CONF_DIR / IOC_RUNNER_SYSTEM_CONF_DIR accordingly.\n" >&2
+    exit 1
+fi
+
 # Foot-gun guard: IOC_RUNNER_LOG_DIR shifts where the runner scans for crash
 # patterns; the scan path (LOG_DIR) must match where procServ actually writes.
 # - system mode: procServ writes to SYSTEM_LOG_DIR (fixed by the system
@@ -906,14 +914,21 @@ function validate_conf {
     local chdir="${conf_vars[IOC_CHDIR]:-}"
     local cmd="${conf_vars[IOC_CMD]:-}"
 
-    if [[ -z "${chdir}" || ! -d "${chdir}" ]]; then
+    if [[ -n "${chdir}" && "${chdir}" != /* ]]; then
+        printf "Error: IOC_CHDIR must be an absolute path: %s\n" "${chdir}" >&2
+        error_count=$((error_count + 1))
+    elif [[ -z "${chdir}" || ! -d "${chdir}" ]]; then
         printf "Error: Invalid or missing directory: %s\n" "${chdir}" >&2
         error_count=$((error_count + 1))
     elif [[ ! -x "${chdir}" ]]; then
         printf "Error: Execute permission denied for directory: %s\n" "${chdir}" >&2
         error_count=$((error_count + 1))
     else
-        if [[ -n "${cmd}" ]]; then
+        if [[ -n "${cmd}" && "${cmd}" == *[[:space:]]* ]]; then
+            printf "Error: IOC_CMD must be a single word: '%s'\n" "${cmd}" >&2
+            printf "  Hint: systemd expands \${IOC_CMD} as ONE argument; put arguments in a launcher script (e.g. st.cmd).\n" >&2
+            error_count=$((error_count + 1))
+        elif [[ -n "${cmd}" ]]; then
             read -r exec_bin _ <<< "${cmd}"
 
             # Verify if the binary is executable in the target directory or available in the system PATH
@@ -2064,6 +2079,26 @@ function do_start_restart {
     # Refresh systemd template cache for NFS environments lacking inotify support
     if [[ "${EXEC_MODE}" == "local" ]]; then
         run_systemctl daemon-reload
+
+        # Drift warnings (#109): the unit and conf bake install-time
+        # paths; a changed environment silently splits writer/reader.
+        local baked_logdir="" drift_conf drift_port drift_sock
+        if [[ -f "${SYSTEMD_DIR}/epics-@.service" ]]; then
+            baked_logdir=$(sed -n 's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' "${SYSTEMD_DIR}/epics-@.service" 2>/dev/null | head -n1 || true)
+        fi
+        if [[ -n "${baked_logdir}" && "${baked_logdir}" != "${LOG_DIR}" ]]; then
+            printf "Warning: LOG_DIR resolves to %s but the installed user unit logs to %s (baked at install).\n" "${LOG_DIR}" "${baked_logdir}" >&2
+            printf "         The startup poll would watch the wrong file; export the install-time value or re-run install.\n" >&2
+        fi
+        drift_conf="${CONF_DIR}/${IOC_NAME}.conf"
+        if [[ -f "${drift_conf}" ]]; then
+            drift_port=$(read_conf_var "${drift_conf}" "IOC_PORT" 2>/dev/null || printf "")
+            drift_sock="${drift_port##*:}"
+            if [[ -n "${drift_sock}" && "${drift_sock}" != "${RUN_DIR}/${IOC_NAME}/control" ]]; then
+                printf "Warning: the installed IOC_PORT socket (%s) does not match the current RUN_DIR resolution (%s/%s/control).\n" "${drift_sock}" "${RUN_DIR}" "${IOC_NAME}" >&2
+                printf "         attach/list will look in the wrong place; re-run install after changing IOC_RUNNER_LOCAL_RUN_DIR / IOC_RUNNER_RUN_DIR.\n" >&2
+            fi
+        fi
     fi
 
     local log_file="${LOG_DIR}/${IOC_NAME}.log"
