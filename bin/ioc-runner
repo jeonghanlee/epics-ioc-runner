@@ -851,9 +851,24 @@ function validate_conf {
             error_count=$((error_count + 1))
         else
             local grep_rc=0
-            printf "" | grep -qE "${extra_patterns}" 2>/dev/null || grep_rc=$?
+            grep -qE -- "${extra_patterns}" /dev/null 2>/dev/null || grep_rc=$?
             if [[ ${grep_rc} -eq 2 ]]; then
                 printf "Error: Invalid regex syntax in CRASH_LOG_PATTERNS_EXTRA.\n" >&2
+                error_count=$((error_count + 1))
+            # Structural check BEFORE the canary: a trailing '|' COMPILES
+            # (rc 1 on no-match input) and matches everything at scan
+            # time, so only these two probes can catch it — and the
+            # structural one names the precise defect. Known limitation:
+            # escaped-pipe boundary shapes ('a\|') are rejected here too.
+            elif [[ "${extra_patterns}" == *"||"* || "${extra_patterns}" == "|"* || "${extra_patterns}" == *"|" || "${extra_patterns}" == *"(|"* || "${extra_patterns}" == *"|)"* ]]; then
+                printf "Error: Empty alternation in CRASH_LOG_PATTERNS_EXTRA (would match every log line).\n" >&2
+                error_count=$((error_count + 1))
+            # Canary probe (#106): case-insensitive for parity with the
+            # runtime scan (-i); a pattern that matches ordinary log
+            # text would pin a chronic false Warning on every start.
+            elif grep -qiE -- "${extra_patterns}" <<< "ioc-runner canary: ordinary healthy log line 0123456789" 2>/dev/null ||
+                 grep -qiE -- "${extra_patterns}" <<< "IOC-Runner Canary 2: EPICS 7.0 iocBoot/st.cmd loaded OK 2026-07-07 01:02:03.456" 2>/dev/null; then
+                printf "Error: CRASH_LOG_PATTERNS_EXTRA matches ordinary log text (degenerate pattern such as '.').\n" >&2
                 error_count=$((error_count + 1))
             fi
         fi
@@ -2046,6 +2061,28 @@ function do_start_restart {
     local pre_active
     pre_active=$(run_systemctl is-active "${unit}" 2>/dev/null || true)
 
+    # U-6 (#106): a conf edited after the running unit's activation was
+    # never re-validated by install; a restart applies those edits
+    # as-is. Warn, never block. Fires only for restart-of-active:
+    # start-on-active is a systemd no-op, and an inactive unit's stale
+    # activation anchor would false-positive the normal
+    # install-edit-start flow. NFS-server-vs-local clock skew is
+    # accepted for this warning-only path.
+    if [[ "${action}" == "restart" && "${pre_active}" == "active" ]]; then
+        local target_conf_u6="${CONF_DIR}/${IOC_NAME}.conf"
+        if [[ -f "${target_conf_u6}" ]]; then
+            local act_raw act_epoch conf_epoch
+            act_raw=$(run_systemctl show "${unit}" --property=ActiveEnterTimestamp --value 2>/dev/null || printf "")
+            if [[ -n "${act_raw}" && "${act_raw}" != "n/a" ]]; then
+                act_epoch=$(date -d "${act_raw}" +%s 2>/dev/null || printf 0)
+                conf_epoch=$(stat -c %Y "${target_conf_u6}" 2>/dev/null || printf 0)
+                if (( act_epoch > 0 && conf_epoch > act_epoch )); then
+                    printf "Warning: %s changed after the running unit was activated — this restart applies UNVALIDATED edits. Re-run 'install' to validate them.\n" "${target_conf_u6}" >&2
+                fi
+            fi
+        fi
+    fi
+
     run_systemctl "${action}" "${unit}"
 
     # Issue #25: per-IOC CRASH_LOG_PATTERNS_EXTRA, corroborating only (D033). The
@@ -2058,7 +2095,17 @@ function do_start_restart {
     fi
     local effective_patterns="${CRASH_LOG_PATTERNS}"
     if [[ -n "${extra_patterns}" ]]; then
-        effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}"
+        # Re-validate on every runtime read (#106): the conf may have
+        # changed since install, and one bad extra key must not
+        # silently disable the whole corroboration set — the composed
+        # base|extra regex would fail to compile as a unit.
+        local extra_rc=0
+        grep -qE -- "${extra_patterns}" /dev/null 2>/dev/null || extra_rc=$?
+        if [[ ${extra_rc} -eq 2 ]]; then
+            printf "Warning: CRASH_LOG_PATTERNS_EXTRA in %s does not compile; ignoring it for this run (base patterns remain active).\n" "${target_conf}" >&2
+        else
+            effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}"
+        fi
     fi
 
     # Fast path: `start` on an already-active unit is a systemd no-op; no fresh

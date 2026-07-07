@@ -1585,6 +1585,21 @@ function test_crash_pattern_extra {
     exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
         _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
     verify_exit_code "1" "${exit_code}" "Invalid regex in CRASH_LOG_PATTERNS_EXTRA rejected at install"
+
+    # #106: degenerate and empty-alternation patterns are rejected even
+    # though they compile; a legitimate multi-alternation still passes.
+    local bad_pat
+    for bad_pat in '.' 'a||b' '|a' 'a|' '(|a)' '(a|)' 'healthy log line' 'ORDINARY HEALTHY'; do
+        printf "%s\nCRASH_LOG_PATTERNS_EXTRA=\"%s\"\n" "${base_conf}" "${bad_pat}" > "${conf_file}"
+        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
+        verify_exit_code "1" "${exit_code}" "Degenerate/empty-alternation _EXTRA '${bad_pat}' rejected at install (#106)"
+    done
+
+    printf "%s\nCRASH_LOG_PATTERNS_EXTRA=\"Broken pipe|net_ex\"\n" "${base_conf}" > "${conf_file}"
+    exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
+    verify_exit_code "0" "${exit_code}" "Legitimate multi-alternation _EXTRA accepted at install (#106)"
 }
 
 
