@@ -12,7 +12,8 @@ released milestone's full record is preserved in the matching git tag
 (`git show <tag>:docs/milestone.md`). The 1.2.0 record lives in
 `git show 1.2.0:docs/milestone.md`.
 
-**1.2.1 release target:** stability patch — make what 1.2.0 already does
+**1.2.1 release target:** 2026-07-31, per the GitHub milestone `1.2.1`
+due date. Stability patch — make what 1.2.0 already does
 honest and robust, with no redesign. Sourced from the ten-reviewer full-code
 review at 1.2.0 (session rs20260706_180525, convergence conv20260706_203134)
 plus the conceptual-integrity sweep; all review decisions adopted per
