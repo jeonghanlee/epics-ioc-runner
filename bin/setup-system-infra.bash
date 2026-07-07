@@ -571,6 +571,18 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # SUDO_USER lets git read the user's home normally. Falls back to
     # direct invocation when SUDO_USER is unset (no sudo, direct root).
     invoker="${SUDO_USER:-$(id -un)}"
+    # Whenever the effective invoker resolves to root (nested sudo such
+    # as 'sudo make setup' rewrites SUDO_USER=root; a direct root shell
+    # has none), plain root git would fail the dubious-ownership check
+    # on a user-owned checkout and stamp "unknown" (#119). Recover the
+    # delegation target from the repository owner, when that owner is a
+    # resolvable account.
+    if [[ ${EUID} -eq 0 && "${invoker}" == "root" ]]; then
+        repo_owner=$(stat -c %U "${SC_DIR}" 2>/dev/null || printf "root")
+        if id -u "${repo_owner}" >/dev/null 2>&1; then
+            invoker="${repo_owner}"
+        fi
+    fi
     git_cmd=(git -C "${SC_DIR}")
     if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
         git_cmd=(sudo -u "${invoker}" -n git -C "${SC_DIR}")
@@ -582,6 +594,10 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # diff-index (git missing, repo absent) would yield "unknown-dirty".
     if [[ "${current_git_hash}" != "unknown" ]] && ! "${git_cmd[@]}" diff-index --quiet HEAD -- 2>/dev/null; then
         current_git_hash="${current_git_hash}-dirty"
+    fi
+
+    if [[ "${current_git_hash}" == "unknown" ]]; then
+        _log "WARN" "Git metadata unavailable as user '${invoker}' — version stamped as unknown (not a git checkout, or repository unreadable)."
     fi
 
     # Commit date of the deployed hash; install date of this run. The two

@@ -24,12 +24,12 @@ help: ## Show available targets
 ## with a relative script path and sudo internally, so it works in place even
 ## on an NFS root_squash home (where 'sudo make' cannot read the includes).
 install:
-	$(QUIET) cd "$(TOP)" && sudo -n bash bin/setup-system-infra.bash
+	$(QUIET) cd "$(TOP)" && if sudo -n true 2>/dev/null; then sudo -n bash bin/setup-system-infra.bash; else printf "%s\n" "sudo credentials are not cached; run one of:" "  sudo -v && make install" "  sudo make install"; exit 1; fi
 
 ## Full system infrastructure setup: accounts, group, dirs, sudoers, systemd,
 ## logrotate, plus the CLI install above. Same relative-path sudo invocation.
 setup:
-	$(QUIET) cd "$(TOP)" && sudo -n bash bin/setup-system-infra.bash --full
+	$(QUIET) cd "$(TOP)" && if sudo -n true 2>/dev/null; then sudo -n bash bin/setup-system-infra.bash --full; else printf "%s\n" "sudo credentials are not cached; run one of:" "  sudo -v && make setup" "  sudo make setup"; exit 1; fi
 
 ## User-home install: ioc-runner + completion under $(HOME)/.local (no root).
 install.user:
