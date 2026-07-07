@@ -26,6 +26,23 @@ remains readable independently of any working session material.
 > the M5 emitter" below as the guarded two-copy contract — identical in both
 > modes, enforced by the guard. (C005 `conv20260616_002157` supersedes C004.)
 
+> **Addendum (2026-07-07, M5/#108, commit `04f18dc`).** The
+> `RuntimeDirectoryPreserve=restart` emission described in the C004/C005
+> notes above is now actually emitted by both template writers
+> (`bin/setup-system-infra.bash` and `bin/ioc-runner`) and pinned by the
+> shared-contract guard. Between the C004 note (2026-06-16) and this commit
+> the directive was documented intent only — the 1.2.0 templates did not
+> carry it (found as R10 RA-1 in the 1.2.0 full-code review; adopted as U-1).
+> Preserve semantics verified on systemd 239 `--user`.
+>
+> **Trust note (U-9, same review):** the M11 readiness poll and crash scan
+> trust the procServ log's content — the readiness marker
+> (`All initialization complete`) and the crash tokens are accepted from
+> whatever the supervised IOC writes. The log is a cooperative signal from
+> the operator's own IOC, not an adversarial input; an `st.cmd` that prints
+> the marker without initializing defeats readiness detection by design,
+> and no integrity check on the marker is planned.
+
 ---
 
 ## Context

@@ -146,6 +146,8 @@ tail -f ~/.local/state/procserv/iocctrlslab-tcmd.log
 journalctl --user -u epics-@iocctrlslab-tcmd.service
 ```
 
+Log growth in this directory is bounded by the per-user rotation deployed at `--local install`; see section 15.
+
 ## 12. Direct Console Access (Alternative)
 While the `attach` command automatically resolves the socket path, you can also connect to the UNIX Domain Socket directly using the `con` utility.
 
@@ -171,11 +173,11 @@ To verify the version of the local runner script, including the live Git hash if
 ~/epics-ioc-runner/bin/ioc-runner -V
 ```
 
-Example output when running directly from a clone (no `setup-system-infra.bash` install step):
+Example output when running directly from a clone (no `setup-system-infra.bash` install step; values shown as placeholders):
 
 ```text
-epics-ioc-runner version 1.1.0 (4a8bba0 (live))
-commit date:  2026-05-13T20:00:00Z
+epics-ioc-runner version X.Y.Z (<hash> (live))
+commit date:  <commit date>
 install date: live
 ```
 
@@ -193,9 +195,11 @@ For isolated testing, CI pipelines, or multi-tenant workstations, the runner sup
 | `IOC_RUNNER_LOCAL_CONF_DIR`    | `${HOME}/.config/procServ.d`     | `--local` conf storage |
 | `IOC_RUNNER_LOCAL_SYSTEMD_DIR` | `${HOME}/.config/systemd/user`   | `--local` unit template |
 | `IOC_RUNNER_LOCAL_RUN_DIR`     | `/run/user/$(id -u)/procserv`   | `--local` socket path in `IOC_PORT` |
+| `IOC_RUNNER_LOCAL_LOG_DIR`     | `${XDG_STATE_HOME:-${HOME}/.local/state}/procserv` | `--local` procServ log directory (baked into the unit `--logfile` at install; also the crash-scan path) |
 | `IOC_RUNNER_SYSTEM_CONF_DIR`    | `/etc/procServ.d`              | system-mode conf storage |
 | `IOC_RUNNER_SYSTEM_SYSTEMD_DIR` | `/etc/systemd/system`          | system-mode unit template |
 | `IOC_RUNNER_SYSTEM_RUN_DIR`     | `/run/procserv`                | system-mode socket path in `IOC_PORT` |
+| `IOC_RUNNER_SYSTEM_LOG_DIR`     | `/var/log/procserv`            | system-mode procServ log directory |
 
 ### Unified runtime overrides (take precedence over both)
 
@@ -204,6 +208,7 @@ For isolated testing, CI pipelines, or multi-tenant workstations, the runner sup
 | `IOC_RUNNER_CONF_DIR`    | Overrides both `LOCAL_CONF_DIR` and `SYSTEM_CONF_DIR` |
 | `IOC_RUNNER_SYSTEMD_DIR` | Overrides both `LOCAL_SYSTEMD_DIR` and `SYSTEM_SYSTEMD_DIR` |
 | `IOC_RUNNER_RUN_DIR`     | Overrides both `LOCAL_RUN_DIR` and `SYSTEM_RUN_DIR` |
+| `IOC_RUNNER_LOG_DIR`     | Overrides both `LOCAL_LOG_DIR` and `SYSTEM_LOG_DIR` |
 | `IOC_RUNNER_CON_TOOL`    | Absolute path to a custom `con`-compatible binary |
 | `IOC_RUNNER_PROCSERV_TOOL` | Absolute path to a custom `procServ` binary (local-mode template generation) |
 
@@ -230,3 +235,25 @@ export IOC_RUNNER_LOCAL_SYSTEMD_DIR="/tmp/sandbox/systemd"
 **Caveat: the system-mode runtime directory is fixed**
 
 The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, moving the runtime directory off `/run/procserv` via `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` would split the `IOC_PORT` socket path from where the kernel creates the UDS, so the runner now rejects it with a hard error. Use these overrides only in `--local` mode or for test scaffolding.
+
+**Drift warnings: install-time values are baked**
+
+The local unit and conf bake paths at install time, so changing an override afterwards silently splits the writer from the reader. The runner detects this at `start`/`restart` and warns instead of guessing:
+
+- If the resolved log directory no longer matches the one baked into the installed unit, it prints `Warning: LOG_DIR resolves to ... but the installed user unit logs to ... (baked at install).` — the startup poll would watch the wrong file; export the install-time value or re-run `install`.
+- If the installed `IOC_PORT` socket path no longer matches the current `RUN_DIR` resolution, it prints `Warning: the installed IOC_PORT socket (...) does not match the current RUN_DIR resolution (...).` — `attach`/`list` would look in the wrong place; re-run `install` after changing `IOC_RUNNER_LOCAL_RUN_DIR` / `IOC_RUNNER_RUN_DIR`.
+- Independently of any divergence, local mode reminds you at conf parse time whenever `IOC_RUNNER_LOG_DIR` / `IOC_RUNNER_LOCAL_LOG_DIR` is set at all that the value is baked into the user unit's `--logfile` at install time — export the same value when you start or restart the IOC.
+
+Treat either warning as "install and runtime disagree": re-export the install-time environment or re-run `ioc-runner --local install` before relying on `start` verdicts, `attach`, or `list`.
+
+## 15. Local Log Rotation
+
+`--local install` also deploys best-effort per-user log rotation, because a crash-looping user IOC under `Restart=always` would otherwise grow its log without bound:
+
+- **Objects**: `~/.config/ioc-runner/logrotate.conf`, plus `epics-logrotate.service` (oneshot) and `epics-logrotate.timer` in the user systemd directory. One timer rotates every `*.log` in the local log directory.
+- **Policy**: rotate weekly, or as soon as a log exceeds 50 MB (`maxsize 50M`); keep 8 compressed rotations; `copytruncate` so procServ keeps writing to the same open file during rotation.
+- **Schedule**: the timer fires hourly (`OnCalendar=hourly`, `Persistent=true`, randomized by up to 5 minutes) and each tick evaluates the weekly/size policy.
+- **Best effort**: a missing `logrotate` binary, an invalid generated config, or an unreachable user bus prints a warning and skips rotation — the IOC install itself always succeeds. Re-run `ioc-runner --local install` after fixing the cause.
+- **Generated files**: Do not hand-edit `~/.config/ioc-runner/logrotate.conf` or the `epics-logrotate.*` units: every `ioc-runner --local install` re-renders them and replaces any file whose content differs, so local edits are not preserved. Site-specific rotation policy belongs in a separate operator-owned logrotate config, not in these generated files.
+- **Never auto-removed**: `remove` deletes only the IOC; the rotation config and units stay until you remove them yourself (`systemctl --user disable --now epics-logrotate.timer`, then delete the three files).
+- **Monitoring**: `ioc-runner --local list` warns when the timer is installed but inactive. Like the IOC units, the timer only fires while your user manager is running — enable lingering (`loginctl enable-linger $(id -un)`) on headless hosts.

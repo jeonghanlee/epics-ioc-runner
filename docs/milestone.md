@@ -48,19 +48,32 @@ the ansible/cloud-provision U8 first-joint-tag event.
 
 | Work unit | Source | Note |
 | --- | --- | --- |
-| Detection-layer design: #102 running-IOC hang + conf-skew/disk-full/NFS-outage detectability | SG-D, R10 gap ranking, backlog #102 | The 1.3.0 theme. |
+| Detection-layer design: #102 running-IOC hang + conf-skew/disk-full/NFS-outage-or-hang detectability | SG-D, R10 gap ranking, backlog #102 | The 1.3.0 theme. |
 | (#113) Conf parser unification (single parse core, trim + last-wins + tab) + divergence fixtures | C2 (R2-F2/R4-F1), R8-G4 | Behavior-visible; needs its own review. |
 | (#114) FATAL-subset boundary hygiene (U-2 portable class) + golden rerun | R2-F5 | Pairs with E2E probe. |
 | (#115/#116) E2E restart-supervision probe on goldens (U-7 approved) + #98 tripwire port to three suites + M19 oneshot via systemd | R8-G1/F5/G3 | Test-infrastructure block. |
 | (#117) Local-install deploy-after-gates reordering | R1-F3 | do_install flow refactor. |
 | Deferred minor pool: fast-path window cap (R2-F7), NUL handling (R2-F3), coverage gaps G5-G8, co-residence workspace guard (U-8 second half), polish lists of all ten artifacts | Review artifacts | Scope decided at 1.3.0 opening. |
 
+## Examined-Keep Ledger (1.2.1)
+
+Keep decisions (examined, no action) from the 1.2.0 full-code review / CI
+sweep, recorded per the M9 (#112) docs truth pass. IDs continue the 1.2.0
+numbering (last used: CI-24). Full per-finding records live in the 1.2.0
+register: `git show 1.2.0:docs/milestone.md`.
+
+| ID | Sweep | Finding | Why Keep |
+| --- | --- | --- | --- |
+| CI-25 | #81 (1.2.0 CI sweep, recorded 2026-07-07 at M9/#112) | procServ unit template maintained as two copies (`bin/ioc-runner` local user unit, `bin/setup-system-infra.bash` system unit) rather than a single emitter. | Keep the guarded two-copy template contract (no single emitter): ADR 0001 mechanism note (C005); the shared-contract guard pins both copies. |
+| CI-26 | #87 (1.2.0 CI sweep, recorded 2026-07-07 at M9/#112) | System service identity (`ioc-srv`/`ioc`) resolved independently in both scripts. | Keep the guarded dual resolution (`IOC_RUNNER_SYSTEM_USER/GROUP` in both scripts): the shared defaults are pinned by the static guard test; the resolved-identity banner (M7/#110) covers the sudo env_reset failure mode. |
+| CI-27 | #86 (1.2.0 CI sweep, recorded 2026-07-07 at M9/#112) | Socket-path reference across `resolve_sock_path` callers (unify vs keep the documented alias). | Keep B, per the preserved 1.2.0 register M7 row verdict (closed 2026-06-17, no code change): "The documented `do_inspect` alias ('the naming split is intentional', from #85) is the end state"; all three callers resolve via `resolve_sock_path` -> `RESOLVED_SOCK_PATH` identically (the alias is a local readability rebind, not a behavior difference); option A / helper-contract refactor "would touch a stable ~70-line block for uniformity alone (the Generalize trap)". |
+
 ## External Gates
 
 | Gate | State |
 | --- | --- |
 | ansible/cloud-provision U8 first joint tag (1.0) | Fires at the M10 bake; User-run. |
-| INSTALL 2.3 padded-regex verification on a sudo>=1.9.10 golden (R7 Q1) | Needed inside M9; one visudo/sudo -l check. |
+| INSTALL 2.3 regex-form sudoers verification on a sudo>=1.9.10 golden (R7 Q1) | Docs de-padded at M9 to the generator's single-space spelling; the golden check verifies the generated regex Cmnd deploys and matches (visudo -c + sudo -l as an ioc-group member) — runs at the M10 bake. |
 
 **Tally:** milestones Open 10 (M2-M9 + M10 gate + M11), Done 1 (M1 code) · carry-forward (1.3.0) 6 recorded · blocked 0.
 

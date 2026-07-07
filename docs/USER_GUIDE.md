@@ -162,12 +162,12 @@ To verify the exact version, Git commit hash, commit date, and install date of t
 ioc-runner -V
 ```
 
-Example output:
+Example output (values shown as placeholders):
 
 ```text
-epics-ioc-runner version 1.1.0 (4a8bba0)
-commit date:  2026-05-13T20:00:00Z
-install date: 2026-05-13T21:30:00Z
+epics-ioc-runner version X.Y.Z (<hash>)
+commit date:  <commit date>
+install date: <install date>
 ```
 
 The commit date answers which revision is on this host; the install date answers how long the deployed artefact has been in place.

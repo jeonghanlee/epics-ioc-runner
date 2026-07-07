@@ -1,7 +1,9 @@
 # Filesystem Permission Model
 
 This document captures the filesystem permission model for the
-`epics-ioc-runner` 1.1.0 release. It covers every directory and
+`epics-ioc-runner` 1.2.1 release (first written at 1.1.0; refreshed for
+1.2.1 — socket permissions, conf-integrity boundary, and local log-rotation
+objects added). It covers every directory and
 file the runner installs, references, or creates at IOC start time,
 plus the principals authorized to create, manage, and read each
 object.
@@ -63,7 +65,9 @@ both `bin/ioc-runner` and `bin/setup-system-infra.bash` resolve
 defaults `ioc-srv` / `ioc`. A site deploying under a different account
 or group sets the two variables once, for both the setup run and every
 runner invocation; the shared defaults are pinned by a static guard
-test.
+test. Note that shell-exported overrides do not survive sudo's
+`env_reset`; pass them on the sudo command line itself (see INSTALL.md
+section 1).
 
 ### Local-mode paths
 
@@ -75,6 +79,16 @@ user's account.
 | `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `<user>:<user>` | `0750` | `LOG_DIR` | created by `do_install` local branch; `IOC_RUNNER_LOG_DIR` or `IOC_RUNNER_LOCAL_LOG_DIR` can override the default |
 | `${LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | — | procServ-created with user unit `UMask=0027` |
 | `~/.config/systemd/user/epics-@.service` | `<user>:<user>` | umask-dependent (`0644` at the conventional `umask 022`) | — | written by `deploy_local_template` via `cat`; no explicit `chmod`, so the final mode follows the invoking user's umask |
+| `~/.config/ioc-runner/` | `<user>:<user>` | `0700` | — | local logrotate config dir (M19/#103), created by `deploy_local_logrotate` |
+| `~/.config/ioc-runner/logrotate.conf` | `<user>:<user>` | `0600` | — | mktemp-staged; redeployed by content diff on every `--local install` |
+| `~/.config/systemd/user/epics-logrotate.service`, `.timer` | `<user>:<user>` | `0600` | — | oneshot rotation service + hourly timer; timer enabled, service never |
+| `/run/user/<uid>/ioc-runner-logrotate.state` | `<user>:<user>` | logrotate-managed | — | rotation state, host-local via the `%t` specifier |
+
+When `HOME` is unset (bare sudo, some cron/systemd contexts) the runner
+falls back to the passwd database and, failing that, to `/tmp` — and a
+`/tmp`-fallback HOME is treated as untrusted: `${HOME}/.local/bin` is then
+excluded from the `con`/`procServ` executable search, so a world-writable
+fallback home can never supply the executables the runner runs.
 
 ## Access Boundary: sudoers Policy + File Mode
 
@@ -88,11 +102,11 @@ based on the local sudo version (decided by
   `validate_ioc_name` in `bin/ioc-runner`:
 
   ```
-  %ioc ALL=(root) NOPASSWD: /usr/bin/systemctl ^start  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^stop   epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+  %ioc ALL=(root) NOPASSWD: /usr/bin/systemctl ^start epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^stop epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
                             /usr/bin/systemctl ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^status  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^enable  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^status epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
+                            /usr/bin/systemctl ^enable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
                             /usr/bin/systemctl ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
                             /usr/bin/systemctl ^daemon-reload$
   ```
@@ -118,6 +132,15 @@ Effective scope:
 File-mode permissions and default ACLs reinforce the boundary at
 the file system layer: who can read log files, who can write, and
 who can create files in the log directory.
+
+Conf-file integrity follows the same containment principle: the runner
+accepts any readable `.conf` regardless of its file mode — a group-writable
+conf is the designed norm (any `ioc` engineer manages any IOC), and a
+world-writable conf is neither detected nor rejected — so the integrity
+boundary is directory containment (`/etc/procServ.d` at `2770 root:ioc` in
+system mode; the user's home in local mode), not a per-file mode check. Do
+not store secrets in a `.conf`: every key is exported into the procServ
+process environment and inherited by the IOC process (see FAQ Q2).
 
 ### Residual risk on sudo < 1.9.10 hosts
 
@@ -196,6 +219,27 @@ umask `0022` preserves the `0644` mode through.
 Local mode keeps `UMask=0027` in the user-mode unit. The engineer
 is the only principal; `0640` ensures their primary group has read
 but other users on the same host cannot read the user's logs.
+
+## Console Socket Permissions
+
+The console UNIX domain socket involves two objects with two distinct modes;
+they must not be conflated:
+
+| Object | System mode | Local mode | Mode | Created by |
+| --- | --- | --- | --- | --- |
+| Socket directory `${RUN_DIR}/<ioc>/` | `/run/procserv/<ioc>/`, `ioc-srv:ioc` | `/run/user/<uid>/procserv/<ioc>/`, `<user>:<user>` | `0770` | systemd `RuntimeDirectory=procserv/%i` + `RuntimeDirectoryMode=0770` |
+| Socket file `control` | `ioc-srv:ioc` | `<user>:<user>` | `0660` | procServ, per the `IOC_PORT` spec `unix:<user>:<group>:0660:<path>` emitted by `process_ioc_port` |
+
+`RuntimeDirectoryPreserve=restart` keeps the socket directory in place
+across a systemd-driven auto-restart, so the socket path stays stable and a
+console can re-attach at the same path once procServ is revived; a client
+attached at the moment procServ dies still sees EOF. Console continuity
+across IOC child restarts needs no systemd directive — procServ holds the
+socket open while only the child dies. The `0770` directory is not
+traversable outside the owning group: for non-`ioc` users `ioc-runner list`
+shows no sockets and prints a permission hint (#94). In the attach path the
+conf-directory gate (`/etc/procServ.d` `2770`) is reached first; the socket
+boundary sits behind it.
 
 ## Permission Lifecycle
 
