@@ -320,11 +320,14 @@ function backup_if_exists {
     fi
 }
 
-if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
+# Clean up staged temp files on any exit; a mid-run abort would
+# otherwise leak them (sudoers/logrotate in /tmp; runner, completion
+# and the unit template stage inside their target directories, #107).
+# Unconditional: the CLI-wrapper mode stages files too. The M1 gate
+# evidence holds: this trap shape preserves a top-level exit 1.
+trap 'rm -f "${tmp_sudoers:-}" "${tmp_logrotate:-}" "${tmp_runner:-}" "${tmp_comp:-}" "${tmp_unit:-}"' EXIT
 
-    # Clean up staged temp files (sudoers, logrotate) on any exit; a
-    # mid-run abort would otherwise leak them in /tmp.
-    trap 'rm -f "${tmp_sudoers:-}" "${tmp_logrotate:-}"' EXIT
+if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
     # Preflight: required tools for the system-mode infrastructure.
     # The log directory STEP relies on setfacl/getfacl to install default
@@ -474,7 +477,9 @@ EOF
 
     backup_if_exists "${SYSTEMD_TEMPLATE}"
 
-    cat <<EOF > "${SYSTEMD_TEMPLATE}"
+    # Stage in the target directory (#107): atomic same-dir rename.
+    tmp_unit=$(mktemp "${SYSTEMD_TEMPLATE}.XXXXXX")
+    cat <<EOF > "${tmp_unit}"
 [Unit]
 Description=procServ for %i
 Wants=time-sync.target
@@ -504,7 +509,9 @@ SyslogIdentifier=epics-%i
 WantedBy=multi-user.target
 EOF
 
-    chmod "${PERM_SYSTEMD_TEMPLATE}" "${SYSTEMD_TEMPLATE}"
+    chmod "${PERM_SYSTEMD_TEMPLATE}" "${tmp_unit}"
+    mv "${tmp_unit}" "${SYSTEMD_TEMPLATE}"
+    tmp_unit=""   # consumed by mv; keep the EXIT trap from re-acting
     verify_path "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" "Deployed systemd template to ${SYSTEMD_TEMPLATE} using ${RESOLVED_PROCSERV_BIN}"
 
     systemctl daemon-reload
@@ -559,7 +566,11 @@ print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     backup_if_exists "${RUNNER_SCRIPT_DEST}"
-    cp "${RUNNER_SCRIPT_SRC}" "${RUNNER_SCRIPT_DEST}"
+    # Stage in the target directory (#107): the sed/chmod pipeline
+    # below must never be visible under the final name, and a
+    # same-directory mv is an atomic rename(2).
+    tmp_runner=$(mktemp "${RUNNER_SCRIPT_DEST}.XXXXXX")
+    cp "${RUNNER_SCRIPT_SRC}" "${tmp_runner}"
 
     # Inject version and build information into the deployed script.
     # Use -C "${SC_DIR}" so the metadata reflects the epics-ioc-runner repo
@@ -612,11 +623,13 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     fi
     current_install_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-    sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${RUNNER_SCRIPT_DEST}"
-    sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${current_commit_date}\"/" "${RUNNER_SCRIPT_DEST}"
-    sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${current_install_date}\"/" "${RUNNER_SCRIPT_DEST}"
+    sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${tmp_runner}"
+    sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${current_commit_date}\"/" "${tmp_runner}"
+    sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${current_install_date}\"/" "${tmp_runner}"
 
-    chmod "${PERM_RUNNER_SCRIPT}" "${RUNNER_SCRIPT_DEST}"
+    chmod "${PERM_RUNNER_SCRIPT}" "${tmp_runner}"
+    mv "${tmp_runner}" "${RUNNER_SCRIPT_DEST}"
+    tmp_runner=""   # consumed by mv; keep the EXIT trap from re-acting
     verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
 
     # On RHEL-family systems, sudo's secure_path excludes /usr/local/bin,
@@ -637,8 +650,12 @@ fi
 # Deploys the Bash completion script to the system directory for enhanced CLI usability and validates deployment state.
 if [[ -f "${BASH_COMP_SRC}" ]]; then
     backup_if_exists "${BASH_COMP_DEST}"
-    cp "${BASH_COMP_SRC}" "${BASH_COMP_DEST}"
-    chmod "${PERM_BASH_COMP}" "${BASH_COMP_DEST}"
+    # Stage in the target directory (#107): atomic same-dir rename.
+    tmp_comp=$(mktemp "${BASH_COMP_DEST}.XXXXXX")
+    cp "${BASH_COMP_SRC}" "${tmp_comp}"
+    chmod "${PERM_BASH_COMP}" "${tmp_comp}"
+    mv "${tmp_comp}" "${BASH_COMP_DEST}"
+    tmp_comp=""   # consumed by mv; keep the EXIT trap from re-acting
     verify_path "${BASH_COMP_DEST}" "${OWNER_SYSTEM}" "${PERM_BASH_COMP}" "Deployed Bash completion to ${BASH_COMP_DEST} (${PERM_BASH_COMP})"
 else
     _log "INFO" "Bash completion source not found at ${BASH_COMP_SRC}. Skipping deployment."

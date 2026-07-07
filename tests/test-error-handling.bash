@@ -537,6 +537,28 @@ function test_generate_errors {
     [[ "${pre_sum}" == "${post_sum}" ]] && preserved="true"
     verify_state "true" "${preserved}" "Generate EOF abort preserves existing conf unchanged"
 
+    # #107: the abort path must leave no staged .name.conf.XXXXXX file
+    # behind in the target directory (EXIT-trap regression tripwire).
+    local leftover="false"
+    compgen -G "${overwrite_dir}/.*.conf.*" >/dev/null 2>&1 && leftover="true"
+    verify_state "false" "${leftover}" "Generate abort leaves no staged tmp in the target dir (#107)"
+
+    # #107: generate stages in the TARGET directory — a poisoned TMPDIR
+    # must not matter (the old /tmp staging failed here at mktemp).
+    local tp_dir="${TEST_TMPDIR}/tmpdir_poison_ioc"
+    mkdir -p "${tp_dir}"; touch "${tp_dir}/st.cmd"; chmod +x "${tp_dir}/st.cmd"
+    exit_code=$(TMPDIR=/nonexistent-m4 _run bash -c "cd \"${tp_dir}\" && bash \"${RUNNER_SCRIPT}\" --local -f generate .")
+    verify_exit_code "0" "${exit_code}" "Generate succeeds with a poisoned TMPDIR (#107 same-dir staging)"
+
+    # #107: explicit perms on the generated conf.
+    local gen_mode
+    gen_mode=$(stat -c %a "${tp_dir}/tmpdir_poison_ioc.conf" 2>/dev/null || printf "missing")
+    verify_state "600" "${gen_mode}" "Local generate writes the conf 0600 (#107)"
+    rm -f "${tp_dir}/tmpdir_poison_ioc.conf"
+    exit_code=$(TMPDIR=/nonexistent-m4 _run bash -c "cd \"${tp_dir}\" && bash \"${RUNNER_SCRIPT}\" -f generate .")
+    verify_exit_code "0" "${exit_code}" "System-mode generate succeeds with a poisoned TMPDIR (#107)"
+    gen_mode=$(stat -c %a "${tp_dir}/tmpdir_poison_ioc.conf" 2>/dev/null || printf "missing")
+    verify_state "660" "${gen_mode}" "System-mode generate writes the conf 0660 (#107)"
 }
 
 # Validates directory-based artifact resolution and target routing functionality.

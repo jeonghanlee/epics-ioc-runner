@@ -805,13 +805,16 @@ function process_ioc_port {
 function validate_conf {
     local conf_file="$1"
     local -n conf_vars="$2"    # nameref to caller's map
+    # Optional display name (#107): generate validates a staged tmp
+    # file; user-facing lines must name the FINAL path, never the tmp.
+    local display_name="${3:-$1}"
     local error_count=0
     local current_user current_group exec_bin
 
-    printf "Validating configuration file: %s...\n" "${conf_file}"
+    printf "Validating configuration file: %s...\n" "${display_name}"
 
     if ! bash -n "${conf_file}" 2>/dev/null; then
-        printf "Error: Syntax error detected in %s\n" "${conf_file}" >&2
+        printf "Error: Syntax error detected in %s\n" "${display_name}" >&2
         return 1
     fi
 
@@ -1175,7 +1178,12 @@ function do_generate {
         mode_flag="--local "
     fi
 
-    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/ioc-runner-gen.XXXXXX.conf")
+    # Stage INSIDE the target directory (#107) so the final mv is an
+    # atomic same-filesystem rename(2); /tmp staging crossed
+    # filesystems on NFS homes and could expose a partial file under
+    # the final name. Consequence (accepted at convergence): every
+    # generate flow now needs write permission on the directory.
+    tmp_conf=$(mktemp "${abs_dir}/.${IOC_NAME}.conf.XXXXXX")
     trap 'rm -f "${tmp_conf:-}"' EXIT
 
     cat <<EOF > "${tmp_conf}"
@@ -1187,7 +1195,7 @@ IOC_PORT=""
 IOC_CMD="${cmd_file}"
 EOF
 
-    if ! validate_conf "${tmp_conf}" validate_map; then
+    if ! validate_conf "${tmp_conf}" validate_map "${generated_conf}"; then
         rm -f "${tmp_conf}"
         exit 1
     fi
@@ -1252,6 +1260,14 @@ EOF
         fi
     fi
 
+    # Explicit perms before the rename (#107): 0660 in system mode so
+    # the ioc group can read the conf; 0600 (mktemp default, now
+    # explicit) in local mode.
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        chmod 0660 "${tmp_conf}"
+    else
+        chmod 0600 "${tmp_conf}"
+    fi
     mv -f "${tmp_conf}" "${generated_conf}"
     trap - EXIT
 
