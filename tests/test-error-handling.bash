@@ -1758,6 +1758,61 @@ EOF
     verify_state "true" "${skipped}" "uncreatable cfg_dir warns and skips rotation (#110)"
 }
 
+# M8/#111 (CI-F): behavioral parity between the runner's IOC-name rule
+# (validate_ioc_name) and the sudoers REGEX-form Cmnd ERE generator in
+# setup. BOTH sides are EXTRACTED from their source lines (never re-typed,
+# so this cannot become a third copy of the rule) and evaluated as bash
+# EREs under LC_ALL=C against the same candidate set. Scope: pins the
+# regex-form heredoc only; the glob fallback deployed on sudo < 1.9.10 is
+# intentionally broader and out of parity scope (PERMISSION_MODEL.md).
+# Option-shaped names (leading '-') are excluded: the CLI parser rejects
+# them before validation and the sudoers ERE rejects them by class — the
+# behaviors align but through different mechanisms.
+function test_ioc_name_charset_parity {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: IOC-Name Charset Parity Guard (#111/CI-F)"
+    print_sub_divider
+
+    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
+    local eres uniq_ere
+    eres=$(grep -oE 'epics-@\[[^]]*\]\[[^]]*\]\{[0-9]+,[0-9]+\}[\\]+\.service[\\]\$' "${setup_script}" || true)
+    verify_exit_code "6" "$(printf '%s\n' "${eres}" | grep -c . || true)" "six regex-form Cmnd EREs found in setup"
+    uniq_ere=$(printf '%s\n' "${eres}" | sort -u)
+    verify_exit_code "1" "$(printf '%s\n' "${uniq_ere}" | grep -c . || true)" "all six Cmnd EREs are identical"
+
+    # Unquoted-heredoc transform: the generated sudoers carries \. and $
+    # where the .bash source spells double-backslash-dot and
+    # backslash-dollar.
+    local sudo_ere="${uniq_ere}"
+    sudo_ere="${sudo_ere/\\\\./\\.}"
+    sudo_ere="${sudo_ere/\\$/$}"
+    sudo_ere="^${sudo_ere}"
+
+    # Runner side, extracted from the validate_ioc_name source line.
+    local runner_re runner_len
+    runner_re=$(grep -oE '\^\[[^]]*\]\[[^]]*\]\*\$' "${RUNNER_SCRIPT}" | head -n1)
+    runner_len=$(sed -n 's/.*"\${#name}" -le \([0-9]\+\).*/\1/p' "${RUNNER_SCRIPT}" | head -n1)
+    verify_state "64" "${runner_len}" "runner length rule extracted (<=64)"
+
+    local n63 n64 n65
+    n63=$(printf 'a%.0s' $(seq 1 63)); n64=$(printf 'a%.0s' $(seq 1 64)); n65=$(printf 'a%.0s' $(seq 1 65))
+    local -a candidates=("a" "z" "A" "Z" "0" "9" "_" "_x" "a-b" "ab-" "a_b" \
+        "a.b" "a:b" "a/b" "a b" "a@b" ".hidden" "a," \
+        "${n63}" "${n64}" "${n65}")
+    local name runner_ok sudo_ok mismatch=""
+    for name in "${candidates[@]}"; do
+        runner_ok=0
+        if LC_ALL=C [[ "${#name}" -le "${runner_len}" && "${name}" =~ ${runner_re} ]]; then runner_ok=1; fi
+        sudo_ok=0
+        if LC_ALL=C [[ "epics-@${name}.service" =~ ${sudo_ere} ]]; then sudo_ok=1; fi
+        if [[ ${runner_ok} -ne ${sudo_ok} ]]; then
+            mismatch+=" [${name}:runner=${runner_ok},sudoers=${sudo_ok}]"
+        fi
+    done
+    verify_state "" "${mismatch}" "runner and sudoers charsets agree across ${#candidates[@]} candidates"
+}
+
 # Validates #74/#78 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
 # and the home-bin search-path default. Each case is self-contained -- it
 # supplies its own stub via the override or a HOME-redirected ~/.local/bin.
@@ -1894,6 +1949,7 @@ function run_all_tests {
         "test_conf_dir_guard"
         "test_pipefail_probe_guard"
         "test_logrotate_skip_guard"
+        "test_ioc_name_charset_parity"
         "test_completion"
         "test_ioc_name_validation"
         "test_validation_errors"
