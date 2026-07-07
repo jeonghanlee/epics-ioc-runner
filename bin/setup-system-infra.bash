@@ -173,8 +173,14 @@ function verify_path {
     local actual_owner
     local actual_perm
 
-    actual_owner=$(stat -c "%U:%G" "${path}")
-    actual_perm=$(stat -c "%a" "${path}")
+    # A missing/unreadable path is a verification FAILURE to report,
+    # never a reason to abort the run mid-verify (set -e).
+    if ! actual_owner=$(stat -c "%U:%G" "${path}" 2>/dev/null) ||
+       ! actual_perm=$(stat -c "%a" "${path}" 2>/dev/null); then
+        _log "ERROR" "Verify FAILED : ${path} missing or unreadable"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
 
     # Normalize to 4-digit octal for comparison
     expected_perm=$(printf "%04o" "0${expected_perm}")
@@ -633,6 +639,15 @@ else
     _log "INFO" "Failed : ${VERIFY_FAIL}/${total}"
 fi
 print_divider
+
+# The exit status is the contract automated provisioning reads: a
+# failed verification must fail the run (#104, three-lane C1).
+if [[ ${VERIFY_FAIL} -gt 0 ]]; then
+    print_divider
+    _log "ERROR" "Setup verification FAILED (${VERIFY_FAIL} of ${total} checks). Fix the reported items and re-run."
+    print_divider
+    exit 1
+fi
 
 print_divider
 if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
