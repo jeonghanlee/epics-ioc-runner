@@ -483,8 +483,13 @@ function deploy_local_logrotate {
     local svc_path="${SYSTEMD_DIR}/epics-logrotate.service"
     local tmr_path="${SYSTEMD_DIR}/epics-logrotate.timer"
 
-    install -d -m 0700 "${cfg_dir}"
-    mkdir -p "${SYSTEMD_DIR}"
+    # Never-abort contract: an uncreatable config or unit directory
+    # (read-only or full HOME) skips rotation with a warning; the IOC
+    # install proceeds.
+    if ! install -d -m 0700 "${cfg_dir}" 2>/dev/null || ! mkdir -p "${SYSTEMD_DIR}" 2>/dev/null; then
+        printf "Warning: cannot create %s or %s; rotation not installed.\n" "${cfg_dir}" "${SYSTEMD_DIR}" >&2
+        return 0
+    fi
 
     # Render to same-directory temps so the later mv is a true atomic rename
     # (a /tmp temp would make mv a cross-filesystem copy+unlink).
@@ -569,7 +574,9 @@ EOF
     if ! run_systemctl is-enabled --quiet epics-logrotate.timer 2>/dev/null; then
         if ! run_systemctl enable --now epics-logrotate.timer 2>/dev/null; then
             printf "Warning: could not enable epics-logrotate.timer (no user bus / linger?).\n" >&2
-            printf "         Rotation starts on next login; run 'loginctl enable-linger %s' for headless operation.\n" "$(id -un)" >&2
+            printf "         Rotation is NOT armed. From a session with a user bus, run\n" >&2
+            printf "         'systemctl --user enable --now epics-logrotate.timer' or re-run\n" >&2
+            printf "         'ioc-runner --local install'; add 'loginctl enable-linger %s' for headless hosts.\n" "$(id -un)" >&2
         fi
     fi
 
@@ -982,7 +989,11 @@ function resolve_con_tool {
     fi
 
     if command -v nc >/dev/null 2>&1; then
-        if nc -h 2>&1 | grep -q "\-U"; then
+        # Capture first, then test: piping 'nc -h' straight into grep -q is a
+        # pipefail false negative (usage exit / SIGPIPE on early grep match).
+        local nc_help
+        nc_help=$(nc -h 2>&1 || true)
+        if grep -qF -- "-U" <<< "${nc_help}"; then
             CON_TOOL_PATH="nc"
             CON_TOOL_TYPE="nc"
             return 0
@@ -1643,7 +1654,11 @@ function do_monitor {
 
     case "${CON_TOOL_TYPE}" in
         con)
-            if "${CON_TOOL_PATH}" -h 2>&1 | grep -q "\-r"; then
+            # Same pipefail hazard as the nc -U probe: materialize the help
+            # text before grep so an early -q match cannot fail the pipeline.
+            local con_help
+            con_help=$("${CON_TOOL_PATH}" -h 2>&1 || true)
+            if grep -qF -- "-r" <<< "${con_help}"; then
                 printf "Use Ctrl-A to exit.\n"
                 print_divider >&2
                 exec "${CON_TOOL_PATH}" -r -c "${RESOLVED_SOCK_PATH}" || exit
@@ -1675,6 +1690,15 @@ function do_monitor {
 }
 
 function do_list {
+    # Rotation timer deployed but not ticking: without this line the only
+    # symptom is an unbounded log discovered much later. Local mode only;
+    # an armed timer reports active (waiting), so is-active is the test.
+    if [[ "${EXEC_MODE}" == "local" && -f "${SYSTEMD_DIR}/epics-logrotate.timer" ]]; then
+        if ! run_systemctl is-active --quiet epics-logrotate.timer 2>/dev/null; then
+            printf "Warning: epics-logrotate.timer is installed but inactive; procServ log rotation is not running.\n" >&2
+        fi
+    fi
+
     if [[ ! -d "${RUN_DIR}" ]]; then
         printf "No active IOC sockets found in %s\n" "${RUN_DIR}"
         return 0

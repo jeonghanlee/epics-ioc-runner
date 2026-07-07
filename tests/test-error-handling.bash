@@ -1713,6 +1713,51 @@ function test_conf_dir_guard {
     verify_exit_code "0" "${ec}" "absolute CONF_DIR passes the guard"
 }
 
+# M7/#110 (CI-H class): no capability probe may pipe a helper's -h output
+# straight into grep -q — under pipefail a usage exit or an early-match
+# SIGPIPE turns a capable tool into a false negative. Capture-first only.
+function test_pipefail_probe_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Pipefail Probe Guard (#110)"
+    print_sub_divider
+    local hits
+    hits=$(grep -cE -- '-h 2>&1 \| grep -q' "${RUNNER_SCRIPT}" || true)
+    verify_exit_code "0" "${hits}" "no '-h 2>&1 | grep -q' pipeline probes remain in bin/ioc-runner (#110)"
+}
+
+# M7/#110 (1a): an uncreatable local logrotate cfg_dir must skip rotation
+# with a warning, never abort the IOC install (never-abort contract).
+function test_logrotate_skip_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Logrotate Never-Abort Guard (#110)"
+    print_sub_divider
+
+    local w="${TEST_TMPDIR}/lr_guard"
+    mkdir -p "${w}/boot" "${w}/sysd" "${w}/run" "${w}/log" "${w}/roparent/procServ.d"
+    touch "${w}/boot/st.cmd"; chmod +x "${w}/boot/st.cmd"
+    cat <<EOF > "${w}/boot/lrg.conf"
+IOC_NAME="lrg"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${w}/boot"
+IOC_CMD="st.cmd"
+EOF
+    chmod 0555 "${w}/roparent"
+
+    local ec=0 lr_stderr="${TEST_TMPDIR}/lr_guard_stderr"
+    IOC_RUNNER_LOCAL_CONF_DIR="${w}/roparent/procServ.d" IOC_RUNNER_LOCAL_SYSTEMD_DIR="${w}/sysd" \
+    IOC_RUNNER_LOCAL_RUN_DIR="${w}/run" IOC_RUNNER_LOCAL_LOG_DIR="${w}/log" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${w}/boot/lrg.conf" >/dev/null 2>"${lr_stderr}" || ec=$?
+    chmod 0755 "${w}/roparent"
+    verify_exit_code "0" "${ec}" "install proceeds when the rotation cfg_dir is uncreatable (#110)"
+
+    local skipped="false"
+    grep -q "rotation not installed" "${lr_stderr}" 2>/dev/null && skipped="true"
+    verify_state "true" "${skipped}" "uncreatable cfg_dir warns and skips rotation (#110)"
+}
+
 # Validates #74/#78 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
 # and the home-bin search-path default. Each case is self-contained -- it
 # supplies its own stub via the override or a HOME-redirected ~/.local/bin.
@@ -1847,6 +1892,8 @@ function run_all_tests {
         "test_log_dir_guard"
         "test_log_dir_xdg_fallback"
         "test_conf_dir_guard"
+        "test_pipefail_probe_guard"
+        "test_logrotate_skip_guard"
         "test_completion"
         "test_ioc_name_validation"
         "test_validation_errors"
