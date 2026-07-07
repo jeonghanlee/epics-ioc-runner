@@ -684,14 +684,14 @@ function test_install_errors {
 }
 
 
-# Validates that ss -lx failure aborts do_list under set -eo pipefail.
-# find is replaced by a PATH stub that emits one fake socket entry in the
-# null-delimited format expected by do_list, ensuring ss -lx is actually
-# reached. ss is replaced by a stub that exits 1 to simulate unavailability.
-function test_ss_failure_aborts_list {
+# #105 U-5: ss feeds only the -vv columns. Plain list must succeed
+# without a working ss; list -vv must fail loudly with a named error.
+# find is replaced by a PATH stub that emits one fake socket entry so
+# the collection path is actually reached; ss is stubbed to exit 1.
+function test_list_ss_vv_contract {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: ss Failure Aborts list Under pipefail"
+    _log "INFO" "STEP ${step}: list ss Contract (-vv only, #105)"
     print_sub_divider
 
     local mock_bin="${TEST_TMPDIR}/ss_fail_bin"
@@ -700,15 +700,12 @@ function test_ss_failure_aborts_list {
 
     mkdir -p "${mock_bin}" "${mock_run}/test_ioc"
 
-    # Stub find: outputs one null-delimited socket entry regardless of arguments,
-    # bypassing the -type s filesystem check without requiring a real socket file.
     cat > "${mock_bin}/find" <<STUB
 #!/usr/bin/env bash
 printf '%s\0%s\0%s\0' "${fake_sock}" "2024-01-01 12:00" "srwxrwxr-x"
 STUB
     chmod +x "${mock_bin}/find"
 
-    # Stub ss: always exits 1 to simulate the utility being absent or broken.
     printf '#!/usr/bin/env bash\nexit 1\n' > "${mock_bin}/ss"
     chmod +x "${mock_bin}/ss"
 
@@ -716,7 +713,65 @@ STUB
     exit_code=$(PATH="${mock_bin}:${PATH}" \
         IOC_RUNNER_LOCAL_RUN_DIR="${mock_run}" \
         _run bash "${RUNNER_SCRIPT}" --local list)
-    verify_exit_code "1" "${exit_code}" "ss -lx failure aborts list (exit 1 under pipefail)"
+    verify_exit_code "0" "${exit_code}" "plain list succeeds with broken ss (no -vv dependency)"
+
+    exit_code=$(PATH="${mock_bin}:${PATH}" \
+        IOC_RUNNER_LOCAL_RUN_DIR="${mock_run}" \
+        _run bash "${RUNNER_SCRIPT}" --local -vv list)
+    verify_exit_code "1" "${exit_code}" "list -vv with broken ss exits 1"
+
+    local out match_rc=1
+    out=$(PATH="${mock_bin}:${PATH}" IOC_RUNNER_LOCAL_RUN_DIR="${mock_run}" \
+        bash "${RUNNER_SCRIPT}" --local -vv list 2>&1 || true)
+    if [[ "${out}" == *"ss -lx"* ]]; then match_rc=0; fi
+    verify_exit_code "0" "${match_rc}" "list -vv failure names ss in the error"
+}
+
+# #105 U-4: mutation verbs on a never-installed name are a hard error
+# with the gate message, not systemd template-instantiation exit 0;
+# view exits nonzero on a missing conf (U-5).
+function test_unknown_name_verb_gate {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Unknown-Name Verb Gate (#105)"
+    print_sub_divider
+
+    local verb exit_code
+    for verb in stop enable disable remove view; do
+        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local "${verb}" no_such_ioc_105)
+        verify_exit_code "1" "${exit_code}" "${verb} on a never-installed name exits 1"
+    done
+
+    local out match_rc=1
+    out=$(bash "${RUNNER_SCRIPT}" --local stop no_such_ioc_105 2>&1 || true)
+    if [[ "${out}" == *"No configuration found"* ]]; then match_rc=0; fi
+    verify_exit_code "0" "${match_rc}" "gate message names the missing configuration"
+}
+
+# #105: local mode replaces a mismatching conf IOC_PORT with the
+# standard socket path — now with exactly one Warning.
+function test_local_ioc_port_replacement_warns {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Local IOC_PORT Replacement Warning (#105)"
+    print_sub_divider
+
+    local wdir="${TEST_TMPDIR}/warn105"
+    mkdir -p "${wdir}"
+    cat > "${wdir}/warnioc.conf" <<CONF
+IOC_NAME="warnioc"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CMD="/bin/echo"
+IOC_CHDIR="${wdir}"
+IOC_PORT="unix:someone:somegroup:0660:/definitely/not/standard"
+CONF
+
+    local out count
+    out=$(IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+        bash "${RUNNER_SCRIPT}" --local install "${wdir}/warnioc.conf" -f 2>&1 >/dev/null || true)
+    count=$(grep -c "Warning: IOC_PORT" <<< "${out}" || true)
+    verify_exit_code "1" "${count}" "exactly one IOC_PORT replacement warning"
 }
 
 # Validates that the new namespaced env vars (IOC_RUNNER_LOCAL_*) route install
@@ -1656,7 +1711,9 @@ function run_all_tests {
         "test_ioc_port_atomic_install"
         "test_generate_errors"
         "test_install_errors"
-        "test_ss_failure_aborts_list"
+        "test_list_ss_vv_contract"
+        "test_unknown_name_verb_gate"
+        "test_local_ioc_port_replacement_warns"
         "test_env_var_namespacing"
         "test_env_var_precedence"
         "test_system_identity_guard"

@@ -212,6 +212,30 @@ function validate_ioc_name {
     return 1
 }
 
+# U-4 (#105): target-taking mutation verbs hard-error on a name that
+# was never installed, instead of systemd's silent
+# template-instantiation success (stop/enable/disable on a typo
+# exited 0 and misled operators about live hardware).
+function require_installed_conf {
+    local ioc_name="$1"
+    local verb="$2"
+    # Observers cannot read CONF_DIR (2770 root:ioc): report the real
+    # cause honestly instead of misreporting "not installed" for an
+    # installed IOC (#105, multiuser S6).
+    if [[ -d "${CONF_DIR}" && ! -r "${CONF_DIR}" ]]; then
+        printf "Error: Cannot read %s to resolve IOC '%s' (ioc group membership required).\n" "${CONF_DIR}" "${ioc_name}" >&2
+        exit 1
+    fi
+    if [[ ! -f "${CONF_DIR}/${ioc_name}.conf" ]]; then
+        printf "Error: No configuration found for IOC '%s' (looked in %s).\n" "${ioc_name}" "${CONF_DIR}" >&2
+        printf "  -> Nothing to %s: the IOC is not installed in this mode.\n" "${verb}" >&2
+        if [[ -d "${RUN_DIR}/${ioc_name}" ]]; then
+            printf "  -> A stale socket directory exists at %s; remove it manually if orphaned.\n" "${RUN_DIR}/${ioc_name}" >&2
+        fi
+        exit 1
+    fi
+}
+
 # --- CLI Argument Parsing ---
 declare -g COMMAND_ACTION=""
 declare -g TARGET_ARG=""
@@ -350,7 +374,7 @@ function run_systemctl {
         "${SYSTEMCTL_BIN}" --user "${action}" "$@"
     else
         case "${action}" in
-            is-active|status|cat|show)
+            is-active|is-enabled|status|cat|show)
                 "${SYSTEMCTL_BIN}" "${action}" "$@"
                 ;;
             *)
@@ -769,6 +793,9 @@ function process_ioc_port {
         fi
         printf "%s" "${input_port}"
     else
+        if [[ -n "${input_port}" && "${input_port}" != "${std_port}" ]]; then
+            printf "Warning: IOC_PORT in the conf is replaced by the local standard socket path (%s).\n" "${std_path}" >&2
+        fi
         printf "%s" "${std_port}"
     fi
 }
@@ -1473,9 +1500,15 @@ function do_remove {
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    require_installed_conf "${IOC_NAME}" "remove"
 
-    run_systemctl stop "epics-@${IOC_NAME}.service" 2>/dev/null || true
-    run_systemctl disable "epics-@${IOC_NAME}.service" 2>/dev/null || true
+    # Capture the stop/disable stderr instead of discarding it: on an
+    # abort the operator needs systemctl's own words (#105).
+    local stop_err="" disable_err=""
+    stop_err=$(run_systemctl stop "epics-@${IOC_NAME}.service" 2>&1 >/dev/null) || true
+    disable_err=$(run_systemctl disable "epics-@${IOC_NAME}.service" 2>&1 >/dev/null) || true
+    stop_err="${stop_err//$'\n'/$'\n'    }"
+    disable_err="${disable_err//$'\n'/$'\n'    }"
 
     # Verify the service has actually stopped before deleting its configuration.
     local state
@@ -1483,13 +1516,33 @@ function do_remove {
 
     if [[ "${state}" == "active" || "${state}" == "activating" || "${state}" == "deactivating" ]]; then
         print_divider >&2
-        printf "Error: Removal aborted. Service '%s' failed to stop cleanly (State: %s).\n" "${IOC_NAME}" "${state}" >&2
-        printf "Please forcefully terminate the process before attempting removal to prevent systemd corruption.\n" >&2
+        printf "Error: Removal aborted. Service '%s' did not stop (State: %s).\n" "${IOC_NAME}" "${state}" >&2
+        if [[ -n "${stop_err}" ]]; then
+            printf "  systemctl stop reported:\n    %s\n" "${stop_err}" >&2
+        fi
+        printf "  -> Check sudo permissions and the unit state (systemctl status), then re-run remove.\n" >&2
         print_divider >&2
         exit 1
     fi
 
+    # A failed disable leaves a boot-enabled instance behind (#105).
+    local enabled_state
+    enabled_state=$(run_systemctl is-enabled "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+    if [[ "${enabled_state}" == enabled* ]]; then
+        printf "Warning: could not disable 'epics-@%s.service' — it may still start at boot.\n" "${IOC_NAME}" >&2
+        if [[ -n "${disable_err}" ]]; then
+            printf "  systemctl disable reported:\n    %s\n" "${disable_err}" >&2
+        fi
+    fi
+
     rm -f "${target_conf}" || true
+
+    # Verify the removal outcome instead of asserting it (#105); -L
+    # catches a surviving dangling symlink.
+    if [[ -e "${target_conf}" || -L "${target_conf}" ]]; then
+        printf "Error: Failed to remove %s (permissions?). The IOC is still installed.\n" "${target_conf}" >&2
+        exit 1
+    fi
 
     # Clean up stale socket directory if systemd RuntimeDirectory cleanup was missed
     local sock_dir="${RUN_DIR}/${IOC_NAME}"
@@ -1630,11 +1683,21 @@ function do_list {
         fi
     done < <("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --plain 2>/dev/null || true)
 
-    # 2. Map socket queue statistics using ss.
-    # Command substitution propagates ss exit code to set -e; a missing or
-    # broken ss aborts do_list rather than silently producing an empty map.
-    local ss_lx_out
-    ss_lx_out=$(ss -lx 2>/dev/null)
+    # 2. Map socket queue statistics using ss — required only for the
+    # -vv columns (U-5/#105): the default list must not depend on
+    # iproute2, and at -vv a missing or broken ss fails loudly with a
+    # named error instead of a silent set -e abort.
+    local ss_lx_out=""
+    if [[ ${VERBOSE_LEVEL} -ge 2 ]]; then
+        if ! command -v ss >/dev/null 2>&1; then
+            printf "Error: 'ss' (iproute2) is required for 'list -vv' socket statistics.\n" >&2
+            exit 1
+        fi
+        if ! ss_lx_out=$(ss -lx 2>/dev/null); then
+            printf "Error: 'ss -lx' failed; cannot collect -vv socket statistics.\n" >&2
+            exit 1
+        fi
+    fi
     while read -r _ _ rq sq path _; do
         if [[ "${path}" == "${RUN_DIR%/}/"* ]]; then
             ioc_rq_map["${path}"]="${rq}"
@@ -1645,32 +1708,35 @@ function do_list {
     # 2-A. Map explicit kernel internal states from /proc/net/unix
     local -A ioc_ref_map=() ioc_state_map=() ioc_inode_map=()
     local is_listen
-    # Fields: Num RefCount Protocol Flags Type St Inode Path
-    {
-        read -r _  # skip header
-        while read -r _ refcnt _ flags _ st inode path; do
-            if [[ "${path}" == "${RUN_DIR%/}/"* ]]; then
-                # Convert hex flags to decimal and check the __SO_ACCEPTCON bit (0x10000)
-                is_listen=$(( 16#${flags} & 16#00010000 ))
+    # Kernel-state maps feed only the -vv columns (U-5/#105).
+    if [[ ${VERBOSE_LEVEL} -ge 2 ]]; then
+        # Fields: Num RefCount Protocol Flags Type St Inode Path
+        {
+            read -r _  # skip header
+            while read -r _ refcnt _ flags _ st inode path; do
+                if [[ "${path}" == "${RUN_DIR%/}/"* ]]; then
+                    # Convert hex flags to decimal and check the __SO_ACCEPTCON bit (0x10000)
+                    is_listen=$(( 16#${flags} & 16#00010000 ))
 
-                if [[ ${is_listen} -ne 0 ]]; then
-                    ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
-                    ioc_state_map["${path}"]="LISTEN"
-                    ioc_inode_map["${path}"]="${inode}"
-                elif [[ -z "${ioc_state_map[${path}]:-}" ]]; then
-                    ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
-                    case "${st}" in
-                        "01") ioc_state_map["${path}"]="UNCONN" ;;
-                        "02") ioc_state_map["${path}"]="CONNECTING" ;;
-                        "03") ioc_state_map["${path}"]="ESTAB" ;;
-                        "04") ioc_state_map["${path}"]="DISCONN" ;;
-                        *)    ioc_state_map["${path}"]="${st}" ;;
-                    esac
-                    ioc_inode_map["${path}"]="${inode}"
+                    if [[ ${is_listen} -ne 0 ]]; then
+                        ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
+                        ioc_state_map["${path}"]="LISTEN"
+                        ioc_inode_map["${path}"]="${inode}"
+                    elif [[ -z "${ioc_state_map[${path}]:-}" ]]; then
+                        ioc_ref_map["${path}"]=$(( 16#${refcnt} ))
+                        case "${st}" in
+                            "01") ioc_state_map["${path}"]="UNCONN" ;;
+                            "02") ioc_state_map["${path}"]="CONNECTING" ;;
+                            "03") ioc_state_map["${path}"]="ESTAB" ;;
+                            "04") ioc_state_map["${path}"]="DISCONN" ;;
+                            *)    ioc_state_map["${path}"]="${st}" ;;
+                        esac
+                        ioc_inode_map["${path}"]="${inode}"
+                    fi
                 fi
-            fi
-        done
-    } < "/proc/net/unix"
+            done
+        } < "/proc/net/unix"
+    fi
 
 
     # 3. Pre-fetch verbose properties if -v or -vv is used
@@ -1794,6 +1860,8 @@ function do_view {
         cat "${target_conf}"
     else
         printf "Error: Configuration file not found at %s\n" "${target_conf}" >&2
+        print_divider
+        exit 1
     fi
     printf "\n"
 
@@ -2144,7 +2212,15 @@ case "${COMMAND_ACTION}" in
     view)
         do_view
         ;;
-    stop|status|enable|disable)
+    stop|enable|disable)
+        if [[ -z "${IOC_NAME}" ]]; then
+            printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
+            exit 1
+        fi
+        require_installed_conf "${IOC_NAME}" "${COMMAND_ACTION}"
+        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+        ;;
+    status)
         if [[ -z "${IOC_NAME}" ]]; then
             printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
             exit 1

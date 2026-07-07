@@ -90,9 +90,12 @@ All data is collected in a single pass per source with zero per-IOC subprocess o
 
 1. `find -printf` → socket paths, timestamps, permissions
 2. `systemctl list-units` → service active states
-3. `ss -lx` → queue depths, connection counts
-4. `/proc/net/unix` → ref count, kernel state, inode
+3. `ss -lx` → queue depths, connection counts (only if `-vv`)
+4. `/proc/net/unix` → ref count, kernel state, inode (only if `-vv`)
 5. `systemctl show` → PID, CPU, memory (only if `-v` or `-vv`)
+
+At `-vv`, `ss` (iproute2) is required: a missing or failing `ss` is a
+named exit-1 error. Plain and `-v` list do not use `ss` at all.
 
 Each phase streams its output through a `while read` loop that populates O(1) associative arrays (hash maps). The final output loop performs hash map lookups only.
 
