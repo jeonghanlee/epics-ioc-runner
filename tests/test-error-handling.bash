@@ -1417,6 +1417,20 @@ function test_template_contract_guard {
         fi
     done
     verify_state "all" "${m10_present}" "M10 restart directives present in the unit must-agree block"
+
+    # M5/#108: RuntimeDirectoryPreserve existence pin. The byte-exact
+    # compare above cannot catch a both-copies removal (absent from
+    # both still agrees), and the M10 loop pins only the M10 rows.
+    # Pin the bin files directly so this assert does not depend on
+    # the extraction/equality asserts above.
+    local m5_pin="present" m5_script
+    for m5_script in "${RUNNER_SCRIPT}" "${setup_script}"; do
+        if ! grep -qxF "RuntimeDirectoryPreserve=restart" "${m5_script}"; then
+            m5_pin="missing:${m5_script##*/}"
+            break
+        fi
+    done
+    verify_state "present" "${m5_pin}" "RuntimeDirectoryPreserve=restart present in both unit templates (M5/#108)"
 }
 
 # Extract the set of RUNNER_* metadata variables an installer injects via sed,

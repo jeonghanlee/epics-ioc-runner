@@ -496,6 +496,7 @@ Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
+RuntimeDirectoryPreserve=restart
 ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 Restart=always

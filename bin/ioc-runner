@@ -436,6 +436,7 @@ UMask=0027
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
+RuntimeDirectoryPreserve=restart
 ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 Restart=always
@@ -2175,15 +2176,31 @@ function do_start_restart {
     local scan_offset signals marker_rel banner_count fatal_present corro_present
     local deadline=$((SECONDS + MAX_INIT_TIMEOUT))
     local marker_seen=0 marker_abs=0
+    local post_marker_offset=0 marker_inode="" marker_tailhash="" marker_check=""
     while [[ ${SECONDS} -lt ${deadline} ]]; do
         scan_offset=$(resolve_scan_offset "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}")
         signals=$(read_startup_signals "${log_file}" "${scan_offset}" "${effective_patterns}")
         read -r marker_rel banner_count fatal_present corro_present <<< "${signals}"
 
         if [[ "${marker_rel}" != "-1" ]]; then
-            marker_seen=1
             marker_abs=$((scan_offset + marker_rel))
-            break
+            # Fingerprint the file at the marker for the phase-2 dwell
+            # (#108), then re-verify the marker bytes: a rotation in
+            # the detection-to-capture window would hand phase 2 a
+            # baseline from the replaced file. On mismatch, rebase on
+            # the CURRENT file and keep polling in the same deadline.
+            post_marker_offset=$((marker_abs + ${#IOC_READY_MARKER}))
+            marker_inode=$(get_file_inode "${log_file}")
+            marker_tailhash=$(get_file_tailhash "${log_file}" "${post_marker_offset}")
+            marker_check=$(dd if="${log_file}" bs=1 skip="${marker_abs}" count=${#IOC_READY_MARKER} 2>/dev/null || true)
+            if [[ "${marker_check}" == "${IOC_READY_MARKER}" ]]; then
+                marker_seen=1
+                break
+            fi
+            log_start_offset=0
+            log_start_inode=$(get_file_inode "${log_file}")
+            log_start_tailhash=$(get_file_tailhash "${log_file}" 0)
+            continue
         fi
         if [[ "${fatal_present}" == "1" ]]; then
             printf "\nError: IOC '%s' failed to initialize (fatal error before iocInit).\n" "${IOC_NAME}" >&2
@@ -2220,11 +2237,10 @@ function do_start_restart {
     # Phase 2: confirm over a short dwell, evaluated AFTER the marker byte position
     # (D021/D027). The ONLY standalone exit-1 trigger here is a post-marker death
     # banner; crash patterns / re-init markers / _EXTRA are corroborating only.
-    local post_marker_offset=$((marker_abs + ${#IOC_READY_MARKER}))
     local dwell_deadline=$((SECONDS + CONFIRM_DWELL))
     local p_off p_sig p_marker p_banner p_fatal p_corro
     while [[ ${SECONDS} -lt ${dwell_deadline} ]]; do
-        p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "" "")
+        p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "${marker_inode}" "${marker_tailhash}")
         p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
         read -r p_marker p_banner p_fatal p_corro <<< "${p_sig}"
         if (( p_banner >= 1 )); then
@@ -2238,9 +2254,17 @@ function do_start_restart {
     # Dwell completed with no post-marker death banner. A corroborating crash
     # pattern / _EXTRA token while the IOC is alive is a Warning, not a failure
     # (D027/D033).
-    p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "" "")
+    p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "${marker_inode}" "${marker_tailhash}")
     p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
     read -r p_marker p_banner p_fatal p_corro <<< "${p_sig}"
+    # A death banner landing between the last dwell pass and this
+    # final scan is still a failure (#108) — success must not be
+    # printed for a just-died IOC.
+    if (( p_banner >= 1 )); then
+        printf "\nError: IOC '%s' is crash-looping.\n" "${IOC_NAME}" >&2
+        print_log_file_hint "${log_file}"
+        exit 1
+    fi
     if (( p_corro >= 1 )); then
         printf "\nWarning: IOC '%s' is active but reported errors after initialization (check device connections).\n" "${IOC_NAME}" >&2
         print_log_file_hint "${log_file}"
