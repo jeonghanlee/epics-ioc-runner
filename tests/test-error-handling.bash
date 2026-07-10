@@ -1800,12 +1800,16 @@ function test_ioc_name_charset_parity {
     local -a candidates=("a" "z" "A" "Z" "0" "9" "_" "_x" "a-b" "ab-" "a_b" \
         "a.b" "a:b" "a/b" "a b" "a@b" ".hidden" "a," \
         "${n63}" "${n64}" "${n65}")
+    # Locale-scoped via a function-local variable: an assignment prefix
+    # on the reserved word [[ would execute a command named '[[' and
+    # leave both flags at zero (the R3-F1 vacuity, landing precheck).
+    local LC_ALL=C
     local name runner_ok sudo_ok mismatch=""
     for name in "${candidates[@]}"; do
         runner_ok=0
-        if LC_ALL=C [[ "${#name}" -le "${runner_len}" && "${name}" =~ ${runner_re} ]]; then runner_ok=1; fi
+        if [[ "${#name}" -le "${runner_len}" && "${name}" =~ ${runner_re} ]]; then runner_ok=1; fi
         sudo_ok=0
-        if LC_ALL=C [[ "epics-@${name}.service" =~ ${sudo_ere} ]]; then sudo_ok=1; fi
+        if [[ "epics-@${name}.service" =~ ${sudo_ere} ]]; then sudo_ok=1; fi
         if [[ ${runner_ok} -ne ${sudo_ok} ]]; then
             mismatch+=" [${name}:runner=${runner_ok},sudoers=${sudo_ok}]"
         fi
