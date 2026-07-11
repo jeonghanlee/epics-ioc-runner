@@ -198,6 +198,8 @@ For local mode (`--local`), `journalctl --user` works during an active login ses
 
 The session ends immediately and cleanly. When another operator runs `stop` or `remove` on the IOC whose console you are holding, your console client receives EOF and exits as soon as the service goes down; the socket directory (`/run/procserv/<name>/`) is removed together with the unit, so no stale socket or hung session remains. Nothing needs to be cleaned up on your side — reconnect with `ioc-runner attach <name>` after the IOC is started again. (Verified on both reference platforms in the multi-user test plan, scenario S4.)
 
+If `remove` itself cannot stop the service, it aborts BEFORE deleting anything: the configuration stays in place, the runner reports `Error: Removal aborted. Service '<name>' did not stop (State: ...)` together with systemctl's own stderr, and the recovery is to check your sudo permissions and the unit state (`systemctl status epics-@<name>.service`), then re-run `remove`. Since 1.2.1 the removal outcome is verified rather than assumed — a `remove` that prints success has really deleted the configuration.
+
 ---
 
 ### Q11: `attach` says "Configuration for `<name>` not found" but the IOC is clearly running. Why?
