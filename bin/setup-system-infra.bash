@@ -653,7 +653,7 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     if [[ -z "${repo_top}" ]]; then
         :   # not a git checkout; the existing unknown fallbacks cover it
     elif [[ ! "${SC_DIR}" -ef "${repo_top}/bin" ]] || [[ ! -f "${repo_top}/configure/RULES_INSTALL" ]] || [[ ! -f "${repo_top}/bin/ioc-runner" ]]; then
-        _log "WARN" "Repository at ${SC_DIR} (toplevel: ${repo_top}) does not have the epics-ioc-runner layout; version stamped as unknown."
+        _log "WARN" "Repository at ${SC_DIR} (toplevel: ${repo_top}) does not have the epics-ioc-runner layout — version stamped as unknown."
         git_cmd=(false)
         stamp_warned=1
     fi
@@ -667,7 +667,7 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     fi
 
     if [[ "${current_git_hash}" == "unknown" && ${stamp_warned} -eq 0 ]]; then
-        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable)."
+        _log "WARN" "Git metadata unavailable as user '${invoker}' — version stamped as unknown (not a git checkout, or repository unreadable)."
     fi
 
     # Commit date of the deployed hash; install date of this run. The two
