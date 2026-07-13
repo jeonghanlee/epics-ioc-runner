@@ -1587,7 +1587,7 @@ function do_remove {
     local enabled_state
     enabled_state=$(run_systemctl is-enabled "epics-@${IOC_NAME}.service" 2>/dev/null || true)
     if [[ "${enabled_state}" == enabled* ]]; then
-        printf "Warning: could not disable 'epics-@%s.service' — it may still start at boot.\n" "${IOC_NAME}" >&2
+        printf "Warning: could not disable 'epics-@%s.service'; it may still start at boot.\n" "${IOC_NAME}" >&2
         if [[ -n "${disable_err}" ]]; then
             printf "  systemctl disable reported:\n    %s\n" "${disable_err}" >&2
         fi
@@ -2153,7 +2153,7 @@ function do_start_restart {
                 act_epoch=$(date -d "${act_raw}" +%s 2>/dev/null || printf 0)
                 conf_epoch=$(stat -c %Y "${target_conf_u6}" 2>/dev/null || printf 0)
                 if (( act_epoch > 0 && conf_epoch > act_epoch )); then
-                    printf "Warning: %s changed after the running unit was activated — this restart applies UNVALIDATED edits. Re-run 'install' to validate them.\n" "${target_conf_u6}" >&2
+                    printf "Warning: %s changed after the running unit was activated; this restart applies UNVALIDATED edits. Re-run 'install' to validate them.\n" "${target_conf_u6}" >&2
                 fi
             fi
         fi
