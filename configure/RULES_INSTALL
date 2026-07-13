@@ -50,6 +50,7 @@ install.user:
 uninstall:
 	$(QUIET) test -n "$(SYS_RUNNER_DEST)" -a -n "$(SYS_COMPLETION_DEST)" || \
 	    { printf "%s\n" "error: system paths unset; refusing to remove"; exit 1; }
+	$(QUIET) sudo -n true 2>/dev/null || { printf "%s\n" "sudo credentials are not cached; run one of:" "  sudo -v && make uninstall" "  sudo make uninstall"; exit 1; }
 	$(QUIET) sudo -n rm -f "$(SYS_RUNNER_DEST)" "$(SYS_COMPLETION_DEST)"
 	$(QUIET) if [ -L "$(SYS_RUNNER_SYMLINK)" ] && [ "$$(readlink "$(SYS_RUNNER_SYMLINK)")" = "$(SYS_RUNNER_DEST)" ]; then sudo -n rm -f "$(SYS_RUNNER_SYMLINK)"; fi
 	$(QUIET) printf "%s\n" "Removed $(SYS_RUNNER_DEST), $(SYS_COMPLETION_DEST) (backups and infra left in place)"
