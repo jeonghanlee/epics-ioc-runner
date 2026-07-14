@@ -486,7 +486,9 @@ function test_start {
 
     bash "${RUNNER_SCRIPT}" start "${IOC_NAME}"
     _log "INFO" "Waiting for IOC to initialize (smart polling)..."
-    wait_for_state "active"
+    # A state timeout must not abort the suite under set -e; the
+    # following verify_state is the counted, honest assertion.
+    wait_for_state "active" || true
 
     local state
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
@@ -505,8 +507,8 @@ function test_status {
     output=$(bash "${RUNNER_SCRIPT}" status "${IOC_NAME}" 2>&1 || true)
 
     local active_in_output="false"
-    if printf "%s" "${output}" | grep -q "active"; then active_in_output="true"; fi
-    verify_state "true" "${active_in_output}" "Status output contains 'active'"
+    if printf "%s" "${output}" | grep -q "Active: active"; then active_in_output="true"; fi
+    verify_state "true" "${active_in_output}" "Status output shows 'Active: active'"
 }
 
 function test_view {
@@ -519,8 +521,10 @@ function test_view {
     output=$(bash "${RUNNER_SCRIPT}" view "${IOC_NAME}" 2>&1 || true)
 
     local conf_in_output="false"
-    if printf "%s" "${output}" | grep -q "${IOC_NAME}"; then conf_in_output="true"; fi
-    verify_state "true" "${conf_in_output}" "View output contains IOC name"
+    # The error path echoes the IOC name too; only a conf-content token
+    # proves the configuration actually rendered (M8/#111).
+    if printf "%s" "${output}" | grep -q "IOC_CMD="; then conf_in_output="true"; fi
+    verify_state "true" "${conf_in_output}" "View output renders the configuration (IOC_CMD=)"
 }
 
 function test_restart {
@@ -530,7 +534,9 @@ function test_restart {
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" restart "${IOC_NAME}"
-    wait_for_state "active"
+    # A state timeout must not abort the suite under set -e; the
+    # following verify_state is the counted, honest assertion.
+    wait_for_state "active" || true
 
     local state
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
@@ -553,7 +559,9 @@ function test_stop {
     sleep 2
 
     bash "${RUNNER_SCRIPT}" start "${IOC_NAME}"
-    wait_for_state "active"
+    # A state timeout must not abort the suite under set -e; the
+    # following verify_state is the counted, honest assertion.
+    wait_for_state "active" || true
 
     state=$("${SYSTEMCTL_CMD[@]}" is-active "epics-@${IOC_NAME}.service" || true)
     verify_state "active" "${state}" "Service is active after restart following stop"
@@ -756,12 +764,23 @@ function test_monitor_isolation {
         return 0
     fi
 
+    # Positive control (R8-F2): prove the unit's journal channel is
+    # visible before asserting the marker's ABSENCE; the empty-window
+    # "-- No entries --" banner lands on stdout and must be excluded.
+    local probe_out
+    probe_out=$(journalctl -u "epics-@${IOC_NAME}.service" -n 5 --no-pager 2>/dev/null || true)
+    local journal_visible="false"
+    if [[ -n "${probe_out}" && "${probe_out}" != *"-- No entries --"* ]]; then
+        journal_visible="true"
+    fi
+    verify_state "true" "${journal_visible}" "Journal channel visible for unit (positive control)"
+
     printf "test_monitor_input_blocked\\n" | setsid bash "${RUNNER_SCRIPT}" monitor "${IOC_NAME}" >/dev/null 2>&1 &
     local monitor_pid=$!
     sleep 2
 
     local log_out
-    log_out=$(journalctl -u "epics-@${IOC_NAME}.service" --since "5 seconds ago")
+    log_out=$(journalctl -u "epics-@${IOC_NAME}.service" --since "5 seconds ago" || true)
 
     local input_blocked="true"
     if printf "%s" "${log_out}" | grep -q "test_monitor_input_blocked"; then
@@ -1305,8 +1324,10 @@ EOF
     verify_state "0" "${ec}" "Untraversable-parent install with -f exits 0"
     chmod 0755 "${p3}"  # restore so cleanup can recurse
 
-    # Case 4: relative IOC_CHDIR (helper rejects non-absolute). The dir must exist
-    # relative to the runner CWD for validate_conf to pass, so we cd into case_root.
+    # Case 4: relative IOC_CHDIR. Since M6/#109 validate_conf rejects any
+    # non-absolute IOC_CHDIR outright (hard error, no -f bypass); the cd into
+    # case_root keeps the directory resolvable so the absolute-path check is
+    # what fires, not the missing-directory check.
     name="PrecheckRel-SYS"
     local case_root="${base}/relcase"; chdir="reldir"; conf_file="${base}/${name}.conf"
     sysd="${base}/s4"; conf="${base}/c4"
@@ -1325,10 +1346,10 @@ EOF
     IOC_RUNNER_SYSTEM_SYSTEMD_DIR="${sysd}" IOC_RUNNER_SYSTEM_CONF_DIR="${conf}" \
         bash -c "cd \"${case_root}\" && bash \"${RUNNER_SCRIPT}\" -f install \"${conf_file}\"" \
         >/dev/null 2>"${stderr_cap}" || ec=$?
-    local warned4="clean"
-    grep -q "Warning: IOC_CHDIR" "${stderr_cap}" 2>/dev/null && warned4="warned"
-    verify_state "warned" "${warned4}" "Relative IOC_CHDIR warns (non-absolute rejected)"
-    verify_state "0" "${ec}" "Relative-path install with -f exits 0"
+    local rejected4="clean"
+    grep -q "IOC_CHDIR must be an absolute path" "${stderr_cap}" 2>/dev/null && rejected4="rejected"
+    verify_state "rejected" "${rejected4}" "Relative IOC_CHDIR is a hard validation error (M6/#109)"
+    verify_state "1" "${ec}" "Relative-path install exits 1 despite -f"
 
     # Case 5: IOC_CHDIR is a symlink to a conforming target (symlinked leaf rejected).
     name="PrecheckLink-SYS"

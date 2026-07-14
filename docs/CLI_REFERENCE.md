@@ -90,9 +90,12 @@ All data is collected in a single pass per source with zero per-IOC subprocess o
 
 1. `find -printf` → socket paths, timestamps, permissions
 2. `systemctl list-units` → service active states
-3. `ss -lx` → queue depths, connection counts
-4. `/proc/net/unix` → ref count, kernel state, inode
+3. `ss -lx` → queue depths, connection counts (only if `-vv`)
+4. `/proc/net/unix` → ref count, kernel state, inode (only if `-vv`)
 5. `systemctl show` → PID, CPU, memory (only if `-v` or `-vv`)
+
+At `-vv`, `ss` (iproute2) is required: a missing or failing `ss` is a
+named exit-1 error. Plain and `-v` list do not use `ss` at all.
 
 Each phase streams its output through a `while read` loop that populates O(1) associative arrays (hash maps). The final output loop performs hash map lookups only.
 
@@ -161,7 +164,7 @@ The `epics-ioc-runner` provides two distinct methods for interacting with an act
 | **Input Mapping** | TTY `stdin` → Socket | Disconnected / Read-only |
 | **Primary Use Case** | Debugging, issuing IOC shell commands | Safe observation, live log tailing |
 | **Interleaving Risk** | High (if multiple active clients) | Zero |
-| **UDS Tooling** | `con`, `socat`, `nc` | `con -r`, `socat -u`, `nc -d` |
+| **UDS Tooling** | `con`, `socat`, `nc` | `con -r`, `socat -u UNIX-CONNECT:<socket> STDOUT`, `nc -U <socket> < /dev/null` |
 
 ---
 
@@ -181,6 +184,6 @@ The `monitor` command establishes a strictly uni-directional session, designed f
 - **Functional Specification**: Captures and displays the `stdout` from the UNIX Domain Socket while explicitly detaching or blocking the client's `stdin`.
 - **Data Flow & Implementation**:
   - Uses the native `-r` (read-only) flag if the primary `con` client supports it.
-  - **Fallback Architecture**: If `con` is unavailable or lacks read-only support, the runner enforces unidirectional data flow using the built-in features of alternative tools:
-    - **socat**: Executes `socat -u STDIN,readbytes=0 UNIX-CONNECT:<path>`, utilizing the `-u` (unidirectional) flag and explicitly reading 0 bytes from `stdin`.
-    - **nc**: Executes `nc -U <path> -d`, utilizing the `-d` flag to prevent reading from `stdin`.
+  - **Fallback Architecture**: If `con` is not installed, the runner selects `socat`, then `nc` (an `nc` build must support `-U`). If `con` is installed but lacks `-r`, `monitor` falls back to `socat` when available, otherwise `nc`, and prints a warning naming the substitute tool. Each fallback enforces the unidirectional flow itself:
+    - **socat**: Executes `socat -u UNIX-CONNECT:<path> STDOUT`. The `-u` (unidirectional) flag transfers data only from the socket to standard output; nothing is read from the terminal.
+    - **nc**: Executes `nc -U <path> < /dev/null`. Standard input is redirected from `/dev/null`, so no keystroke can reach the console. The `nc` fallback is variant-sensitive, and the runner's probe (an `nc` whose help advertises `-U`) cannot tell variants apart: `nc.openbsd` (the default `nc` on Debian) is not a supported monitor fallback — install `con` (preferred) or `socat` for monitor use.

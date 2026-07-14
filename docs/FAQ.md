@@ -26,7 +26,7 @@ No root password is required, and no sysadmin needs to be contacted. The `sudo` 
 
 ### Q2: Our current database includes metadata like `gitRepo` and `groupName`. Can we include this information in the `.conf` files?
 
-**Yes, absolutely.** The `<ioc_name>.conf` files are sourced by `systemd` as standard `EnvironmentFile`s. Any `KEY="VALUE"` pair can be added freely. `systemd` and `procServ` simply ignore keys they do not recognize:
+**Yes.** The `<ioc_name>.conf` files are loaded by `systemd` as standard `EnvironmentFile`s, and every `KEY="VALUE"` pair — not only the `IOC_*` keys the runner acts on — is exported into the procServ process environment and inherited by the IOC process itself (visible via `epicsEnvShow` or `/proc/<pid>/environ`). Metadata keys should use the `IOC_META_` prefix (a documentation contract — no code enforces the prefix): it keeps them clearly inert to the runner and avoids colliding with EPICS, vendor, or system environment variables that could change IOC behavior. Do not store secrets in the conf; anything in it becomes process environment. Example:
 
 ```bash
 IOC_USER="ioc-srv"
@@ -39,7 +39,7 @@ IOC_META_GROUP="time-travel"
 IOC_META_CONTACT="jeonghan.lee@gmail.com"
 ```
 
-This approach lets the `.conf` file serve as the single source of truth. External tools (Python scripts, web dashboards, CI/CD pipelines) can parse these files directly to generate or sync with legacy databases like `siocmgr`, following the DRY principle.
+This approach lets the `.conf` file serve as the single source of truth. Because the `IOC_META_` prefix is the documented convention for metadata, external tools (Python scripts, web dashboards, CI/CD pipelines) can parse these files directly — and IOC-side logic can read the same values from its environment — to generate or sync with legacy databases like `siocmgr`, following the DRY principle. Note that only the `IOC_*` operational keys and `CRASH_LOG_PATTERNS_EXTRA` are validated at install time; `IOC_META_*` values pass only the shell-syntax check.
 
 ---
 
@@ -122,6 +122,8 @@ If the IOC process crashes (e.g., Segmentation fault, assertion failure), `procS
 ioc-runner attach myioc
 ```
 
+The attached console is hardened against accidents: `^C`, `^D`, and `^]` are filtered out of the IOC's input (`--ignore=^D^C^]`), and procServ's `^T` autorestart-toggle key is disabled (`--autorestartcmd=''`). A stray `^T` can therefore no longer leave a dead child under a live procServ with the socket still open — the child autorestart is always on and cannot be switched off from the console. To stop an IOC intentionally, use `ioc-runner stop` (see Q5 for the manual-debug workflow).
+
 **Layer 2 — ioc-runner health checks (startup verification):**
 When `ioc-runner start` (or `restart`) is executed, it polls the procServ log for the EPICS readiness marker (`All initialization complete`) instead of waiting a fixed interval. The verdict depends on what appears before, at, and after that marker:
 
@@ -136,7 +138,7 @@ When `ioc-runner start` (or `restart`) is executed, it polls the procServ log fo
 A `start` on an IOC that is already running short-circuits to `IOC '<name>' is already running.` once a clean, marked startup is confirmed in the existing log. Known benign startup noise is removed line by line before crash matching (`CRASH_LOG_EXCLUDE_PATTERNS`): the iocsh history-file load/save failure (`ERROR Permission denied ... '.iocsh_history'`, see Q5) is never a crash indicator.
 
 **Layer 3 — systemd (daemon lifecycle):**
-`systemd` manages the `procServ` process itself. If `procServ` is killed by the OOM killer or encounters an unrecoverable error, `systemd` handles the cleanup. The `SuccessExitStatus` directive ensures that normal shutdown signals (SIGTERM, SIGKILL) are not falsely reported as failures. See `docs/EXIT_SIGNAL_HANDLING.md` for the full technical explanation.
+`systemd` supervises the `procServ` process itself. If `procServ` dies for any reason — OOM kill, unrecoverable error, stray signal — `systemd` restarts it (`Restart=always`, `RestartSec=2`); the restart limiter is disabled (`StartLimitIntervalSec=0`), so the unit never strands in a `failed` state that would need manual `reset-failed`. `Restart=always` rather than `on-failure` is deliberate: the `SuccessExitStatus` directive classifies normal shutdown signals (SIGTERM, SIGKILL) as success so they are not falsely reported as failures, which means an OOM kill also counts as "success" and only `always` revives it. See `docs/EXIT_SIGNAL_HANDLING.md` and ADR 0001 (`docs/adr/0001-restart-supervision-c1h.md`) for the full rationale.
 
 ---
 
@@ -148,16 +150,16 @@ The patterns used by the startup health check are defined as a global variable a
 CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
 ```
 
-This set is partitioned into two subsets (`CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, whose union is the set above): fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens are corroborating only (they confirm a crash already signalled by a death banner, but never fail an otherwise-healthy IOC). See Q6 for how each subset is used.
+This set is partitioned into two subsets (`CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, whose union is the set above): fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens never participate in a failure verdict at all — crash-loop failures are triggered by the procServ death banner alone. The only effect of an ambiguous token is the post-initialization warning on a still-alive IOC ("active but reported errors after initialization"). See Q6 for the full phase-by-phase behavior.
 
-For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. These per-IOC tokens are corroborating only — they raise a warning on a still-alive IOC, never a standalone startup failure:
+For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. All pattern matching — the built-in set and `CRASH_LOG_PATTERNS_EXTRA` alike — is case-insensitive, so `Bergoz link lost` also matches `BERGOZ LINK LOST`; write tokens in their natural case and do not add case variants. These per-IOC tokens are corroborating only — they raise a warning on a still-alive IOC, never a standalone startup failure:
 
 ```bash
 # In the IOC conf
 CRASH_LOG_PATTERNS_EXTRA="Bergoz link lost|NPCT overrange|Keithley buffer full"
 ```
 
-Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Invalid regex syntax is rejected at install time, not at runtime.
+Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Install time is the strict gate: it rejects illegal characters, regex that does not compile, empty alternations (a leading, trailing, or doubled `|` would match every log line), and degenerate patterns that match ordinary log text (such as a bare `.`). The pattern is also re-read at every `start`/`restart`; if the conf was edited since install and the value no longer compiles, the runner warns and ignores it for that run — the built-in pattern set remains active, so one bad per-IOC key can never disable crash detection.
 
 ---
 
@@ -175,7 +177,7 @@ The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mo
 stat -c '%G %a' "${IOC_CHDIR}"
 ```
 
-Expect group `ioc` and mode `2775`. This checks the leaf only; the install-time check also validates the absolute path, the non-symlinked leaf, and parent traversal. If the directory does not conform, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains. One case is excluded from this warning flow: an `IOC_CHDIR` containing a `..` path component is malformed input, not a permission mismatch — `install` rejects it outright with a hard error, no confirmation prompt, and `--force` does not bypass it.
+Expect group `ioc` and mode `2775`. This checks the leaf only; a non-absolute `IOC_CHDIR` is rejected outright at validation time (hard error, `--force` does not bypass it; M6/#109), and the install-time check further validates the non-symlinked leaf and parent traversal. If the directory does not conform to the group/mode model, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains. One case is excluded from this warning flow: an `IOC_CHDIR` containing a `..` path component is malformed input, not a permission mismatch — `install` rejects it outright with a hard error, no confirmation prompt, and `--force` does not bypass it.
 
 **Partial mitigation:** Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file and so removes the error (see Q5); `IOCSH_HISTSIZE` does not (it only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup). Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
 
@@ -196,8 +198,10 @@ For local mode (`--local`), `journalctl --user` works during an active login ses
 
 The session ends immediately and cleanly. When another operator runs `stop` or `remove` on the IOC whose console you are holding, your console client receives EOF and exits as soon as the service goes down; the socket directory (`/run/procserv/<name>/`) is removed together with the unit, so no stale socket or hung session remains. Nothing needs to be cleaned up on your side — reconnect with `ioc-runner attach <name>` after the IOC is started again. (Verified on both reference platforms in the multi-user test plan, scenario S4.)
 
+If `remove` cannot stop the service, it aborts before deleting anything: the configuration stays in place, the runner prints `Error: Removal aborted. Service '<name>' did not stop (State: ...).` together with systemctl's own message, and the recovery is to check your sudo permissions and the unit state (`systemctl status`), then re-run `remove`. Since 1.2.1 the removal outcome is verified rather than assumed, so a `remove` that reports success has really deleted the configuration.
+
 ---
 
 ### Q11: `attach` says "Configuration for `<name>` not found" but the IOC is clearly running. Why?
 
-This is almost always a permission gate, not a missing configuration. Resolving a console target reads the IOC's `.conf` in `/etc/procServ.d/`, and that directory is `2770 root:ioc` — a user outside the `ioc` group cannot read it, so the lookup reports the configuration as not found before any socket access is attempted. The console socket itself (`0770 ioc-srv:ioc`) is a second gate behind it. Ask to be added to the `ioc` group if your role requires console access; read-only observation of service state works without it via `ioc-runner status <name>` or `systemctl status epics-@<name>.service`. The same boundary makes `ioc-runner list` show no sockets for non-`ioc` users (see the principal model in `PERMISSION_MODEL.md` and `testplan_multiuser.md` scenarios S6/S10).
+This is almost always a permission gate, not a missing configuration. Resolving a console target reads the IOC's `.conf` in `/etc/procServ.d/`, and that directory is `2770 root:ioc` — a user outside the `ioc` group cannot read it, so the lookup reports the configuration as not found before any socket access is attempted. The console socket sits behind a second gate: its directory (`/run/procserv/<name>/`, `0770 ioc-srv:ioc`) is not traversable outside the `ioc` group, and the socket file itself is `0660 ioc-srv:ioc`. Ask to be added to the `ioc` group if your role requires console access; read-only observation of service state works without it via `ioc-runner status <name>` or `systemctl status epics-@<name>.service`. The same boundary makes `ioc-runner list` show no sockets for non-`ioc` users (see the principal model in `PERMISSION_MODEL.md` and `testplan_multiuser.md` scenarios S6/S10).

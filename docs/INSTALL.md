@@ -18,6 +18,20 @@ From the root of the repository, execute the following script as root using the 
 sudo ./bin/setup-system-infra.bash --full
 ```
 
+The script verifies every artefact it deploys and **exits 1 if any
+verification check fails** — automated provisioning (ansible, CI) can trust
+the exit status directly; a non-zero exit means the reported items must be
+fixed and the script re-run.
+
+> **Important (custom service identity):** the service account and group are
+> configurable via `IOC_RUNNER_SYSTEM_USER` / `IOC_RUNNER_SYSTEM_GROUP`, but
+> sudo's default `env_reset` drops shell-exported values before the script
+> runs. Pass them explicitly on the sudo command line:
+> `sudo IOC_RUNNER_SYSTEM_USER=myuser IOC_RUNNER_SYSTEM_GROUP=mygroup ./bin/setup-system-infra.bash --full`
+> The script prints the resolved identity as its first banner — confirm it
+> before the run proceeds. The same overrides must then accompany every
+> `ioc-runner` invocation (both scripts resolve the same variables).
+
 ### Makefile front end
 A `configure/` Makefile wraps these invocations. Run the targets as your user (each calls `sudo` inside the recipe, so it works in place even on an NFS `root_squash` home):
 
@@ -86,11 +100,11 @@ Sudo requires absolute paths for strict security. Determine the exact path to `s
 SYSTEMCTL_BIN="/usr/bin/systemctl"
 
 cat <<EOF > /etc/sudoers.d/10-epics-ioc
-%ioc ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} ^start   epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
-                          ${SYSTEMCTL_BIN} ^stop    epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+%ioc ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} ^start epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^stop epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
                           ${SYSTEMCTL_BIN} ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
-                          ${SYSTEMCTL_BIN} ^status  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
-                          ${SYSTEMCTL_BIN} ^enable  epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^status epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
+                          ${SYSTEMCTL_BIN} ^enable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
                           ${SYSTEMCTL_BIN} ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\\.service\$, \\
                           ${SYSTEMCTL_BIN} ^daemon-reload\$
 EOF
@@ -100,12 +114,21 @@ chmod 0440 /etc/sudoers.d/10-epics-ioc
 
 On hosts with sudo < 1.9.10, replace each `^<verb> ... $` form with the glob form (`<verb> epics-@*.service`); the deployment script handles this automatically and emits a `WARN` line plus a residual-risk header comment. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
 
+> **Note (regex form):** the regex form requires sudo >= 1.9.10 (regex
+> command-argument matching); below that version the setup script deploys the
+> glob fallback automatically. The block above reproduces the generator's
+> single-space spelling exactly — do not re-introduce alignment padding
+> between the verb and the pattern, since sudo matches the regex against the
+> literal argument string.
+
 > **Important:** The `@includedir /etc/sudoers.d` (or legacy `#includedir`) directive in `/etc/sudoers` must be the final active line. Any user-specific rules placed after it (e.g., `alice ALL=(ALL) ALL`) will be evaluated *after* the drop-in policies and silently override the NOPASSWD rule installed above. Verify with `sudo -l` on a group member account: the `(root) NOPASSWD: /usr/bin/systemctl ...` entry must appear last.
 
 ### 2.4. Systemd Template Unit Deployment
 Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide. Resolve the `procServ` path dynamically to accommodate different installation targets (e.g., `/usr/bin` vs `/usr/local/bin`).
 
 **Note on Time Synchronization:** The template explicitly requires `time-sync.target` to ensure that NTP/PTP time synchronization is fully established before the IOC daemon starts. This is critical for maintaining accurate timestamps for the Archiver Appliance and MRF timing systems.
+
+The `StartLimit*` rows must stay in `[Unit]` — a `[Service]` placement is silently rejected on systemd 239 (see ADR 0001, Evidence).
 
 
 ```bash
@@ -117,6 +140,9 @@ Description=procServ for %i
 Wants=time-sync.target
 After=network.target remote-fs.target time-sync.target
 AssertFileNotEmpty=/etc/procServ.d/%i.conf
+StartLimitIntervalSec=0
+StartLimitBurst=5
+StartLimitAction=none
 
 [Service]
 Type=simple
@@ -125,8 +151,12 @@ Group=ioc
 EnvironmentFile=/etc/procServ.d/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
-ExecStart=${PROCSERV_BIN} --foreground --logfile=/var/log/procserv/%i.log --name=%i --ignore=^D^C^] --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+RuntimeDirectoryPreserve=restart
+ExecStart=${PROCSERV_BIN} --foreground --logfile=/var/log/procserv/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=${IOC_CHDIR} --port=${IOC_PORT} ${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
+Restart=always
+RestartSec=2
+KillMode=mixed
 StandardOutput=journal
 StandardError=inherit
 SyslogIdentifier=epics-%i

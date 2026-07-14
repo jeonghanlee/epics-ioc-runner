@@ -173,8 +173,14 @@ function verify_path {
     local actual_owner
     local actual_perm
 
-    actual_owner=$(stat -c "%U:%G" "${path}")
-    actual_perm=$(stat -c "%a" "${path}")
+    # A missing/unreadable path is a verification FAILURE to report,
+    # never a reason to abort the run mid-verify (set -e).
+    if ! actual_owner=$(stat -c "%U:%G" "${path}" 2>/dev/null) ||
+       ! actual_perm=$(stat -c "%a" "${path}" 2>/dev/null); then
+        _log "ERROR" "Verify FAILED : ${path} missing or unreadable"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
 
     # Normalize to 4-digit octal for comparison
     expected_perm=$(printf "%04o" "0${expected_perm}")
@@ -284,8 +290,14 @@ function verify_account {
 
 function backup_if_exists {
     local target_file="$1"
+    local candidate_file="${2:-}"
 
     if [[ -f "${target_file}" ]]; then
+        # Content-identical redeploys need no backup: without this guard a
+        # re-run rotates real prior versions out of the 3-slot retention.
+        if [[ -n "${candidate_file}" && -f "${candidate_file}" ]] && cmp -s "${candidate_file}" "${target_file}"; then
+            return 0
+        fi
         if [[ ! -d "${BACKUP_DIR}" ]]; then
             mkdir -p "${BACKUP_DIR}"
             chmod "${PERM_BACKUP_DIR}" "${BACKUP_DIR}"
@@ -314,11 +326,21 @@ function backup_if_exists {
     fi
 }
 
-if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
+# Clean up staged temp files on any exit; a mid-run abort would
+# otherwise leak them (sudoers/logrotate in /tmp; runner, completion
+# and the unit template stage inside their target directories, #107).
+# Unconditional: the CLI-wrapper mode stages files too. The M1 gate
+# evidence holds: this trap shape preserves a top-level exit 1.
+trap 'rm -f "${tmp_sudoers:-}" "${tmp_logrotate:-}" "${tmp_runner:-}" "${tmp_comp:-}" "${tmp_unit:-}"' EXIT
 
-    # Clean up staged temp files (sudoers, logrotate) on any exit; a
-    # mid-run abort would otherwise leak them in /tmp.
-    trap 'rm -f "${tmp_sudoers:-}" "${tmp_logrotate:-}"' EXIT
+# Make the resolved service identity visible before any mutation uses it
+# (#87): an IOC_RUNNER_SYSTEM_USER/GROUP override dropped by sudo's env
+# filtering is otherwise discovered only after accounts exist.
+print_divider
+_log "INFO" "Resolved service identity: user=${SYSTEM_USER}, group=${SYSTEM_GROUP} (overrides: IOC_RUNNER_SYSTEM_USER/GROUP)"
+print_divider
+
+if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
 
     # Preflight: required tools for the system-mode infrastructure.
     # The log directory STEP relies on setfacl/getfacl to install default
@@ -335,6 +357,22 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
             exit 1
         fi
     done
+
+    # Resolve procServ here too: STEP 5 hardcodes its absolute path into
+    # the unit template, so a missing binary must abort before STEP 1-4
+    # mutate accounts, sudoers, and the log directory.
+    declare p_path
+    for p_path in "${PROCSERV_SEARCH_PATHS[@]}"; do
+        if [[ -x "${p_path}" ]]; then
+            RESOLVED_PROCSERV_BIN="${p_path}"
+            break
+        fi
+    done
+    if [[ -z "${RESOLVED_PROCSERV_BIN}" ]]; then
+        _log "ERROR" "procServ executable not found (searched: ${PROCSERV_SEARCH_PATHS[*]})."
+        _log "INFO"  "Install procServ or set IOC_RUNNER_PROCSERV_PATH, then re-run."
+        exit 1
+    fi
 
     print_divider
     _log "INFO" "STEP 1: Account and Group Setup (Hardened)"
@@ -410,7 +448,7 @@ EOF
 
     if visudo -cf "${tmp_sudoers}" >/dev/null 2>&1; then
         chmod "${PERM_SUDOERS}" "${tmp_sudoers}"
-        backup_if_exists "${SUDOERS_FILE}"
+        backup_if_exists "${SUDOERS_FILE}" "${tmp_sudoers}"
         mv "${tmp_sudoers}" "${SUDOERS_FILE}"
         tmp_sudoers=""   # consumed by mv; keep the EXIT trap from re-acting
         verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
@@ -447,28 +485,39 @@ EOF
     setfacl -d -m o::r-- "${SYSTEM_LOG_DIR}"
     setfacl -d -m m::rw "${SYSTEM_LOG_DIR}"
 
+    # Read the ACL back: setfacl exit status alone does not prove the
+    # three default entries landed as written on every filesystem.
+    acl_out=$(getfacl -p --omit-header "${SYSTEM_LOG_DIR}" 2>/dev/null || printf "")
+    acl_missing=""
+    for acl_entry in "default:group:${SYSTEM_GROUP}:rw-" "default:other::r--" "default:mask::rw-"; do
+        if ! grep -qFx -- "${acl_entry}" <<< "${acl_out}"; then
+            acl_missing+=" ${acl_entry}"
+        fi
+    done
+    if [[ -z "${acl_missing}" ]]; then
+        _log "SUCCESS" "Verify PASSED : default ACLs on ${SYSTEM_LOG_DIR}"
+        (( VERIFY_PASS++ )) || true
+    else
+        _log "ERROR" "Verify FAILED : default ACL entries missing on ${SYSTEM_LOG_DIR}:${acl_missing}"
+        (( VERIFY_FAIL++ )) || true
+    fi
+
     verify_path "${SYSTEM_LOG_DIR}" "${OWNER_LOG_DIR}" "${PERM_LOG_DIR}" "System log directory ready: ${SYSTEM_LOG_DIR} (${OWNER_LOG_DIR}, ${PERM_LOG_DIR})"
 
     print_divider
     _log "INFO" "STEP 5: Systemd Template Unit Deployment"
     print_sub_divider
 
-    declare p_path
-    for p_path in "${PROCSERV_SEARCH_PATHS[@]}"; do
-        if [[ -x "${p_path}" ]]; then
-            RESOLVED_PROCSERV_BIN="${p_path}"
-            break
-        fi
-    done
-
+    # Resolution happens in the preflight (fail-early, #110); this
+    # assertion is defensive only.
     if [[ -z "${RESOLVED_PROCSERV_BIN}" ]]; then
         _log "ERROR" "procServ executable not found in standard paths."
         exit 1
     fi
 
-    backup_if_exists "${SYSTEMD_TEMPLATE}"
-
-    cat <<EOF > "${SYSTEMD_TEMPLATE}"
+    # Stage in the target directory (#107): atomic same-dir rename.
+    tmp_unit=$(mktemp "${SYSTEMD_TEMPLATE}.XXXXXX")
+    cat <<EOF > "${tmp_unit}"
 [Unit]
 Description=procServ for %i
 Wants=time-sync.target
@@ -485,6 +534,7 @@ Group=${SYSTEM_GROUP}
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
+RuntimeDirectoryPreserve=restart
 ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 Restart=always
@@ -498,7 +548,12 @@ SyslogIdentifier=epics-%i
 WantedBy=multi-user.target
 EOF
 
-    chmod "${PERM_SYSTEMD_TEMPLATE}" "${SYSTEMD_TEMPLATE}"
+    chmod "${PERM_SYSTEMD_TEMPLATE}" "${tmp_unit}"
+    # Backup AFTER the render so the cmp candidate carries real content
+    # (an empty staged file would silently defeat the identical-skip).
+    backup_if_exists "${SYSTEMD_TEMPLATE}" "${tmp_unit}"
+    mv "${tmp_unit}" "${SYSTEMD_TEMPLATE}"
+    tmp_unit=""   # consumed by mv; keep the EXIT trap from re-acting
     verify_path "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" "Deployed systemd template to ${SYSTEMD_TEMPLATE} using ${RESOLVED_PROCSERV_BIN}"
 
     systemctl daemon-reload
@@ -535,7 +590,7 @@ EOF
 
     if logrotate -d "${tmp_logrotate}" >/dev/null 2>&1; then
         chmod "${PERM_LOGROTATE}" "${tmp_logrotate}"
-        backup_if_exists "${LOGROTATE_FILE}"
+        backup_if_exists "${LOGROTATE_FILE}" "${tmp_logrotate}"
         mv "${tmp_logrotate}" "${LOGROTATE_FILE}"
         tmp_logrotate=""   # consumed by mv; keep the EXIT trap from re-acting
         verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
@@ -553,7 +608,11 @@ print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     backup_if_exists "${RUNNER_SCRIPT_DEST}"
-    cp "${RUNNER_SCRIPT_SRC}" "${RUNNER_SCRIPT_DEST}"
+    # Stage in the target directory (#107): the sed/chmod pipeline
+    # below must never be visible under the final name, and a
+    # same-directory mv is an atomic rename(2).
+    tmp_runner=$(mktemp "${RUNNER_SCRIPT_DEST}.XXXXXX")
+    cp "${RUNNER_SCRIPT_SRC}" "${tmp_runner}"
 
     # Inject version and build information into the deployed script.
     # Use -C "${SC_DIR}" so the metadata reflects the epics-ioc-runner repo
@@ -565,9 +624,38 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # SUDO_USER lets git read the user's home normally. Falls back to
     # direct invocation when SUDO_USER is unset (no sudo, direct root).
     invoker="${SUDO_USER:-$(id -un)}"
+    # Whenever the effective invoker resolves to root (nested sudo such
+    # as 'sudo make setup' rewrites SUDO_USER=root; a direct root shell
+    # has none), plain root git would fail the dubious-ownership check
+    # on a user-owned checkout and stamp "unknown" (#119). Recover the
+    # delegation target from the repository owner, when that owner is a
+    # resolvable account.
+    if [[ ${EUID} -eq 0 && "${invoker}" == "root" ]]; then
+        repo_owner=$(stat -c %U "${SC_DIR}" 2>/dev/null || printf "root")
+        if id -u "${repo_owner}" >/dev/null 2>&1; then
+            invoker="${repo_owner}"
+        fi
+    fi
     git_cmd=(git -C "${SC_DIR}")
     if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
         git_cmd=(sudo -u "${invoker}" -n git -C "${SC_DIR}")
+    fi
+
+    # Stamp only when SC_DIR's enclosing repository has the
+    # epics-ioc-runner structure shape (R7-F9): a bin/ copied into an
+    # unrelated checkout must not stamp that repository's HEAD as the
+    # runner version. Same-inode (-ef) comparison, not string equality:
+    # SC_DIR is relative under the documented invocations, and
+    # canonicalizing it as root is barred on NFS root_squash homes
+    # (root may still need stat access to the 0755 checkout for -ef).
+    stamp_warned=0
+    repo_top=$("${git_cmd[@]}" rev-parse --show-toplevel 2>/dev/null || printf "")
+    if [[ -z "${repo_top}" ]]; then
+        :   # not a git checkout; the existing unknown fallbacks cover it
+    elif [[ ! "${SC_DIR}" -ef "${repo_top}/bin" ]] || [[ ! -f "${repo_top}/configure/RULES_INSTALL" ]] || [[ ! -f "${repo_top}/bin/ioc-runner" ]]; then
+        _log "WARN" "Repository at ${SC_DIR} (toplevel: ${repo_top}) does not have the epics-ioc-runner layout; version stamped as unknown."
+        git_cmd=(false)
+        stamp_warned=1
     fi
 
     current_git_hash=$("${git_cmd[@]}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
@@ -576,6 +664,10 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # diff-index (git missing, repo absent) would yield "unknown-dirty".
     if [[ "${current_git_hash}" != "unknown" ]] && ! "${git_cmd[@]}" diff-index --quiet HEAD -- 2>/dev/null; then
         current_git_hash="${current_git_hash}-dirty"
+    fi
+
+    if [[ "${current_git_hash}" == "unknown" && ${stamp_warned} -eq 0 ]]; then
+        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable)."
     fi
 
     # Commit date of the deployed hash; install date of this run. The two
@@ -590,11 +682,13 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     fi
     current_install_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-    sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${RUNNER_SCRIPT_DEST}"
-    sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${current_commit_date}\"/" "${RUNNER_SCRIPT_DEST}"
-    sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${current_install_date}\"/" "${RUNNER_SCRIPT_DEST}"
+    sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${tmp_runner}"
+    sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${current_commit_date}\"/" "${tmp_runner}"
+    sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${current_install_date}\"/" "${tmp_runner}"
 
-    chmod "${PERM_RUNNER_SCRIPT}" "${RUNNER_SCRIPT_DEST}"
+    chmod "${PERM_RUNNER_SCRIPT}" "${tmp_runner}"
+    mv "${tmp_runner}" "${RUNNER_SCRIPT_DEST}"
+    tmp_runner=""   # consumed by mv; keep the EXIT trap from re-acting
     verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
 
     # On RHEL-family systems, sudo's secure_path excludes /usr/local/bin,
@@ -614,9 +708,13 @@ fi
 
 # Deploys the Bash completion script to the system directory for enhanced CLI usability and validates deployment state.
 if [[ -f "${BASH_COMP_SRC}" ]]; then
-    backup_if_exists "${BASH_COMP_DEST}"
-    cp "${BASH_COMP_SRC}" "${BASH_COMP_DEST}"
-    chmod "${PERM_BASH_COMP}" "${BASH_COMP_DEST}"
+    backup_if_exists "${BASH_COMP_DEST}" "${BASH_COMP_SRC}"
+    # Stage in the target directory (#107): atomic same-dir rename.
+    tmp_comp=$(mktemp "${BASH_COMP_DEST}.XXXXXX")
+    cp "${BASH_COMP_SRC}" "${tmp_comp}"
+    chmod "${PERM_BASH_COMP}" "${tmp_comp}"
+    mv "${tmp_comp}" "${BASH_COMP_DEST}"
+    tmp_comp=""   # consumed by mv; keep the EXIT trap from re-acting
     verify_path "${BASH_COMP_DEST}" "${OWNER_SYSTEM}" "${PERM_BASH_COMP}" "Deployed Bash completion to ${BASH_COMP_DEST} (${PERM_BASH_COMP})"
 else
     _log "INFO" "Bash completion source not found at ${BASH_COMP_SRC}. Skipping deployment."
@@ -633,6 +731,15 @@ else
     _log "INFO" "Failed : ${VERIFY_FAIL}/${total}"
 fi
 print_divider
+
+# The exit status is the contract automated provisioning reads: a
+# failed verification must fail the run (#104, three-lane C1).
+if [[ ${VERIFY_FAIL} -gt 0 ]]; then
+    print_divider
+    _log "ERROR" "Setup verification FAILED (${VERIFY_FAIL} of ${total} checks). Fix the reported items and re-run."
+    print_divider
+    exit 1
+fi
 
 print_divider
 if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then

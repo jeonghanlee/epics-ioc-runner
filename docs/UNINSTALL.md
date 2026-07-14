@@ -61,13 +61,27 @@ systemctl daemon-reload
 rm -f /etc/sudoers.d/10-epics-ioc
 ```
 
-### 2.5 Shared configuration directory
+### 2.5 Log rotation policy
+```bash
+rm -f /etc/logrotate.d/procserv
+```
+
+Local-mode users may also have per-user rotation units deployed by
+`ioc-runner --local install`. These are per-user, operator-managed artefacts
+— system uninstall does not touch them. Each user removes their own:
+```bash
+systemctl --user disable --now epics-logrotate.timer
+rm -f ~/.config/systemd/user/epics-logrotate.service ~/.config/systemd/user/epics-logrotate.timer ~/.config/ioc-runner/logrotate.conf
+systemctl --user daemon-reload
+```
+
+### 2.6 Shared configuration directory
 The `rmdir` below refuses if the directory is not empty. If it fails, return to section 1.2.
 ```bash
 rmdir /etc/procServ.d
 ```
 
-### 2.6 Service account and group
+### 2.7 Service account and group
 ```bash
 userdel ioc-srv
 groupdel ioc
@@ -85,6 +99,7 @@ getent group ioc
 which ioc-runner
 ls /etc/procServ.d
 ls /etc/sudoers.d/10-epics-ioc
+ls /etc/logrotate.d/procserv
 ls /etc/systemd/system/epics-@.service
 ls /etc/bash_completion.d/ioc-runner
 ls /usr/bin/ioc-runner
@@ -93,13 +108,21 @@ The last line applies to Rocky/RHEL; on Debian the path was never installed.
 
 ---
 
-## 4. Backup Retention
+## 4. Backup and Log Retention
 
 The installer writes timestamped backups of replaced files into `/var/backups/epics-ioc-runner`. Uninstall intentionally leaves this directory in place so the previous configuration can be restored later.
 
 To wipe backups as well:
 ```bash
 rm -rf /var/backups/epics-ioc-runner
+```
+
+Log files are likewise **not removed by uninstall**: `/var/log/procserv/`
+(system mode) and each user's `~/.local/state/procserv/` (local mode) are
+intentionally left in place as the operational record of the removed IOCs.
+Remove them explicitly only if the history is no longer needed:
+```bash
+rm -rf /var/log/procserv
 ```
 
 ---

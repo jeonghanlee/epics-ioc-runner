@@ -537,6 +537,28 @@ function test_generate_errors {
     [[ "${pre_sum}" == "${post_sum}" ]] && preserved="true"
     verify_state "true" "${preserved}" "Generate EOF abort preserves existing conf unchanged"
 
+    # #107: the abort path must leave no staged .name.conf.XXXXXX file
+    # behind in the target directory (EXIT-trap regression tripwire).
+    local leftover="false"
+    compgen -G "${overwrite_dir}/.*.conf.*" >/dev/null 2>&1 && leftover="true"
+    verify_state "false" "${leftover}" "Generate abort leaves no staged tmp in the target dir (#107)"
+
+    # #107: generate stages in the TARGET directory — a poisoned TMPDIR
+    # must not matter (the old /tmp staging failed here at mktemp).
+    local tp_dir="${TEST_TMPDIR}/tmpdir_poison_ioc"
+    mkdir -p "${tp_dir}"; touch "${tp_dir}/st.cmd"; chmod +x "${tp_dir}/st.cmd"
+    exit_code=$(TMPDIR=/nonexistent-m4 _run bash -c "cd \"${tp_dir}\" && bash \"${RUNNER_SCRIPT}\" --local -f generate .")
+    verify_exit_code "0" "${exit_code}" "Generate succeeds with a poisoned TMPDIR (#107 same-dir staging)"
+
+    # #107: explicit perms on the generated conf.
+    local gen_mode
+    gen_mode=$(stat -c %a "${tp_dir}/tmpdir_poison_ioc.conf" 2>/dev/null || printf "missing")
+    verify_state "600" "${gen_mode}" "Local generate writes the conf 0600 (#107)"
+    rm -f "${tp_dir}/tmpdir_poison_ioc.conf"
+    exit_code=$(TMPDIR=/nonexistent-m4 _run bash -c "cd \"${tp_dir}\" && bash \"${RUNNER_SCRIPT}\" -f generate .")
+    verify_exit_code "0" "${exit_code}" "System-mode generate succeeds with a poisoned TMPDIR (#107)"
+    gen_mode=$(stat -c %a "${tp_dir}/tmpdir_poison_ioc.conf" 2>/dev/null || printf "missing")
+    verify_state "660" "${gen_mode}" "System-mode generate writes the conf 0660 (#107)"
 }
 
 # Validates directory-based artifact resolution and target routing functionality.
@@ -684,14 +706,14 @@ function test_install_errors {
 }
 
 
-# Validates that ss -lx failure aborts do_list under set -eo pipefail.
-# find is replaced by a PATH stub that emits one fake socket entry in the
-# null-delimited format expected by do_list, ensuring ss -lx is actually
-# reached. ss is replaced by a stub that exits 1 to simulate unavailability.
-function test_ss_failure_aborts_list {
+# #105 U-5: ss feeds only the -vv columns. Plain list must succeed
+# without a working ss; list -vv must fail loudly with a named error.
+# find is replaced by a PATH stub that emits one fake socket entry so
+# the collection path is actually reached; ss is stubbed to exit 1.
+function test_list_ss_vv_contract {
     local step="$1"
     print_divider
-    _log "INFO" "STEP ${step}: ss Failure Aborts list Under pipefail"
+    _log "INFO" "STEP ${step}: list ss Contract (-vv only, #105)"
     print_sub_divider
 
     local mock_bin="${TEST_TMPDIR}/ss_fail_bin"
@@ -700,15 +722,12 @@ function test_ss_failure_aborts_list {
 
     mkdir -p "${mock_bin}" "${mock_run}/test_ioc"
 
-    # Stub find: outputs one null-delimited socket entry regardless of arguments,
-    # bypassing the -type s filesystem check without requiring a real socket file.
     cat > "${mock_bin}/find" <<STUB
 #!/usr/bin/env bash
 printf '%s\0%s\0%s\0' "${fake_sock}" "2024-01-01 12:00" "srwxrwxr-x"
 STUB
     chmod +x "${mock_bin}/find"
 
-    # Stub ss: always exits 1 to simulate the utility being absent or broken.
     printf '#!/usr/bin/env bash\nexit 1\n' > "${mock_bin}/ss"
     chmod +x "${mock_bin}/ss"
 
@@ -716,7 +735,65 @@ STUB
     exit_code=$(PATH="${mock_bin}:${PATH}" \
         IOC_RUNNER_LOCAL_RUN_DIR="${mock_run}" \
         _run bash "${RUNNER_SCRIPT}" --local list)
-    verify_exit_code "1" "${exit_code}" "ss -lx failure aborts list (exit 1 under pipefail)"
+    verify_exit_code "0" "${exit_code}" "plain list succeeds with broken ss (no -vv dependency)"
+
+    exit_code=$(PATH="${mock_bin}:${PATH}" \
+        IOC_RUNNER_LOCAL_RUN_DIR="${mock_run}" \
+        _run bash "${RUNNER_SCRIPT}" --local -vv list)
+    verify_exit_code "1" "${exit_code}" "list -vv with broken ss exits 1"
+
+    local out match_rc=1
+    out=$(PATH="${mock_bin}:${PATH}" IOC_RUNNER_LOCAL_RUN_DIR="${mock_run}" \
+        bash "${RUNNER_SCRIPT}" --local -vv list 2>&1 || true)
+    if [[ "${out}" == *"ss -lx"* ]]; then match_rc=0; fi
+    verify_exit_code "0" "${match_rc}" "list -vv failure names ss in the error"
+}
+
+# #105 U-4: mutation verbs on a never-installed name are a hard error
+# with the gate message, not systemd template-instantiation exit 0;
+# view exits nonzero on a missing conf (U-5).
+function test_unknown_name_verb_gate {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Unknown-Name Verb Gate (#105)"
+    print_sub_divider
+
+    local verb exit_code
+    for verb in stop enable disable remove view; do
+        exit_code=$(_run bash "${RUNNER_SCRIPT}" --local "${verb}" no_such_ioc_105)
+        verify_exit_code "1" "${exit_code}" "${verb} on a never-installed name exits 1"
+    done
+
+    local out match_rc=1
+    out=$(bash "${RUNNER_SCRIPT}" --local stop no_such_ioc_105 2>&1 || true)
+    if [[ "${out}" == *"No configuration found"* ]]; then match_rc=0; fi
+    verify_exit_code "0" "${match_rc}" "gate message names the missing configuration"
+}
+
+# #105: local mode replaces a mismatching conf IOC_PORT with the
+# standard socket path — now with exactly one Warning.
+function test_local_ioc_port_replacement_warns {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Local IOC_PORT Replacement Warning (#105)"
+    print_sub_divider
+
+    local wdir="${TEST_TMPDIR}/warn105"
+    mkdir -p "${wdir}"
+    cat > "${wdir}/warnioc.conf" <<CONF
+IOC_NAME="warnioc"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CMD="/bin/echo"
+IOC_CHDIR="${wdir}"
+IOC_PORT="unix:someone:somegroup:0660:/definitely/not/standard"
+CONF
+
+    local out count
+    out=$(IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+        bash "${RUNNER_SCRIPT}" --local install "${wdir}/warnioc.conf" -f 2>&1 >/dev/null || true)
+    count=$(grep -c "Warning: IOC_PORT" <<< "${out}" || true)
+    verify_exit_code "1" "${count}" "exactly one IOC_PORT replacement warning"
 }
 
 # Validates that the new namespaced env vars (IOC_RUNNER_LOCAL_*) route install
@@ -1134,10 +1211,10 @@ EOF
     grep -q "contains a '..' component" "${dotdot_stderr}" 2>/dev/null && has_dotdot_msg="true"
     verify_state "true" "${has_dotdot_msg}" "'..' rejection error references the '..' component"
 
-    # 5b. Boundary form: IOC_CHDIR exactly '..'. The interior/trailing globs do
-    #     not match a bare '..', so this closes the whole-string position. '..'
-    #     always resolves to an existing directory (the CWD parent), so it
-    #     reaches the precheck independent of the test's working directory.
+    # 5b. Boundary form: IOC_CHDIR exactly '..'. Since M6/#109 the absolute-path
+    #     check in validate_conf rejects it FIRST (a bare '..' is relative); the
+    #     whole-string/leading '..' globs at the system precheck remain as
+    #     defense-in-depth behind this shield.
     cat <<EOF > "${bad_conf}"
 IOC_NAME="test"
 IOC_USER="ioc-srv"
@@ -1151,8 +1228,43 @@ EOF
     verify_exit_code "1" "${bare_ec}" "Install with bare '..' IOC_CHDIR exits 1"
 
     local has_bare_msg="false"
-    grep -q "contains a '..' component" "${bare_stderr}" 2>/dev/null && has_bare_msg="true"
-    verify_state "true" "${has_bare_msg}" "bare '..' rejection error references the '..' component"
+    grep -q "IOC_CHDIR must be an absolute path" "${bare_stderr}" 2>/dev/null && has_bare_msg="true"
+    verify_state "true" "${has_bare_msg}" "bare '..' rejected by the absolute-path requirement (M6/#109)"
+
+    # 6. Relative IOC_CHDIR is a validation error in any mode (M6/#109).
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="relative/boot/dir"
+IOC_CMD="true"
+EOF
+    local relchdir_stderr="${TEST_TMPDIR}/relchdir_stderr"
+    local relchdir_ec=0
+    bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}" >/dev/null 2>"${relchdir_stderr}" || relchdir_ec=$?
+    verify_exit_code "1" "${relchdir_ec}" "Install with relative IOC_CHDIR exits 1"
+
+    local has_relchdir_msg="false"
+    grep -q "IOC_CHDIR must be an absolute path" "${relchdir_stderr}" 2>/dev/null && has_relchdir_msg="true"
+    verify_state "true" "${has_relchdir_msg}" "relative IOC_CHDIR error names the absolute-path requirement"
+
+    # 7. Multi-word IOC_CMD violates the U-3 single-word contract (M6/#109).
+    #    Chosen value has no illegal characters so it pins the H3 check alone.
+    cat <<EOF > "${bad_conf}"
+IOC_NAME="test"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${dummy_dir}"
+IOC_CMD="softIoc -d test.db"
+EOF
+    local mwcmd_stderr="${TEST_TMPDIR}/mwcmd_stderr"
+    local mwcmd_ec=0
+    bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}" >/dev/null 2>"${mwcmd_stderr}" || mwcmd_ec=$?
+    verify_exit_code "1" "${mwcmd_ec}" "Install with multi-word IOC_CMD exits 1"
+
+    local has_mwcmd_msg="false"
+    grep -q "IOC_CMD must be a single word" "${mwcmd_stderr}" 2>/dev/null && has_mwcmd_msg="true"
+    verify_state "true" "${has_mwcmd_msg}" "multi-word IOC_CMD error names the single-word contract"
 }
 
 function test_attach_errors {
@@ -1340,6 +1452,20 @@ function test_template_contract_guard {
         fi
     done
     verify_state "all" "${m10_present}" "M10 restart directives present in the unit must-agree block"
+
+    # M5/#108: RuntimeDirectoryPreserve existence pin. The byte-exact
+    # compare above cannot catch a both-copies removal (absent from
+    # both still agrees), and the M10 loop pins only the M10 rows.
+    # Pin the bin files directly so this assert does not depend on
+    # the extraction/equality asserts above.
+    local m5_pin="present" m5_script
+    for m5_script in "${RUNNER_SCRIPT}" "${setup_script}"; do
+        if ! grep -qxF "RuntimeDirectoryPreserve=restart" "${m5_script}"; then
+            m5_pin="missing:${m5_script##*/}"
+            break
+        fi
+    done
+    verify_state "present" "${m5_pin}" "RuntimeDirectoryPreserve=restart present in both unit templates (M5/#108)"
 }
 
 # Extract the set of RUNNER_* metadata variables an installer injects via sed,
@@ -1530,8 +1656,166 @@ function test_crash_pattern_extra {
     exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
         _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
     verify_exit_code "1" "${exit_code}" "Invalid regex in CRASH_LOG_PATTERNS_EXTRA rejected at install"
+
+    # #106: degenerate and empty-alternation patterns are rejected even
+    # though they compile; a legitimate multi-alternation still passes.
+    local bad_pat
+    for bad_pat in '.' 'a||b' '|a' 'a|' '(|a)' '(a|)' 'healthy log line' 'ORDINARY HEALTHY'; do
+        printf "%s\nCRASH_LOG_PATTERNS_EXTRA=\"%s\"\n" "${base_conf}" "${bad_pat}" > "${conf_file}"
+        exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
+        verify_exit_code "1" "${exit_code}" "Degenerate/empty-alternation _EXTRA '${bad_pat}' rejected at install (#106)"
+    done
+
+    printf "%s\nCRASH_LOG_PATTERNS_EXTRA=\"Broken pipe|net_ex\"\n" "${base_conf}" > "${conf_file}"
+    exit_code=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        _run bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}")
+    verify_exit_code "0" "${exit_code}" "Legitimate multi-alternation _EXTRA accepted at install (#106)"
 }
 
+
+# Validates the global CONF_DIR absolute/whitespace guard (M6/#109):
+# relative or whitespace values exit 1 with the named error on any verb;
+# an absolute override stays accepted.
+function test_conf_dir_guard {
+    local step="$1"
+    local stderr_cap="${TEST_TMPDIR}/conf_dir_guard_stderr"
+    local ec has_msg
+
+    print_divider
+    _log "INFO" "STEP ${step}: CONF_DIR Absolute/Whitespace Guard (#109)"
+    print_sub_divider
+
+    # Case 1: relative unified override -> exit 1, named error, read-only verb.
+    ec=0
+    IOC_RUNNER_CONF_DIR="relative/conf" \
+        bash "${RUNNER_SCRIPT}" --local list >/dev/null 2>"${stderr_cap}" || ec=$?
+    verify_exit_code "1" "${ec}" "relative IOC_RUNNER_CONF_DIR exits 1 on list"
+    has_msg="false"
+    grep -q "resolved configuration directory" "${stderr_cap}" 2>/dev/null && has_msg="true"
+    verify_state "true" "${has_msg}" "relative CONF_DIR error names the resolved directory"
+
+    # Case 2: whitespace in the namespaced override -> exit 1, named error.
+    #    Message-asserted because a status verb can exit 1 for other reasons
+    #    (unknown-name gate); the named error pins the guard itself.
+    ec=0
+    IOC_RUNNER_LOCAL_CONF_DIR="${TEST_TMPDIR}/conf dir" \
+        bash "${RUNNER_SCRIPT}" --local status fake-ioc >/dev/null 2>"${stderr_cap}" || ec=$?
+    verify_exit_code "1" "${ec}" "whitespace CONF_DIR exits 1 on status"
+    has_msg="false"
+    grep -q "resolved configuration directory" "${stderr_cap}" 2>/dev/null && has_msg="true"
+    verify_state "true" "${has_msg}" "whitespace CONF_DIR error names the resolved directory"
+
+    # Case 3: absolute override passes the guard (no over-firing).
+    ec=0
+    IOC_RUNNER_CONF_DIR="${TEST_TMPDIR}/local-config/procServ.d" \
+        bash "${RUNNER_SCRIPT}" --local list >/dev/null 2>"${stderr_cap}" || ec=$?
+    verify_exit_code "0" "${ec}" "absolute CONF_DIR passes the guard"
+}
+
+# M7/#110 (CI-H class): no capability probe may pipe a helper's -h output
+# straight into grep -q — under pipefail a usage exit or an early-match
+# SIGPIPE turns a capable tool into a false negative. Capture-first only.
+function test_pipefail_probe_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Pipefail Probe Guard (#110)"
+    print_sub_divider
+    local hits
+    hits=$(grep -cE -- '-h 2>&1 \| grep -q' "${RUNNER_SCRIPT}" || true)
+    verify_exit_code "0" "${hits}" "no '-h 2>&1 | grep -q' pipeline probes remain in bin/ioc-runner (#110)"
+}
+
+# M7/#110 (1a): an uncreatable local logrotate cfg_dir must skip rotation
+# with a warning, never abort the IOC install (never-abort contract).
+function test_logrotate_skip_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Logrotate Never-Abort Guard (#110)"
+    print_sub_divider
+
+    local w="${TEST_TMPDIR}/lr_guard"
+    mkdir -p "${w}/boot" "${w}/sysd" "${w}/run" "${w}/log" "${w}/roparent/procServ.d"
+    touch "${w}/boot/st.cmd"; chmod +x "${w}/boot/st.cmd"
+    cat <<EOF > "${w}/boot/lrg.conf"
+IOC_NAME="lrg"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${w}/boot"
+IOC_CMD="st.cmd"
+EOF
+    chmod 0555 "${w}/roparent"
+
+    local ec=0 lr_stderr="${TEST_TMPDIR}/lr_guard_stderr"
+    IOC_RUNNER_LOCAL_CONF_DIR="${w}/roparent/procServ.d" IOC_RUNNER_LOCAL_SYSTEMD_DIR="${w}/sysd" \
+    IOC_RUNNER_LOCAL_RUN_DIR="${w}/run" IOC_RUNNER_LOCAL_LOG_DIR="${w}/log" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${w}/boot/lrg.conf" >/dev/null 2>"${lr_stderr}" || ec=$?
+    chmod 0755 "${w}/roparent"
+    verify_exit_code "0" "${ec}" "install proceeds when the rotation cfg_dir is uncreatable (#110)"
+
+    local skipped="false"
+    grep -q "rotation not installed" "${lr_stderr}" 2>/dev/null && skipped="true"
+    verify_state "true" "${skipped}" "uncreatable cfg_dir warns and skips rotation (#110)"
+}
+
+# M8/#111 (CI-F): behavioral parity between the runner's IOC-name rule
+# (validate_ioc_name) and the sudoers REGEX-form Cmnd ERE generator in
+# setup. BOTH sides are EXTRACTED from their source lines (never re-typed,
+# so this cannot become a third copy of the rule) and evaluated as bash
+# EREs under LC_ALL=C against the same candidate set. Scope: pins the
+# regex-form heredoc only; the glob fallback deployed on sudo < 1.9.10 is
+# intentionally broader and out of parity scope (PERMISSION_MODEL.md).
+# Option-shaped names (leading '-') are excluded: the CLI parser rejects
+# them before validation and the sudoers ERE rejects them by class — the
+# behaviors align but through different mechanisms.
+function test_ioc_name_charset_parity {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: IOC-Name Charset Parity Guard (#111/CI-F)"
+    print_sub_divider
+
+    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
+    local eres uniq_ere
+    eres=$(grep -oE 'epics-@\[[^]]*\]\[[^]]*\]\{[0-9]+,[0-9]+\}[\\]+\.service[\\]\$' "${setup_script}" || true)
+    verify_exit_code "6" "$(printf '%s\n' "${eres}" | grep -c . || true)" "six regex-form Cmnd EREs found in setup"
+    uniq_ere=$(printf '%s\n' "${eres}" | sort -u)
+    verify_exit_code "1" "$(printf '%s\n' "${uniq_ere}" | grep -c . || true)" "all six Cmnd EREs are identical"
+
+    # Unquoted-heredoc transform: the generated sudoers carries \. and $
+    # where the .bash source spells double-backslash-dot and
+    # backslash-dollar.
+    local sudo_ere="${uniq_ere}"
+    sudo_ere="${sudo_ere/\\\\./\\.}"
+    sudo_ere="${sudo_ere/\\$/$}"
+    sudo_ere="^${sudo_ere}"
+
+    # Runner side, extracted from the validate_ioc_name source line.
+    local runner_re runner_len
+    runner_re=$(grep -oE '\^\[[^]]*\]\[[^]]*\]\*\$' "${RUNNER_SCRIPT}" | head -n1)
+    runner_len=$(sed -n 's/.*"\${#name}" -le \([0-9]\+\).*/\1/p' "${RUNNER_SCRIPT}" | head -n1)
+    verify_state "64" "${runner_len}" "runner length rule extracted (<=64)"
+
+    local n63 n64 n65
+    n63=$(printf 'a%.0s' $(seq 1 63)); n64=$(printf 'a%.0s' $(seq 1 64)); n65=$(printf 'a%.0s' $(seq 1 65))
+    local -a candidates=("a" "z" "A" "Z" "0" "9" "_" "_x" "a-b" "ab-" "a_b" \
+        "a.b" "a:b" "a/b" "a b" "a@b" ".hidden" "a," \
+        "${n63}" "${n64}" "${n65}")
+    # Locale-scoped via a function-local variable: an assignment prefix
+    # on the reserved word [[ would execute a command named '[[' and
+    # leave both flags at zero (the R3-F1 vacuity, landing precheck).
+    local LC_ALL=C
+    local name runner_ok sudo_ok mismatch=""
+    for name in "${candidates[@]}"; do
+        runner_ok=0
+        if [[ "${#name}" -le "${runner_len}" && "${name}" =~ ${runner_re} ]]; then runner_ok=1; fi
+        sudo_ok=0
+        if [[ "epics-@${name}.service" =~ ${sudo_ere} ]]; then sudo_ok=1; fi
+        if [[ ${runner_ok} -ne ${sudo_ok} ]]; then
+            mismatch+=" [${name}:runner=${runner_ok},sudoers=${sudo_ok}]"
+        fi
+    done
+    verify_state "" "${mismatch}" "runner and sudoers charsets agree across ${#candidates[@]} candidates"
+}
 
 # Validates #74/#78 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
 # and the home-bin search-path default. Each case is self-contained -- it
@@ -1656,7 +1940,9 @@ function run_all_tests {
         "test_ioc_port_atomic_install"
         "test_generate_errors"
         "test_install_errors"
-        "test_ss_failure_aborts_list"
+        "test_list_ss_vv_contract"
+        "test_unknown_name_verb_gate"
+        "test_local_ioc_port_replacement_warns"
         "test_env_var_namespacing"
         "test_env_var_precedence"
         "test_system_identity_guard"
@@ -1664,6 +1950,10 @@ function run_all_tests {
         "test_metadata_contract_guard"
         "test_log_dir_guard"
         "test_log_dir_xdg_fallback"
+        "test_conf_dir_guard"
+        "test_pipefail_probe_guard"
+        "test_logrotate_skip_guard"
+        "test_ioc_name_charset_parity"
         "test_completion"
         "test_ioc_name_validation"
         "test_validation_errors"

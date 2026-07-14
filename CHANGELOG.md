@@ -1,5 +1,103 @@
 # Changelog
 
+## 1.2.1 - Stability Patch
+
+Make what 1.2.0 already does honest and robust, with no redesign.
+Every change was review-converged and suite-pinned; the consolidated
+patch was verified on both golden images at the release gate.
+
+### Fixes
+
+- `setup` now exits 1 when post-setup verification fails, printing a
+  failure banner; a missing or unreadable verify target is counted as
+  a failure instead of aborting the run mid-verify. (#104)
+- Lifecycle verbs tell the truth about unknown names: `stop`,
+  `enable`, `disable`, and `remove` on a never-installed IOC hard-error
+  instead of exiting 0 (a typo previously succeeded silently, and
+  `remove` reported success); `remove` verifies its outcome and
+  surfaces the captured systemctl stderr; `view` exits nonzero on a
+  missing configuration. In local mode, a supplied `IOC_PORT` that does
+  not match the standard per-IOC socket path is rewritten to it with a
+  warning instead of silently. (#105)
+- A non-compiling `CRASH_LOG_PATTERNS_EXTRA` can no longer silently
+  disable the whole crash-pattern set at runtime: the value is
+  re-validated at every start/restart (warn and ignore, base patterns
+  stay active), install additionally rejects empty alternations and
+  degenerate match-everything patterns, and a `restart` of a
+  still-running IOC warns when the .conf was edited after the unit was
+  activated, since that restart applies unvalidated edits. (#106)
+- The `nc` / `con` console capability probes capture help output
+  before testing it, so a usage exit or SIGPIPE under pipefail no
+  longer discards a usable tool. (#110)
+- `make uninstall` no longer dies with a bare `sudo: a password is required`;
+  it prints the same cached-credentials guidance `make install` and
+  `make setup` gained in #119. (#124)
+
+### Changed
+
+- Both systemd unit templates emit `RuntimeDirectoryPreserve=restart`,
+  so an IOC's runtime socket directory survives automatic restarts and
+  is removed only on stop. The start/restart confirmation dwell now
+  carries rotation fingerprints and a final death-banner check, so a
+  crash loop hidden behind a log rotation is no longer reported as a
+  successful start. (#108)
+- Every deployed artifact (the runner, the unit template, the bash
+  completion, and generated `.conf` files) is staged inside its target
+  directory and renamed into place atomically; `generate` no longer
+  depends on `TMPDIR` and writes `0660` in system mode. (#107)
+- Local `start` / `restart` warn when the resolved log directory
+  diverges from the value baked into the installed unit, or when the
+  installed `IOC_PORT` no longer matches the runtime directory.
+  `CONF_DIR` must be absolute and whitespace-free, `IOC_CHDIR` must be
+  absolute, and `IOC_CMD` must be a single word. (#109)
+- `setup` resolves procServ before mutating anything, skips
+  content-identical backups, reads the deployed default ACLs back to
+  verify them, refuses to stamp a foreign repository's HEAD as the
+  version, and prints the resolved service identity before first use.
+  Local `list` warns when the log-rotation timer is installed but
+  inactive. (#110)
+- `sudo make setup` (and other nested-sudo invocations) once stamped
+  the version as `unknown`; the git delegation now recovers the
+  repository owner, and an unstampable build warns instead of failing
+  silently. (#119)
+
+### Tests
+
+- The error suite grew from 148 to 188 assertions, pinning every new
+  contract above plus a behavioral charset-parity guard between the
+  IOC-name rule and the sudoers pattern. Lifecycle status and view
+  assertions were retargeted from substrings that could never fail to
+  exact tokens; state-wait timeouts now fall through to counted
+  assertions; the monitor-isolation tests gained a journal positive
+  control. (#111)
+
+### Documentation
+
+- Operator-facing docs were aligned with the code across eight files:
+  the direction-reversed socat monitor fallback (the old documented
+  command would have written into the console), the pass-through /
+  revival / corroboration semantics in the FAQ, local rotation and
+  drift-warning sections, socket permission truth (`0770` directory /
+  `0660` socket), the setup exit contract, and uninstall reversal steps
+  with a log-retention statement. Reviewed-and-kept divergences were
+  recorded in an examined-keep ledger in the milestone register. Four
+  warning strings introduced this cycle had their em-dash punctuation
+  replaced with ASCII. (#112, #126)
+
+### Operational Notes
+
+These are cases where a verb that previously returned success (exit 0)
+on a no-op or an error now exits 1; a site that wraps these verbs in
+automation and relied on the old exit 0 should add explicit handling.
+
+- `stop` / `enable` / `disable` / `remove` on a never-installed IOC
+  name now exit 1 (previously 0; `remove` even reported success). (#105)
+- `setup` exits 1 when post-setup verification fails (previously 0
+  with a success banner). (#104)
+- `view` exits 1 on a missing configuration (previously 0). (#105)
+- Plain `list` no longer aborts when `ss` is absent; `list -vv` fails
+  with a named error instead. (#105)
+
 ## 1.2.0 — Restart Supervision Release
 
 ### New Features

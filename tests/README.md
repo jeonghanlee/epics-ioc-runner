@@ -18,20 +18,21 @@ Test runs vary along two independent axes, plus one standalone static check.
   validating a finished build or a production install.
 
 **Standalone static check** (run on its own, not through the dispatcher):
-- `test-error-handling.bash`: parses the `ioc-runner` source for input
-  validation and error paths. It reads the source as a file rather than
-  executing it, so it is always source-fixed and needs no EPICS environment or
-  root privileges.
+- `test-error-handling.bash`: a source-fixed behavioral and parse suite —
+  it parses the `ioc-runner` source for contract guards AND executes the
+  source-tree binary against dummy inputs for the validation and error
+  paths. It needs no EPICS environment or root privileges.
 
 | Script | Axis | Binary | Invocation |
 | :--- | :--- | :--- | :--- |
-| `test-error-handling.bash` | standalone static | source only | `bash tests/test-error-handling.bash` |
+| `test-error-handling.bash` | standalone, source-fixed | source only | `bash tests/test-error-handling.bash` |
 | `test-local-lifecycle.bash` | local lifecycle | source or installed | via `run-all-tests.bash --local` |
 | `test-system-infra.bash` | system infra | n/a | via `run-all-tests.bash --system` |
 | `test-system-lifecycle.bash` | system lifecycle | source or installed | via `run-all-tests.bash --system` |
 
-The system lifecycle relies on Kernel Netlink diagnostics to map anonymous UDS
-clients via the `inspect` command, which is why it runs under `sudo -E`.
+The system lifecycle runs under root for system-wide systemd control and
+cross-user anonymous-peer mapping (`inspect` via Kernel Netlink); `sudo -E`
+preserves the EPICS environment across that boundary.
 
 ---
 
@@ -80,7 +81,7 @@ all permission modes against the source binary.
 ```bash
 # Default: both modes, source binary.
 # Requires EPICS_BASE, 'ioc' group membership, sudo access, and lsof.
-# A persistent user journal enables STEP 24 coverage; otherwise that step SKIPs with a WARN.
+# A persistent user journal enables the monitor-isolation step; otherwise it SKIPs with a WARN (the same class covers absent logrotate, socat, or softIoc).
 bash tests/run-all-tests.bash
 
 # Local lifecycle, edited source (no sudo or 'ioc' group required).
@@ -96,10 +97,10 @@ bash tests/run-all-tests.bash --local --installed
 bash tests/run-all-tests.bash --system --installed
 ```
 
-The eight-stage development-to-production scenario maps directly onto these
-commands: stages 2-3 use `--source`, stages 4-5 and 7-8 use `--installed`,
-stage 6 is the install step (`setup-system-infra.bash` / `make install`), and
-the static error suite runs once per code change.
+The development-to-production flow maps directly onto these commands:
+develop and iterate with `--source`, validate a finished install with
+`--installed` around the install step (`setup-system-infra.bash` /
+`make install`), and run the error suite once per code change.
 
 ### 2. Run Individual Test Suites
 To isolate one suite manually:
@@ -121,8 +122,9 @@ Both suites run in place from an NFS home, including one exported with
 `root_squash`. `--local` runs as the invoking user. `--system` with
 `IOC_RUNNER_TEST_MODE=installed` runs the runner from `/usr/local/bin` and its
 test workspace in `/dev/shm`, so `sudo` touches the NFS tree only to read the
-suite scripts (relative path, world-readable). Verified 74/74 on `alsucl-psrv3`
-(Rocky 8) and both VM gates.
+suite scripts (relative path, world-readable). Verified at the full suite total on `alsucl-psrv3`
+(Rocky 8) and both VM gates (75/75-class with the journal-gated
+monitor-isolation control, 74/74-class where the journal step skips).
 
 `source` mode would `execve` the runner from its NFS source path, which
 `root_squash` blocks — but running the source binary under `sudo` is out of
@@ -145,9 +147,9 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **Setup & Build**: Clones and compiles a test IOC (`ServiceTestIOC`) natively matching standard EPICS layouts (`TOP_DIR` and `BOOT_DIR`).
 * **Deployment**: Installs `.conf` and verifies systemd template generation (`@.service`).
 * **Service Control**: Verifies state transitions via `start`, `status`, `view`, `restart`, and `stop`.
-* **Monitoring**: Validates UNIX Domain Socket (UDS) creation and `list` outputs (PID, CPU, MEM, Recv-Q, Send-Q).
+* **Monitoring**: Validates UNIX Domain Socket (UDS) creation and `list` outputs (PID, CPU, MEM, RQ/SQ queue columns).
 * **Connection & Isolation**: Validates `attach` (r/w access via `con`), `monitor` (read-only isolation securely blocking stdin).
-* **Netlink Diagnostics**: In system mode, validates the `inspect` command mapping anonymous UDS clients via Kernel Netlink contexts.
+* **Netlink Diagnostics**: Validates the `inspect` command in both modes (unprivileged local inspect included); system mode adds anonymous-peer mapping via Kernel Netlink under root.
 * **EPICS Functionality**: Live PV reads via `caget` ensuring actual Channel Access (CA) broadcasting.
 * **Teardown**: Verifies `enable`/`disable` persistence in systemd `.wants` and complete `remove` cleanup.
 
