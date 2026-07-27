@@ -1,84 +1,85 @@
 # EPICS IOC Runner — Milestone Register
 
-Single, unified, repository-local source of truth for milestone and backlog
-status. Every agent and contributor reads this file instead of chat history or
-memory.
+Single, unified, repository-local source of truth for milestone and
+carry-forward status. Every agent and contributor reads this file instead of
+chat history or memory. GitHub milestone state and issue `Closes`/`Refs`
+footers are authoritative; this register reconciles them into one readable
+view.
 
-**Mode:** remote-authoritative. Each issue's Verification checkbox list is the
-authoritative sub-status; this register mirrors it, and every milestone closure
-ends with a reconcile pass against GitHub.
+**Release convention:** this is one unified register, not a per-version file.
+On each release the register is cleared and restarted for the next cycle; the
+released milestone's full record is preserved in the matching git tag
+(`git show <tag>:docs/milestone.md`). The 1.2.0 record lives in
+`git show 1.2.0:docs/milestone.md`.
 
-**Register convention:** the register carries exactly two things — the current
-release milestone and the Backlog. It is overwritten when a cycle opens; the
-released cycle's full record is preserved in the matching git tag
-(`git show 1.2.1:docs/milestone.md`). The cycle test plan
-([`testplan.md`](testplan.md)) is the other half of the same record and follows
-the same rule: this register tracks status and the work order, the plan holds
-the verification procedures. Plans through 1.2.0 carried the version in the
-filename (`git show 1.2.0:docs/testplan_1.2.0.md`); from 1.2.2 onward the name
-is fixed. The version-independent scenarios in
-[`testplan_multiuser.md`](testplan_multiuser.md) are not part of either cycle
-file and persist across releases.
+**1.2.1 release target:** 2026-07-31, per the GitHub milestone `1.2.1`
+due date. Stability patch — make what 1.2.0 already does
+honest and robust, with no redesign. Sourced from the ten-reviewer full-code
+review at 1.2.0 (session rs20260706_180525, convergence conv20260706_203134)
+plus the conceptual-integrity sweep; all review decisions adopted per
+Facilitator recommendation (User, 2026-07-06): U-1 emit
+RuntimeDirectoryPreserve, U-3 single-word IOC_CMD contract, U-4 hard error on
+unknown-name verbs, U-5 view nonzero / ss gated on -vv, U-6 conf-mtime drift
+warning, U-9 policy set accepted, CI-F charset guard adopted. U-2 (FATAL
+boundary form) and U-7 (kill-based E2E) belong to the 1.3.0 items they gate.
 
-**1.2.2 cycle:** patch release — five deployment-path and validation-path
-defects pulled from the Backlog, no redesign. The cycle exists because #128
-reopened, through a different cause, the stamping symptom #119 closed in 1.2.1.
-Target date: 2026-08-28, per the GitHub milestone `1.2.2` due date.
+**Next session entry point:** M12 (proposal first, nothing applied), then
+M13, M14 — per-item review, no batching (redo protocol
+2026-07-12). The release sequence and the ansible/cloud-provision U8
+first joint tag follow once M12-M14 close (both User-run).
 
-**Next session entry point:** M1 (#122) — bring the runtime
-`CRASH_LOG_PATTERNS_EXTRA` re-read at `bin/ioc-runner:2164-2181` up to the
-install-time grade already implemented at `bin/ioc-runner:862-890`, with the new
-cases in `tests/test-error-handling.bash`. Do not start Backlog items unless the
-owner explicitly reorders them.
+## Work Register
 
-## Work Register — 1.2.2
+| ID | Version | Work unit | Type | Status | Evidence / scope |
+| --- | --- | --- | --- | --- | --- |
+| M1 | 1.2.1 | (#104) Verify-exit contract: setup exits 1 on VERIFY_FAIL>0; verify helpers abort-proof (missing path counts a FAIL, never kills the run) | Review follow-up | Done (code; M10 gate pending) | R5-F1/R7-F1/R9-F1 (three-lane convergence C1), R7-F12/R9-F3. Golden harness exit-code expectations confirmed (R7 Q3: no suite executes-and-asserts). Executed 2026-07-06 via 5-lane x 2-round session rs20260706_223322 (10 approvals; conv20260706_225422): AC1-AC3/AC5 demonstrated (transcript in session), AC4 error-suite 148/148; system-infra AC4 half deferred to M10. Issue #104 left open for the landing review. |
+| M2 | 1.2.1 | (#105) Lifecycle verb honesty: conf-existence gate on stop/enable/disable/remove (U-4 hard error); remove verifies its outcome and surfaces stop/disable stderr; view exits nonzero on missing conf; list gates ss on -vv with a named error; local IOC_PORT rewrite warns (U-5) | Review follow-up | Done (code; M10 gate pending) | C7 (R1-F1/F2/F4/F5), C8 (R1-F6/F7, R9-F6), R1-F8. Executed 2026-07-07 via 3-lane session rs20260706_233940 (superseding convergence conv20260707_000200; L3 blocker resolved in-commit, code 201aac1). Error suite 157/157 executed==counted (was 148; +9 contract tests), local-lifecycle 75/75 on alsucl-psrv3 (rocky-8.10 EPICS env). Issue #105 left open for the landing review. |
+| M3 | 1.2.1 | (#106) Crash-scan input guards: _EXTRA runtime compile probe with one Warning + install-time canary probe + structural rejection of empty alternations; conf-newer-than-activation mtime warning (U-6) | Review follow-up | Done (code; M10 gate pending) | C3 (baseline F1, R2-F1, R9-F5, R4-F6, R10 RA-3), R10 OQ3/G1. Executed 2026-07-07 via 2-lane session rs20260707_000737 (conv20260707_002400; all RCs adopted: /dev/null probe, two-canary -i parity, U-6 restart-on-active only). Error suite 166/166, local 75/75 (alsucl-psrv3). Issue #106 left open for the landing review. |
+| M4 | 1.2.1 | (#107) Atomic deployment sweep: stage-in-target-dir + mv for runner/unit/completion in setup and for do_generate (0660 in system mode) | Review follow-up | Done (code; M10 gate pending) | C4 (R7-F7, R9-F2, R4-F3); pattern already owned by deploy_local_logrotate. Executed 2026-07-07 via 2-lane session rs20260707_003800 (conv20260707_004500; display-name arg for tmp-path hygiene, fail-fast writability change accepted). Error suite 171/171, local 75/75 (alsucl-psrv3). Adjacent sites + SELinux flag -> #120 (Backlog). Issue #107 left open for the landing review. |
+| M5 | 1.2.1 | (#108) Supervision unit completion: emit RuntimeDirectoryPreserve=restart in BOTH templates (U-1, completes ADR 0001 C004/C005); phase-2 dwell rotation fingerprint + final post-dwell banner check | Review follow-up | Done (code; M10 gate pending) | R10 RA-1/R10-F3, C5 (R2-F4/F6, R6-F6). Executed 2026-07-07 via 2-lane session rs20260707_004434 (conv20260707_010500; L1 RC1 marker re-verify fix adopted; Preserve semantics verified on systemd 239 --user). Guard + existence pin green; error 172/172, local 75/75 (alsucl-psrv3). Issue #108 left open for the landing review. |
+| M6 | 1.2.1 | (#109) Drift-warning completion + conf contract: baked-LOG_DIR comparison at local start (covers XDG drift), CONF_DIR absolute/whitespace guard, local RUN_DIR divergence warning, IOC_CHDIR absolute required in validate_conf, IOC_CMD single-word enforcement (U-3) | Review follow-up | Done (code; M10 gate pending) | C6 (R6-F1/F7, R3-F7, R4-F4), R4-F2. Executed 2026-07-07 via 2-lane session rs20260707_010054 (conv20260707_012000; L1 blockers fixed: post-parse guard placement, failure-proof unit extraction; L2 breakage sweep clean beyond 2 fixtures + FAQ:178, all fixed in-commit). Error 181/181, local 75/75 (alsucl-psrv3); system Case 4 executes at M10. Issue #109 left open for the landing review. |
+| M7 | 1.2.1 | (#110) Small hardening set: logrotate edges (guarded mkdirs, honest enable-failure recovery text, dead-timer warning in local list); capability probes via captured output (:924/:1546); setup extras (procServ preflight, cmp-guarded backups, repo-identity check before git stamping, getfacl verification, #87 resolved-identity banner) | Review follow-up | Done (code; M10 gate pending) | R6-F2/F4/F5, C9 (R9-F4, R3-F5), R7-F5/F6/F8/F9/F11. Executed 2026-07-07 via scout + 2-lane session rs20260707_014500 (conv20260707_015500; -ef identity check, template-backup reorder, single-WARN discipline). Error 184/184, local 75/75 (alsucl-psrv3); FULL verify total +1 (ACL row) for the M10 runbook; zero living count assertions swept. Issue #110 left open for the landing review. |
+| M8 | 1.2.1 | (#111) Test honesty: exact `Active: active` token in both status tests; monitor-isolation positive control; wait_for_state timeouts count FAILs; tests/README truth pass; NEW charset-parity guard pinning validate_ioc_name == sudoers regex (CI-F) | Review follow-up | Done (code; M10 gate pending) | R8-F1/F2/F4/F6; CI sweep CI-F (verified unpinned 2026-07-06). Executed 2026-07-07 via 2-lane session rs20260707_014931 (conv20260707_022500; positive control extended to BOTH suites, view cannot-fail closed in-scope, parity probe extraction-based both sides — copies agree at 63/64/65 today; CORRECTION 2026-07-10: the committed comparison loop was vacuous (LC_ALL=C prefix on [[, landing-precheck R3-F1) and was repaired with a function-local LC_ALL — mutation sensitivity re-verified). Error 188/188; local 75/75 on journal-less alsucl-psrv3 (journal hosts 76+/77-class); rocky8-golden journal gap flagged to M10/U8. Issue #111 left open for the landing review. |
+| M9 | 1.2.1 | (#112) Docs truth pass (one coordinated commit set): CLI_REFERENCE monitor fallbacks; FAQ Q6 C1+H revival + ^T note; FAQ Q7 corroboration wording + _EXTRA -i note + Q7:160 runtime warn-and-ignore / install degenerate-rejection rewrite (M3 L2 RC3) + M6 L2 F3 drift-warning doc lines (USER_GUIDE_LOCAL XDG sections) + sudo env_reset caveat for IOC_RUNNER_SYSTEM_USER/GROUP overrides (moved from M7); FAQ Q2 pass-through correction + IOC_META_ normative; socket 0770-dir/0660-file correction + PERMISSION_MODEL socket section + 1.2.1 refresh + conf-integrity boundary sentence + M19 objects; USER_GUIDE_LOCAL env tables + rotation section; INSTALL 2.3 regex padding (verify on golden, R7 Q1) + 2.4 unit block; UNINSTALL logrotate reversal + log-retention statement; version examples; ADR 0001 note that U-1 emission landed; U-9 policy sentences (marker-trust ADR note, NFS-hang folded into #102 acceptance, nc.openbsd unsupported, logrotate edits-not-preserved contract, untrusted-HOME statement); record three Keep (examined, no action) verdicts — #81-guarded template pair, #87-guarded identity, #86 socket alias | Review follow-up | Done (docs) | C10 (R3-F1..F4, R7-F2/F3/F4, R5-F2/F3, R6-F9, R10-F1/F2/F4/F5/F6/F7, R8-F6 doc half — README truth landed with M8), R4-F5, U-9, CI sweep Keep set. Executed 2026-07-07 via 2-scout + 2-lane session rs20260707_021222 (conv20260707_024500, 12 adoptions incl. the direction-reversed socat fix and the Examined-Keep Ledger; docs commit c4bce47). Canary 188/188. Issue #112 left open for the landing review. |
+| M11 | 1.2.1 | (#119) Field bug: nested sudo (sudo make setup) rewrites SUDO_USER=root and defeats the git-stamp delegation (hash stamps unknown via silent dubious-ownership failure); plain make setup dies with the bare sudo error against the README promise. Fix: repo-owner fallback for the delegation target + WARN on unknown fallback + sudo -n guidance gate in the make recipes | Bug | Done (code; M10 gate pending) | Reported by owner on host charm 2026-07-07 (master @ 1.2.0); reproduced by transcript; ansible path unaffected (role sets SUDO_USER). Fixed 2026-07-07 via 2-lane session rs20260707_063000 (L1 required changes adopted: id -u guard, broader root-invoker engagement incl. direct root shell); AC1 six derivation shapes + AC2/AC3 demonstrated (transcript in session), AC4 error suite PASS. Latent same-pattern noted in tests (test-system-infra:424, run-all-tests:106) — deferred, see M8 scope adjacency. Issue #119 left open for the landing review. |
+| M10 | 1.2.1 | Release gate: T2-class golden verification of the patch (all four suites, both modes, both goldens) — this bake is also the ansible/cloud-provision U8 first-joint-tag event | Release gate | Done (verification; U8 tag User-run pending) | Executed 2026-07-07 fresh-from-golden on both testbeds @ 76b3a42 (reports in session 20260707_060000_m10-golden-gate). rocky8: FULL setup 10/10 (+1 ACL row), error 188/188, local 75/75 (journal skip), infra 40/40, system 77/77, GLOB sudoers branch (1.9.5p2). debian13: FULL 9/9, error 188/188, local 77/77 (monitor isolation + positive control PASS), infra 41/41, system 77/77, REGEX-form sudoers verified (1.9.16p2, visudo clean) — R7 Q1 gate closed. Recorded deviation both OS: the FULL-mode verify-fail exit-1 cannot be induced by damaging deployed targets because every deploy now self-heals before verify (M4 outcome); M1 AC5 stands via its CLI-mode demonstration + coverage argument. Golden-image notes: baked .git checkout overlays tar pushes (repush after rm; flag to next bake), rocky8 user-journal gap (flagged at M8). U8 first joint tag remains User-run at landing. LANDING RE-GATE 2026-07-11: full four-suite gate re-run fresh-from-golden on BOTH goldens at the FINAL head 8c8babc (post parity-guard repair + INSTALL escape fix) — rocky8 10/10, 188/188, 75/75, 40/40, 77/77; debian13 9/9, 188/188, 77/77 (monitor positive control ran), 41/41, 77/77; zero suite noise, no citation of the 76b3a42 run. |
 
-| ID | Work unit | Type | Status | Evidence / next action |
-| --- | --- | --- | --- | --- |
-| M1 | (#122) Runtime `CRASH_LOG_PATTERNS_EXTRA` re-validation reuses the install-time structural and canary checks, keeping the runtime disposition (warn, ignore that value, base set stays active); the character whitelist stays install-only and `FAQ.md` Q7's runtime sentence is updated in the same commit | Milestone | Not started | Independent of the other four; shortest closure path. Scope confirmed against `FAQ.md` Q7 and D033 on 2026-07-27; do not re-propose whitelisting at runtime or blocking a restart. |
-| M1.T1 | Change-specific: post-install degenerate edit (bare dot, trailing pipe) is caught at start/restart with one warning and the value ignored; a well-formed pattern still applies | Verification | Not started | |
-| M1.T2 | Suites: new local-lifecycle cases for structural rejection and the canary probe on the runtime path (the install-only error-handling fixtures cannot reach it) | Verification | Not started | |
-| M2 | (#128) Layout guard re-breaks stamping on root_squash homes: move the guard's three checks to the same principal as the delegated git queries; WARN must hand over the manual repair when delegation is unavailable | Milestone | Not started | Cluster head; fixes the regression this cycle exists for. |
-| M2.T1 | Change-specific: three entry points on the golden `nfs_sim` mount stamp real metadata; local-disk unchanged; unrelated checkout still warns; WARN-guided manual repair restores `-V` | Verification | Not started | |
-| M2.T2 | Suites: new system-infra case asserting the deployed script's `-V` output, not the source text | Verification | Not started | |
-| M3 | (#123) Reassert modes on identical-skip paths, and exclude the `RUNNER_*` stamp lines from the backup comparison so a no-change redeploy stops rotating the 3-slot history | Milestone | Not started | Owner decision 2026-07-27: filter the stamp lines (option 1), not document the asymmetry. Depends on M2 fixing the stamp values. |
-| M3.T1 | Change-specific: hand-loosened mode is reasserted on an identical redeploy; three no-change re-runs add no runner backup; a real source change adds exactly one | Verification | Not started | |
-| M3.T2 | Suites: system-infra cases for mode reassertion and backup suppression | Verification | Not started | |
-| M3.T3 | Re-run of M2.T1 (shared surface: STEP 7 runner deploy and its backup comparison) | Verification | Not started | |
-| M4 | (#120) Extend same-directory staged rename to the local unit file and the `install.user` injector; the SELinux item stays out of scope | Milestone | Not started | Depends on M2: the injector mirrors the setup stamping path and has no layout guard of its own. |
-| M4.T1 | Change-specific: both sites deploy by `mktemp` + `mv`, no half-written state under the final name; `make install.user` still yields a correct `-V` | Verification | Not started | |
-| M4.T2 | Suites: local-lifecycle and system-infra green; staged-rename shape pinned at the two extended sites | Verification | Not started | |
-| M4.T3 | Re-run of M2.T1 including the user-install path (shared surface: version injection) | Verification | Not started | |
-| M5 | (#121) Remaining message and stream polish from the 1.2.1 landing precheck; the em-dash item already landed in 1.2.1 | Milestone | Not started | Last in the cluster so the wording settles on top of M2-M4 output changes. |
-| M5.T1 | Change-specific: generate staging failure names directory writability; view missing-conf error block uses one stream; view/attach names conf resolution; local-mode gate stops suggesting `ioc` membership | Verification | Not started | |
-| M5.T2 | Suites: error-handling cases for the two deterministically triggerable items | Verification | Not started | |
-| M5.T3 | Re-run of M2.T1 WARN text (shared surface: deployment-path output strings) | Verification | Not started | |
-| M6 | Release gate: cycle batch re-run, full suites on both goldens through clone-and-test and install-and-test, the root_squash path from the `nfs_sim` mount, and the multi-user plan | Release gate | Not started | Register-local, no issue. Gates the merge, the `1.2.2` tag, and the release. |
+| M12 | 1.2.1 | (#124) Uninstall recipe credentials gate: same sudo -n true preflight and guidance as the install/setup recipes | Release prep | Done (code) | Landed 2026-07-13. One line added to the uninstall recipe. Reviewed by a ten-lane plan review then a widening to unify all three recipes on sudo -n -l <cmd> was PROPOSED and REJECTED: -l probes the sudoers listpw axis, which under the default listpw=any false-passes whenever any NOPASSWD grant exists (the NOPASSWD systemctl drop-in setup itself writes arms this) while the real bash/rm require a password — reproduced on both goldens and independently re-verified by five checkers. sudo -n true stays because it sits on the execution axis and faithfully predicts the command. r10 corner (a sudoers granting rm NOPASSWD but not true would false-block) accepted and documented: this project never emits such a grant and it fails safe. AC1/AC3/AC5 on host, AC7 real-removal on both goldens. Do NOT re-propose -l. Issue #124 to close at commit. |
+| M13 | 1.2.1 | (#126) ASCII cleanup of the four 1.2.1-introduced em-dash output strings (setup :656/:670, ioc-runner :1590/:2156) | Release prep | Done (code) | Landed 2026-07-13. Each em-dash replaced with a semicolon; five-lane plan review unanimous (target set exactly four output strings; four comment em-dashes deliberately left to #121 since comments never reach a terminal/log/pipe; semicolon is the correct clause-joiner; printf/byte-safe; zero test/doc drift). AC1 non-ASCII scan of both scripts returns only the four comment lines; bash -n clean; error suite 188/188. Corroboration: the gate reports already captured this em-dash rendering as -- on rocky8 vs the raw char on debian13. Issue #126 to close at commit. |
+| M14 | 1.2.1 | (#125) FAQ Q10 remove failure-mode guidance + CHANGELOG 1.2.1 section (Operational Notes block for the exit-code contract changes) | Release prep | Done (docs) | Landed 2026-07-13. Ten-lane plan+draft review: eight accuracy corrections adopted (U-6 warning re-attributed 109->106; M2 local IOC_PORT rewrite warning added to 105; 112 nine->eight docs; header and Operational-Notes intro over-claims softened; FAQ recovery quote matched to code verbatim). Owner calls: 1.2.1 heading uses ASCII hyphen; Operational Notes stays last. Canary error suite 188/188. The CHANGELOG section is the source for the gh release body. Issue 125 to close at commit. |
 
-## Backlog
+## Carry-Forward (1.3.0 — reliability cycle; recorded, not scheduled)
 
-Open work not scheduled into a release cycle. Mirrors the GitHub `Backlog`
-milestone; the 1.3.0 theme is the detection layer (#102).
+| Work unit | Source | Note |
+| --- | --- | --- |
+| Detection-layer design: #102 running-IOC hang + conf-skew/disk-full/NFS-outage-or-hang detectability | SG-D, R10 gap ranking, backlog #102 | The 1.3.0 theme. |
+| (#113) Conf parser unification (single parse core, trim + last-wins + tab) + divergence fixtures | C2 (R2-F2/R4-F1), R8-G4 | Behavior-visible; needs its own review. |
+| (#114) FATAL-subset boundary hygiene (U-2 portable class) + golden rerun | R2-F5 | Pairs with E2E probe. |
+| (#115/#116) E2E restart-supervision probe on goldens (U-7 approved) + #98 tripwire port to three suites + M19 oneshot via systemd | R8-G1/F5/G3 | Test-infrastructure block. |
+| (#117) Local-install deploy-after-gates reordering | R1-F3 | do_install flow refactor. |
+| Deferred minor pool: fast-path window cap (R2-F7), NUL handling (R2-F3), coverage gaps G5-G8, co-residence workspace guard (U-8 second half), polish lists of all ten artifacts | Review artifacts | Scope decided at 1.3.0 opening. |
 
-| Issue | Work unit | Type | Status | Note |
-| --- | --- | --- | --- | --- |
-| #102 | Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Backlog | Open | The 1.3.0 theme. |
-| #113 | Conf parser unification (single parse core, trim + last-wins + tab) with divergence fixtures | Backlog | Open | Behavior-visible; needs its own review. |
-| #114 | FATAL-subset boundary hygiene (portable class) with golden re-run | Backlog | Open | Pairs with the E2E probe. |
-| #115 | Restart-supervision E2E probe on the goldens | Backlog | Open | Test-infrastructure block with #116. |
-| #116 | Suite integrity: executed-vs-counted tripwire ported to the three lifecycle suites, and the logrotate oneshot run through systemd | Backlog | Open | Issue body scopes it to 1.3.0. |
-| #117 | Reorder local install so deployment follows the abort gates | Backlog | Open | Issue body scopes it to 1.3.0; includes an upgrade-vehicle decision. |
-| #118 | Type expectation for `verify_path` (false-green directory impostors) | Backlog | Open | Helper-signature change; issue body asks for its own review. |
-| #127 | Container execution mode without systemd | Backlog | Open | Feature. |
+## Examined-Keep Ledger (1.2.1)
+
+Keep decisions (examined, no action) from the 1.2.0 full-code review / CI
+sweep, recorded per the M9 (#112) docs truth pass. IDs continue the 1.2.0
+numbering (last used: CI-24). Full per-finding records live in the 1.2.0
+register: `git show 1.2.0:docs/milestone.md`.
+
+| ID | Sweep | Finding | Why Keep |
+| --- | --- | --- | --- |
+| CI-25 | #81 (1.2.0 CI sweep, recorded 2026-07-07 at M9/#112) | procServ unit template maintained as two copies (`bin/ioc-runner` local user unit, `bin/setup-system-infra.bash` system unit) rather than a single emitter. | Keep the guarded two-copy template contract (no single emitter): ADR 0001 mechanism note (C005); the shared-contract guard pins both copies. |
+| CI-26 | #87 (1.2.0 CI sweep, recorded 2026-07-07 at M9/#112) | System service identity (`ioc-srv`/`ioc`) resolved independently in both scripts. | Keep the guarded dual resolution (`IOC_RUNNER_SYSTEM_USER/GROUP` in both scripts): the shared defaults are pinned by the static guard test; the resolved-identity banner (M7/#110) covers the sudo env_reset failure mode. |
+| CI-27 | #86 (1.2.0 CI sweep, recorded 2026-07-07 at M9/#112) | Socket-path reference across `resolve_sock_path` callers (unify vs keep the documented alias). | Keep B, per the preserved 1.2.0 register M7 row verdict (closed 2026-06-17, no code change): "The documented `do_inspect` alias ('the naming split is intentional', from #85) is the end state"; all three callers resolve via `resolve_sock_path` -> `RESOLVED_SOCK_PATH` identically (the alias is a local readability rebind, not a behavior difference); option A / helper-contract refactor "would touch a stable ~70-line block for uniformity alone (the Generalize trap)". |
 
 ## External Gates
 
 | Gate | State |
 | --- | --- |
-| ansible/cloud-provision U8 first joint tag (1.0) | Open; User-run. Deferred at the 1.2.1 release and not yet taken. |
+| ansible/cloud-provision U8 first joint tag (1.0) | Fires at the M10 bake; User-run. |
+| INSTALL 2.3 regex-form sudoers verification on a sudo>=1.9.10 golden (R7 Q1) | DONE 2026-07-07 at the M10 gate (debian13, sudo 1.9.16p2: visudo -c clean, regex Cmnd lines deployed and listed by sudo -l). |
 
-**Tally:** 1.2.2 milestones 6 (M1-M5 work, M6 gate) with 13 verification subs,
-all Not started · Backlog 8 open · external gates 1 open.
+**Tally:** milestones Done 11 (M1-M9, M10 verification, M11) · Open 3 (M12-M14 release prep) · pending User-run: U8 joint tag, release sequence · carry-forward (1.3.0) 6 recorded · blocked 0.
 
 ## Update Protocol
 
