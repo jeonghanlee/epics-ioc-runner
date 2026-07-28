@@ -509,6 +509,64 @@ function test_setup_stamp_layout_guard {
     rm -rf "${work}" 2>/dev/null || true
 }
 
+# Behavioral regression for the runner backup filter (#123). Runs the REAL
+# setup STEP 7 with the runner/symlink/completion destinations AND the backup
+# directory (IOC_RUNNER_BACKUP_DIR) redirected to a scratch tree, so nothing
+# system is touched. A no-change redeploy differs only in the three volatile
+# RUNNER_* stamp lines and must NOT create a backup; a real source change must
+# create exactly one. Counts "Created backup" log events, not .bak files
+# (same-second timestamps would overwrite and undercount).
+function test_setup_runner_backup_filter {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Runner Backup Filter (real run)"
+    print_sub_divider
+
+    local script_dir setup_script
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    setup_script="${script_dir}/../bin/setup-system-infra.bash"
+    if [[ ! -f "${setup_script}" ]]; then
+        verify_state "exists" "not_found" "setup-system-infra.bash exists"
+        return
+    fi
+
+    local invoker="${SUDO_USER:-$(id -un)}"
+    local as_invoker=(bash -c)
+    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
+        as_invoker=(sudo -u "${invoker}" -n bash -c)
+    fi
+    local work
+    work=$("${as_invoker[@]}" 'mktemp -d')
+    # A scratch copy of the runner source, so the positive control can make a
+    # genuine SOURCE change without touching the repo.
+    "${as_invoker[@]}" "cp '${script_dir}/../bin/ioc-runner' '${work}/src-ioc-runner'"
+
+    run_setup() {   # deploys once into the scratch tree; echoes the run output
+        IOC_RUNNER_SCRIPT_SRC="${work}/src-ioc-runner" \
+        IOC_RUNNER_SCRIPT_DEST="${work}/ioc-runner" \
+        IOC_RUNNER_SCRIPT_SYMLINK="${work}/symlink" \
+        IOC_RUNNER_BASH_COMP_DEST="${work}/completion" \
+        IOC_RUNNER_BACKUP_DIR="${work}/backups" \
+            bash "${setup_script}" 2>&1 || true
+    }
+
+    run_setup >/dev/null        # run 1: establishes the deployed runner
+    local out2 out3 nochange_backups
+    out2=$(run_setup)           # run 2 and 3: no source change -> stamp-only diff
+    out3=$(run_setup)
+    nochange_backups=$(printf "%s\n%s" "${out2}" "${out3}" | grep -c "Created backup of ioc-runner" || true)
+    verify_state "0" "${nochange_backups}" "No-change redeploys create no runner backup (#123)"
+
+    # Positive control: a genuine source change (a non-stamp line) creates one.
+    "${as_invoker[@]}" "printf '# real change\n' >> '${work}/src-ioc-runner'"
+    local out_changed changed_backups
+    out_changed=$(run_setup)
+    changed_backups=$(printf "%s" "${out_changed}" | grep -c "Created backup of ioc-runner" || true)
+    verify_state "1" "${changed_backups}" "A real source change creates exactly one runner backup"
+
+    rm -rf "${work}" 2>/dev/null || true
+}
+
 function test_setup_version_injection_guards {
     local step="$1"
     print_divider
@@ -644,6 +702,7 @@ function run_all_tests {
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
         "test_setup_stamp_layout_guard"
+        "test_setup_runner_backup_filter"
         "test_setup_version_injection_guards"
         "test_metadata_field_naming"
         "test_runner_version_path_resolution"

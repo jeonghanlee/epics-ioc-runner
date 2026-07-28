@@ -23,7 +23,7 @@ declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
 declare -g LOGROTATE_FILE="/etc/logrotate.d/procserv"
-declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
+declare -g BACKUP_DIR="${IOC_RUNNER_BACKUP_DIR:-/var/backups/epics-ioc-runner}"
 declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 
 declare -g SC_DIR
@@ -607,7 +607,10 @@ _log "INFO" "STEP 7: CLI Wrapper Deployment"
 print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
-    backup_if_exists "${RUNNER_SCRIPT_DEST}"
+    # The backup decision is deferred until after the stamp injection below
+    # (#123): the three RUNNER_* stamp lines change every run (install date is
+    # always fresh), so an unfiltered compare would back up on every redeploy
+    # and churn the 3-slot retention out of real prior versions.
     # Stage in the target directory (#107): the sed/chmod pipeline
     # below must never be visible under the final name, and a
     # same-directory mv is an atomic rename(2).
@@ -698,6 +701,19 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${tmp_runner}"
     sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${current_commit_date}\"/" "${tmp_runner}"
     sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${current_install_date}\"/" "${tmp_runner}"
+
+    # Back up the deployed runner only when it differs from the freshly staged
+    # one beyond the three volatile stamp lines; a stamp-only difference is a
+    # no-change redeploy and must not consume a retention slot (#123). The other
+    # four deploy sites get this skip for free via backup_if_exists's cmp guard;
+    # the runner needs the stamp lines filtered from both sides first.
+    if [[ -f "${RUNNER_SCRIPT_DEST}" ]]; then
+        stamp_filter='^declare -g RUNNER_(GIT_HASH|COMMIT_DATE|INSTALL_DATE)='
+        if ! diff -q <(grep -Ev "${stamp_filter}" "${RUNNER_SCRIPT_DEST}") \
+                     <(grep -Ev "${stamp_filter}" "${tmp_runner}") >/dev/null 2>&1; then
+            backup_if_exists "${RUNNER_SCRIPT_DEST}"
+        fi
+    fi
 
     chmod "${PERM_RUNNER_SCRIPT}" "${tmp_runner}"
     mv "${tmp_runner}" "${RUNNER_SCRIPT_DEST}"

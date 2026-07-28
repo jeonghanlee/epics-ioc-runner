@@ -1284,6 +1284,15 @@ EOF
     # If identical, aborts the overwrite process gracefully to prevent unnecessary disk I/O and prompts.
     if [[ -f "${generated_conf}" ]]; then
         if cmp -s "${generated_conf}" "${tmp_conf}"; then
+            # Content is identical, so the overwrite is skipped -- but reassert
+            # the mode the write path would set (0660 system / 0600 local) so a
+            # hand-loosened permission on the existing conf is corrected instead
+            # of surviving the skip (#123).
+            if [[ "${EXEC_MODE}" == "system" ]]; then
+                chmod 0660 "${generated_conf}"
+            else
+                chmod 0600 "${generated_conf}"
+            fi
             print_divider
             printf "Info: Existing configuration '%s' is already up-to-date (Identical).\n" "${generated_conf}"
             printf "Skipping overwrite.\n"

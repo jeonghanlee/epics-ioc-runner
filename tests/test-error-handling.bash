@@ -461,6 +461,18 @@ function test_generate_logic {
     exit_code=$(cd "${test_dir}" && _run bash "${RUNNER_SCRIPT}" --local generate .)
     verify_exit_code "0" "${exit_code}" "Identical artifact natively bypasses overwrite and exits 0"
 
+    # Issue #123: the identical-skip must still reassert the conf mode, or a
+    # hand-loosened permission survives the re-generate. Loosen to a different
+    # mode, re-generate identical content, and confirm both that the skip path
+    # actually ran (the "Identical" marker guards against a vacuous green from
+    # the write path) and that the mode is restored to the local-mode 0600.
+    chmod 0666 "${conf_file}"
+    local identical_out skip_ran="false"
+    identical_out=$(cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . 2>&1)
+    if printf "%s" "${identical_out}" | grep -q "already up-to-date (Identical)"; then skip_ran="true"; fi
+    verify_state "true" "${skip_ran}" "Identical re-generate takes the skip path"
+    verify_state "600" "$(stat -c %a "${conf_file}")" "Identical-skip reasserts conf mode 0600 (#123)"
+
     # Evaluates the ANSI diff engine and interactive prompt behavior using a mocked non-interactive shell.
     printf "\n# Modified\n" >> "${conf_file}"
     exit_code=$(cd "${test_dir}" && _run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate . < /dev/null")
