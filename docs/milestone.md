@@ -27,12 +27,14 @@ defects pulled from the Backlog, no redesign. The cycle exists because #128
 reopened, through a different cause, the stamping symptom #119 closed in 1.2.1.
 Target date: 2026-08-28, per the GitHub milestone `1.2.2` due date.
 
-**Next session entry point:** M3 (#123) — reassert modes on identical-skip
-paths and exclude the `RUNNER_*` stamp lines from the backup comparison
-(`bin/setup-system-infra.bash`), so a no-change redeploy stops rotating the
-3-slot history. M1 (#122) and M2 (#128) landed 2026-07-28 (code + suites green
-on both goldens). Do not start Backlog items unless the owner explicitly
-reorders them.
+**Next session entry point:** M3 (#123) — reassert the conf mode on
+`do_generate`'s identical-content skip (`bin/ioc-runner`), and at the runner
+backup call site (`bin/setup-system-infra.bash`) exclude the three `RUNNER_*`
+stamp lines from the comparison (moved past the stamp injection) so a no-change
+redeploy stops rotating the 3-slot history; add `IOC_RUNNER_BACKUP_DIR` for test
+isolation. Plan reviewed and de-knotted 2026-07-28. M1 (#122) and M2 (#128)
+landed 2026-07-28 (code + suites green on both goldens). Do not start Backlog
+items unless the owner explicitly reorders them.
 
 ## Work Register — 1.2.2
 
@@ -45,10 +47,10 @@ reorders them.
 | M2.T1 | Change-specific: the three documented entry points (`sudo bash bin/setup-system-infra.bash`; `make install` / `make setup` as the user) on the golden `nfs_sim` mount stamp real metadata (after the denial precheck); local-disk unchanged; the unknown-stamp WARN carries the manual repair, and following it restores `-V` in the deploy path's UTC format | Verification | Done | Requires a real `.git` on the mount (the `--exclude=.git` push omits it). Denial precheck (`sudo -n stat` denied to root, allowed to owner) gates trust. Verified 2026-07-28 on BOTH goldens: the three entry points stamp `86ad4f7-dirty`, zero layout WARN; `sudo make setup` dropped (make-as-root cannot read the Makefile on root_squash, a make-level limit, not #128). Manual-repair path verified end-to-end: a non-git checkout stamps unknown with the guidance WARN, and following it (owner runs the two git queries + `sudo sed` the two `declare -g` lines) restores `86ad4f7` with the correct UTC commit date. |
 | M2.T2 | Suite: `test_setup_stamp_layout_guard` runs the REAL setup STEP 7 with the runner/symlink/completion destinations redirected to a scratch tree (no system component touched), and observes the injected `RUNNER_GIT_HASH` — a permanent every-run asset (no root_squash needed, G5 promotion): (a) the real checkout stamps a non-unknown hash; (b) `bin/` copied into an unrelated git checkout stamps unknown and emits the layout WARN | Verification | Done | Added to `tests/test-system-infra.bash`; passes on both goldens 2026-07-28 (rocky8 43/43, debian13 44/44). Replaces the reproduction-style guard with a real-run observation, so it would have gone red on the bug. |
 | M2.T-doc | Docs: M2 RESTORES works-in-place; the `INSTALL.md` root_squash section keeps the claim, re-anchors the 1.2.1-era "verified on alsucl-psrv3" line to the 1.2.2 goldens, states `make setup` runs as the user (not `sudo make setup`), and adds the post-WARN manual repair matching the WARN string. `INSTALL.md:36` and `README.md:23` one-liners stay true post-fix (no edit) | Verification | Done | AC4 doc deliverable. `docs/INSTALL.md` NFS root_squash section reconciled 2026-07-28. |
-| M3 | (#123) Reassert modes on identical-skip paths, and exclude the `RUNNER_*` stamp lines from the backup comparison so a no-change redeploy stops rotating the 3-slot history | Milestone | Not started | Owner decision 2026-07-27: filter the stamp lines (option 1), not document the asymmetry. Depends on M2 fixing the stamp values. |
-| M3.T1 | Change-specific: hand-loosened mode is reasserted on an identical redeploy; three no-change re-runs add no runner backup; a real source change adds exactly one | Verification | Not started | |
-| M3.T2 | Suites: system-infra cases for mode reassertion and backup suppression | Verification | Not started | |
-| M3.T3 | Re-run of M2.T1 (shared surface: STEP 7 runner deploy and its backup comparison) | Verification | Not started | |
+| M3 | (#123) Reassert the conf mode on `do_generate`'s identical-content skip (`bin/ioc-runner`), and exclude the three `RUNNER_*` stamp lines from the runner's backup comparison at the call site so a no-change redeploy stops rotating the 3-slot history | Milestone | Not started | Conceptual-integrity review 2026-07-28 (three lenses + essays) removed two invented knots: item 1's `backup_if_exists` half is dropped (the five setup mv-sites already reassert the mode unconditionally, so only `do_generate` bypasses it), and the stated M2 dependency is dropped (the filter excludes the three lines by NAME, so M2's stamp VALUES are irrelevant; M3 is sequenced after M2 only as work-ordering on the shared STEP 7 surface, re-gated by M3.T3). Owner decisions 2026-07-28: filter at the call site (not a `backup_if_exists` arg); add `IOC_RUNNER_BACKUP_DIR` to isolate the backup dir for the test; the sibling `deploy_local_logrotate` cmp-skip is examined-Keep (CLOSED_DOORS CI-28). |
+| M3.T1 | Change-specific: a hand-loosened conf mode is reasserted on a byte-identical `generate` re-run (the "Identical" skip marker confirms the skip path ran); three no-change setup re-runs add no runner backup, and a real source change adds exactly one | Verification | Not started | |
+| M3.T2 | Suites: the mode-reassertion case in `test-error-handling.bash` (`generate` is an `ioc-runner` behavior; system-infra is read-only and never runs `generate`), the backup-suppression case in `test-system-infra.bash` via the redirect-to-scratch pattern plus `IOC_RUNNER_BACKUP_DIR` | Verification | Not started | |
+| M3.T3 | Re-run of M2.T2's every-run deployed-`-V` read after M3 reorders the STEP 7 backup call past the stamp injection (shared surface: STEP 7 runner deploy); the full M2.T1 root_squash stamping stays at the M6 gate | Verification | Not started | |
 | M4 | (#120) Extend same-directory staged rename to the local unit file and the `install.user` injector; the SELinux item stays out of scope | Milestone | Not started | Sequenced after M2 as work-ordering; no code dependency — the injector runs git as the user with no layout guard, so it is independent of M2's guard-move. |
 | M4.T1 | Change-specific: both sites deploy by `mktemp` + `mv`, no half-written state under the final name; `make install.user` still yields a correct `-V` | Verification | Not started | |
 | M4.T2 | Suites: local-lifecycle and system-infra green; staged-rename shape pinned at the two extended sites | Verification | Not started | |
