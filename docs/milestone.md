@@ -8,10 +8,12 @@ memory.
 authoritative sub-status; this register mirrors it, and every milestone closure
 ends with a reconcile pass against GitHub.
 
-**Register convention:** the register carries exactly two things — the current
-release milestone and the Backlog. It is overwritten when a cycle opens; the
-released cycle's full record is preserved in the matching git tag
-(`git show 1.2.1:docs/milestone.md`). The cycle test plan
+**Register convention:** the register carries the current release milestone and
+the Backlog, and both are overwritten when a cycle opens; the released cycle's
+full record is preserved in the matching git tag
+(`git show 1.2.1:docs/milestone.md`). Verdicts that examined something and left
+it alone are not cycle state and live in [`CLOSED_DOORS.md`](CLOSED_DOORS.md),
+which no cycle clears. The cycle test plan
 ([`testplan.md`](testplan.md)) is the other half of the same record and follows
 the same rule: this register tracks status and the work order, the plan holds
 the verification procedures. Plans through 1.2.0 carried the version in the
