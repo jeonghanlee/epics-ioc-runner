@@ -73,6 +73,7 @@ milestone; the 1.3.0 theme is the detection layer (#102).
 | #117 | Reorder local install so deployment follows the abort gates | Backlog | Open | Issue body scopes it to 1.3.0; includes an upgrade-vehicle decision. |
 | #118 | Type expectation for `verify_path` (false-green directory impostors) | Backlog | Open | Helper-signature change; issue body asks for its own review. |
 | #127 | Container execution mode without systemd | Backlog | Open | Feature. |
+| #129 | Unify conf-value normalization between `read_conf_var` and `read_conf_all` (trim + trim-before-unquote ordering) | Backlog | Open | Spun off from M1 (#122), 2026-07-28; M1 closed its specific gap at one call site, this is the general reader divergence. |
 
 ## External Gates
 
@@ -82,8 +83,8 @@ milestone; the 1.3.0 theme is the detection layer (#102).
 
 **Tally:** 1.2.2 milestones 6 (M1-M5 work, M6 gate) with 14 verification subs
 (M2 gained a doc sub in the 2026-07-28 plan review); M1 Done (code, top-host
-suites green), M2-M5 not started, M6 gate not started · Backlog 8 open ·
-external gates 1 open.
+suites green), M2-M5 not started, M6 gate not started · Backlog 9 open ·
+external gates 1 open. (Backlog was 8; #129 added 2026-07-28 in the reconcile against GitHub.)
 
 ## Update Protocol
 
