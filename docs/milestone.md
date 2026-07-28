@@ -27,19 +27,19 @@ defects pulled from the Backlog, no redesign. The cycle exists because #128
 reopened, through a different cause, the stamping symptom #119 closed in 1.2.1.
 Target date: 2026-08-28, per the GitHub milestone `1.2.2` due date.
 
-**Next session entry point:** M1 (#122) — bring the runtime
-`CRASH_LOG_PATTERNS_EXTRA` re-read at `bin/ioc-runner:2164-2181` up to the
-install-time grade already implemented at `bin/ioc-runner:862-890`, with the new
-cases in `tests/test-error-handling.bash`. Do not start Backlog items unless the
-owner explicitly reorders them.
+**Next session entry point:** M2 (#128) — move the layout guard's three
+checks in `bin/setup-system-infra.bash` to the same delegated principal as the
+git queries, so a `root_squash` checkout stamps a real version; verify on the
+golden `nfs_sim` mount. M1 (#122) landed 2026-07-28 (code + suites green on
+top). Do not start Backlog items unless the owner explicitly reorders them.
 
 ## Work Register — 1.2.2
 
 | ID | Work unit | Type | Status | Evidence / next action |
 | --- | --- | --- | --- | --- |
-| M1 | (#122) Runtime `CRASH_LOG_PATTERNS_EXTRA` re-validation reaches the install-time verdict while keeping the runtime disposition (warn, ignore that value, base set stays active). The three shared gates move into one classifier that both call sites invoke, returning which gate rejected the value so each site chooses its own disposition; the character whitelist stays install-only. The runtime warnings name the reason in plain terms and tell the operator to fix the value and re-run `install`; `FAQ.md` Q7's runtime sentence and the `testplan_multiuser.md` S8 token-choice note land in the same commit | Milestone | Not started | Independent of the other four; shortest closure path. Elimination over guarding per the promotion test (`docs/CLOSED_DOORS.md`) — both call sites live in `bin/ioc-runner`, so the two-file constraint behind CI-25 and CI-26 does not apply here. Scope confirmed against `FAQ.md` Q7 and D033 on 2026-07-27: do not re-propose whitelisting at runtime or blocking a restart. |
-| M1.T1 | Change-specific: five cases (well-formed; bare dot; trailing pipe; unclosed group as regression; well-formed pattern that the log actually triggers as positive control) — see `testplan.md` | Verification | Not started | |
-| M1.T2 | Suites: new local-lifecycle cases for the bare-dot and trailing-pipe runtime paths (the install-only error-handling fixtures cannot reach them) | Verification | Not started | |
+| M1 | (#122) Runtime `CRASH_LOG_PATTERNS_EXTRA` re-validation reaches the install-time verdict while keeping the runtime disposition (warn, ignore that value, base set stays active). The three shared gates move into one classifier that both call sites invoke, returning which gate rejected the value so each site chooses its own disposition; the character whitelist stays install-only. The runtime warnings name the reason in plain terms and tell the operator to fix the value and re-run `install`; `FAQ.md` Q7's runtime sentence and the `testplan_multiuser.md` S8 token-choice note land in the same commit | Milestone | Done (code; M6 gate pending) | Elimination over guarding per the promotion test (`docs/CLOSED_DOORS.md`) — both call sites live in `bin/ioc-runner`, so the two-file constraint behind CI-25 and CI-26 does not apply here. Two review rounds (3 lenses each, 2026-07-28): whitespace-normalization gap between install and runtime found and closed by trimming before the empty-value guard; a whitespace-only value is now a silent no-op matching install. The general read_conf_var/read_conf_all divergence spun off to #129. Issue #122 left open for the landing review. |
+| M1.T1 | Change-specific: seven cases (well-formed; bare dot; trailing pipe; unclosed group as regression; positive control; spaced assignment; whitespace-only) — see `testplan.md` | Verification | Done | Executed on top (Debian 13): local-lifecycle 82/82, STEP 31 all 19 assertions PASS. |
+| M1.T2 | Suites: new local-lifecycle cases on the runtime path (the install-only error-handling fixtures cannot reach them); install path re-verified in error-handling | Verification | Done | error-handling 188/188 (install verdict unchanged after the shared-classifier refactor + fail-closed default). |
 | M2 | (#128) Layout guard re-breaks stamping on root_squash homes: move the guard's three checks to the same principal as the delegated git queries; WARN must hand over the manual repair when delegation is unavailable | Milestone | Not started | Cluster head; fixes the regression this cycle exists for. |
 | M2.T1 | Change-specific: three entry points on the golden `nfs_sim` mount stamp real metadata; local-disk unchanged; unrelated checkout still warns; WARN-guided manual repair restores `-V` | Verification | Not started | |
 | M2.T2 | Suites: new system-infra case asserting the deployed script's `-V` output, not the source text | Verification | Not started | |

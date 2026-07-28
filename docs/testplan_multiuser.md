@@ -135,7 +135,9 @@ without a login terminal.
   `2770 root:ioc`, so an operator can write it and `ioc-srv` can read/exec),
   **local mode `~/iocBoot/<name>`**. For S8, append `system "echo <TOKEN>"`
   after `iocInit` in `st.cmd` and set `CRASH_LOG_PATTERNS_EXTRA="<TOKEN>"` in
-  the `.conf`.
+  the `.conf`. Pick a distinctive token, not a word that ordinary log lines
+  carry (`OK`, `loaded`, a bare `.`): such a value is rejected at install and
+  again at every start, so the scenario would never reach its warning.
 - **Avoid login shells for the driver.** `bash -lc` pulls in shell aliases and
   EPICS-env banners that corrupt piped output; run the steps from a driver
   script (non-login `bash <file>`) that sources the EPICS environment itself.
