@@ -636,23 +636,36 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
             invoker="${repo_owner}"
         fi
     fi
+    # Run the git and layout checks as the same principal. On an NFS root_squash
+    # home the invoking owner can read the checkout but root (mapped to nobody)
+    # cannot, so a root-side check fails on a valid layout and stamps "unknown"
+    # (#128); delegate both to the owner. test is the external binary because
+    # sudo cannot run the [ ] builtin.
     git_cmd=(git -C "${SC_DIR}")
+    test_cmd=(/usr/bin/test)
     if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
         git_cmd=(sudo -u "${invoker}" -n git -C "${SC_DIR}")
+        test_cmd=(sudo -u "${invoker}" -n /usr/bin/test)
     fi
 
-    # Stamp only when SC_DIR's enclosing repository has the
-    # epics-ioc-runner structure shape (R7-F9): a bin/ copied into an
-    # unrelated checkout must not stamp that repository's HEAD as the
-    # runner version. Same-inode (-ef) comparison, not string equality:
-    # SC_DIR is relative under the documented invocations, and
-    # canonicalizing it as root is barred on NFS root_squash homes
-    # (root may still need stat access to the 0755 checkout for -ef).
+    # Stamp only when SC_DIR's enclosing repository has the epics-ioc-runner
+    # structure shape (R7-F9): a bin/ copied into an unrelated checkout must not
+    # stamp that repository's HEAD as the runner version. Both checks run through
+    # the delegated principal so they agree with the stamping queries: a
+    # tracked-file lookup (repo-top-anchored :/ pathspecs, no on-disk stat) and a
+    # same-inode -ef that SC_DIR is this repo's own bin/. A non-empty toplevel
+    # that fails the shape is a real mismatch and warns; an empty toplevel is
+    # "not a git checkout (or unreadable)" and falls to the WARN below, which
+    # carries the manual-repair guidance for a genuinely stuck checkout.
     stamp_warned=0
+    layout_confirmed=0
     repo_top=$("${git_cmd[@]}" rev-parse --show-toplevel 2>/dev/null || printf "")
-    if [[ -z "${repo_top}" ]]; then
-        :   # not a git checkout; the existing unknown fallbacks cover it
-    elif [[ ! "${SC_DIR}" -ef "${repo_top}/bin" ]] || [[ ! -f "${repo_top}/configure/RULES_INSTALL" ]] || [[ ! -f "${repo_top}/bin/ioc-runner" ]]; then
+    if [[ -n "${repo_top}" ]] \
+       && "${git_cmd[@]}" ls-files --error-unmatch :/configure/RULES_INSTALL :/bin/ioc-runner >/dev/null 2>&1 \
+       && "${test_cmd[@]}" "${SC_DIR}" -ef "${repo_top}/bin"; then
+        layout_confirmed=1
+    fi
+    if [[ ${layout_confirmed} -eq 0 && -n "${repo_top}" ]]; then
         _log "WARN" "Repository at ${SC_DIR} (toplevel: ${repo_top}) does not have the epics-ioc-runner layout; version stamped as unknown."
         git_cmd=(false)
         stamp_warned=1
@@ -667,7 +680,7 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     fi
 
     if [[ "${current_git_hash}" == "unknown" && ${stamp_warned} -eq 0 ]]; then
-        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable)."
+        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable). If this is a valid checkout, repair as ${invoker}: set RUNNER_GIT_HASH and RUNNER_COMMIT_DATE in ${RUNNER_SCRIPT_DEST} from 'git -C ${SC_DIR} rev-parse --short HEAD' and 'date -u -d @\$(git -C ${SC_DIR} show -s --format=%ct HEAD) +%Y-%m-%dT%H:%M:%SZ'."
     fi
 
     # Commit date of the deployed hash; install date of this run. The two

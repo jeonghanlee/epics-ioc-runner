@@ -61,12 +61,24 @@ anonymous `nobody` user, which cannot traverse a `0700` home by absolute path
 or `execve` a user-owned binary from it.
 
 The setup script is unaffected when run from the repository root: it reads its
-files by relative path (they are world-readable) and runs the version-stamp git
-step as the invoking user. `sudo ./bin/setup-system-infra.bash [--full]`
-therefore works in place from an NFS home — verified on `alsucl-psrv3`
-(Rocky 8) with `root_squash` active.
+files by relative path (they are world-readable) and runs both the version-stamp
+git queries and the layout checks that gate them as the invoking owner, not as
+`nobody`. `sudo ./bin/setup-system-infra.bash [--full]`, and `make install` /
+`make setup` run as your user, therefore work in place from an NFS home and
+stamp a real version — verified on both golden images (Rocky 8, Debian 13) with
+`root_squash` active. Run the Make targets as your user, not under `sudo`: `sudo
+make setup` makes `make` itself run as `nobody`, which cannot read the Makefile
+includes and aborts before the script.
 
-The constraint affects the system test suite instead; see `tests/README.md`.
+If the version ever stamps as `unknown` (for example the checkout is not a git
+tree, or its metadata is unreadable), the setup emits a WARN naming the repair:
+as the repository owner, set `RUNNER_GIT_HASH` and `RUNNER_COMMIT_DATE` in the
+deployed script from `git -C bin rev-parse --short HEAD` and the UTC-normalized
+`git -C bin show -s --format=%ct HEAD`. This is the same procedure as the manual
+injection block below.
+
+The remaining `root_squash` constraint affects the system test suite instead;
+see `tests/README.md`.
 
 ---
 

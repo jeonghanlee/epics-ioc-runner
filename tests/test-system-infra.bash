@@ -440,6 +440,75 @@ function test_setup_script_dir_resolution {
     verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
 }
 
+# Behavioral regression for the version-stamp layout guard (#128). Runs the
+# REAL setup-system-infra.bash STEP 7 with the runner, symlink, and completion
+# destinations redirected to a scratch tree, so no system component is touched,
+# and observes the deployed script's injected RUNNER_GIT_HASH. Two observable
+# cases the prior static grep could not catch:
+#   positive  - the real epics-ioc-runner checkout stamps a non-unknown hash;
+#   R7-F9     - bin/ copied into an unrelated git checkout stamps unknown and
+#               emits the layout WARN.
+# Scratch is owned by the invoking user so the delegated git query can read it;
+# root_squash is not required, so this runs on every invocation.
+function test_setup_stamp_layout_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Version-Stamp Layout Guard (real run)"
+    print_sub_divider
+
+    local script_dir setup_script runner_src
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    setup_script="${script_dir}/../bin/setup-system-infra.bash"
+    runner_src="${script_dir}/../bin/ioc-runner"
+    if [[ ! -f "${setup_script}" || ! -f "${runner_src}" ]]; then
+        verify_state "exists" "not_found" "setup-system-infra.bash and ioc-runner exist"
+        return
+    fi
+
+    local invoker="${SUDO_USER:-$(id -un)}"
+    local as_invoker=(bash -c)
+    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
+        as_invoker=(sudo -u "${invoker}" -n bash -c)
+    fi
+    local work
+    work=$("${as_invoker[@]}" 'mktemp -d')
+
+    local stamped
+    stamp_from() {   # $1 = deployed script path
+        grep -m1 '^declare -g RUNNER_GIT_HASH=' "$1" 2>/dev/null | sed 's/.*="\(.*\)"/\1/'
+    }
+
+    # Positive: the real checkout stamps a non-unknown hash.
+    IOC_RUNNER_SCRIPT_DEST="${work}/pos-runner" \
+    IOC_RUNNER_SCRIPT_SYMLINK="${work}/pos-symlink" \
+    IOC_RUNNER_BASH_COMP_DEST="${work}/pos-completion" \
+        bash "${setup_script}" >/dev/null 2>&1 || true
+    stamped=$(stamp_from "${work}/pos-runner")
+    local pos_ok="false"
+    [[ -n "${stamped}" && "${stamped}" != "unknown" ]] && pos_ok="true"
+    verify_state "true" "${pos_ok}" "Real checkout stamps a non-unknown hash (${stamped:-none})"
+
+    # R7-F9 negative: bin/ copied into an unrelated git checkout stamps unknown.
+    "${as_invoker[@]}" "
+        mkdir -p '${work}/xrepo/bin'
+        cp '${script_dir}/../bin/'* '${work}/xrepo/bin/' 2>/dev/null
+        cd '${work}/xrepo' && git init -q && git config user.email t@t \
+            && git config user.name t && git add -A && git commit -q -m init
+    " >/dev/null 2>&1
+    local neg_out
+    neg_out=$(IOC_RUNNER_SCRIPT_DEST="${work}/neg-runner" \
+        IOC_RUNNER_SCRIPT_SYMLINK="${work}/neg-symlink" \
+        IOC_RUNNER_BASH_COMP_DEST="${work}/neg-completion" \
+        bash "${work}/xrepo/bin/setup-system-infra.bash" 2>&1 || true)
+    stamped=$(stamp_from "${work}/neg-runner")
+    verify_state "unknown" "${stamped:-none}" "Unrelated checkout stamps unknown (R7-F9)"
+    local neg_warn="false"
+    printf "%s" "${neg_out}" | grep -q "does not have the epics-ioc-runner layout" && neg_warn="true"
+    verify_state "true" "${neg_warn}" "Unrelated checkout emits the layout WARN"
+
+    rm -rf "${work}" 2>/dev/null || true
+}
+
 function test_setup_version_injection_guards {
     local step="$1"
     print_divider
@@ -574,6 +643,7 @@ function run_all_tests {
         "test_sudoers_regex_denies_bad_name"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
+        "test_setup_stamp_layout_guard"
         "test_setup_version_injection_guards"
         "test_metadata_field_naming"
         "test_runner_version_path_resolution"
