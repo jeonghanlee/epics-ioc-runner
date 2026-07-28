@@ -43,9 +43,17 @@ M10 row).
 This cycle's verification depends on a golden-image capability that must
 be confirmed present before M2 begins: the `nfs_sim` role of
 `ansible-provision` exports `/home/nfs/simulation/vmadmin/gitsrc` with
-`rw,sync,root_squash` and links it from `~vmadmin/gitsrc-nfs-sim`. A
-checkout placed there reproduces the root-cannot-stat condition that M2
-addresses, so no separate production host is required for the gate.
+`rw,sync,root_squash` and links it from `~vmadmin/gitsrc-nfs-sim`. The
+precheck is a *denial* check, not a presence check — confirming the export
+exists proves nothing, because a world-statable tree reproduces no bug.
+Before trusting any M2 result, assert the field asymmetry on the golden:
+as root, `sudo -n stat -c %U <abs-toplevel>/bin` returns Permission denied
+while the owning user can stat the same path. An honest reproduction needs
+all of: root_squash active; the checkout owned by a real, resolvable
+non-root user; files world-readable so the delegated git query still
+succeeds; and at least one non-traversable (0700-equivalent) ancestor in
+the absolute toplevel path the guard stats. Only when the denial is proven
+is a passing M2 result meaningful.
 
 The milestone register tracks each verification as `M<n>.T<k>` subs that
 map onto this plan: T1 = the "Change-specific verification" column, T2 =
@@ -60,7 +68,7 @@ ends with a reconcile pass comparing issue state against the register.
 | M | Issue | Change-specific verification | Suite coverage and new cases |
 | :--- | :--- | :--- | :--- |
 | M1 | #122 | Seven cases, each in local mode with a real unit started, editing the installed conf by hand between runs. **A** a well-formed pattern: no warning, start succeeds. **B** the value replaced by a bare dot: one warning naming ordinary-log-text as the reason, that value ignored, exit 0 — and no post-initialization error warning, whose disappearance is the point of the change. **C** the value replaced by a trailing pipe: one warning naming the empty alternation, exit 0. **D** the value replaced by an unclosed group: the existing invalid-expression warning, unchanged (regression check). **E** a well-formed pattern matching a token the log actually emits: the pattern still takes effect and raises its warning (positive control). **F** a value written with spaces around `=` and no quotes: reaches the same verdict install reaches on the trimmed value, not silently accepted. **G** a whitespace-only value: a silent no-op matching install, not a spurious warning on an empty pattern. | New local-lifecycle cases (STEP 31, all seven). The runtime re-read sits after `run_systemctl` and needs a real start, so it cannot be exercised from the install-only error-handling fixtures at `tests/test-error-handling.bash:1622-1670`, which stay where they are and keep guarding the install-time verdict for the same eight bad values. |
-| M2 | #128 | On a checkout under the golden's `root_squash` mount (`~vmadmin/gitsrc-nfs-sim`): all three entry points — `sudo bash bin/setup-system-infra.bash`, `sudo make setup`, `make install` — stamp a real short hash and commit date with no layout WARN. On a local-disk checkout, behavior unchanged. With `bin/` copied into an unrelated git checkout, the run still warns and still stamps unknown. With delegation made unavailable, the WARN names the two `declare -g` lines and the commands producing their values, and following that text alone restores a correct `-V`. | New system-infra case asserting the observable outcome: the deployed `/usr/local/bin/ioc-runner` reports a non-`unknown` hash and commit date after a setup run. The existing static guards stay, but they no longer stand alone. |
+| M2 | #128 | On a checkout under the golden's `root_squash` mount (`~vmadmin/gitsrc-nfs-sim`), after the denial precheck above passes: all three entry points — `sudo bash bin/setup-system-infra.bash`, `sudo make setup`, `make install` — stamp a real short hash and commit date with no layout WARN. On a local-disk checkout, behavior unchanged. With `bin/` copied into an unrelated git checkout, the run still warns and still stamps unknown. Delegation-unavailable is a separate fixture (a direct root shell with `sudo` PATH-masked, run from the squashed checkout, owner a real resolvable account): the WARN names the two `declare -g` lines and the commands producing their values, and following that text alone restores a correct `-V`. `sudo make setup` (nested sudo, `SUDO_USER=root`) reaches a clean stamp: measured on both goldens 2026-07-28, a relative `stat bin` from cwd=repo succeeds under root_squash, so the `:634` invoker recovery works and this entry point fails only at the guard like the other two. | The permanent guard must go red on the bug: deploy from the `nfs_sim` mount, THEN assert the deployed `/usr/local/bin/ioc-runner -V` reports a bare short hash (hex, optional `-dirty`) — rejecting both `unknown` and the `(live)` fallback (a source-tree `-V` prints `(live)`, so the assertion must read the deployed path only). A guard run against a local-disk deployment passes on buggy code and is worthless. The existing static grep guards stay but no longer stand alone. |
 | M3 | #123 | (a) Loosen the mode of a deployed target by hand, re-run setup with identical content: the mode is reasserted rather than left as found. (b) Re-run setup three times with no code change: the runner accumulates no new backup (the `RUNNER_*` stamp lines are excluded from the comparison, owner decision 2026-07-27). Then change the runner source and re-run: exactly one backup is created. | New system-infra cases for both halves: mode reassertion on the identical-content path, and backup suppression across a no-change redeploy. |
 | M4 | #120 | The local unit file (`bin/ioc-runner`) and the `install.user` injector (`configure/RULES_INSTALL` via `configure/inject-runner-version.bash`) deploy by same-directory `mktemp` + `mv`, never by in-place write: no half-written state is observable under the final name. `make install.user` still yields a correct `-V`. Re-runs M2.T1 on the user-install path. | Local-lifecycle and system-infra suites green; a case pinning the staged-rename shape at the two extended sites, matching the existing M4-of-1.2.1 coverage. |
 | M5 | #121 | Execute each remaining item and read the actual output: a failing `mktemp` in `do_generate` reports directory writability rather than the raw tool error; the `do_view` missing-conf path sends its whole error block to one stream; view/attach on another user's IOC names conf resolution where that is the real barrier; the local-mode gate error stops suggesting `ioc` group membership where local mode needs none. | Error-handling cases for the two items with a deterministic trigger (generate staging failure, view missing-conf stream); the wording items are pinned by the existing message assertions where they exist. |
@@ -93,9 +101,12 @@ Executed in order before the final 1.2.2 release:
 2. **Full suites and VM gate** — all four suites, local and system modes,
    on both goldens (`rocky8-iocrunner`, `debian13-iocrunner`), through the
    clone-and-test and install-and-test paths.
-3. **root_squash path** — M2.T1 executed on both goldens from the
-   `nfs_sim` mount, since neither the clone-and-test nor the
-   install-and-test path uses that location by default.
+3. **root_squash path** — after the denial precheck passes on each golden,
+   deploy from the `nfs_sim` mount and run BOTH M2.T1 (the change-specific
+   checks) and M2.T2 (the system-infra suite reading the deployed `-V`)
+   against that root_squash deployment. Neither the clone-and-test nor the
+   install-and-test path deploys from that location, so the suite must be
+   run in this state explicitly or it never exercises the bug.
 4. **Multi-user plan** — `testplan_multiuser.md` executed identically.
 
 ## Added During Cycle
