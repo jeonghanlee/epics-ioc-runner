@@ -440,6 +440,133 @@ function test_setup_script_dir_resolution {
     verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
 }
 
+# Behavioral regression for the version-stamp layout guard (#128). Runs the
+# REAL setup-system-infra.bash STEP 7 with the runner, symlink, and completion
+# destinations redirected to a scratch tree, so no system component is touched,
+# and observes the deployed script's injected RUNNER_GIT_HASH. Two observable
+# cases the prior static grep could not catch:
+#   positive  - the real epics-ioc-runner checkout stamps a non-unknown hash;
+#   R7-F9     - bin/ copied into an unrelated git checkout stamps unknown and
+#               emits the layout WARN.
+# Scratch is owned by the invoking user so the delegated git query can read it;
+# root_squash is not required, so this runs on every invocation.
+function test_setup_stamp_layout_guard {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Version-Stamp Layout Guard (real run)"
+    print_sub_divider
+
+    local script_dir setup_script runner_src
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    setup_script="${script_dir}/../bin/setup-system-infra.bash"
+    runner_src="${script_dir}/../bin/ioc-runner"
+    if [[ ! -f "${setup_script}" || ! -f "${runner_src}" ]]; then
+        verify_state "exists" "not_found" "setup-system-infra.bash and ioc-runner exist"
+        return
+    fi
+
+    local invoker="${SUDO_USER:-$(id -un)}"
+    local as_invoker=(bash -c)
+    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
+        as_invoker=(sudo -u "${invoker}" -n bash -c)
+    fi
+    local work
+    work=$("${as_invoker[@]}" 'mktemp -d')
+
+    local stamped
+    stamp_from() {   # $1 = deployed script path
+        grep -m1 '^declare -g RUNNER_GIT_HASH=' "$1" 2>/dev/null | sed 's/.*="\(.*\)"/\1/'
+    }
+
+    # Positive: the real checkout stamps a non-unknown hash.
+    IOC_RUNNER_SCRIPT_DEST="${work}/pos-runner" \
+    IOC_RUNNER_SCRIPT_SYMLINK="${work}/pos-symlink" \
+    IOC_RUNNER_BASH_COMP_DEST="${work}/pos-completion" \
+        bash "${setup_script}" >/dev/null 2>&1 || true
+    stamped=$(stamp_from "${work}/pos-runner")
+    local pos_ok="false"
+    [[ -n "${stamped}" && "${stamped}" != "unknown" ]] && pos_ok="true"
+    verify_state "true" "${pos_ok}" "Real checkout stamps a non-unknown hash (${stamped:-none})"
+
+    # R7-F9 negative: bin/ copied into an unrelated git checkout stamps unknown.
+    "${as_invoker[@]}" "
+        mkdir -p '${work}/xrepo/bin'
+        cp '${script_dir}/../bin/'* '${work}/xrepo/bin/' 2>/dev/null
+        cd '${work}/xrepo' && git init -q && git config user.email t@t \
+            && git config user.name t && git add -A && git commit -q -m init
+    " >/dev/null 2>&1
+    local neg_out
+    neg_out=$(IOC_RUNNER_SCRIPT_DEST="${work}/neg-runner" \
+        IOC_RUNNER_SCRIPT_SYMLINK="${work}/neg-symlink" \
+        IOC_RUNNER_BASH_COMP_DEST="${work}/neg-completion" \
+        bash "${work}/xrepo/bin/setup-system-infra.bash" 2>&1 || true)
+    stamped=$(stamp_from "${work}/neg-runner")
+    verify_state "unknown" "${stamped:-none}" "Unrelated checkout stamps unknown (R7-F9)"
+    local neg_warn="false"
+    printf "%s" "${neg_out}" | grep -q "does not have the epics-ioc-runner layout" && neg_warn="true"
+    verify_state "true" "${neg_warn}" "Unrelated checkout emits the layout WARN"
+
+    rm -rf "${work}" 2>/dev/null || true
+}
+
+# Behavioral regression for the runner backup filter (#123). Runs the REAL
+# setup STEP 7 with the runner/symlink/completion destinations AND the backup
+# directory (IOC_RUNNER_BACKUP_DIR) redirected to a scratch tree, so nothing
+# system is touched. A no-change redeploy differs only in the three volatile
+# RUNNER_* stamp lines and must NOT create a backup; a real source change must
+# create exactly one. Counts "Created backup" log events, not .bak files
+# (same-second timestamps would overwrite and undercount).
+function test_setup_runner_backup_filter {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Runner Backup Filter (real run)"
+    print_sub_divider
+
+    local script_dir setup_script
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    setup_script="${script_dir}/../bin/setup-system-infra.bash"
+    if [[ ! -f "${setup_script}" ]]; then
+        verify_state "exists" "not_found" "setup-system-infra.bash exists"
+        return
+    fi
+
+    local invoker="${SUDO_USER:-$(id -un)}"
+    local as_invoker=(bash -c)
+    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
+        as_invoker=(sudo -u "${invoker}" -n bash -c)
+    fi
+    local work
+    work=$("${as_invoker[@]}" 'mktemp -d')
+    # A scratch copy of the runner source, so the positive control can make a
+    # genuine SOURCE change without touching the repo.
+    "${as_invoker[@]}" "cp '${script_dir}/../bin/ioc-runner' '${work}/src-ioc-runner'"
+
+    run_setup() {   # deploys once into the scratch tree; echoes the run output
+        IOC_RUNNER_SCRIPT_SRC="${work}/src-ioc-runner" \
+        IOC_RUNNER_SCRIPT_DEST="${work}/ioc-runner" \
+        IOC_RUNNER_SCRIPT_SYMLINK="${work}/symlink" \
+        IOC_RUNNER_BASH_COMP_DEST="${work}/completion" \
+        IOC_RUNNER_BACKUP_DIR="${work}/backups" \
+            bash "${setup_script}" 2>&1 || true
+    }
+
+    run_setup >/dev/null        # run 1: establishes the deployed runner
+    local out2 out3 nochange_backups
+    out2=$(run_setup)           # run 2 and 3: no source change -> stamp-only diff
+    out3=$(run_setup)
+    nochange_backups=$(printf "%s\n%s" "${out2}" "${out3}" | grep -c "Created backup of ioc-runner" || true)
+    verify_state "0" "${nochange_backups}" "No-change redeploys create no runner backup (#123)"
+
+    # Positive control: a genuine source change (a non-stamp line) creates one.
+    "${as_invoker[@]}" "printf '# real change\n' >> '${work}/src-ioc-runner'"
+    local out_changed changed_backups
+    out_changed=$(run_setup)
+    changed_backups=$(printf "%s" "${out_changed}" | grep -c "Created backup of ioc-runner" || true)
+    verify_state "1" "${changed_backups}" "A real source change creates exactly one runner backup"
+
+    rm -rf "${work}" 2>/dev/null || true
+}
+
 function test_setup_version_injection_guards {
     local step="$1"
     print_divider
@@ -574,6 +701,8 @@ function run_all_tests {
         "test_sudoers_regex_denies_bad_name"
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
+        "test_setup_stamp_layout_guard"
+        "test_setup_runner_backup_filter"
         "test_setup_version_injection_guards"
         "test_metadata_field_naming"
         "test_runner_version_path_resolution"

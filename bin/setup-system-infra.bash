@@ -23,7 +23,7 @@ declare -g CONF_DIR="/etc/procServ.d"
 declare -g SUDOERS_FILE="/etc/sudoers.d/10-epics-ioc"
 declare -g SYSTEMD_TEMPLATE="/etc/systemd/system/epics-@.service"
 declare -g LOGROTATE_FILE="/etc/logrotate.d/procserv"
-declare -g BACKUP_DIR="/var/backups/epics-ioc-runner"
+declare -g BACKUP_DIR="${IOC_RUNNER_BACKUP_DIR:-/var/backups/epics-ioc-runner}"
 declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 
 declare -g SC_DIR
@@ -607,7 +607,10 @@ _log "INFO" "STEP 7: CLI Wrapper Deployment"
 print_sub_divider
 
 if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
-    backup_if_exists "${RUNNER_SCRIPT_DEST}"
+    # The backup decision is deferred until after the stamp injection below
+    # (#123): the three RUNNER_* stamp lines change every run (install date is
+    # always fresh), so an unfiltered compare would back up on every redeploy
+    # and churn the 3-slot retention out of real prior versions.
     # Stage in the target directory (#107): the sed/chmod pipeline
     # below must never be visible under the final name, and a
     # same-directory mv is an atomic rename(2).
@@ -636,23 +639,36 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
             invoker="${repo_owner}"
         fi
     fi
+    # Run the git and layout checks as the same principal. On an NFS root_squash
+    # home the invoking owner can read the checkout but root (mapped to nobody)
+    # cannot, so a root-side check fails on a valid layout and stamps "unknown"
+    # (#128); delegate both to the owner. test is the external binary because
+    # sudo cannot run the [ ] builtin.
     git_cmd=(git -C "${SC_DIR}")
+    test_cmd=(/usr/bin/test)
     if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
         git_cmd=(sudo -u "${invoker}" -n git -C "${SC_DIR}")
+        test_cmd=(sudo -u "${invoker}" -n /usr/bin/test)
     fi
 
-    # Stamp only when SC_DIR's enclosing repository has the
-    # epics-ioc-runner structure shape (R7-F9): a bin/ copied into an
-    # unrelated checkout must not stamp that repository's HEAD as the
-    # runner version. Same-inode (-ef) comparison, not string equality:
-    # SC_DIR is relative under the documented invocations, and
-    # canonicalizing it as root is barred on NFS root_squash homes
-    # (root may still need stat access to the 0755 checkout for -ef).
+    # Stamp only when SC_DIR's enclosing repository has the epics-ioc-runner
+    # structure shape (R7-F9): a bin/ copied into an unrelated checkout must not
+    # stamp that repository's HEAD as the runner version. Both checks run through
+    # the delegated principal so they agree with the stamping queries: a
+    # tracked-file lookup (repo-top-anchored :/ pathspecs, no on-disk stat) and a
+    # same-inode -ef that SC_DIR is this repo's own bin/. A non-empty toplevel
+    # that fails the shape is a real mismatch and warns; an empty toplevel is
+    # "not a git checkout (or unreadable)" and falls to the WARN below, which
+    # carries the manual-repair guidance for a genuinely stuck checkout.
     stamp_warned=0
+    layout_confirmed=0
     repo_top=$("${git_cmd[@]}" rev-parse --show-toplevel 2>/dev/null || printf "")
-    if [[ -z "${repo_top}" ]]; then
-        :   # not a git checkout; the existing unknown fallbacks cover it
-    elif [[ ! "${SC_DIR}" -ef "${repo_top}/bin" ]] || [[ ! -f "${repo_top}/configure/RULES_INSTALL" ]] || [[ ! -f "${repo_top}/bin/ioc-runner" ]]; then
+    if [[ -n "${repo_top}" ]] \
+       && "${git_cmd[@]}" ls-files --error-unmatch :/configure/RULES_INSTALL :/bin/ioc-runner >/dev/null 2>&1 \
+       && "${test_cmd[@]}" "${SC_DIR}" -ef "${repo_top}/bin"; then
+        layout_confirmed=1
+    fi
+    if [[ ${layout_confirmed} -eq 0 && -n "${repo_top}" ]]; then
         _log "WARN" "Repository at ${SC_DIR} (toplevel: ${repo_top}) does not have the epics-ioc-runner layout; version stamped as unknown."
         git_cmd=(false)
         stamp_warned=1
@@ -667,7 +683,7 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     fi
 
     if [[ "${current_git_hash}" == "unknown" && ${stamp_warned} -eq 0 ]]; then
-        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable)."
+        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable). If this is a valid checkout, repair as ${invoker}: set RUNNER_GIT_HASH and RUNNER_COMMIT_DATE in ${RUNNER_SCRIPT_DEST} from 'git -C ${SC_DIR} rev-parse --short HEAD' and 'date -u -d @\$(git -C ${SC_DIR} show -s --format=%ct HEAD) +%Y-%m-%dT%H:%M:%SZ'."
     fi
 
     # Commit date of the deployed hash; install date of this run. The two
@@ -685,6 +701,19 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     sed -i "s/^declare -g RUNNER_GIT_HASH=.*/declare -g RUNNER_GIT_HASH=\"${current_git_hash}\"/" "${tmp_runner}"
     sed -i "s/^declare -g RUNNER_COMMIT_DATE=.*/declare -g RUNNER_COMMIT_DATE=\"${current_commit_date}\"/" "${tmp_runner}"
     sed -i "s/^declare -g RUNNER_INSTALL_DATE=.*/declare -g RUNNER_INSTALL_DATE=\"${current_install_date}\"/" "${tmp_runner}"
+
+    # Back up the deployed runner only when it differs from the freshly staged
+    # one beyond the three volatile stamp lines; a stamp-only difference is a
+    # no-change redeploy and must not consume a retention slot (#123). The other
+    # four deploy sites get this skip for free via backup_if_exists's cmp guard;
+    # the runner needs the stamp lines filtered from both sides first.
+    if [[ -f "${RUNNER_SCRIPT_DEST}" ]]; then
+        stamp_filter='^declare -g RUNNER_(GIT_HASH|COMMIT_DATE|INSTALL_DATE)='
+        if ! diff -q <(grep -Ev "${stamp_filter}" "${RUNNER_SCRIPT_DEST}") \
+                     <(grep -Ev "${stamp_filter}" "${tmp_runner}") >/dev/null 2>&1; then
+            backup_if_exists "${RUNNER_SCRIPT_DEST}"
+        fi
+    fi
 
     chmod "${PERM_RUNNER_SCRIPT}" "${tmp_runner}"
     mv "${tmp_runner}" "${RUNNER_SCRIPT_DEST}"

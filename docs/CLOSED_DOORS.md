@@ -1,0 +1,31 @@
+# Closed Doors
+
+> Write down the doors you decided to leave closed. The open ones announce
+> themselves; the closed ones only cost you twice.
+>
+> — *The Door You Left Closed*, <https://github.com/jeonghanlee/essay-site>
+
+Findings that a coherence sweep examined and deliberately left as they were.
+Each row is one line and a commit: the reasoning lives in that commit, not
+here. The list does not hold the argument — it gives the next sweep something
+to read in one pass, so a settled question is recognized before it is derived
+again from the start.
+
+This file is not tied to a release cycle. `docs/milestone.md` is cleared when a
+cycle opens; this one is not.
+
+**Promotion test** — default is Keep; promotion to an enforced guard runs four
+ordered gates, and elimination is tried before guarding: `3e47ee6`.
+
+| ID | Examined | Verdict | Commit |
+| --- | --- | --- | --- |
+| CI-25 | procServ unit template kept as two copies rather than one emitter (#81) | Keep, guarded by the shared-contract test | `040f32f`, guard `7a3aeb2` |
+| CI-26 | System service identity resolved independently in both scripts (#87) | Keep, pinned by the static identity guard | `96fc886` |
+| CI-27 | Unify the `resolve_sock_path` callers (#86) | Keep B — the drift would be cosmetic, gate B fails | `ee82e09` |
+| CI-28 | Do the `cmp`-identical skip paths leave a hand-loosened mode un-reasserted? Examined during the M3 (#123) review across every deploy site. | Keep, principled — the five setup mv-sites (`setup-system-infra.bash`) `chmod` the staged temp then `mv` unconditionally, so the mode is reasserted every run regardless of the backup skip; `deploy_local_logrotate` (`bin/ioc-runner:479-575`) skips the `mv` on identical content but asserts no mode (mktemp default, local user files under `~/.config`, 0600 is correct). Only `do_generate` skips a real mode assertion — fixed in M3, not a Keep. | review 2026-07-28 |
+| CI-29 | Extend the atomic staged-rename to the two deploy sites (#120 items 1-2) that the 1.2.0 #107 sweep deliberately excluded: `deploy_local_template`'s `cat > "${template_path}"` (`bin/ioc-runner:441`) and the `install.user` injector's in-place `sed -i` (`configure/inject-runner-version.bash:29-31`). Re-examined in a 1.2.2 M4 three-lens review. | Keep, no meaningful defect. Site 2 is not the torn-write class at all — `sed -i` replaces the inode (temp + rename), so it is already atomic; the only window is a benign partial-stamp state unreachable to a single-user `make install.user`. Site 1 is genuinely non-atomic but its only concurrent reader is `systemd --user`, which reads on `daemon-reload` (after the write), so no torn read is reachable in the single-user `--local install` flow. The stamp-injection 3-point coherence (source decl + both installers) is already guarded by #84/CI-9 (`test_metadata_contract_guard`). Doing items 1-2 buys code-shape uniformity only; recording the Keep stops the next sweep from re-deriving it (this is the second time). Item 3 (SELinux context on setup's `/tmp -> /etc` deploys, RHEL-only) stays open in Backlog, conditional on a production SELinux-enforcing decision. | review 2026-07-28 |
+| CI-30 | Do the read-only observers that M5 (#121) item 4 does not fix -- `inspect`, and Site A of the `do_install` group hint (`require_installed_conf:234`) -- share the false-"not found" / mode-blind defect? Examined during the M5 review. | Keep, both unreachable for the real barrier. `inspect` (`bin/ioc-runner:2009`) reaches `resolve_sock_path` (which now carries the shared `assert_conf_dir_readable` guard) only past its system-mode root gate (`:2017`): in system mode root reads the `2770` dir, and in local mode the dir is the caller's own, so the false "not found" never fires for the real cross-user barrier -- `inspect` inherits the shared guard for free, no dedicated fix. `require_installed_conf:234` (Site A) is reached only in system/installed mode, where the `ioc`-group suggestion is correct; local mode routes through `do_install:1576-1577` (Site B, made mode-aware in M5). Both are the seam's principled-Keep halves: M5 single-sources the readability guard for the reachable observers (view/attach/monitor) and the mode-aware hint for the reachable install site, leaving these two as they were. | review 2026-07-28 |
+
+CI-1 through CI-24 were recorded in the register of the cycle that closed them:
+`git show 1.2.0:docs/milestone.md`. The history answers directly too —
+`git log --grep=examined-Keep`.

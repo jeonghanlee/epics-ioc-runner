@@ -921,6 +921,120 @@ function _run_crash_probe {
     fi
 }
 
+# Exercise the runtime CRASH_LOG_PATTERNS_EXTRA gate with an in-place edit of
+# the DEPLOYED conf. Install validates the copy it makes, so appending the value
+# afterwards reproduces an operator editing the installed file with an editor;
+# the runtime re-read is the only gate left in front of it. The probe IOC
+# optionally emits a token after iocInit so a well-formed pattern that matches
+# real output can be shown to still corroborate.
+#   disposition = rejected   -> exit 0, a warning naming the reason, and no
+#                               post-initialization error warning
+#   disposition = accepted   -> exit 0, no _EXTRA warning at all
+#   disposition = corroborates -> exit 0, no _EXTRA warning, and the pattern
+#                               fires the post-initialization error warning
+function _probe_runtime_extra_gate {
+    local ioc_name="$1"
+    local extra_value="$2"
+    local emit_token="$3"
+    local disposition="$4"
+    local expected_reason="$5"
+    local assertion_name="$6"
+    # Optional: a verbatim conf line, used when the exact whitespace/quoting of
+    # the edit is the thing under test; otherwise the value is written quoted.
+    local raw_line="${7:-}"
+
+    local ioc_dir="${WORKSPACE}/${ioc_name}"
+    mkdir -p "${ioc_dir}"
+    {
+        printf '#!%s\n' "${softioc_bin}"
+        printf 'iocInit\n'
+        if [[ -n "${emit_token}" ]]; then
+            printf 'system "echo %s"\n' "${emit_token}"
+        fi
+    } > "${ioc_dir}/st.cmd"
+    chmod +x "${ioc_dir}/st.cmd"
+
+    _install_crash_probe "${ioc_name}" "${ioc_dir}"
+    if [[ -n "${raw_line}" ]]; then
+        printf '%s\n' "${raw_line}" >> "${CONF_DIR}/${ioc_name}.conf"
+    else
+        printf 'CRASH_LOG_PATTERNS_EXTRA="%s"\n' "${extra_value}" >> "${CONF_DIR}/${ioc_name}.conf"
+    fi
+
+    local output
+    local exit_code=0
+    output=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || exit_code=$?
+    _remove_crash_probe "${ioc_name}"
+
+    local rc_ok="false"
+    [[ "${exit_code}" == "0" ]] && rc_ok="true"
+    verify_state "true" "${rc_ok}" "${assertion_name}: start succeeds (exit 0)"
+
+    local extra_warned="false"
+    local chronic="false"
+    printf "%s" "${output}" | grep -q "CRASH_LOG_PATTERNS_EXTRA" && extra_warned="true"
+    printf "%s" "${output}" | grep -q "reported errors after initialization" && chronic="true"
+
+    case "${disposition}" in
+        rejected)
+            local reason_ok="false"
+            printf "%s" "${output}" | grep -qF "${expected_reason}" && reason_ok="true"
+            verify_state "true" "${reason_ok}" "${assertion_name}: warning names the reason"
+            verify_state "false" "${chronic}" "${assertion_name}: no post-initialization error warning"
+            ;;
+        accepted)
+            verify_state "false" "${extra_warned}" "${assertion_name}: no _EXTRA warning"
+            ;;
+        corroborates)
+            verify_state "false" "${extra_warned}" "${assertion_name}: value not rejected"
+            verify_state "true" "${chronic}" "${assertion_name}: pattern still corroborates"
+            ;;
+    esac
+}
+
+function test_runtime_extra_pattern_gates {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Test Runtime CRASH_LOG_PATTERNS_EXTRA Gates"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping runtime pattern gate test."
+        return 0
+    fi
+
+    local positive_token="M1PROBETOKEN"
+
+    # A: a well-formed value is accepted silently.
+    _probe_runtime_extra_gate "ExtraGateWellFormed" "Bergoz link lost|NPCT overrange" "" \
+        "accepted" "" "Runtime _EXTRA gate: well-formed value"
+    # B: a bare dot matches ordinary log text.
+    _probe_runtime_extra_gate "ExtraGateDot" "." "" \
+        "rejected" "matches ordinary log text" "Runtime _EXTRA gate: bare dot"
+    # C: a trailing pipe is an empty alternation.
+    _probe_runtime_extra_gate "ExtraGatePipe" "Bergoz link lost|" "" \
+        "rejected" "has an empty alternation" "Runtime _EXTRA gate: trailing pipe"
+    # D: an unclosed group is not a valid regular expression (regression).
+    _probe_runtime_extra_gate "ExtraGateBadRe" "unclosed(group" "" \
+        "rejected" "is not a valid regular expression" "Runtime _EXTRA gate: unclosed group"
+    # E: a well-formed value the log actually emits still corroborates (positive control).
+    _probe_runtime_extra_gate "ExtraGatePositive" "${positive_token}" "${positive_token}" \
+        "corroborates" "" "Runtime _EXTRA gate: positive control"
+    # F: a value written with spaces around '=' and no quotes must reach the same
+    # verdict install reaches on the trimmed value; without the runtime trim the
+    # leading space would defeat the canary and the value would slip through.
+    _probe_runtime_extra_gate "ExtraGateSpaced" "" "" \
+        "rejected" "matches ordinary log text" "Runtime _EXTRA gate: spaced assignment" \
+        "CRASH_LOG_PATTERNS_EXTRA = ioc-runner"
+    # G: a whitespace-only value collapses to empty and must be a silent no-op,
+    # matching install, not a spurious "matches ordinary log text" warning on an
+    # empty pattern.
+    _probe_runtime_extra_gate "ExtraGateBlank" "" "" \
+        "accepted" "" "Runtime _EXTRA gate: whitespace-only value" \
+        "CRASH_LOG_PATTERNS_EXTRA =    "
+}
+
 function test_crash_detection {
     local step="$1"
     print_divider
@@ -1298,6 +1412,7 @@ function run_all_tests {
         "test_channel_access"
         "test_monitor_isolation"
         "test_crash_detection"
+        "test_runtime_extra_pattern_gates"
         "test_persistence"
         "test_remove"
         "test_logrotate_teardown"

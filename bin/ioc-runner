@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.2.1"
+declare -g RUNNER_VERSION="1.2.2"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
@@ -118,6 +118,14 @@ declare -g CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERR
 # Case-sensitive by design; not user-extensible (an over-broad exclusion would silently
 # disable crash detection).
 declare -g CRASH_LOG_EXCLUDE_PATTERNS="Permission denied \([0-9]+\) (loading|writing) '[^']*iocsh_history'"
+# Probe lines standing for ordinary healthy log output. A CRASH_LOG_PATTERNS_EXTRA
+# value that matches either one is degenerate: it would raise the corroboration
+# warning on every start regardless of IOC health. The second line carries the
+# shapes a real log mixes in (version, path, status word, timestamp).
+declare -ga CANARY_LOG_LINES=(
+    "ioc-runner canary: ordinary healthy log line 0123456789"
+    "IOC-Runner Canary 2: EPICS 7.0 iocBoot/st.cmd loaded OK 2026-07-07 01:02:03.456"
+)
 
 # M11 (#67) active-state poll: pinned readiness marker, death banner, and timing.
 # The IOC_RUNNER_TEST_* env overrides are a test-acceleration seam only
@@ -216,16 +224,23 @@ function validate_ioc_name {
 # was never installed, instead of systemd's silent
 # template-instantiation success (stop/enable/disable on a typo
 # exited 0 and misled operators about live hardware).
-function require_installed_conf {
+# Reports an unreadable CONF_DIR (2770 root:ioc) as the real access barrier so
+# a downstream "not found" cannot misreport an installed IOC the caller simply
+# cannot read (#105, multiuser S6). Single-sourced for every verb -- mutation
+# (require_installed_conf) and observer (view/attach/monitor via
+# resolve_sock_path) alike -- so the honest report reaches all of them.
+function assert_conf_dir_readable {
     local ioc_name="$1"
-    local verb="$2"
-    # Observers cannot read CONF_DIR (2770 root:ioc): report the real
-    # cause honestly instead of misreporting "not installed" for an
-    # installed IOC (#105, multiuser S6).
     if [[ -d "${CONF_DIR}" && ! -r "${CONF_DIR}" ]]; then
         printf "Error: Cannot read %s to resolve IOC '%s' (ioc group membership required).\n" "${CONF_DIR}" "${ioc_name}" >&2
         exit 1
     fi
+}
+
+function require_installed_conf {
+    local ioc_name="$1"
+    local verb="$2"
+    assert_conf_dir_readable "${ioc_name}"
     if [[ ! -f "${CONF_DIR}/${ioc_name}.conf" ]]; then
         printf "Error: No configuration found for IOC '%s' (looked in %s).\n" "${ioc_name}" "${CONF_DIR}" >&2
         printf "  -> Nothing to %s: the IOC is not installed in this mode.\n" "${verb}" >&2
@@ -817,6 +832,46 @@ function process_ioc_port {
 }
 
 
+# Classify an optional CRASH_LOG_PATTERNS_EXTRA value against the gates that
+# install-time validation and the runtime re-read share, so both reach the same
+# verdict on an identically-normalized value. The return code names the failing gate;
+# each caller applies its own disposition (install counts an error and refuses,
+# the runtime warns and drops the value while the base set stays active). The
+# character whitelist is deliberately absent here: install time is the strict
+# gate for it, per FAQ Q7.
+#   0  usable
+#   2  not a valid regular expression
+#   3  empty alternation, would match every log line
+#   4  matches ordinary log text
+function classify_extra_patterns {
+    local pat="$1"
+    local grep_rc=0
+
+    grep -qE -- "${pat}" /dev/null 2>/dev/null || grep_rc=$?
+    if [[ ${grep_rc} -eq 2 ]]; then
+        return 2
+    fi
+
+    # Structural check precedes the canary: a trailing '|' compiles (rc 1 on
+    # no-match input) and matches everything at scan time, so only these two
+    # probes can catch it, and the structural one names the precise defect.
+    # Known limitation: escaped-pipe boundary shapes ('a\|') are rejected too.
+    case "${pat}" in
+        *"||"*|"|"*|*"|"|*"(|"*|*"|)"*) return 3 ;;
+    esac
+
+    # Case-insensitive for parity with the crash scan, which matches with -i.
+    local canary
+    for canary in "${CANARY_LOG_LINES[@]}"; do
+        if grep -qiE -- "${pat}" <<< "${canary}" 2>/dev/null; then
+            return 4
+        fi
+    done
+
+    return 0
+}
+
+
 # Validate the configuration file strictly before any deployment actions
 function validate_conf {
     local conf_file="$1"
@@ -859,9 +914,11 @@ function validate_conf {
         fi
     done
 
-    # Optional CRASH_LOG_PATTERNS_EXTRA: per-IOC pattern extension validated
-    # with a wider whitelist (regex metacharacters | ( ) \ allowed) and a
-    # grep -E compile probe to catch invalid regex at install time.
+    # Optional CRASH_LOG_PATTERNS_EXTRA: per-IOC pattern extension. The
+    # character whitelist is wider than the operational keys (regex
+    # metacharacters | ( ) \ allowed) and is enforced at install time only;
+    # the remaining gates are shared with the runtime re-read through
+    # classify_extra_patterns, so both reach the same verdict.
     local extra_patterns="${conf_vars[CRASH_LOG_PATTERNS_EXTRA]:-}"
     if [[ -n "${extra_patterns}" ]]; then
         local extra_re='^[a-zA-Z0-9_./: |()\\-]+$'
@@ -869,27 +926,30 @@ function validate_conf {
             printf "Error: Illegal characters in CRASH_LOG_PATTERNS_EXTRA.\n" >&2
             error_count=$((error_count + 1))
         else
-            local grep_rc=0
-            grep -qE -- "${extra_patterns}" /dev/null 2>/dev/null || grep_rc=$?
-            if [[ ${grep_rc} -eq 2 ]]; then
-                printf "Error: Invalid regex syntax in CRASH_LOG_PATTERNS_EXTRA.\n" >&2
-                error_count=$((error_count + 1))
-            # Structural check BEFORE the canary: a trailing '|' COMPILES
-            # (rc 1 on no-match input) and matches everything at scan
-            # time, so only these two probes can catch it — and the
-            # structural one names the precise defect. Known limitation:
-            # escaped-pipe boundary shapes ('a\|') are rejected here too.
-            elif [[ "${extra_patterns}" == *"||"* || "${extra_patterns}" == "|"* || "${extra_patterns}" == *"|" || "${extra_patterns}" == *"(|"* || "${extra_patterns}" == *"|)"* ]]; then
-                printf "Error: Empty alternation in CRASH_LOG_PATTERNS_EXTRA (would match every log line).\n" >&2
-                error_count=$((error_count + 1))
-            # Canary probe (#106): case-insensitive for parity with the
-            # runtime scan (-i); a pattern that matches ordinary log
-            # text would pin a chronic false Warning on every start.
-            elif grep -qiE -- "${extra_patterns}" <<< "ioc-runner canary: ordinary healthy log line 0123456789" 2>/dev/null ||
-                 grep -qiE -- "${extra_patterns}" <<< "IOC-Runner Canary 2: EPICS 7.0 iocBoot/st.cmd loaded OK 2026-07-07 01:02:03.456" 2>/dev/null; then
-                printf "Error: CRASH_LOG_PATTERNS_EXTRA matches ordinary log text (degenerate pattern such as '.').\n" >&2
-                error_count=$((error_count + 1))
-            fi
+            local extra_rc=0
+            classify_extra_patterns "${extra_patterns}" || extra_rc=$?
+            case "${extra_rc}" in
+                2)
+                    printf "Error: Invalid regex syntax in CRASH_LOG_PATTERNS_EXTRA.\n" >&2
+                    error_count=$((error_count + 1))
+                    ;;
+                3)
+                    printf "Error: Empty alternation in CRASH_LOG_PATTERNS_EXTRA (would match every log line).\n" >&2
+                    error_count=$((error_count + 1))
+                    ;;
+                4)
+                    printf "Error: CRASH_LOG_PATTERNS_EXTRA matches ordinary log text (degenerate pattern such as '.').\n" >&2
+                    error_count=$((error_count + 1))
+                    ;;
+                0) ;;
+                # Fail closed on any unrecognized code so a future gate cannot
+                # slip through here while the runtime rejects it (kept in the
+                # same direction as do_start_restart's default branch).
+                *)
+                    printf "Error: CRASH_LOG_PATTERNS_EXTRA failed the pattern checks.\n" >&2
+                    error_count=$((error_count + 1))
+                    ;;
+            esac
         fi
     fi
 
@@ -1083,6 +1143,7 @@ function resolve_sock_path {
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    assert_conf_dir_readable "${IOC_NAME}"
     if [[ ! -f "${target_conf}" ]]; then
         printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
         exit 1
@@ -1210,7 +1271,10 @@ function do_generate {
     # filesystems on NFS homes and could expose a partial file under
     # the final name. Consequence (accepted at convergence): every
     # generate flow now needs write permission on the directory.
-    tmp_conf=$(mktemp "${abs_dir}/.${IOC_NAME}.conf.XXXXXX")
+    if ! tmp_conf=$(mktemp "${abs_dir}/.${IOC_NAME}.conf.XXXXXX" 2>/dev/null); then
+        printf "Error: No write permission to %s to stage the generated configuration.\n" "${abs_dir}" >&2
+        exit 1
+    fi
     trap 'rm -f "${tmp_conf:-}"' EXIT
 
     cat <<EOF > "${tmp_conf}"
@@ -1231,6 +1295,15 @@ EOF
     # If identical, aborts the overwrite process gracefully to prevent unnecessary disk I/O and prompts.
     if [[ -f "${generated_conf}" ]]; then
         if cmp -s "${generated_conf}" "${tmp_conf}"; then
+            # Content is identical, so the overwrite is skipped -- but reassert
+            # the mode the write path would set (0660 system / 0600 local) so a
+            # hand-loosened permission on the existing conf is corrected instead
+            # of surviving the skip (#123).
+            if [[ "${EXEC_MODE}" == "system" ]]; then
+                chmod 0660 "${generated_conf}"
+            else
+                chmod 0600 "${generated_conf}"
+            fi
             print_divider
             printf "Info: Existing configuration '%s' is already up-to-date (Identical).\n" "${generated_conf}"
             printf "Skipping overwrite.\n"
@@ -1512,7 +1585,11 @@ function do_install {
         fi
         mkdir -p "${CONF_DIR}"
     elif [[ ! -w "${CONF_DIR}" ]]; then
-        printf "Error: No write permission to %s. Are you in the '%s' group?\n" "${CONF_DIR}" "${TARGET_SYSTEM_GROUP}" >&2
+        if [[ "${EXEC_MODE}" == "system" ]]; then
+            printf "Error: No write permission to %s. Are you in the '%s' group?\n" "${CONF_DIR}" "${TARGET_SYSTEM_GROUP}" >&2
+        else
+            printf "Error: No write permission to %s.\n" "${CONF_DIR}" >&2
+        fi
         exit 1
     fi
 
@@ -1923,6 +2000,7 @@ function do_view {
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    assert_conf_dir_readable "${IOC_NAME}"
 
     print_divider
     printf "1. IOC Configuration File: %s\n" "${target_conf}"
@@ -1931,7 +2009,7 @@ function do_view {
         cat "${target_conf}"
     else
         printf "Error: Configuration file not found at %s\n" "${target_conf}" >&2
-        print_divider
+        print_divider >&2
         exit 1
     fi
     printf "\n"
@@ -2170,17 +2248,32 @@ function do_start_restart {
         extra_patterns=$(read_conf_var "${target_conf}" "CRASH_LOG_PATTERNS_EXTRA" 2>/dev/null || printf "")
     fi
     local effective_patterns="${CRASH_LOG_PATTERNS}"
+    # read_conf_var strips quotes but not surrounding whitespace, whereas install
+    # reads through read_conf_all, which trims first. Normalize the same way, and
+    # before the empty-value guard, so a whitespace-only value collapses to empty
+    # and is a silent no-op exactly as install treats it, and an identically
+    # written value classifies identically. The general read_conf_var vs
+    # read_conf_all divergence is out of scope (tracked separately).
+    extra_patterns="${extra_patterns#"${extra_patterns%%[![:space:]]*}"}"
+    extra_patterns="${extra_patterns%"${extra_patterns##*[![:space:]]}"}"
     if [[ -n "${extra_patterns}" ]]; then
-        # Re-validate on every runtime read (#106): the conf may have
-        # changed since install, and one bad extra key must not
-        # silently disable the whole corroboration set — the composed
-        # base|extra regex would fail to compile as a unit.
+        # The installed conf can be edited after install, so the value is
+        # re-classified on every read against the gates install itself
+        # applies. A rejected value is dropped for this run and named in one
+        # warning carrying its remedy; the base set stays active, so one bad
+        # per-IOC key can never disable crash detection.
         local extra_rc=0
-        grep -qE -- "${extra_patterns}" /dev/null 2>/dev/null || extra_rc=$?
-        if [[ ${extra_rc} -eq 2 ]]; then
-            printf "Warning: CRASH_LOG_PATTERNS_EXTRA in %s does not compile; ignoring it for this run (base patterns remain active).\n" "${target_conf}" >&2
-        else
-            effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}"
+        local extra_reason=""
+        classify_extra_patterns "${extra_patterns}" || extra_rc=$?
+        case "${extra_rc}" in
+            0) effective_patterns="${CRASH_LOG_PATTERNS}|${extra_patterns}" ;;
+            2) extra_reason="is not a valid regular expression" ;;
+            3) extra_reason="has an empty alternation and would match every log line" ;;
+            4) extra_reason="matches ordinary log text" ;;
+            *) extra_reason="failed the pattern checks" ;;
+        esac
+        if [[ -n "${extra_reason}" ]]; then
+            printf "Warning: CRASH_LOG_PATTERNS_EXTRA in %s %s; ignoring it for this run (base patterns remain active). Fix the value and re-run 'install' to validate it.\n" "${target_conf}" "${extra_reason}" >&2
         fi
     fi
 

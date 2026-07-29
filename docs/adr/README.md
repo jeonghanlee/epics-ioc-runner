@@ -20,8 +20,8 @@ and self-contained:
 | Decision kind | SOT home | Example |
 | --- | --- | --- |
 | Architecture decision (cross-cutting, alternatives weighed, lasting) | **ADR** in this directory | Restart supervision, unit ordering, startup-poll classification (ADR 0001) |
-| Coherence **Keep** decision | **`docs/milestone.md` → Examined-Keep Ledger** — the `Why Keep` column is the rationale of record | CI-23 `network-online.target` deliberate exclusion; CI-10/CI-11 |
-| Coherence **guard-promotion** decision | the guarding milestone's **Active Register row** + the Ledger **preamble** (the promotion test); CI-4 and CI-22 additionally carry a Ledger row, CI-9 does not | CI-4 two-copy unit template (M5); CI-9 git-metadata injection contract (M6/#84); CI-22 crash-scan token partition (M11) |
+| Coherence **Keep** decision | **[`CLOSED_DOORS.md`](../CLOSED_DOORS.md)** — one line per verdict; the commit named in the row carries the reasoning | CI-25 two-copy unit template; CI-27 socket-path alias |
+| Coherence **guard-promotion** decision | the guarding milestone's **Active Register row** + the **promotion test** in [`CLOSED_DOORS.md`](../CLOSED_DOORS.md) | CI-4 two-copy unit template (M5); CI-9 git-metadata injection contract (M6/#84); CI-22 crash-scan token partition (M11) |
 | Release strategy decision | **`docs/milestone.md` → Open strategy decisions (U001-U008)** | U006 `^T` mechanism; U008 `=0` acceptance-criterion rewrite |
 | Per-milestone fix decision | **`docs/milestone.md` → Active Register row** (rationale inline) + GitHub issue body as original full record | M1/#92 crash-warning false positive; M2/#93 abort exit codes |
 | Subsystem specification | **Topic doc** | `PERMISSION_MODEL.md`, `LOG_LAYOUT.md`, `EXIT_SIGNAL_HANDLING.md`, `ARCHITECTURE.md`, `FAQ.md` |
@@ -29,9 +29,9 @@ and self-contained:
 A decision is promoted to an ADR (rather than left in the Ledger or a register
 row) when it is architecture-level: it weighs named alternatives, has lasting
 consequences across the system, and benefits from a self-contained record that
-outlives any single milestone. Coherence Keep/promote decisions stay in the
-Examined-Keep Ledger by design — the Ledger's `Why Keep` column already carries
-their rationale and is cheaper to sweep than a fan-out of single-finding ADRs.
+outlives any single milestone. Coherence Keep/promote decisions stay in
+`CLOSED_DOORS.md` by design — a one-line index over the commits that already
+carry the reasoning is cheaper to sweep than a fan-out of single-finding ADRs.
 
 ## Conventions
 

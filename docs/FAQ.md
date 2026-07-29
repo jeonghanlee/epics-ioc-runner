@@ -159,7 +159,7 @@ For hardware-specific or vendor-module error strings that should only apply to o
 CRASH_LOG_PATTERNS_EXTRA="Bergoz link lost|NPCT overrange|Keithley buffer full"
 ```
 
-Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Install time is the strict gate: it rejects illegal characters, regex that does not compile, empty alternations (a leading, trailing, or doubled `|` would match every log line), and degenerate patterns that match ordinary log text (such as a bare `.`). The pattern is also re-read at every `start`/`restart`; if the conf was edited since install and the value no longer compiles, the runner warns and ignores it for that run — the built-in pattern set remains active, so one bad per-IOC key can never disable crash detection.
+Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Install time is the strict gate: the character whitelist applies there and nowhere else, and install rejects illegal characters, regex that does not compile, empty alternations (a leading, trailing, or doubled `|` would match every log line), and degenerate patterns that match ordinary log text (such as a bare `.`). The pattern is also re-read at every `start`/`restart` and put through those same three pattern checks; if the conf was edited since install and the value no longer passes one of them, the runner names the reason, ignores that value for the run, and tells you to fix it and re-run `install` — the built-in pattern set remains active, so one bad per-IOC key can never disable crash detection.
 
 ---
 

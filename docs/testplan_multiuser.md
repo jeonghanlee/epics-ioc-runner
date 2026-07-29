@@ -135,7 +135,9 @@ without a login terminal.
   `2770 root:ioc`, so an operator can write it and `ioc-srv` can read/exec),
   **local mode `~/iocBoot/<name>`**. For S8, append `system "echo <TOKEN>"`
   after `iocInit` in `st.cmd` and set `CRASH_LOG_PATTERNS_EXTRA="<TOKEN>"` in
-  the `.conf`.
+  the `.conf`. Pick a distinctive token, not a word that ordinary log lines
+  carry (`OK`, `loaded`, a bare `.`): such a value is rejected at install and
+  again at every start, so the scenario would never reach its warning.
 - **Avoid login shells for the driver.** `bash -lc` pulls in shell aliases and
   EPICS-env banners that corrupt piped output; run the steps from a driver
   script (non-login `bash <file>`) that sources the EPICS environment itself.
@@ -147,11 +149,48 @@ without a login terminal.
   (rocky8 auto-loads via `profile.d`; debian13 does not), or source the exact
   per-OS path.
 - **Where state lives** (the log-read and socket scenarios need exact paths):
-  - Log: system `/var/log/procserv/<name>.log` (`ioc-srv:ioc`, group `r--`);
+  - Log: system `/var/log/procserv/<name>.log` (`ioc-srv:ioc`, group `r--`;
+    observed `0644` on both goldens — the requirement is the group read bit, so
+    assert that bit rather than pinning a whole mode);
     local `~/.local/state/procserv/<name>.log` (`0640 <user>:<user>`, and
     `$HOME` is `0700` so a peer is blocked at the home dir too).
   - Socket: system `/run/procserv/<name>/control`; local
     `/run/user/<uid>/procserv/<name>/control`.
+
+### Traps That Cost A Run
+
+Each entry below turned a green expectation red — or, worse, silent — during a
+plan execution. They are harness defects, not product behavior, and every one
+of them reads as a product failure until it is recognized.
+
+- **Never source the EPICS environment under `set -u`.** `setEpicsEnv.bash`
+  reads `LD_LIBRARY_PATH`, which is normally unset, so a driver running with
+  `set -u` dies the instant it sources the file — and dies *silently* when the
+  source is redirected to `/dev/null`. Wrap the source in `set +u` / `set -u`.
+  The trap is invisible on `rocky8`, whose `profile.d` has already set
+  `EPICS_BASE` so the block never runs; it fires on `debian13` only.
+- **A login shell speaks before the command does.** `sudo -niu <user>` is a
+  login shell, and on `debian13` it prints the EPICS environment banner ahead
+  of the command's own output. A captured `systemctl is-active` then reads as
+  the banner with `active` glued to its tail. Take the last line
+  (`| tail -n1`) of any single-value read, or compare with a match rather than
+  an equality.
+- **Probe a `0700` runtime directory as its owner.** `/run/user/<uid>` is
+  `0700`, so a third party — including the driver account — cannot distinguish
+  "socket absent" from "directory not traversable". Run the socket check as the
+  owning principal; a negative from anyone else proves nothing.
+- **An `IOC_CHDIR` fixture must carry its own payload.** `install` validates
+  that `IOC_CMD` resolves and is executable *relative to* `IOC_CHDIR`, and that
+  validation runs BEFORE the system-model conformance check. A conf that points
+  `IOC_CHDIR` at a bare home directory therefore aborts with "Command not
+  executable or not found" and never reaches the S9 warning. Stage the whole
+  iocBoot directory — `st.cmd` included — inside the non-conforming path.
+- **Denial wears two faces on a NOPASSWD host.** The golden sudoers carries both
+  a password-requiring `(ALL) ALL` rule and the runner's NOPASSWD entries, so a
+  command the per-verb rule does not match falls through to the password rule:
+  `sudo: a password is required` IS the denial in S11's regex branch, not a
+  harness fault. Assert on that string as well as the explicit
+  "not allowed" / "may not run" wording.
 
 ## Local-Mode Scenarios
 
@@ -177,7 +216,7 @@ roles.
 | S3 | Concurrency | opa, opb | opa and opb `start` / `stop` different IOCs simultaneously -> no interference, both succeed, per-unit state correct. | independent systemd instances |
 | S4 | Removal while in use | opa, opb | opb has an IOC under `attach` / `monitor`; opa `stop` / `remove` it -> opb's console session terminates immediately with EOF (clean client exit); the socket directory is removed with the unit; no hang and no stale socket remain. | FAQ Q6 |
 | S5 | Cross-operator log read | opb -> opa | opb reads an opa-started IOC log and runs the crash scan -> group `r--` read; the scan runs under opb's UID with no sudo. | PERMISSION_MODEL.md "Permission Lifecycle"; FAQ Q9 |
-| S6 | Observer negative control | obs | obs runs `status` / `is-active` / `list` / `cat <log>` / `ls` (succeed) versus `start` (denied at the sudo gate) and `stop` / `remove` (denied by the runner's conf-resolution gate: obs cannot read the `2770` CONF_DIR, so the runner reports `Cannot read /etc/procServ.d ... (ioc group membership required)` and exits 1 before touching systemd). With IOCs running, obs `list` returns the empty result plus the permission hint `(socket directories are not readable by this user; ...)` since the `0770` socket dirs are not traversable outside `ioc` (#94); exit 0 unchanged. | PERMISSION_MODEL.md "Access Boundary"; FAQ Q1 |
+| S6 | Observer negative control | obs | obs runs `status` / `list` / `cat <log>` / `ls`, plus `systemctl is-active` on the unit (all succeed — `is-active` is a systemd verb the runner uses internally, not an `ioc-runner` subcommand) versus `start` (denied at the sudo gate) and `stop` / `remove` (denied by the runner's conf-resolution gate: obs cannot read the `2770` CONF_DIR, so the runner reports `Cannot read /etc/procServ.d ... (ioc group membership required)` and exits 1 before touching systemd). With IOCs running, obs `list` returns the empty result plus the permission hint `(socket directories are not readable by this user; ...)` since the `0770` socket dirs are not traversable outside `ioc` (#94); exit 0 unchanged. | PERMISSION_MODEL.md "Access Boundary"; FAQ Q1 |
 | S7 | Disable / manual run / re-enable | opa (+ opb) | opa `disable` + `stop` -> run `st.cmd` manually -> `start` + `enable`; opb observes the intermediate state -> conf unchanged, only runtime state changes, opb sees disabled/inactive correctly. | FAQ Q5 |
 | S8 | Crash-loop detection | opa | opa starts an IOC whose conf sets `CRASH_LOG_PATTERNS_EXTRA` and that reaches initialization, then emits the extra token while staying active -> the startup poll merges the per-IOC pattern and reports a post-initialization warning (exit 0), confirming `CRASH_LOG_PATTERNS_EXTRA` is corroborating, not a standalone failure. | FAQ Q6, Q7 |
 | S9 | `IOC_CHDIR` non-conformance | opa, root | `install` with an `IOC_CHDIR` not writable by `ioc-srv` (a home / NFS path) -> conformance warning + confirmation. `install` with a path containing `..` -> unconditional hard error before the warning flow, no prompt, `--force` does not bypass (#66). In both variants root and operator give the identical result (metadata read, no sudo). | FAQ Q8; PERMISSION_MODEL.md "Site-provisioned paths"; #66 |
