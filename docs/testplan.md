@@ -93,6 +93,15 @@ scenario's expected result, that amendment lands as its T4.
 
 ## Release Gate
 
+**Precondition — fresh images, fresh VMs.** The gate runs on freshly baked
+goldens and freshly created VMs, never a reused testbed. A reused testbed
+accumulates state — a stale `SYSTEM_USER`, a previously installed runner,
+leftover accounts — that produces failures the released tree does not have. At
+the 1.2.2 gate, system-lifecycle T1 (journal-less crash detection) was red on
+both reused testbeds and on the 1.2.1 baseline, then green on both freshly
+baked goldens against the same tree; the drift factor was never isolated, and
+that is precisely the cost this precondition avoids.
+
 Executed in order before the final 1.2.2 release:
 
 1. **Cycle batch re-run** — the M1, M2, M3, M5 change-specific
@@ -100,7 +109,11 @@ Executed in order before the final 1.2.2 release:
    changes coexist (M4 retired as examined-Keep, no code change).
 2. **Full suites and VM gate** — all four suites, local and system modes,
    on both goldens (`rocky8-iocrunner`, `debian13-iocrunner`), through the
-   clone-and-test and install-and-test paths.
+   clone-and-test and install-and-test paths. The tree pushed to each VM must
+   include `.git`: since 1.2.2 the system-infra suite reads the stamp a real
+   checkout produces, so the habitual `tar --exclude=.git` push stamps
+   `unknown` and fails that assertion for a reason that has nothing to do with
+   the code under test.
 3. **root_squash path** — push (or `git init`) a real checkout WITH `.git` on
    the `nfs_sim` mount, confirm the denial precheck passes on each golden, then
    deploy from that mount and run M2.T1 (the change-specific checks) and read
