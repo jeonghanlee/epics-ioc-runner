@@ -27,12 +27,16 @@ defects pulled from the Backlog, no redesign. The cycle exists because #128
 reopened, through a different cause, the stamping symptom #119 closed in 1.2.1.
 Target date: 2026-08-28, per the GitHub milestone `1.2.2` due date.
 
-**Next session entry point:** M5 (#121) — the remaining message/stream polish
-from the 1.2.1 landing precheck (generate staging error, view missing-conf
-stream, view/attach conf-resolution wording, local-mode gate). M1 (#122),
-M2 (#128), M3 (#123) landed 2026-07-28; M4 (#120 items 1-2) retired as
-examined-Keep after review (CLOSED_DOORS CI-29). Do not start Backlog items
-unless the owner explicitly reorders them.
+**Next session entry point:** M6 release gate. M1-M5 code is done and pushed
+(release-1.2.2 @ 77d952e, version bumped to 1.2.2). The gate must run on FRESH
+golden bakes, not the reused .150/.50 testbeds: `cd /data/gitsrc/cloud-provision
+&& make bake` (both), recreate the VMs, push the 1.2.2 tree, `setup-system-infra
+--full`, then the full suites in both modes plus root_squash and the multi-user
+plan. Open item: T1 (system-lifecycle journal-less crash detection) is red on
+both reused testbeds AND on the 1.2.1 baseline (d6cdde4) -- pre-existing, NOT a
+cycle regression; the fresh bake decides real-bug vs testbed-drift. Do not start
+Backlog items (#129 stays out per the essay-lens review) unless the owner
+reorders.
 
 ## Work Register — 1.2.2
 
@@ -54,7 +58,7 @@ unless the owner explicitly reorders them.
 | M5.T1 | Change-specific: read the real output of each fix — (1) a non-writable target dir makes `generate` name the directory, not print the raw `mktemp:` line; (2) `view` on an empty conf dir sends the closing divider to stderr with its error (stdout keeps only the one header divider); (4) a `chmod 0` conf dir holding a real `.conf` makes `view` and `attach` name the access barrier, not "not found"; (5) a valid conf under a `0500` conf dir makes local `install` state no write permission without the `ioc` group question. Each asserts the barrier branch actually ran (positive marker), so a green cannot come from a path that skipped it | Verification | Done | Verified 2026-07-28 on top and both goldens: the four cases observed each fix's real output; the barrier-reached markers stayed green while the defect assertions went red on the un-fixed tree (honest-red check). |
 | M5.T2 | Suites: four `test-error-handling.bash` cases driving the real `bin/ioc-runner` (no stub; real filesystem permissions build the barrier) — generate staging-perm, view stderr-divider, view + attach access-barrier, local-install perm hint. Items 1/4/5 wrap the EUID-0 skip (root ignores the DAC bits, the case is vacuous as root). Item 4's true cross-user fidelity (a different user's unreadable dir) belongs to the multi-user harness S6/S10; the unit cases cover the degraded self-`chmod` form | Verification | Done | error-handling 206/206 on top, rocky8 (.150), and debian13 (.50) 2026-07-28 (16 new assertions across the four cases); all three hosts non-root, so the EUID-0 skips did not fire and every barrier case executed. |
 | M5.T3 | Re-run of M2's manual-repair WARN text after M5 edits the shared deployment-path output strings; assert the string survived M5's message changes (M2 owns and finalizes that WARN, AC4 — it is not one of M5's four items) | Verification | Done | No collision: M5 changed only `bin/ioc-runner` and the error-handling suite (git diff); `setup-system-infra.bash` (M2's WARN) is untouched, so the WARN is intact by construction. The full system-infra re-run runs at the M6 gate. |
-| M6 | Release gate: cycle batch re-run, full suites on both goldens through clone-and-test and install-and-test, the root_squash path from the `nfs_sim` mount, and the multi-user plan | Release gate | Not started | Register-local, no issue. Gates the merge, the `1.2.2` tag, and the release. |
+| M6 | Release gate: cycle batch re-run, full suites on both goldens through clone-and-test and install-and-test, the root_squash path from the `nfs_sim` mount, and the multi-user plan | Release gate | In progress (paused for fresh bake) | Register-local, no issue. Gates the merge, the `1.2.2` tag, and the release. Started 2026-07-28 on the reused .150/.50 testbeds: every 1.2.2-changed suite green -- error-handling 206/206, local-lifecycle 94 (rocky8) / 82 (debian13), system-infra 45 / 46, both goldens. One red: system-lifecycle T1 (journal-less crash detection, 2 assertions) fails on both testbeds AND on the 1.2.1 baseline (d6cdde4), so it is pre-existing, not this cycle (M1's crash change only runs when CRASH_LOG_PATTERNS_EXTRA is set, which T1's IOC lacks). The testbeds are drifted (accumulated state, SYSTEM_USER ioc-srv, a pre-installed 1.2.1 runner), so the gate re-runs on FRESH bakes to settle T1 real-bug-vs-drift before the release sequence. |
 
 ## Backlog
 
@@ -80,10 +84,11 @@ milestone; the 1.3.0 theme is the detection layer (#102).
 | --- | --- |
 | ansible/cloud-provision U8 first joint tag (1.0) | Open; User-run. Deferred at the 1.2.1 release and not yet taken. |
 
-**Tally:** 1.2.2 milestones — M1, M2, M3 Done (code + suites green on both
-goldens 2026-07-28); M4 (#120 items 1-2) retired as examined-Keep (no work,
-CLOSED_DOORS CI-29); M5 (#121) not started; M6 gate not started · Backlog 10
-open incl. #120 item 3 (conditional) · external gates 1 open.
+**Tally:** 1.2.2 milestones — M1, M2, M3, M5 Done (code + suites green on both
+goldens 2026-07-28; version bumped to 1.2.2 @ 77d952e); M4 (#120 items 1-2)
+retired as examined-Keep (no work, CLOSED_DOORS CI-29); M6 gate in progress,
+paused for a fresh golden bake (one pre-existing red: system-lifecycle T1) ·
+Backlog 10 open incl. #120 item 3 (conditional) · external gates 1 open.
 
 ## Update Protocol
 
