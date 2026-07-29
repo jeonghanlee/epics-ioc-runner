@@ -1,5 +1,82 @@
 # Changelog
 
+## 1.2.2 - Deployment Path Patch
+
+Five deployment-path and validation-path defects, no redesign. The
+cycle exists because the version-stamp layout guard added in 1.2.1
+re-broke, through a different cause, the root_squash stamping symptom
+1.2.1 had closed. Every change was review-converged and suite-pinned,
+and the consolidated patch was verified on freshly baked golden images
+at the release gate.
+
+### Fixes
+
+- Version stamping works again on an NFS `root_squash` home: the
+  layout guard now runs its three checks as the same delegated
+  principal as the git queries it guards, and its tracked-file check
+  uses repository-top-anchored pathspecs, which a plain relative
+  pathspec could not satisfy from inside `bin`. All three documented
+  entry points — `sudo bash bin/setup-system-infra.bash`, and
+  `make install` / `make setup` run as your own user — stamp a real
+  short hash and commit date again. When the metadata genuinely cannot
+  be read, the warning now carries the manual repair that restores
+  `-V`. (#128)
+- A `CRASH_LOG_PATTERNS_EXTRA` value is judged the same way at runtime
+  as at install: both call sites share one classifier, so a value that
+  install rejects no longer slips through at start, and a value written
+  with spaces around `=` reaches the same verdict either way. A
+  whitespace-only value is a silent no-op instead of a spurious
+  warning. Each runtime warning names the reason in plain terms and
+  tells the operator to fix the value and re-run `install`; the base
+  pattern set stays active throughout. (#122)
+- `view` on a missing configuration sends its closing divider to
+  stderr with the error, so stdout no longer carries a stray divider;
+  `generate` names the directory it could not write to instead of
+  leaking the raw `mktemp` line; and the local-mode `install`
+  permission hint no longer suggests `ioc` group membership that local
+  mode does not use. (#121)
+- `view`, `attach`, and `monitor` name the real barrier when the
+  configuration directory exists but is unreadable to the caller,
+  rather than reporting the IOC as not found — the honest-report work
+  of 1.2.1 reached the mutation verbs but not the observers. (#121)
+
+### Changed
+
+- A byte-identical `generate` re-run reasserts the configuration file
+  mode instead of leaving a hand-loosened one as found; the
+  "already up-to-date" skip no longer bypasses the permission the
+  installed file is supposed to carry. (#123)
+- `setup` stops rotating the runner's three-slot backup history on a
+  no-change redeploy: the three `RUNNER_*` stamp lines, which differ on
+  every run by construction, are excluded from the comparison that
+  decides whether a backup is warranted. A real source change still
+  produces exactly one. (#123)
+
+### Tests
+
+- The error suite grew from 188 to 206 assertions, pinning the shared
+  pattern classifier and all four message-and-stream fixes with real
+  filesystem permissions rather than stubs; each case asserts that the
+  barrier branch actually ran, so a green cannot come from a skipped
+  path. The local lifecycle suite gained seven runtime re-validation
+  cases that the install-only fixtures cannot reach. (#121, #122)
+- The system-infra suite gained two permanent every-run assets: a real
+  run of the stamping step observing what a genuine checkout produces
+  versus what `bin/` copied into an unrelated repository produces, and
+  a backup-suppression check driven through an isolated backup
+  directory. Both replace reproduction-style probes with observations
+  of the shipped path. (#123, #128)
+
+### Documentation
+
+- The `INSTALL.md` NFS `root_squash` section is reconciled with the
+  restored behavior: it names the three entry points that work in
+  place, states that `make setup` runs as your own user rather than
+  under `sudo`, re-anchors its verification note to the current golden
+  images, and documents the manual stamp repair that matches the
+  warning text. The FAQ's runtime sentence on
+  `CRASH_LOG_PATTERNS_EXTRA` matches the shared verdict. (#122, #128)
+
 ## 1.2.1 - Stability Patch
 
 Make what 1.2.0 already does honest and robust, with no redesign.
