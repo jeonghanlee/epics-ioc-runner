@@ -27,12 +27,12 @@ defects pulled from the Backlog, no redesign. The cycle exists because #128
 reopened, through a different cause, the stamping symptom #119 closed in 1.2.1.
 Target date: 2026-08-28, per the GitHub milestone `1.2.2` due date.
 
-**Next session entry point:** M4 (#120) — extend the same-directory `mktemp` +
-`mv` staged-rename to the local unit file (`bin/ioc-runner`) and the
-`install.user` injector (`configure/inject-runner-version.bash`); the SELinux
-item stays out of scope. M1 (#122), M2 (#128), M3 (#123) landed 2026-07-28
-(code + suites green on both goldens). Do not start Backlog items unless the
-owner explicitly reorders them.
+**Next session entry point:** M5 (#121) — the remaining message/stream polish
+from the 1.2.1 landing precheck (generate staging error, view missing-conf
+stream, view/attach conf-resolution wording, local-mode gate). M1 (#122),
+M2 (#128), M3 (#123) landed 2026-07-28; M4 (#120 items 1-2) retired as
+examined-Keep after review (CLOSED_DOORS CI-29). Do not start Backlog items
+unless the owner explicitly reorders them.
 
 ## Work Register — 1.2.2
 
@@ -49,10 +49,7 @@ owner explicitly reorders them.
 | M3.T1 | Change-specific: a hand-loosened conf mode is reasserted on a byte-identical `generate` re-run (the "Identical" skip marker confirms the skip path ran); three no-change setup re-runs add no runner backup, and a real source change adds exactly one | Verification | Done | Verified end-to-end on the golden 2026-07-28: generate 600 -> chmod 666 -> identical re-generate takes the skip path and restores 600; and `IOC_RUNNER_BACKUP_DIR`-isolated setup gives 0 backups across no-change reruns, 1 on a real source change. |
 | M3.T2 | Suites: the mode-reassertion case in `test-error-handling.bash` (`generate` is an `ioc-runner` behavior; system-infra is read-only and never runs `generate`), the backup-suppression case in `test-system-infra.bash` via the redirect-to-scratch pattern plus `IOC_RUNNER_BACKUP_DIR` | Verification | Done | error-handling 190/190 both goldens (2 new mode-reassertion assertions); system-infra rocky8 45/45, debian13 46/46 (`test_setup_runner_backup_filter`, 2 assertions). |
 | M3.T3 | Re-run of M2.T2's every-run deployed-`-V` read after M3 reorders the STEP 7 backup call past the stamp injection (shared surface: STEP 7 runner deploy); the full M2.T1 root_squash stamping stays at the M6 gate | Verification | Done | `test_setup_stamp_layout_guard` stays green in the same system-infra run after M3's reorder (both goldens), confirming stamping survived. |
-| M4 | (#120) Extend same-directory staged rename to the local unit file and the `install.user` injector; the SELinux item stays out of scope | Milestone | Not started | Sequenced after M2 as work-ordering; no code dependency — the injector runs git as the user with no layout guard, so it is independent of M2's guard-move. |
-| M4.T1 | Change-specific: both sites deploy by `mktemp` + `mv`, no half-written state under the final name; `make install.user` still yields a correct `-V` | Verification | Not started | |
-| M4.T2 | Suites: local-lifecycle and system-infra green; staged-rename shape pinned at the two extended sites | Verification | Not started | |
-| M4.T3 | Change-specific (not a re-run of M2.T1 — the injector shares no surface with M2's setup-path guard and is root_squash-safe): `make install.user` stamps a correct `-V` through the staged-rename injector | Verification | Not started | |
+| M4 | (#120 items 1-2) Extend same-directory staged rename to the local unit file and the `install.user` injector | Milestone | Done (retired) — examined-Keep, no work | Three-lens review 2026-07-28 found no meaningful defect: the injector's `sed -i` is already atomic (temp + rename), and the local template's `cat >` write has no reachable concurrent reader single-user; the stamp-injection coherence is already guarded by #84/CI-9. Both sites were deliberately excluded from the 1.2.0 #107 sweep. Recorded as examined-Keep (CLOSED_DOORS CI-29). #120 item 3 (SELinux, RHEL-only) stays in Backlog, conditional on a production SELinux-enforcing decision. |
 | M5 | (#121) Remaining message and stream polish from the 1.2.1 landing precheck; the em-dash item already landed in 1.2.1 | Milestone | Not started | Last in the cluster. M2 authors and finalizes its own delegation-unavailable repair-WARN (AC4); M5.T3 only re-verifies that string survived M5's edits — it is not one of M5's four polish items. |
 | M5.T1 | Change-specific: generate staging failure names directory writability; view missing-conf error block uses one stream; view/attach names conf resolution; local-mode gate stops suggesting `ioc` membership | Verification | Not started | |
 | M5.T2 | Suites: error-handling cases for the two deterministically triggerable items | Verification | Not started | |
@@ -75,6 +72,7 @@ milestone; the 1.3.0 theme is the detection layer (#102).
 | #118 | Type expectation for `verify_path` (false-green directory impostors) | Backlog | Open | Helper-signature change; issue body asks for its own review. |
 | #127 | Container execution mode without systemd | Backlog | Open | Feature. |
 | #129 | Unify conf-value normalization between `read_conf_var` and `read_conf_all` (trim + trim-before-unquote ordering) | Backlog | Open | Spun off from M1 (#122), 2026-07-28; M1 closed its specific gap at one call site, this is the general reader divergence. |
+| #120 | SELinux context on setup's `/tmp -> /etc` sudoers/logrotate deploys (item 3; RHEL-only) | Backlog | Conditional | Items 1-2 closed as examined-Keep (CLOSED_DOORS CI-29). Item 3 blocked on a production SELinux-enforcing decision; stays closed until the owner confirms the production hosts run SELinux enforcing. |
 
 ## External Gates
 
@@ -82,10 +80,10 @@ milestone; the 1.3.0 theme is the detection layer (#102).
 | --- | --- |
 | ansible/cloud-provision U8 first joint tag (1.0) | Open; User-run. Deferred at the 1.2.1 release and not yet taken. |
 
-**Tally:** 1.2.2 milestones 6 (M1-M5 work, M6 gate) with 14 verification subs;
-M1, M2, M3 Done (code + suites green on both goldens 2026-07-28), M4-M5 not
-started, M6 gate not started · Backlog 9 open · external gates 1 open. (Backlog
-was 8; #129 added 2026-07-28 in the reconcile against GitHub.)
+**Tally:** 1.2.2 milestones — M1, M2, M3 Done (code + suites green on both
+goldens 2026-07-28); M4 (#120 items 1-2) retired as examined-Keep (no work,
+CLOSED_DOORS CI-29); M5 (#121) not started; M6 gate not started · Backlog 10
+open incl. #120 item 3 (conditional) · external gates 1 open.
 
 ## Update Protocol
 
