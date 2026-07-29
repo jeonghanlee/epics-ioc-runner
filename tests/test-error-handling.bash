@@ -1942,6 +1942,172 @@ function test_tool_resolution {
 
 
 
+# Issue #121 item 1: a mktemp failure while staging the generated conf inside a
+# non-writable target directory must surface a named directory-writability error,
+# not the raw 'mktemp:' line. chmod 0500 cannot deny root, so the barrier never
+# fires under EUID 0 and the case is skipped there.
+function test_generate_staging_perm {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Generate Staging Permission Barrier (#121)"
+    print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the staging-permission case (chmod 0500 cannot deny root)."
+        return 0
+    fi
+
+    local ro_dir="${TEST_TMPDIR}/ro_generate"
+    mkdir -p "${ro_dir}"
+    touch "${ro_dir}/st.cmd"
+    chmod +x "${ro_dir}/st.cmd"
+    chmod 0500 "${ro_dir}"
+
+    local err_f="${TEST_TMPDIR}/gen_perm_err" ec=0
+    bash "${RUNNER_SCRIPT}" --local generate "${ro_dir}" >/dev/null 2>"${err_f}" || ec=$?
+    chmod 0700 "${ro_dir}"
+
+    verify_exit_code "1" "${ec}" "Generate into a non-writable directory exits 1"
+
+    local names_dir="false"
+    if grep -q "No write permission to .* to stage the generated configuration" "${err_f}"; then names_dir="true"; fi
+    verify_state "true" "${names_dir}" "Generate staging failure names directory writability"
+
+    local raw_mktemp="false"
+    if grep -q "mktemp:" "${err_f}"; then raw_mktemp="true"; fi
+    verify_state "false" "${raw_mktemp}" "Generate staging failure hides the raw mktemp error"
+}
+
+# Issue #121 items 2 and 4 (view): the do_view missing-conf error block keeps its
+# closing divider on stderr with the error rather than splitting it to stdout, and
+# an unreadable CONF_DIR is reported as an access barrier instead of a misleading
+# "not found". chmod 0 cannot deny root, so the access-barrier case is skipped
+# under EUID 0.
+function test_view_message_streams {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: View Message Streams and Access Barrier (#121)"
+    print_sub_divider
+
+    local conf_dir="${IOC_RUNNER_LOCAL_CONF_DIR}"
+    mkdir -p "${conf_dir}"
+
+    # Item 2: a genuinely absent conf. The error and its closing divider both
+    # ride stderr; stdout carries only the one header divider.
+    local out_f="${TEST_TMPDIR}/view_out" err_f="${TEST_TMPDIR}/view_err" ec=0
+    bash "${RUNNER_SCRIPT}" --local view absent_view_ioc >"${out_f}" 2>"${err_f}" || ec=$?
+    verify_exit_code "1" "${ec}" "View of an absent conf exits 1"
+
+    local err_has_notfound="false"
+    if grep -q "Configuration file not found" "${err_f}"; then err_has_notfound="true"; fi
+    verify_state "true" "${err_has_notfound}" "View missing-conf error rides stderr"
+
+    local err_divider_count out_divider_count
+    err_divider_count=$(grep -cE '^=+$' "${err_f}" || true)
+    out_divider_count=$(grep -cE '^=+$' "${out_f}" || true)
+    verify_state "1" "${err_divider_count}" "View missing-conf closing divider joins the error on stderr"
+    verify_state "1" "${out_divider_count}" "View missing-conf stdout keeps only the header divider"
+
+    # Item 4 (view): an unreadable CONF_DIR holding a real conf must name the
+    # access barrier, not report the installed IOC as "not found".
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the view access-barrier case (chmod 0 cannot deny root)."
+        return 0
+    fi
+
+    printf 'IOC_NAME="barred_view"\nIOC_USER="%s"\nIOC_CMD="st.cmd"\n' "$(id -un)" > "${conf_dir}/barred_view.conf"
+    chmod 0 "${conf_dir}"
+    local berr_f="${TEST_TMPDIR}/view_barred_err" bec=0
+    bash "${RUNNER_SCRIPT}" --local view barred_view >/dev/null 2>"${berr_f}" || bec=$?
+    chmod 0755 "${conf_dir}"
+
+    verify_exit_code "1" "${bec}" "View of an unreadable CONF_DIR exits 1"
+
+    local names_barrier="false"
+    if grep -q "Cannot read .* to resolve IOC 'barred_view'" "${berr_f}"; then names_barrier="true"; fi
+    verify_state "true" "${names_barrier}" "View names the access barrier for an unreadable CONF_DIR"
+
+    local says_notfound="false"
+    if grep -q "not found" "${berr_f}"; then says_notfound="true"; fi
+    verify_state "false" "${says_notfound}" "View does not misreport an unreadable CONF_DIR as not found"
+}
+
+# Issue #121 item 4 (attach/monitor): resolve_sock_path shares the readability
+# guard, so attach on an unreadable CONF_DIR names the access barrier instead of
+# "not found". resolve_con_tool runs first and resolves the mocked console tool,
+# so execution reaches resolve_sock_path. chmod 0 cannot deny root; skipped there.
+function test_attach_access_barrier {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Attach Access Barrier (#121)"
+    print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the attach access-barrier case (chmod 0 cannot deny root)."
+        return 0
+    fi
+
+    local conf_dir="${IOC_RUNNER_LOCAL_CONF_DIR}"
+    mkdir -p "${conf_dir}"
+    printf 'IOC_NAME="barred_attach"\nIOC_USER="%s"\nIOC_CMD="st.cmd"\n' "$(id -un)" > "${conf_dir}/barred_attach.conf"
+    chmod 0 "${conf_dir}"
+    local err_f="${TEST_TMPDIR}/attach_barred_err" ec=0
+    bash "${RUNNER_SCRIPT}" --local attach barred_attach >/dev/null 2>"${err_f}" || ec=$?
+    chmod 0755 "${conf_dir}"
+
+    verify_exit_code "1" "${ec}" "Attach to an unreadable CONF_DIR exits 1"
+
+    local names_barrier="false"
+    if grep -q "Cannot read .* to resolve IOC 'barred_attach'" "${err_f}"; then names_barrier="true"; fi
+    verify_state "true" "${names_barrier}" "Attach names the access barrier for an unreadable CONF_DIR"
+
+    local says_notfound="false"
+    if grep -q "Configuration for barred_attach not found" "${err_f}"; then says_notfound="true"; fi
+    verify_state "false" "${says_notfound}" "Attach does not misreport an unreadable CONF_DIR as not found"
+}
+
+# Issue #121 item 5: in local mode the do_install permission hint must not suggest
+# 'ioc' group membership -- local mode is not group-gated. Build a valid conf,
+# point CONF_DIR at a 0500 directory so the write-permission branch fires, and
+# confirm the message names the directory without the system-group question. The
+# named-directory assertion doubles as the anti-vacuous marker: a green from an
+# earlier failure would never reach the branch. chmod 0500 cannot deny root;
+# skipped under EUID 0.
+function test_install_local_perm_hint {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Install Local Permission Hint (#121)"
+    print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the local install hint case (chmod 0500 cannot deny root)."
+        return 0
+    fi
+
+    local src_dir="${TEST_TMPDIR}/install_hint_ioc"
+    local blocked_conf_dir="${TEST_TMPDIR}/blocked_conf"
+    mkdir -p "${src_dir}" "${blocked_conf_dir}"
+    touch "${src_dir}/st.cmd"
+    chmod +x "${src_dir}/st.cmd"
+    ( cd "${src_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+
+    chmod 0500 "${blocked_conf_dir}"
+    local err_f="${TEST_TMPDIR}/install_hint_err" ec=0
+    ( cd "${src_dir}" && IOC_RUNNER_CONF_DIR="${blocked_conf_dir}" \
+        bash "${RUNNER_SCRIPT}" --local install . </dev/null ) >/dev/null 2>"${err_f}" || ec=$?
+    chmod 0700 "${blocked_conf_dir}"
+
+    verify_exit_code "1" "${ec}" "Local install into a non-writable CONF_DIR exits 1"
+
+    local names_dir="false"
+    if grep -q "No write permission to ${blocked_conf_dir}" "${err_f}"; then names_dir="true"; fi
+    verify_state "true" "${names_dir}" "Local install names the non-writable CONF_DIR (branch reached)"
+
+    local asks_group="false"
+    if grep -q "group?" "${err_f}"; then asks_group="true"; fi
+    verify_state "false" "${asks_group}" "Local install drops the ioc group question"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup"
@@ -1972,6 +2138,10 @@ function run_all_tests {
         "test_attach_errors"
         "test_list_empty"
         "test_inspect_errors"
+        "test_generate_staging_perm"
+        "test_view_message_streams"
+        "test_attach_access_barrier"
+        "test_install_local_perm_hint"
         "test_crash_pattern_matching"
         "test_crash_scan_exclusion"
         "test_crash_pattern_extra"

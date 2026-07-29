@@ -224,16 +224,23 @@ function validate_ioc_name {
 # was never installed, instead of systemd's silent
 # template-instantiation success (stop/enable/disable on a typo
 # exited 0 and misled operators about live hardware).
-function require_installed_conf {
+# Reports an unreadable CONF_DIR (2770 root:ioc) as the real access barrier so
+# a downstream "not found" cannot misreport an installed IOC the caller simply
+# cannot read (#105, multiuser S6). Single-sourced for every verb -- mutation
+# (require_installed_conf) and observer (view/attach/monitor via
+# resolve_sock_path) alike -- so the honest report reaches all of them.
+function assert_conf_dir_readable {
     local ioc_name="$1"
-    local verb="$2"
-    # Observers cannot read CONF_DIR (2770 root:ioc): report the real
-    # cause honestly instead of misreporting "not installed" for an
-    # installed IOC (#105, multiuser S6).
     if [[ -d "${CONF_DIR}" && ! -r "${CONF_DIR}" ]]; then
         printf "Error: Cannot read %s to resolve IOC '%s' (ioc group membership required).\n" "${CONF_DIR}" "${ioc_name}" >&2
         exit 1
     fi
+}
+
+function require_installed_conf {
+    local ioc_name="$1"
+    local verb="$2"
+    assert_conf_dir_readable "${ioc_name}"
     if [[ ! -f "${CONF_DIR}/${ioc_name}.conf" ]]; then
         printf "Error: No configuration found for IOC '%s' (looked in %s).\n" "${ioc_name}" "${CONF_DIR}" >&2
         printf "  -> Nothing to %s: the IOC is not installed in this mode.\n" "${verb}" >&2
@@ -1136,6 +1143,7 @@ function resolve_sock_path {
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    assert_conf_dir_readable "${IOC_NAME}"
     if [[ ! -f "${target_conf}" ]]; then
         printf "Error: Configuration for %s not found.\n" "${IOC_NAME}" >&2
         exit 1
@@ -1263,7 +1271,10 @@ function do_generate {
     # filesystems on NFS homes and could expose a partial file under
     # the final name. Consequence (accepted at convergence): every
     # generate flow now needs write permission on the directory.
-    tmp_conf=$(mktemp "${abs_dir}/.${IOC_NAME}.conf.XXXXXX")
+    if ! tmp_conf=$(mktemp "${abs_dir}/.${IOC_NAME}.conf.XXXXXX" 2>/dev/null); then
+        printf "Error: No write permission to %s to stage the generated configuration.\n" "${abs_dir}" >&2
+        exit 1
+    fi
     trap 'rm -f "${tmp_conf:-}"' EXIT
 
     cat <<EOF > "${tmp_conf}"
@@ -1574,7 +1585,11 @@ function do_install {
         fi
         mkdir -p "${CONF_DIR}"
     elif [[ ! -w "${CONF_DIR}" ]]; then
-        printf "Error: No write permission to %s. Are you in the '%s' group?\n" "${CONF_DIR}" "${TARGET_SYSTEM_GROUP}" >&2
+        if [[ "${EXEC_MODE}" == "system" ]]; then
+            printf "Error: No write permission to %s. Are you in the '%s' group?\n" "${CONF_DIR}" "${TARGET_SYSTEM_GROUP}" >&2
+        else
+            printf "Error: No write permission to %s.\n" "${CONF_DIR}" >&2
+        fi
         exit 1
     fi
 
@@ -1985,6 +2000,7 @@ function do_view {
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    assert_conf_dir_readable "${IOC_NAME}"
 
     print_divider
     printf "1. IOC Configuration File: %s\n" "${target_conf}"
@@ -1993,7 +2009,7 @@ function do_view {
         cat "${target_conf}"
     else
         printf "Error: Configuration file not found at %s\n" "${target_conf}" >&2
-        print_divider
+        print_divider >&2
         exit 1
     fi
     printf "\n"
