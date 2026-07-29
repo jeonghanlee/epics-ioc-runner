@@ -76,6 +76,7 @@ milestone; the 1.3.0 theme is the detection layer (#102).
 | #118 | Type expectation for `verify_path` (false-green directory impostors) | Backlog | Open | Helper-signature change; issue body asks for its own review. |
 | #127 | Container execution mode without systemd | Backlog | Open | Feature. |
 | #129 | Unify conf-value normalization between `read_conf_var` and `read_conf_all` (trim + trim-before-unquote ordering) | Backlog | Open | Spun off from M1 (#122), 2026-07-28; M1 closed its specific gap at one call site, this is the general reader divergence. |
+| #130 | Name the golden's ioc-runner baseline at bake time instead of inheriting the default branch | Backlog | Open | Surfaced by the M6 gate, 2026-07-29: the fresh goldens carried 1.2.1 because the bake clones the default branch. Harmless while the gate deploys over the baked copy; a hole once a result depends on the starting state. Provisioning half is ansible-provision #9 (its M.13). |
 | #120 | SELinux context on setup's `/tmp -> /etc` sudoers/logrotate deploys (item 3; RHEL-only) | Backlog | Conditional | Items 1-2 closed as examined-Keep (CLOSED_DOORS CI-29). Item 3 blocked on a production SELinux-enforcing decision; stays closed until the owner confirms the production hosts run SELinux enforcing. |
 
 ## External Gates
@@ -88,7 +89,7 @@ milestone; the 1.3.0 theme is the detection layer (#102).
 goldens 2026-07-28; version bumped to 1.2.2 @ 77d952e); M4 (#120 items 1-2)
 retired as examined-Keep (no work, CLOSED_DOORS CI-29); M6 release gate Done
 (2026-07-29, fresh goldens and fresh VMs, zero red; T1 settled as testbed
-drift) · Backlog 10 open incl. #120 item 3 (conditional) · external gates 1
+drift) · Backlog 11 open incl. #120 item 3 (conditional) · external gates 1
 open. All six milestones are closed; the cycle is ready for the release
 sequence.
 
