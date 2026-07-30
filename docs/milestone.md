@@ -1,99 +1,315 @@
-# EPICS IOC Runner — Milestone Register
+# Work Register
 
-Single, unified, repository-local source of truth for milestone and backlog
-status. Every agent and contributor reads this file instead of chat history or
-memory.
+Release line: 1.2.3
+Canonical path: `docs/milestone.md`
+Canonical branch or ref: `release-1.2.3`
+Git upstream: none
+Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-**Mode:** remote-authoritative. Each issue's Verification checkbox list is the
-authoritative sub-status; this register mirrors it, and every milestone closure
-ends with a reconcile pass against GitHub.
+Next session entry point: write `docs/RELEASE_CYCLE_RUNBOOK.md` under M1, then
+obtain plan acceptance for M1 and M2 before any implementation.
 
-**Register convention:** the register carries the current release milestone and
-the Backlog, and both are overwritten when a cycle opens; the released cycle's
-full record is preserved in the matching git tag
-(`git show 1.2.1:docs/milestone.md`). Verdicts that examined something and left
-it alone are not cycle state and live in [`CLOSED_DOORS.md`](CLOSED_DOORS.md),
-which no cycle clears. The cycle test plan
-([`testplan.md`](testplan.md)) is the other half of the same record and follows
-the same rule: this register tracks status and the work order, the plan holds
-the verification procedures. Plans through 1.2.0 carried the version in the
-filename (`git show 1.2.0:docs/testplan_1.2.0.md`); from 1.2.2 onward the name
-is fixed. The version-independent scenarios in
-[`testplan_multiuser.md`](testplan_multiuser.md) are not part of either cycle
-file and persist across releases.
+## Work
 
-**1.2.2 cycle:** patch release — five deployment-path and validation-path
-defects pulled from the Backlog, no redesign. The cycle exists because #128
-reopened, through a different cause, the stamping symptom #119 closed in 1.2.1.
-Target date: 2026-08-28, per the GitHub milestone `1.2.2` due date.
+| ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Not started | Yes | | `docs/RELEASE_CYCLE_RUNBOOK.md` exists and is standing, the scenario documents state expected results a driver can assert, and the retired cycle-plan file is gone; [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
+| M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | No | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
-**Next session entry point:** RELEASED 2026-07-29. Tag `1.2.2`, GitHub release
-published, milestone `1.2.2` closed, issues #121, #122, #123 and #128 closed
-with their fix commits, and `release-1.2.0` deleted local and origin. The next
-action is the 1.3.0 cycle open: branch `release-1.3.0` from the release merge,
-restart this register for that cycle as its first commit, then bump the version
-to `1.3.0-dev`. The 1.3.0 theme is the detection layer (#102). Do not start
-Backlog items (#129 stays out per the essay-lens review) unless the owner
-reorders.
+## Decisions
 
-## Work Register — 1.2.2
+| ID | Decision | Source |
+| --- | --- | --- |
+| D1 | 1.2.3 is a verification cycle: documents and test scenarios only, no product code change. | Owner decision, 2026-07-30 |
+| D2 | The register adopts the current `milestone-tracking` schema at this cycle open, and unassigned work moves to `docs/backlog.md`. | Owner decision, 2026-07-30 |
+| D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 
-| ID | Work unit | Type | Status | Evidence / next action |
+## ID Migration
+
+| Old ID | Current ID | Reason | Updated References |
+| --- | --- | --- | --- |
+| 1.2.2 register M1-M6 | none | The 1.2.2 line closed with its release; its rows are preserved in tag `1.2.2` and are not carried forward. | `git show 1.2.2:docs/milestone.md` |
+
+## Assignment History
+
+| Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
-| M1 | (#122) Runtime `CRASH_LOG_PATTERNS_EXTRA` re-validation reaches the install-time verdict while keeping the runtime disposition (warn, ignore that value, base set stays active). The three shared gates move into one classifier that both call sites invoke, returning which gate rejected the value so each site chooses its own disposition; the character whitelist stays install-only. The runtime warnings name the reason in plain terms and tell the operator to fix the value and re-run `install`; `FAQ.md` Q7's runtime sentence and the `testplan_multiuser.md` S8 token-choice note land in the same commit | Milestone | Done | Elimination over guarding per the promotion test (`docs/CLOSED_DOORS.md`) — both call sites live in `bin/ioc-runner`, so the two-file constraint behind CI-25 and CI-26 does not apply here. Two review rounds (3 lenses each, 2026-07-28): whitespace-normalization gap between install and runtime found and closed by trimming before the empty-value guard; a whitespace-only value is now a silent no-op matching install. The general read_conf_var/read_conf_all divergence spun off to #129. Issue #122 closed 2026-07-29 at the release, citing fix commit 14e3f76. |
-| M1.T1 | Change-specific: seven cases (well-formed; bare dot; trailing pipe; unclosed group as regression; positive control; spaced assignment; whitespace-only) — see `testplan.md` | Verification | Done | Executed on top (Debian 13): local-lifecycle 82/82, STEP 31 all 19 assertions PASS. |
-| M1.T2 | Suites: new local-lifecycle cases on the runtime path (the install-only error-handling fixtures cannot reach them); install path re-verified in error-handling | Verification | Done | error-handling 188/188 (install verdict unchanged after the shared-classifier refactor + fail-closed default). |
-| M2 | (#128) Layout guard re-breaks stamping on root_squash homes: move the guard's three checks to the same delegated principal as the git queries; the tracked-file check uses repo-top-anchored pathspecs (`:/configure/RULES_INSTALL :/bin/ioc-runner` — a plain relative pathspec resolves under `-C bin` and fails on a genuine checkout); WARN hands over the manual repair when delegation is unavailable; INSTALL.md reconciled | Milestone | Done | Cluster head; fixes the regression this cycle exists for. Three-lens plan review recorded in `work/review-m2-plan.md`: (B1) issue Proposed-Fix item 1 pathspec corrected to `:/`-anchored; (B2) RESOLVED by measurement on both fresh goldens 2026-07-28 — a relative `stat bin` from cwd=repo SUCCEEDS under root_squash (only the absolute-path stat is denied, barrier = the 0750 `gitsrc` ancestor), so the `:634` invoker recovery works and the failure is only at the guard; moving the guard fixes it, no scope expansion. Entry-point correction (implementation verify 2026-07-28): the three documented root_squash entry points are `sudo bash bin/setup-system-infra.bash`, `make install`, `make setup` (the last two AS THE USER), all verified stamping `86ad4f7-dirty` on both goldens; `sudo make setup` is NOT viable on root_squash (make-as-root cannot read the Makefile includes, aborts before the script) and is dropped from the entry-point list; (B3) T2 must deploy from `nfs_sim` then assert, or it never goes red. Round-2 review 2026-07-28 (implementation readiness / verification / coherence) + golden measurement: guard-move validated on the golden (delegated checks pass); `ls-files` is exit-code-only with `:/`-anchored pathspecs; the R7-F9 negative is promoted to a permanent suite asset (G5); the doc scope widened to three works-in-place sites and reframed as a restore, not a deletion. Implementation finding: the separate delegation-unavailable repair-WARN branch was unreachable dead code (no-sudo + unreadable-tree means root cannot read the setup script itself; with sudo present, or a readable tree, the stamp succeeds) and was removed; the manual-repair guidance now rides the reachable "metadata unavailable" WARN, verified end-to-end on the golden. Code done and verified. |
-| M2.T1 | Change-specific: the three documented entry points (`sudo bash bin/setup-system-infra.bash`; `make install` / `make setup` as the user) on the golden `nfs_sim` mount stamp real metadata (after the denial precheck); local-disk unchanged; the unknown-stamp WARN carries the manual repair, and following it restores `-V` in the deploy path's UTC format | Verification | Done | Requires a real `.git` on the mount (the `--exclude=.git` push omits it). Denial precheck (`sudo -n stat` denied to root, allowed to owner) gates trust. Verified 2026-07-28 on BOTH goldens: the three entry points stamp `86ad4f7-dirty`, zero layout WARN; `sudo make setup` dropped (make-as-root cannot read the Makefile on root_squash, a make-level limit, not #128). Manual-repair path verified end-to-end: a non-git checkout stamps unknown with the guidance WARN, and following it (owner runs the two git queries + `sudo sed` the two `declare -g` lines) restores `86ad4f7` with the correct UTC commit date. |
-| M2.T2 | Suite: `test_setup_stamp_layout_guard` runs the REAL setup STEP 7 with the runner/symlink/completion destinations redirected to a scratch tree (no system component touched), and observes the injected `RUNNER_GIT_HASH` — a permanent every-run asset (no root_squash needed, G5 promotion): (a) the real checkout stamps a non-unknown hash; (b) `bin/` copied into an unrelated git checkout stamps unknown and emits the layout WARN | Verification | Done | Added to `tests/test-system-infra.bash`; passes on both goldens 2026-07-28 (rocky8 43/43, debian13 44/44). Replaces the reproduction-style guard with a real-run observation, so it would have gone red on the bug. |
-| M2.T-doc | Docs: M2 RESTORES works-in-place; the `INSTALL.md` root_squash section keeps the claim, re-anchors the 1.2.1-era "verified on alsucl-psrv3" line to the 1.2.2 goldens, states `make setup` runs as the user (not `sudo make setup`), and adds the post-WARN manual repair matching the WARN string. `INSTALL.md:36` and `README.md:23` one-liners stay true post-fix (no edit) | Verification | Done | AC4 doc deliverable. `docs/INSTALL.md` NFS root_squash section reconciled 2026-07-28. |
-| M3 | (#123) Reassert the conf mode on `do_generate`'s identical-content skip (`bin/ioc-runner`), and exclude the three `RUNNER_*` stamp lines from the runner's backup comparison at the call site so a no-change redeploy stops rotating the 3-slot history | Milestone | Done | Conceptual-integrity review 2026-07-28 (three lenses + essays) removed two invented knots: item 1's `backup_if_exists` half is dropped (the five setup mv-sites already reassert the mode unconditionally, so only `do_generate` bypasses it), and the stated M2 dependency is dropped (the filter excludes the three lines by NAME, so M2's stamp VALUES are irrelevant; M3 is sequenced after M2 only as work-ordering on the shared STEP 7 surface, re-gated by M3.T3). Owner decisions 2026-07-28: filter at the call site (not a `backup_if_exists` arg); add `IOC_RUNNER_BACKUP_DIR` to isolate the backup dir for the test; the sibling `deploy_local_logrotate` cmp-skip is examined-Keep (CLOSED_DOORS CI-28). |
-| M3.T1 | Change-specific: a hand-loosened conf mode is reasserted on a byte-identical `generate` re-run (the "Identical" skip marker confirms the skip path ran); three no-change setup re-runs add no runner backup, and a real source change adds exactly one | Verification | Done | Verified end-to-end on the golden 2026-07-28: generate 600 -> chmod 666 -> identical re-generate takes the skip path and restores 600; and `IOC_RUNNER_BACKUP_DIR`-isolated setup gives 0 backups across no-change reruns, 1 on a real source change. |
-| M3.T2 | Suites: the mode-reassertion case in `test-error-handling.bash` (`generate` is an `ioc-runner` behavior; system-infra is read-only and never runs `generate`), the backup-suppression case in `test-system-infra.bash` via the redirect-to-scratch pattern plus `IOC_RUNNER_BACKUP_DIR` | Verification | Done | error-handling 190/190 both goldens (2 new mode-reassertion assertions); system-infra rocky8 45/45, debian13 46/46 (`test_setup_runner_backup_filter`, 2 assertions). |
-| M3.T3 | Re-run of M2.T2's every-run deployed-`-V` read after M3 reorders the STEP 7 backup call past the stamp injection (shared surface: STEP 7 runner deploy); the full M2.T1 root_squash stamping stays at the M6 gate | Verification | Done | `test_setup_stamp_layout_guard` stays green in the same system-infra run after M3's reorder (both goldens), confirming stamping survived. |
-| M4 | (#120 items 1-2) Extend same-directory staged rename to the local unit file and the `install.user` injector | Milestone | Done (retired) — examined-Keep, no work | Three-lens review 2026-07-28 found no meaningful defect: the injector's `sed -i` is already atomic (temp + rename), and the local template's `cat >` write has no reachable concurrent reader single-user; the stamp-injection coherence is already guarded by #84/CI-9. Both sites were deliberately excluded from the 1.2.0 #107 sweep. Recorded as examined-Keep (CLOSED_DOORS CI-29). #120 item 3 (SELinux, RHEL-only) stays in Backlog, conditional on a production SELinux-enforcing decision. |
-| M5 | (#121) Message and stream polish from the 1.2.1 landing precheck (the em-dash item landed in 1.2.1): (1) `do_generate` staging failure names directory writability instead of leaking the raw `mktemp` error (`bin/ioc-runner:1266`); (2) `do_view` missing-conf closing divider rides stderr with its error rather than stdout (`:1996`); (4) view/attach/monitor name the directory-access barrier when an unreadable `CONF_DIR`, not a missing IOC, is the real cause (`do_view:1992`, `resolve_sock_path:1140`); (5) local-mode `do_install` permission hint stops suggesting `ioc` group membership local mode does not need (`:1577`) | Milestone | Done | Conceptual-integrity plan review 2026-07-28 — three essay-verified lenses (coherence / premise / verification), all four confirmed defects, no invented knots. Item 4 is the real seam (rank #1): the #105 honest-report change reached the mutation verbs but not the observers, so `do_view` (`:1992`) and `resolve_sock_path` (`:1140`, attach + monitor) still print "not found" where a `2770 root:ioc` conf dir unreadable to a non-`ioc` caller is the real barrier. Fix single-sources the readability guard (`-d && ! -r`) so each verb keeps its own not-found wording — NOT routing observers through `require_installed_conf` (that carries mutation phrasing, a Generalize trap). `inspect` is examined-Keep: system mode requires root (`:2017`), which reads the dir, and local mode uses the caller's own dir — the false "not found" is unreachable for the real cross-user barrier. Item 5's real referent is Site B `do_install:1576-1577` (fires in local mode when the dir exists-but-unwritable); Site A `require_installed_conf:234` is reached only in system mode where the `ioc` suggestion is correct — examined-Keep. Both Keeps recorded as CLOSED_DOORS CI-30. Sequenced last as work-ordering only; M5.T3 re-checks M2's WARN survived, not a content dependency. Implemented 2026-07-28: `assert_conf_dir_readable` extracted from `require_installed_conf` and called by `do_view` + `resolve_sock_path` (attach/monitor); `do_view` closing divider to stderr; `do_generate` named mktemp error; `do_install` mode-aware hint. Verified error-handling 206/206 on top and both goldens; honest-red confirmed on the un-fixed tree. |
-| M5.T1 | Change-specific: read the real output of each fix — (1) a non-writable target dir makes `generate` name the directory, not print the raw `mktemp:` line; (2) `view` on an empty conf dir sends the closing divider to stderr with its error (stdout keeps only the one header divider); (4) a `chmod 0` conf dir holding a real `.conf` makes `view` and `attach` name the access barrier, not "not found"; (5) a valid conf under a `0500` conf dir makes local `install` state no write permission without the `ioc` group question. Each asserts the barrier branch actually ran (positive marker), so a green cannot come from a path that skipped it | Verification | Done | Verified 2026-07-28 on top and both goldens: the four cases observed each fix's real output; the barrier-reached markers stayed green while the defect assertions went red on the un-fixed tree (honest-red check). |
-| M5.T2 | Suites: four `test-error-handling.bash` cases driving the real `bin/ioc-runner` (no stub; real filesystem permissions build the barrier) — generate staging-perm, view stderr-divider, view + attach access-barrier, local-install perm hint. Items 1/4/5 wrap the EUID-0 skip (root ignores the DAC bits, the case is vacuous as root). Item 4's true cross-user fidelity (a different user's unreadable dir) belongs to the multi-user harness S6/S10; the unit cases cover the degraded self-`chmod` form | Verification | Done | error-handling 206/206 on top, rocky8 (.150), and debian13 (.50) 2026-07-28 (16 new assertions across the four cases); all three hosts non-root, so the EUID-0 skips did not fire and every barrier case executed. |
-| M5.T3 | Re-run of M2's manual-repair WARN text after M5 edits the shared deployment-path output strings; assert the string survived M5's message changes (M2 owns and finalizes that WARN, AC4 — it is not one of M5's four items) | Verification | Done | No collision: M5 changed only `bin/ioc-runner` and the error-handling suite (git diff); `setup-system-infra.bash` (M2's WARN) is untouched, so the WARN is intact by construction. The full system-infra re-run runs at the M6 gate. |
-| M6 | Release gate: cycle batch re-run, full suites on both goldens through clone-and-test and install-and-test, the root_squash path from the `nfs_sim` mount, and the multi-user plan | Release gate | Done | Register-local, no issue. Gates the merge, the `1.2.2` tag, and the release. Executed 2026-07-29 against goldens rebaked that night and VMs created fresh from them; the drifted .150/.50 testbeds were destroyed first, per the fresh-images/fresh-VMs precondition now in `testplan.md`. Tree under test is the content committed as a1a1bb6 (the deployed `-V` reads `1.2.2 (7532937-dirty)` because the two documentation edits were still uncommitted when the gate ran; no code file differs). Suites, rocky8 / debian13: setup 10/10 / 9/9, error-handling 206/206 both, local-lifecycle source 94/94 / 82/82, local-lifecycle installed 94/94 / 82/82, system-infra 45/45 / 46/46, system-lifecycle 77/77 both. root_squash: the denial precheck held on both (root denied, owner allowed) and all three documented entry points stamped `7532937-dirty` with zero layout WARN. Multi-user plan: S1-S11 61/61 and L1-L3 18/18 on each golden. **T1 settled**: system-lifecycle T1 (journal-less crash detection) executed as STEP 27 -- not skipped -- and passed all four assertions on both fresh goldens, so the red on the reused testbeds and on the 1.2.1 baseline (d6cdde4) was testbed drift, not a defect. The drift factor was never isolated and those testbeds no longer exist, which is exactly the cost the precondition avoids. Five multi-user harness traps surfaced during the run and are recorded in `testplan_multiuser.md` (a1a1bb6). Release sequence executed 2026-07-29 in this order: CHANGELOG 1.2.2 section (4feaafd), version bump already carried by 77d952e, `--no-ff` merge to master (fd14875), annotated tag `1.2.2`, push of master and tag, `gh release create` from a curated notes file, GitHub milestone `1.2.2` closed, and `release-1.2.0` deleted local and origin. |
+| (#130) Golden `ioc-runner` baseline named at bake time | Backlog, `docs/backlog.md`, `master` | 1.2.3, `docs/milestone.md`, `release-1.2.3` | this synchronization commit | this synchronization commit |
 
-## Backlog
+## Milestone Details
 
-Open work not scheduled into a release cycle. Mirrors the GitHub `Backlog`
-milestone; the 1.3.0 theme is the detection layer (#102).
+### M1 - Release-cycle runbook and scenario re-set
 
-| Issue | Work unit | Type | Status | Note |
+Origin: #131, filed 2026-07-30 from the 1.2.2 gate experience
+Identity History: none
+GitHub Issue: 131, https://github.com/jeonghanlee/epics-ioc-runner/issues/131
+Status: Not started
+
+#### Summary
+
+The gate procedure lives inside a file that every cycle open overwrites, so the
+standing part is re-derived each time. The 1.2.2 cycle showed the cost: the
+gate ran on reused test beds rather than freshly baked goldens, the system
+suites ran in a mode `tests/README.md` rules out for such hosts, and the
+multi-user step was closed by citing an earlier run. Write the standing
+procedure once, and re-set the scenario documents so a driver can assert them
+without re-interpretation.
+
+#### Scope
+
+- `docs/RELEASE_CYCLE_RUNBOOK.md`, standing and not cleared at a cycle open,
+  modelled on `cloud-provision/docs/RUNBOOK_BAKE.md`: preconditions including
+  freshly baked goldens and the golden acceptance of that bake runbook; the
+  gate steps in order, each naming its execution mode; the evidence format;
+  the rule that the root_squash path and the multi-user plan run in the gate
+  itself; red triage; upstream links in both directions; a reference to the
+  release sequence rather than a copy of it.
+- `docs/testplan_multiuser.md` reviewed so each scenario's expected result is
+  stated precisely enough to drive it, with fixture dependencies named as a
+  link to `ansible-provision/docs/test_users_handoff.md`.
+- `docs/testplan.md` retired as an active file (D3).
+- The pointer returned from the fixture handoff to this runbook, which lands in
+  `ansible-provision`.
+
+Out of scope: product code; making the runbook executable as a gate script,
+which is a code change with its own verification.
+
+#### Completion Criteria
+
+- `docs/RELEASE_CYCLE_RUNBOOK.md` exists, is standing, and covers the six
+  points above with upstream links in both directions.
+- `docs/testplan_multiuser.md` states each scenario's expected result precisely
+  enough to drive it without re-interpretation.
+- `docs/testplan.md` is absent from the working tree and its role is carried by
+  M3's final release detail.
+
+#### Dependencies And Decisions
+
+- D1, D3
+- Cross-referenced, staying in `docs/backlog.md`: M5 there (#116) keeps the
+  harness code changes; M7 (#118) is the false-green class this runbook records
+  as a known limitation; M4 (#115) is the coverage gap the runbook names as
+  still open.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Draft `docs/RELEASE_CYCLE_RUNBOOK.md` from the bake runbook's form, using
+   the 1.2.2 post-release verification as its first worked example.
+2. Re-set `docs/testplan_multiuser.md` against what a driver actually needs.
+3. Remove `docs/testplan.md` in the same commit that lands the runbook.
+4. Prepare the fixture-handoff pointer edit for `ansible-provision`.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| #102 | Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Backlog | Open | The 1.3.0 theme. |
-| #113 | Conf parser unification (single parse core, trim + last-wins + tab) with divergence fixtures | Backlog | Open | Behavior-visible; needs its own review. |
-| #114 | FATAL-subset boundary hygiene (portable class) with golden re-run | Backlog | Open | Pairs with the E2E probe. |
-| #115 | Restart-supervision E2E probe on the goldens | Backlog | Open | Test-infrastructure block with #116. |
-| #116 | Suite integrity: executed-vs-counted tripwire ported to the three lifecycle suites, and the logrotate oneshot run through systemd | Backlog | Open | Issue body scopes it to 1.3.0. |
-| #117 | Reorder local install so deployment follows the abort gates | Backlog | Open | Issue body scopes it to 1.3.0; includes an upgrade-vehicle decision. |
-| #118 | Type expectation for `verify_path` (false-green directory impostors) | Backlog | Open | Helper-signature change; issue body asks for its own review. |
-| #127 | Container execution mode without systemd | Backlog | Open | Feature. |
-| #129 | Unify conf-value normalization between `read_conf_var` and `read_conf_all` (trim + trim-before-unquote ordering) | Backlog | Open | Spun off from M1 (#122), 2026-07-28; M1 closed its specific gap at one call site, this is the general reader divergence. |
-| #130 | Name the golden's ioc-runner baseline at bake time instead of inheriting the default branch | Backlog | Open | Surfaced by the M6 gate, 2026-07-29: the fresh goldens carried 1.2.1 because the bake clones the default branch. Harmless while the gate deploys over the baked copy; a hole once a result depends on the starting state. Provisioning half is ansible-provision #9 (its M.13). |
-| #120 | SELinux context on setup's `/tmp -> /etc` sudoers/logrotate deploys (item 3; RHEL-only) | Backlog | Conditional | Items 1-2 closed as examined-Keep (CLOSED_DOORS CI-29). Item 3 blocked on a production SELinux-enforcing decision; stays closed until the owner confirms the production hosts run SELinux enforcing. |
+| T1 | Document review | Read the runbook against `RUNBOOK_BAKE.md` and `tests/README.md`; every gate step names its execution mode and every precondition is checkable | Working tree | No step lacks a mode; no precondition is prose-only |
+| T2 | Scenario drive | Drive two multi-user scenarios straight from `testplan_multiuser.md` without consulting any other document | Both goldens | Each expected result is assertable as written; no re-interpretation needed |
+| T3 | Retirement check | Confirm `docs/testplan.md` is absent and that the register's final release detail carries the cycle plan | Working tree | The file is gone and no document references it as active |
 
-## External Gates
+#### Verification Results
 
-| Gate | State |
-| --- | --- |
-| ansible/cloud-provision U8 first joint tag (1.0) | Open; User-run. Deferred at the 1.2.1 release and not yet taken. |
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Working tree | Pending | none |
+| T2 | Not run | Both goldens | Pending | none |
+| T3 | Not run | Working tree | Pending | none |
 
-**Tally:** 1.2.2 milestones — M1, M2, M3, M5 Done (code + suites green on both
-goldens 2026-07-28; version bumped to 1.2.2 @ 77d952e); M4 (#120 items 1-2)
-retired as examined-Keep (no work, CLOSED_DOORS CI-29); M6 release gate Done
-(2026-07-29, fresh goldens and fresh VMs, zero red; T1 settled as testbed
-drift) · milestones open 0 · Backlog 11 open incl. #120 item 3 (conditional) ·
-external gates 1 open. The cycle is released: tag `1.2.2`, 2026-07-29.
+#### Closure Evidence
 
-## Update Protocol
+- none
 
-When a milestone is completed, update this register in the same commit as the
-substantive change. Any commit that changes a playbook-equivalent contract
-(unit template rows, sudoers emission, doc-pinned behavior) updates the
-mirroring documents in the same commit. GitHub issue state changes are
-reflected in the next documentation commit.
+#### GitHub Projection
+
+Title: Re-set the verification scenarios and write the release-cycle runbook
+Labels: docs, tests, P2-medium
+GitHub Milestone: 1.2.3
+Observed State: open
+Observed Labels: P2-medium, docs, tests
+Observed Milestone: 1.2.3
+Last Compared: 2026-07-30
+
+### M2 - Golden baseline declaration
+
+Origin: #130, filed 2026-07-29 during the 1.2.2 gate
+Identity History: Backlog row (`docs/backlog.md`) moved to this register at the 1.2.3 open
+GitHub Issue: 130, https://github.com/jeonghanlee/epics-ioc-runner/issues/130
+Status: Not started
+
+#### Summary
+
+The goldens ship a pre-installed `ioc-runner` whose version is whatever the
+default branch pointed at when the image was baked, not a value anyone chose.
+It is harmless while a gate deploys the tree under test over that copy, and it
+stops being harmless the moment a result depends on the starting state.
+
+#### Scope
+
+The consuming half: which baseline each gate declares, and citing it in the
+gate record beside the suite counts.
+
+Out of scope: the provisioning implementation, which belongs to the
+`ansible-provision` `app_ioc_runner` role.
+
+#### Completion Criteria
+
+- The runbook states which baseline the goldens carry and how it is chosen.
+- A gate record carries the baseline version with its results, readable without
+  inspecting the image.
+
+#### Dependencies And Decisions
+
+- M1 owns the runbook this declaration lands in.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Add the baseline declaration to the runbook's preconditions and evidence
+   format under M1.
+2. Record the baseline in the 1.2.3 gate evidence rows.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Gate record | Read the 1.2.3 gate evidence rows | This register | Each golden's `ioc-runner` baseline version appears beside its counts |
+| T2 | Image observation | Read the baked manifest and the deployed `-V` on each golden | Both goldens | The observed baseline matches the declared one |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | This register | Pending | none |
+| T2 | Not run | Both goldens | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Name the golden's ioc-runner baseline at bake time instead of inheriting the default branch
+Labels: P3-low, tests
+GitHub Milestone: 1.2.3
+Observed State: open
+Observed Labels: P3-low, tests
+Observed Milestone: 1.2.3
+Last Compared: 2026-07-30
+
+### M3 - Final release
+
+Origin: this cycle open, 2026-07-30
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+#### Summary
+
+Release 1.2.3 once the runbook and the baseline declaration land, and run the
+gate by following that runbook so its first execution is also its first test.
+
+#### Scope
+
+Version change, release execution, and the final verification for the 1.2.3
+line.
+
+Out of scope: product behavior changes (D1).
+
+#### Completion Criteria
+
+- Every Release Verification row records Pass with reachable evidence.
+- Tag `1.2.3`, the GitHub release, and the closed remote milestone exist.
+
+#### Dependencies And Decisions
+
+- M1, M2
+- D1: no product code change, so the suites verify unchanged behavior.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Bake both goldens fresh and record the golden acceptance.
+2. Run the gate by following `docs/RELEASE_CYCLE_RUNBOOK.md`.
+3. Execute the release sequence under `git-workflow` authority.
+
+#### Integrated Verification
+
+| Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
+| --- | --- | --- | --- | --- | --- |
+| M1 / T2 | The scenario documents change after the drive test | `docs/testplan_multiuser.md` | Release Verification 3 | The multi-user plan drives green from the final text | pending |
+| M2 / T1 | The runbook's evidence format changes after the gate record is written | `docs/RELEASE_CYCLE_RUNBOOK.md` | Release Verification 4 | The gate record still carries the declared baseline | pending |
+
+#### Production Environment Tests
+
+| Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Release Verification 8 | post-release | `alsucl-psrv3` | Rocky 8, NFS home with root_squash | x86_64 | `/usr/local/bin/ioc-runner` | Follow the documented install path from a checkout on the NFS home, then read `-V` | Install completes and `-V` reports `1.2.3` with a real short hash | pending |
+
+#### Version Changes
+
+| Field | File | Before | Planned After | Pre-check | Pre-check Label | Post-check | Post-check Label |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `RUNNER_VERSION` | `bin/ioc-runner` | `1.2.2` | `1.2.3` | Read the declaration on the release branch | Release Verification 5 | Read the deployed `-V` after the tagged tree is installed | Release Verification 6 |
+
+#### Release Execution
+
+| Step | Action | Authorization | Expected Result | Evidence |
+| --- | --- | --- | --- | --- |
+| 1 | Bump `RUNNER_VERSION` to `1.2.3` on `release-1.2.3` | commit delegation | One standalone commit | pending |
+| 2 | Merge `release-1.2.3` into `master` with `--no-ff` | release delegation | A merge commit on `master` | pending |
+| 3 | Create the annotated tag `1.2.3` on that merge | release delegation | Tag object with the release title | pending |
+| 4 | Push `master` and the tag | release delegation | Both refs on `origin` | pending |
+| 5 | Create the GitHub release from the changelog section | release delegation | Release object with a curated body | pending |
+| 6 | Close the remote milestone `1.2.3` | release delegation | Milestone state closed | pending |
+
+#### Release Verification Plan
+
+| Label | Layer | Timing | Method | Environment | Expected Result | Evidence Target |
+| --- | --- | --- | --- | --- | --- | --- |
+| Release Verification 1 | Golden acceptance | pre-change | The bake runbook's acceptance sequence: manifest ownership and hash, the provenance validator, the sidecar comparison, the deployed `-V` | Both goldens | All four checks pass and the baseline is recorded | Command output in the result row |
+| Release Verification 2 | Automated suites | pre-change | All four suites in both permission modes, following the runbook's mode table | Both goldens | Green with counts recorded per host and mode | Suite summaries |
+| Release Verification 3 | Standing scenarios | pre-change | The multi-user plan, driven from its own text | Both goldens | Every scenario meets its stated expected result | Per-scenario results |
+| Release Verification 4 | Standing procedure | pre-change | The root_squash path through the three documented entry points from the `nfs_sim` mount | Both goldens | Each entry point stamps a real short hash with no layout warning | Stamp output and `-V` |
+| Release Verification 5 | Version consistency | pre-change | Read `RUNNER_VERSION` on the release branch | Working tree | The value is the planned release version before the mutation is verified | Commit and file read |
+| Release Verification 6 | Version consistency | post-change | Read the deployed `-V` from the tagged tree | Both goldens | `1.2.3` with a real short hash | `-V` output |
+| Release Verification 7 | Release objects | post-release | Read the tag object, the release object, and the remote milestone state | GitHub | Tag, release, and closed milestone exist and match the merge commit | Object identifiers |
+| Release Verification 8 | Production deployment | post-release | The documented install path on the production host | `alsucl-psrv3` | Install completes and the runner reports the released version | `-V` output |
+
+#### Release Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| Release Verification 1 | Not run | Both goldens | Pending | none |
+| Release Verification 2 | Not run | Both goldens | Pending | none |
+| Release Verification 3 | Not run | Both goldens | Pending | none |
+| Release Verification 4 | Not run | Both goldens | Pending | none |
+| Release Verification 5 | Not run | Working tree | Pending | none |
+| Release Verification 6 | Not run | Both goldens | Pending | none |
+| Release Verification 7 | Not run | GitHub | Pending | none |
+| Release Verification 8 | Not run | `alsucl-psrv3` | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: none
+Labels: none
+GitHub Milestone: 1.2.3
+Observed State: none
+Last Compared: 2026-07-30
