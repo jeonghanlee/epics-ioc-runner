@@ -23,6 +23,7 @@ document only when the owner assigns it to a release line.
 | M8 | (#120 item 3) SELinux context on the setup deploys, RHEL-only | Milestone | Conditional | No | D1 | The owner confirms production hosts run SELinux enforcing; [detail](#m8---selinux-context) |
 | M9 | (#127) Container execution mode without systemd | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m9---container-execution-mode) |
 | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m10---conf-value-normalization) |
+| M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Open | No | D3 | Owner assigns it to a release line and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
 
 ## Decisions
 
@@ -30,6 +31,7 @@ document only when the owner assigns it to a release line.
 | --- | --- | --- |
 | D1 | #120 items 1 and 2 are examined-Keep and were retired; only item 3 (SELinux) remains, and it stays closed until the owner confirms a production SELinux-enforcing environment. | Owner decision, 2026-07-28; recorded in `CLOSED_DOORS.md` CI-29 |
 | D2 | #129 stays out of the 1.2.2 and 1.2.3 lines: it changes runtime parsing for every key, and #122 already closed the specific gap at its single call site. | Owner decision, 2026-07-29 |
+| D3 | The `docs/MILESTONE_PROCEDURE.md` draft stays in place and unchanged through 1.2.3; the release-cycle runbook references it rather than absorbing it, so the cycle stays a scenario re-set. | Owner decision, 2026-07-30 |
 
 ## Assignment History
 
@@ -361,6 +363,50 @@ Out of scope: the `CRASH_LOG_PATTERNS_EXTRA` call-site trim, which #122 landed.
 
 Title: Unify conf-value normalization between read_conf_var and read_conf_all
 Labels: bug, P3-low, area/architecture
+GitHub Milestone: Backlog
+Observed State: open
+Last Compared: 2026-07-30
+
+### M11 - Milestone procedure draft fate
+
+Origin: written during the 1.2.2 cycle in commit `f5994e8` and untouched since
+GitHub Issue: 132, https://github.com/jeonghanlee/epics-ioc-runner/issues/132
+Status: Open
+
+#### Summary
+
+`docs/MILESTONE_PROCEDURE.md` carries the per-milestone procedure - plan review
+before code, the owner gate, de-knotting, implementation, verification on the
+real path, and the reconcile-and-land step - with the 1.2.2 M2, M3 and M4 runs
+as worked examples. Its own first line names the fate it expects: fold it into
+a skill. That fate has never been decided.
+
+#### Scope
+
+Decide between the three fates and carry it out: fold the draft into a skill,
+keep it as a repository document with the draft marker removed, or absorb it
+into another document. The decision settles its boundary with
+`docs/RELEASE_CYCLE_RUNBOOK.md`, which covers the release gate rather than the
+work inside a cycle.
+
+Out of scope: the 1.2.3 line, which references the draft and leaves it
+unchanged (D3).
+
+#### Completion Criteria
+
+- The owner assigns the work to a release line and chooses one of the three
+  fates.
+
+#### Dependencies And Decisions
+
+- D3
+- The runbook written under 1.2.3 M1 (#131) references this draft, so whichever
+  fate is chosen must keep that reference resolvable.
+
+#### GitHub Projection
+
+Title: Settle the fate of the milestone procedure working draft
+Labels: docs, P3-low
 GitHub Milestone: Backlog
 Observed State: open
 Last Compared: 2026-07-30
