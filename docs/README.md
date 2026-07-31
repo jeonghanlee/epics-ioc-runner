@@ -38,7 +38,11 @@ This directory contains the complete documentation for deploying, managing, and 
 * **[FAQ.md](FAQ.md)**
   Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
 
-### 6. Milestone Register
+### 6. Release Cycle Runbook
+* **[RELEASE_CYCLE_RUNBOOK.md](RELEASE_CYCLE_RUNBOOK.md)**
+  The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
+
+### 7. Milestone Register
 * **[milestone.md](milestone.md)**
   Single, unified milestone register covering all active milestones, carry-forward items, the status tally, and the next session entry point. GitHub milestone state is authoritative. Released versions are not retained here — on each release the register is cleared and restarted; the released snapshot lives in the matching git tag.
 
