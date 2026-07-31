@@ -6,10 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: commit the M1 closing state (T6 gap corrections in
-the runbook plus this register), sync and close issue #131, then obtain plan
-acceptance for M2 — its detail carries the observed baseline condition and the
-owner's chosen hybrid form on the supplying side.
+Next session entry point: obtain plan acceptance for M4 (#133), the one product
+change D5 admits to this line — its detail carries the reproduction and the
+proposed one-line refresh. M2 (#130) is also Ready and waits on the supplying
+side's version selection; M1 is complete but its issue #131 is not yet synced
+and closed.
 
 ## Work
 
@@ -17,7 +18,8 @@ owner's chosen hybrid form on the supplying side.
 | --- | --- | --- | --- | --- | --- | --- |
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | — | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M4 | (#133) Version stamp reports `-dirty` for a clean checkout whose index is stale | Milestone | Not started | Yes | D5 | A freshly extracted clean checkout deploys without the suffix, a genuinely modified one still carries it, and a regression test pins both; [detail](#m4---stale-index-dirty-stamp) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -27,6 +29,7 @@ owner's chosen hybrid form on the supplying side.
 | D2 | The register adopts the current `milestone-tracking` schema at this cycle open, and unassigned work moves to `docs/backlog.md`. | Owner decision, 2026-07-30 |
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
+| D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change, because the defect is one this cycle's own verification work found and it falsifies the provenance stamp a gate record depends on. The exception covers that defect and its regression test; it does not reopen the line to other code work. | Owner decision, 2026-07-31 |
 
 ## ID Migration
 
@@ -251,6 +254,99 @@ Observed State: open
 Observed Labels: P3-low, tests
 Observed Milestone: 1.2.3
 Last Compared: 2026-07-30
+
+### M4 - Stale index dirty stamp
+
+Origin: found 2026-07-31 by the fifth document-only execution of the release
+cycle runbook, at `release-1.2.3` `7511ed7`; filed as #133
+Identity History: none
+GitHub Issue: 133, https://github.com/jeonghanlee/epics-ioc-runner/issues/133
+Status: Not started
+
+#### Summary
+
+`bin/setup-system-infra.bash` decides the `-dirty` suffix with
+`git diff-index --quiet HEAD --`, which compares against the index's cached
+stat data without refreshing it. A checkout written by an extraction carries
+new timestamps on every file, so the comparison reports a difference the
+content does not have and a clean tree deploys stamped `-dirty`. The suffix is
+the signal that says the deployed binary came from a modified tree; a clean
+tree that produces it leaves the signal unable to report the case it exists
+for.
+
+#### Scope
+
+The suffix decision and a regression test that drives the real deploy path on a
+freshly extracted clean checkout.
+
+Out of scope: the `unknown` stamp and its manual-repair guidance (#119, #128),
+which are unaffected; every other product change on this line, which D5 does
+not open.
+
+#### Completion Criteria
+
+- A checkout extracted from a tar of a clean tree, deployed with no intervening
+  git read, stamps a bare short hash with no suffix.
+- A checkout carrying a real uncommitted change still stamps `-dirty`.
+- Both hold on a local-disk checkout and on the `root_squash` mount.
+- The regression test goes red on the unfixed script.
+
+#### Dependencies And Decisions
+
+- D5 names this milestone as the exception that lets it exist on this line.
+- Observed while executing the runbook, and reproduced independently before
+  filing: on the same checkout, `git status --porcelain` reported nothing
+  uncommitted while `git diff-index --quiet HEAD --` exited nonzero and the
+  deploy stamped the suffix; after a single `git status`, the same comparison
+  exited zero and the same deploy stamped bare. Reproduced on both goldens, on
+  a local-disk checkout and on the squashed mount.
+- The gate's ordinary path masks the defect: it verifies the pushed tree with
+  `git status --porcelain` before deploying, and that read refreshes the index.
+  The `root_squash` step has no such read, which is where it surfaced.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Refresh the index through the same delegated principal immediately before
+   the comparison, in a form whose own failure cannot change the verdict.
+2. Add the regression test and confirm it goes red on the unfixed script.
+3. Re-run the affected suites on both goldens.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Change-specific | Extract a clean tree, deploy with no intervening git read, and read the deployed `-V` | Both goldens, local disk and squashed mount | A bare short hash, no suffix, on all four combinations |
+| T2 | Negative control | Modify one tracked file in the extracted checkout, deploy, and read the deployed `-V` | One golden | The suffix is present; the fix did not silence a real modification |
+| T3 | Regression asset | Run the new test against the unfixed script, then the fixed one | Working tree | Red before, green after; the assertion is not vacuous |
+| T4 | Suites | Re-run the suites the deploy path touches | Both goldens | No failures, counts unchanged from the last recorded run |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Both goldens | Pending | none |
+| T2 | Not run | One golden | Pending | none |
+| T3 | Not run | Working tree | Pending | none |
+| T4 | Not run | Both goldens | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Version stamp reports -dirty for a clean checkout whose index is stale
+Labels: bug, P2-medium, area/install
+GitHub Milestone: 1.2.3
+Observed State: open
+Observed Labels: bug, P2-medium, area/install
+Observed Milestone: 1.2.3
+Last Compared: 2026-07-31
 
 ### M3 - Final release
 
