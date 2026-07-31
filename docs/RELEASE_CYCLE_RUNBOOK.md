@@ -69,8 +69,21 @@ make bake.rocky8
 make bake.debian13
 ```
 
+A bake driven from a script rather than typed at a terminal needs a terminal
+anyway. Backgrounded from an automated session it inherits channels that do not
+wait, and the configuration step refuses to start on them — the bake stops at
+its fourth step with a complaint about its input and output, having done
+nothing wrong. Give it one:
+
+```bash
+setsid script -qec "make bake" /dev/null < /dev/null > <log> 2>&1 &
+```
+
 Bake failure handling, proxy handling, and slow-boot diagnosis belong to
-`cloud-provision/docs/RUNBOOK_BAKE.md`. Do not diagnose a bake from here.
+`cloud-provision/docs/RUNBOOK_BAKE.md`. Do not diagnose a bake from here. Two
+of its rules matter enough to name: a slow boot is not a failure while the
+package manager is still working, and a bake that stopped leaves the build VM
+running and half-provisioned, so a clean retry destroys it first.
 
 ### Freshly created consumer VMs
 
@@ -454,6 +467,48 @@ A run whose counts were transcribed from a previous run is not evidence.
 Record alongside it: the four facts from "What is under test", the golden
 acceptance result, the denial precheck result, and the multi-user outcome per
 scenario.
+
+## Driver forms
+
+Each line below replaces a form that produced a false result or a stall.
+
+```bash
+# background launch of anything that runs ansible or expects a terminal
+setsid script -qec "<cmd>" /dev/null < /dev/null > <log> 2>&1 &
+
+# confirm it started, by output - a process search matches the searching shell
+[ -s <log> ] && tail -1 <log> || echo "NOT STARTED"
+
+# one invocation per line: a command chained behind a blocking one never runs
+ssh -n vmadmin@<host> '<cmd>'
+
+# hold a console without holding the connection
+mkfifo <fifo>; ( sleep 120 > <fifo> ) &
+setsid bash -c "timeout -k 2 120 script -qec 'ioc-runner attach <name>' /dev/null < <fifo> > <out> 2>&1; echo rc=\$? >> <out>" &
+
+# every privileged command over a connection with no terminal
+sudo -n <cmd>
+
+# EPICS path: derive from the host, never glob
+ssh vmadmin@<host> 'os="$(. /etc/os-release; echo "${ID}-${VERSION_ID}")"; ls -d /opt/epics/*/"${os}"/*/setEpicsEnv.bash'
+
+# source it in the form that survives set -u
+set +u; if [ -z "${EPICS_BASE:-}" ]; then . <epics-env>; fi; set -u
+
+# capture a suite whole, then read the counts out of it
+bash tests/<suite>.bash > <log> 2>&1
+cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -E 'Total|Passed|Failed|Skipped|Script Errors'
+
+# a verdict that cannot score an empty log as a pass
+cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | awk '/Passed/{p++} /Failed/{f+=$NF} /Script Errors/{e+=$NF} END{ if (p==0) print "NO SUMMARY FOUND"; else print (f==0 && e==0) ? "SUITES OK (" p " blocks)" : "SUITES FAIL f=" f " e=" e }'
+
+# read a make variable, then set it - reading does not set it
+grep IMAGE_DIR <cloud-provision>/configure/CONFIG_SITE
+export IMAGE_DIR=<the value that printed>
+
+# before the acceptance: prove nothing has touched the golden yet
+ssh vmadmin@<host> 'git -C ~/gitsrc/epics-ioc-runner rev-parse --short HEAD; /usr/local/bin/ioc-runner -V'
+```
 
 ## When a red appears
 
