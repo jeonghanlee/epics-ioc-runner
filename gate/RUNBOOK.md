@@ -1,8 +1,9 @@
 # Release Cycle Runbook
 
 Operational procedure for verifying an `epics-ioc-runner` tree on the golden
-images. The permission model lives in [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md)
-and the suite contract in [`../tests/README.md`](../tests/README.md); this page
+images. The permission model lives in
+[`../docs/PERMISSION_MODEL.md`](../docs/PERMISSION_MODEL.md) and the suite
+contract in [`../tests/README.md`](../tests/README.md); this page
 covers what to run, in what order, with which commands, and how to read the
 result.
 
@@ -1344,7 +1345,7 @@ the configuration behind, which is the state this step exists to clear.
 | `cloud-provision/docs/RUNBOOK_BAKE.md` | Baking the goldens, bake failure handling, and the provenance contract this runbook accepts |
 | `ansible-provision/docs/test_users_handoff.md` | Creating the fixture accounts this runbook verifies |
 | [`../tests/README.md`](../tests/README.md) | The suite contract: permission modes, binary origin, workspace retention |
-| [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md) | The model the multi-user scenarios verify |
+| [`../docs/PERMISSION_MODEL.md`](../docs/PERMISSION_MODEL.md) | The model the multi-user scenarios verify |
 | `git-workflow` skill, release reference | The release sequence itself: merge, tag, published release, milestone close |
 
 The release sequence is deliberately absent from this runbook. A Gate-grade

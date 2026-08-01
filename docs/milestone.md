@@ -42,7 +42,7 @@ closed.
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
 | D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change. The first rationale — that the stamp falsifies a gate record — was withdrawn the same day, once the reachability check showed the production deployment path cannot reach the condition (M4, Dependencies And Decisions), and the issue was regraded to `enhancement` / `P3-low`. The exception is kept on the narrower ground that survives: the work is done, the change is three lines with its regression coverage, and the condition it removes is one this project's own gate creates every run by pushing the tree under test with `tar`. The exception covers that change and its test; it does not reopen the line to other code work. | Owner decision, 2026-07-31, rationale narrowed the same day after the reachability finding |
-| D7 | M5 is a named exception to D1 on the same footing as D5: the scenario drivers ship as repository assets under `tests/`, and D1 otherwise stands. The ground is that D1 admits test scenarios, and the drivers are the executable half of the scenarios this cycle was opened to re-set — M1 carried the describing half and named the executable half out of scope, so the cycle's own purpose is unmet while it stays out. The exception covers the drivers, the runbook edits they force, and their verification; it does not reopen the line to work under `bin/`. Its cost is stated rather than discovered: the drivers are only accepted by a two-host gate run, which is the same run the release needs, so the release moves out by that run. | Owner decision, 2026-08-01 |
+| D7 | M5 is a named exception to D1 on the same footing as D5: the scenario drivers ship as repository assets under a top-level `gate/` directory, which also takes the runbook, and D1 otherwise stands. The ground is that D1 admits test scenarios, and the drivers are the executable half of the scenarios this cycle was opened to re-set — M1 carried the describing half and named the executable half out of scope, so the cycle's own purpose is unmet while it stays out. The exception covers the drivers, the runbook edits they force, and their verification; it does not reopen the line to work under `bin/`. Its cost is stated rather than discovered: the drivers are only accepted by a two-host gate run, which is the same run the release needs, so the release moves out by that run. | Owner decision, 2026-08-01 |
 | D6 | The three sites M4 aligns do NOT gain a contract guard: examined through the Ledger promotion test (#100 / M17, `git show 3e47ee6:docs/milestone.md`) and left at Keep, recorded as `CLOSED_DOORS.md` CI-31. Elimination stays blocked (three self-contained scripts, the CI-4/CI-15 premise) and gates A and B pass, but Gate C fails on a netting the first pass of this decision missed: M4's own regression asset drives all three entry points from a relocated clean fixture and a modified one on both goldens, so a one-sided return to a stat-trusting comparison turns it red with no guard in place. The residual — a one-sided move to a comparison those fixtures cannot tell apart, such as one that counts untracked files — is priced too narrow to fund a fifth guard against a base rate of four promotions in eighteen examined findings. The full gate walk, the measured drift history, and the declined fold live in CI-31. | Owner decision, 2026-07-31, superseding the same-day promotion decision after the Gate C netting |
 
 ## ID Migration
@@ -545,9 +545,22 @@ are the evidence for the whole scope below.
 
 #### Scope
 
-- The scenario drivers become repository assets under `tests/`, one per
+- A top-level `gate/` directory holds what an operator executes, as against
+  `docs/`, which holds what a reader reads. The runbook moves there as
+  `gate/RUNBOOK.md` and the drivers land beside it. M1's records keep the old
+  `docs/RELEASE_CYCLE_RUNBOOK.md` path because they describe what landed at
+  `4189fd4`, where that path is the one that resolves.
+- The scenario drivers become repository assets under `gate/`, one per
   principal role and one per scenario, with the IOC identities and the role
   mapping fixed in one place rather than chosen per run.
+- The tree push becomes a driver too, and is the only precondition that does.
+  It excludes exactly what git ignores at the source
+  (`git ls-files --others --ignored --exclude-standard --directory` fed to
+  `tar --exclude-from=-`), rather than a hand-kept list that treats today's
+  symptom and misses tomorrow's. The push earns a driver where the other
+  preconditions do not because it is the one that fails silently and surfaces
+  as a disagreement further down; golden acceptance, the fixture check, and the
+  environment path are read-and-judge steps and stay prose.
 - The runbook's scenario section reduces to the invocations, the verdicts, and
   the traps. The fragments it currently carries are removed as the drivers
   absorb them.
@@ -557,7 +570,7 @@ are the evidence for the whole scope below.
 
 | # | Finding | Resolution |
 | --- | --- | --- |
-| 1 | The pushed tree is `dirty=1` on the VM although it is clean on the control host: `.claude/settings.local.json` is hidden by a global excludes file that does not travel, so the deploy stamps `-dirty` — the very stamp the system-infra suite asserts on | Driver: check the pushed tree on the VM and name what to remove |
+| 1 | The pushed tree's cleanliness reads differently on the two sides: `.claude/settings.local.json` is hidden on the control host by a global excludes file that `tar` does not carry, so `git status --porcelain` prints nothing there and `?? .claude/` on the VM. The operator cannot tell from the runbook's own check whether the tree under test is the tree they pushed. The deployed stamp is NOT affected — measured 2026-08-01 on `07bcb24` with the excludes file disabled: `git diff --quiet HEAD --` exits 0 and `-V` reports the bare hash, because M4 moved all three sites off the index comparison and an untracked file does not reach a content diff | Driver: the push driver excludes exactly what git ignores at the source, so both sides agree |
 | 2 | The one-line fixture assertion cannot detect `obs` absent; its only `obs` clause is a negative test, so a missing account still prints `FIXTURES OK` | Text: add a presence clause |
 | 3 | A failed "Required to continue" whose remedy is out of scope has no branch; both operators invented one | Text: connect the failed precondition to the Check grade |
 | 4 | The scenario fragments are written in two calling conventions — positional arguments run as the principal, and control-host `ssh` lines — and neither is marked | Driver: the file's location states its side |
@@ -579,7 +592,9 @@ are the evidence for the whole scope below.
 
 Out of scope: product code under `bin/` and `configure/`; the runbook sections
 the nineteen findings do not touch; the gate itself becoming a single script,
-which would make the runbook's preconditions unreadable as steps.
+which would make the runbook's preconditions unreadable as steps;
+`docs/MILESTONE_PROCEDURE.md`, which D4 holds in place unchanged through this
+cycle and which therefore does not move into `gate/`.
 
 #### Completion Criteria
 
@@ -612,14 +627,31 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Recover the 2026-08-01 debian13 drivers verbatim and the rocky8 material,
-   and record which of the two each behavior comes from.
-2. Settle the shape: where the files live, the argument convention, how a
-   verdict is printed, and where the scenario identities are fixed.
-3. Write the drivers, folding in findings 1, 4, 5, 7, 10, 18, and 19.
-4. Reduce the runbook's scenario section to invocations, verdicts, and traps.
+1. Recover the 2026-08-01 debian13 drivers verbatim. Done: seventeen drivers,
+   the S3 block that was never a file, and a notes file, each byte count
+   matching the listing taken on the VM after the copy. No rocky8 counterpart
+   exists — that run stopped before the scenarios — and the earlier scratch
+   material is two overlapping sets with no record of which was current and no
+   settled verdict per scenario, so it is not mined. rocky8 coverage comes from
+   step 4 instead, which is cheaper and is evidence rather than archaeology.
+2. Write the push driver, then fold the resolved findings into the recovered
+   drivers and drive the whole scenario step on debian13 from them. This run
+   builds the drivers and is Check grade by intent: a fresh consumer buys
+   nothing here, because what is under test is the driver rather than the tree.
+3. Settle the shape inside `gate/` from that run: the argument convention, how
+   a verdict is printed, and where the scenario identities are fixed. Land the
+   drivers, and reduce the runbook's scenario section to invocations, verdicts,
+   and traps.
+4. Drive the landed drivers on rocky8 and repair what that host's own branches
+   break. Until this step passes the set is one-host-proven.
 5. Apply the thirteen text findings.
-6. Verify by blind execution on both goldens.
+6. Restore the goldens' ownership, bake both, create fresh consumers, and
+   record the golden acceptance before anything touches them. Both blind runs
+   of 2026-08-01 failed the acceptance on a consumer a prior run had already
+   deployed to, and the goldens are `libvirt-qemu`-owned, which stops a bake at
+   its publish step without saying so.
+7. Verify: the honest-red check (T2), the walk of all nineteen findings (T3),
+   and blind execution on both goldens at Gate grade (T1, T4).
 
 #### Test Plan
 
@@ -696,7 +728,7 @@ Implementation Authorization: none
 Superseded Plan Artifacts: none
 
 1. Bake both goldens fresh and record the golden acceptance.
-2. Run the gate by following `docs/RELEASE_CYCLE_RUNBOOK.md`.
+2. Run the gate by following `gate/RUNBOOK.md`.
 3. Execute the release sequence under `git-workflow` authority.
 
 #### Integrated Verification
@@ -704,7 +736,7 @@ Superseded Plan Artifacts: none
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
 | M1 / T2 | The runbook's multi-user text changed after the drive that corrected it | `docs/RELEASE_CYCLE_RUNBOOK.md` | M1 / T4 | Every scenario drives green from the corrected text, on freshly baked goldens | done, 2026-07-30 |
-| M2 / T1 | The runbook's evidence format changes after the gate record is written | `docs/RELEASE_CYCLE_RUNBOOK.md` | Release Verification 4 | The gate record still carries the declared baseline | pending |
+| M2 / T1 | The runbook's evidence format changes after the gate record is written | `gate/RUNBOOK.md` | Release Verification 4 | The gate record still carries the declared baseline | pending |
 
 #### Production Environment Tests
 

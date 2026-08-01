@@ -386,7 +386,7 @@ a skill. That fate has never been decided.
 Decide between the three fates and carry it out: fold the draft into a skill,
 keep it as a repository document with the draft marker removed, or absorb it
 into another document. The decision settles its boundary with
-`docs/RELEASE_CYCLE_RUNBOOK.md`, which covers the release gate rather than the
+`gate/RUNBOOK.md`, which covers the release gate rather than the
 work inside a cycle.
 
 Out of scope: the 1.2.3 line, which references the draft and leaves it
