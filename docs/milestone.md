@@ -6,13 +6,22 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M2 (#130), the only work item left before the release
-— it declares which `ioc-runner` baseline a golden carries, and its supplying
-half is in progress in `ansible-provision` as the `-r <ref>` bake flag. M4 is
-complete at `cc9b02e` with T1 through T6 recorded; its issue #133 stays open
-until the release, per the manual-close practice on a long-lived release
-branch. The guard question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31).
-M1 is complete and #131 is closed.
+Next session entry point: M5, Implementation Plan step 2 — settle where the
+drivers live under `tests/`, the argument convention, and how a verdict is
+printed. Step 1 is done: the seventeen drivers of the 2026-08-01 debian13 run
+are recovered verbatim, with the S3 block that was never a file and a notes
+file, each byte count matching the listing taken on the VM after the copy.
+They are held at `work/gate-drivers-debian13-20260801/`, which is ignored and
+therefore still untracked — the same condition M5 exists to end, parked rather
+than resolved.
+
+M2 (#130) is the other work item before the release: it declares which
+`ioc-runner` baseline a golden carries, and its supplying half is in progress
+in `ansible-provision` as the `-r <ref>` bake flag. M4 is complete at `cc9b02e`
+with T1 through T6 recorded; its issue #133 stays open until the release, per
+the manual-close practice on a long-lived release branch. The guard question is
+settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is
+closed.
 
 ## Work
 
@@ -21,7 +30,8 @@ M1 is complete and #131 is closed.
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | — | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | Not started | Yes | M1, D7 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -32,6 +42,7 @@ M1 is complete and #131 is closed.
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
 | D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change. The first rationale — that the stamp falsifies a gate record — was withdrawn the same day, once the reachability check showed the production deployment path cannot reach the condition (M4, Dependencies And Decisions), and the issue was regraded to `enhancement` / `P3-low`. The exception is kept on the narrower ground that survives: the work is done, the change is three lines with its regression coverage, and the condition it removes is one this project's own gate creates every run by pushing the tree under test with `tar`. The exception covers that change and its test; it does not reopen the line to other code work. | Owner decision, 2026-07-31, rationale narrowed the same day after the reachability finding |
+| D7 | M5 is a named exception to D1 on the same footing as D5: the scenario drivers ship as repository assets under `tests/`, and D1 otherwise stands. The ground is that D1 admits test scenarios, and the drivers are the executable half of the scenarios this cycle was opened to re-set — M1 carried the describing half and named the executable half out of scope, so the cycle's own purpose is unmet while it stays out. The exception covers the drivers, the runbook edits they force, and their verification; it does not reopen the line to work under `bin/`. Its cost is stated rather than discovered: the drivers are only accepted by a two-host gate run, which is the same run the release needs, so the release moves out by that run. | Owner decision, 2026-08-01 |
 | D6 | The three sites M4 aligns do NOT gain a contract guard: examined through the Ledger promotion test (#100 / M17, `git show 3e47ee6:docs/milestone.md`) and left at Keep, recorded as `CLOSED_DOORS.md` CI-31. Elimination stays blocked (three self-contained scripts, the CI-4/CI-15 premise) and gates A and B pass, but Gate C fails on a netting the first pass of this decision missed: M4's own regression asset drives all three entry points from a relocated clean fixture and a modified one on both goldens, so a one-sided return to a stat-trusting comparison turns it red with no guard in place. The residual — a one-sided move to a comparison those fixtures cannot tell apart, such as one that counts untracked files — is priced too narrow to fund a fifth guard against a base rate of four promotions in eighteen examined findings. The full gate walk, the measured drift history, and the declined fold live in CI-31. | Owner decision, 2026-07-31, superseding the same-day promotion decision after the Gate C netting |
 
 ## ID Migration
@@ -504,6 +515,143 @@ Observed State: open
 Observed Labels: enhancement, P3-low, area/install
 Observed Milestone: 1.2.3
 Last Compared: 2026-07-31, after the regrade and the body sync
+
+### M5 - Shipped scenario drivers
+
+Origin: the two blind runbook executions of 2026-08-01 against `7d82f4f`, one
+per golden, each given the runbook alone
+Identity History: none
+GitHub Issue: 134, https://github.com/jeonghanlee/epics-ioc-runner/issues/134
+Status: Not started
+
+#### Summary
+
+The gate's scenario drivers have always been scratch. Every run writes them,
+uses them, and deletes them; the repository has never held one. The describing
+half of the scenarios became standing in M1 and the executing half did not,
+because M1 named it out of scope.
+
+The cost is not that the work is repeated. It is that the instrument is rebuilt
+before each measurement. The scenario names stay L1-L3 and S1-S11, but the IOC
+identities, the waits, the capture forms, and the verdict arithmetic are chosen
+afresh by whoever runs it, so one run's green is not the same green as the
+next's and the two do not compare. Worse, a red cannot be attributed: the
+2026-08-01 debian13 run had a `cd` bound to only the first of two background
+jobs, which dropped a file into the working tree — a defect in that day's
+driver, not in the product.
+
+Both blind runs stopped in the same place for the same reason, and the reports
+are the evidence for the whole scope below.
+
+#### Scope
+
+- The scenario drivers become repository assets under `tests/`, one per
+  principal role and one per scenario, with the IOC identities and the role
+  mapping fixed in one place rather than chosen per run.
+- The runbook's scenario section reduces to the invocations, the verdicts, and
+  the traps. The fragments it currently carries are removed as the drivers
+  absorb them.
+- The nineteen findings the two blind runs returned are all resolved here. Six
+  are resolved by the drivers existing at all; thirteen are text corrections
+  that stand on their own.
+
+| # | Finding | Resolution |
+| --- | --- | --- |
+| 1 | The pushed tree is `dirty=1` on the VM although it is clean on the control host: `.claude/settings.local.json` is hidden by a global excludes file that does not travel, so the deploy stamps `-dirty` — the very stamp the system-infra suite asserts on | Driver: check the pushed tree on the VM and name what to remove |
+| 2 | The one-line fixture assertion cannot detect `obs` absent; its only `obs` clause is a negative test, so a missing account still prints `FIXTURES OK` | Text: add a presence clause |
+| 3 | A failed "Required to continue" whose remedy is out of scope has no branch; both operators invented one | Text: connect the failed precondition to the Check grade |
+| 4 | The scenario fragments are written in two calling conventions — positional arguments run as the principal, and control-host `ssh` lines — and neither is marked | Driver: the file's location states its side |
+| 5 | No scenario IOC identities are given, though the ordering section depends on at least six | Driver: fixed in one place |
+| 6 | No test states whether a consumer VM is fresh; the runbook prints two values and never says what they must equal | Text: compare against the manifest's `app_ioc_runner commit=` |
+| 7 | The suite invocation and the capture form are never shown fused, and the fusion is not mechanical: the redirection must sit inside the `ssh` quotes and outside the `sudo` word, and only the first of five uses `>` | Driver: one invocation |
+| 8 | The `.prevowner` guidance is attached to a listing that carries no trailing wildcard; only the post-repair listing has one | Text: move the guidance to the listing that can show them |
+| 9 | `<log>` is a remote path in gate step 2 and a control-host path in step 3, and nothing says so | Text: state the side per step |
+| 10 | S9's root half shows its two `sed` lines with no `ssh` and no principal switch; that they run as the operator is stated much later | Driver: already wrapped |
+| 11 | The between-runs cleanup does not reach the payloads: `remove` clears `/etc/procServ.d` but leaves `/opt/epics-iocs/<name>` and `~/iocBoot/<name>` | Text: name both paths |
+| 12 | No libvirt domain naming rule and no `virsh` command; the documented target `rocky8-iocrunner.server` is the domain `testbed-rocky8-iocrunner-server` | Text: give the command and the rule |
+| 13 | `cat -v` shows `^@` throughout the verb captures. Those are a literal `0x5E 0x40` emitted by the runner, not a rendered NUL, so a reader following the document's own instruction concludes the trap entry is wrong | Text: distinguish the literal pair from a rendered control byte |
+| 14 | The anchored-`grep` evidence holds only for the line that lost its start; where the closing message begins the line, anchoring loses nothing | Text: name which line the measurement is taken on |
+| 15 | The named skip example did not occur; the actual skip is `logrotate not found`, next to a deploy line announcing that the logrotate policy was installed — both true, and unexplained | Text: correct the example and note that the golden ships the policy without the binary |
+| 16 | Step 3's one expected warning is host-conditional but reads as universal, and which host it means is only learned by running S11, which comes later | Text: move the branch determination ahead of the step that depends on it |
+| 17 | No expected runtime for the suites, so nothing distinguishes slow from hung | Text: give durations and a bounded wait |
+| 18 | Scenario output paths are not stated to be absolute; a relative one drops files into the working tree | Driver: absolute paths |
+| 19 | `ssh` hardening (`-n`, `BatchMode`) appears once, for one case only | Driver: carried by every call the drivers make |
+
+Out of scope: product code under `bin/` and `configure/`; the runbook sections
+the nineteen findings do not touch; the gate itself becoming a single script,
+which would make the runbook's preconditions unreadable as steps.
+
+#### Completion Criteria
+
+- The drivers exist as tracked files, fix the scenario identities in one place,
+  and print each scenario's verdict rather than deciding it silently.
+- The runbook's scenario section cites the drivers and no longer carries
+  fragments the reader must classify.
+- All nineteen findings above are resolved, each traceable to the driver or the
+  text edit that resolves it.
+- An independent operator, given the runbook and the shipped drivers and
+  nothing else, drives all fourteen scenarios on both goldens.
+
+#### Dependencies And Decisions
+
+- D1, D7, M1.
+- The drivers are reconstructed from two sources, neither authoritative alone:
+  the 2026-08-01 debian13 run, which drove all fourteen scenarios and is the
+  only recorded set with a settled verdict per scenario; and the earlier rocky8
+  material, which is the only evidence for the branches that host takes. The
+  debian13 set is one-host-proven and must not be shipped as if it were both.
+- The two hosts branch at, at least: the S11 sudo form (glob against anchored),
+  the EPICS environment path, the `script` closing message and whether it ends
+  with a newline, the timeout exit code, and whether the login shell prints a
+  banner and locale warnings.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Recover the 2026-08-01 debian13 drivers verbatim and the rocky8 material,
+   and record which of the two each behavior comes from.
+2. Settle the shape: where the files live, the argument convention, how a
+   verdict is printed, and where the scenario identities are fixed.
+3. Write the drivers, folding in findings 1, 4, 5, 7, 10, 18, and 19.
+4. Reduce the runbook's scenario section to invocations, verdicts, and traps.
+5. Apply the thirteen text findings.
+6. Verify by blind execution on both goldens.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Driver execution | Drive all fourteen scenarios from the shipped drivers on each golden, including both S11 branches | Both goldens | Every scenario reaches its stated expected result, and each verdict is printed by the driver |
+| T2 | Honest-red check | Break one scenario's precondition deliberately and confirm the driver reports it rather than exiting green | One golden | The driver returns the red and names the scenario |
+| T3 | Finding traceability | Walk the nineteen findings against the landed drivers and text | Working tree | Each finding names the driver line or the text edit that resolves it; none is closed by assertion |
+| T4 | Blind execution | Hand an independent agent the runbook and the shipped drivers, with no access to this conversation, and have it run the scenario step on both goldens | Both goldens | The operator completes all fourteen scenarios on each golden without writing a driver of its own |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | — | — | pending | |
+| T2 | — | — | pending | |
+| T3 | — | — | pending | |
+| T4 | — | — | pending | |
+
+#### Closure Evidence
+
+Pending.
+
+#### GitHub Projection
+
+Title: Ship the gate's scenario drivers as repository assets
+Labels: tests, docs, P2-medium
+GitHub Milestone: 1.2.3
+Observed State: open
+Observed Labels: P2-medium, docs, tests
+Observed Milestone: 1.2.3
+Last Compared: 2026-08-01
 
 ### M3 - Final release
 
