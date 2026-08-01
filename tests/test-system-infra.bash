@@ -509,6 +509,125 @@ function test_setup_stamp_layout_guard {
     rm -rf "${work}" 2>/dev/null || true
 }
 
+function test_stamp_relocated_clean_checkout {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Version Stamp on a Relocated Checkout (#133, real runs)"
+    print_sub_divider
+
+    # No readlink/realpath/cd-pwd canonicalization here (#44): the relative
+    # parent is enough for git clone, and canonicalizing would break under
+    # root_squash where root cannot traverse the user-owned tree.
+    local script_dir repo_top
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    repo_top="${script_dir}/.."
+
+    local invoker="${SUDO_USER:-$(id -un)}"
+    local as_invoker=(bash -c)
+    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
+        as_invoker=(sudo -u "${invoker}" -n bash -c)
+    fi
+
+    # Fixture family: one clean clone, then relocated copies produced without
+    # any git invocation touching them. The copy is what leaves the index's
+    # cached stat data stale (fresh inodes under an index written elsewhere);
+    # a fixture built by git init/add/commit, or a clone used directly,
+    # carries a freshly written index and asserts nothing (#133). Three
+    # copies: clean, one real modification, and clean with an unwritable
+    # index -- the state that separates a content comparison from an
+    # index-refresh approach.
+    local work
+    work=$("${as_invoker[@]}" 'mktemp -d')
+    "${as_invoker[@]}" "git clone -q '${repo_top}' '${work}/clone' \
+        && cp -a '${work}/clone' '${work}/fix' \
+        && cp -a '${work}/clone' '${work}/mod' \
+        && cp -a '${work}/clone' '${work}/lock' \
+        && printf '\nprobe\n' >> '${work}/mod/README.md' \
+        && chmod a-w '${work}/lock/.git' '${work}/lock/.git/index'" \
+        >/dev/null 2>&1 || true
+    local built="false"
+    [[ -d "${work}/fix/.git" && -d "${work}/mod/.git" && -d "${work}/lock/.git" ]] && built="true"
+    verify_state "true" "${built}" "Relocated fixtures built by clone-then-copy"
+    if [[ "${built}" != "true" ]]; then
+        "${as_invoker[@]}" "chmod -R u+w '${work}'" >/dev/null 2>&1 || true
+        rm -rf "${work}" 2>/dev/null || true
+        return
+    fi
+
+    stamp_of() {   # $1 = deployed or injected file
+        grep -m1 '^declare -g RUNNER_GIT_HASH=' "$1" 2>/dev/null | sed 's/.*="\(.*\)"/\1/'
+    }
+    drive_setup() {   # $1 = fixture dir, $2 = tag; prints the stamped hash
+        IOC_RUNNER_SCRIPT_DEST="${work}/$2-runner" \
+        IOC_RUNNER_SCRIPT_SYMLINK="${work}/$2-symlink" \
+        IOC_RUNNER_BASH_COMP_DEST="${work}/$2-completion" \
+            bash "$1/bin/setup-system-infra.bash" >/dev/null 2>&1 || true
+        stamp_of "${work}/$2-runner"
+    }
+    drive_live_v() {  # $1 = fixture dir; prints the -V version line
+        "${as_invoker[@]}" "bash '$1/bin/ioc-runner' -V 2>/dev/null | head -1" || true
+    }
+    drive_inject() {  # $1 = fixture dir, $2 = tag; prints the injected hash
+        "${as_invoker[@]}" "cp '$1/bin/ioc-runner' '${work}/$2-target' \
+            && bash '$1/configure/inject-runner-version.bash' \
+                '${work}/$2-target' '$1'" >/dev/null 2>&1 || true
+        stamp_of "${work}/$2-target"
+    }
+
+    local stamped vline ok
+
+    # Clean relocated checkout: every entry point stamps the bare hash.
+    stamped=$(drive_setup "${work}/fix" "fix")
+    ok="false"
+    [[ -n "${stamped}" && "${stamped}" != "unknown" && "${stamped}" != *-dirty ]] && ok="true"
+    verify_state "true" "${ok}" "Setup stamps bare on a relocated clean checkout (${stamped:-none})"
+
+    vline=$(drive_live_v "${work}/fix")
+    ok="false"
+    [[ "${vline}" == *"(live)"* && "${vline}" != *-dirty* && "${vline}" != *unknown* ]] && ok="true"
+    verify_state "true" "${ok}" "Live -V reports bare on a relocated clean checkout"
+
+    stamped=$(drive_inject "${work}/fix" "fix")
+    ok="false"
+    [[ -n "${stamped}" && "${stamped}" != "unknown" && "${stamped}" != *-dirty ]] && ok="true"
+    verify_state "true" "${ok}" "Injector stamps bare on a relocated clean checkout (${stamped:-none})"
+
+    # Negative control: one real modification keeps the suffix everywhere.
+    stamped=$(drive_setup "${work}/mod" "mod")
+    ok="false"
+    [[ "${stamped}" == *-dirty ]] && ok="true"
+    verify_state "true" "${ok}" "Setup keeps -dirty for a real modification (${stamped:-none})"
+
+    vline=$(drive_live_v "${work}/mod")
+    ok="false"
+    [[ "${vline}" == *"-dirty (live)"* ]] && ok="true"
+    verify_state "true" "${ok}" "Live -V keeps -dirty for a real modification"
+
+    stamped=$(drive_inject "${work}/mod" "mod")
+    ok="false"
+    [[ "${stamped}" == *-dirty ]] && ok="true"
+    verify_state "true" "${ok}" "Injector keeps -dirty for a real modification (${stamped:-none})"
+
+    # Unwritable index: the verdict must not depend on refreshing the index.
+    stamped=$(drive_setup "${work}/lock" "lock")
+    ok="false"
+    [[ -n "${stamped}" && "${stamped}" != "unknown" && "${stamped}" != *-dirty ]] && ok="true"
+    verify_state "true" "${ok}" "Setup stamps bare with an unwritable index (${stamped:-none})"
+
+    vline=$(drive_live_v "${work}/lock")
+    ok="false"
+    [[ "${vline}" == *"(live)"* && "${vline}" != *-dirty* && "${vline}" != *unknown* ]] && ok="true"
+    verify_state "true" "${ok}" "Live -V reports bare with an unwritable index"
+
+    stamped=$(drive_inject "${work}/lock" "lock")
+    ok="false"
+    [[ -n "${stamped}" && "${stamped}" != "unknown" && "${stamped}" != *-dirty ]] && ok="true"
+    verify_state "true" "${ok}" "Injector stamps bare with an unwritable index (${stamped:-none})"
+
+    "${as_invoker[@]}" "chmod -R u+w '${work}'" >/dev/null 2>&1 || true
+    rm -rf "${work}" 2>/dev/null || true
+}
+
 # Behavioral regression for the runner backup filter (#123). Runs the REAL
 # setup STEP 7 with the runner/symlink/completion destinations AND the backup
 # directory (IOC_RUNNER_BACKUP_DIR) redirected to a scratch tree, so nothing
@@ -599,7 +718,7 @@ function test_setup_version_injection_guards {
     verify_state "true" "${sudo_u_drop}" "version injection uses sudo -u for privilege drop"
 
     # Regression guard: the dirty marker must be gated on a real hash so a
-    # failed diff-index does not yield 'unknown-dirty'. Tracked as #42.
+    # failed working-tree diff does not yield 'unknown-dirty'. Tracked as #42.
     local unknown_guard="false"
     if grep -qE '\[\[[[:space:]]*"\$\{current_git_hash\}"[[:space:]]*!=[[:space:]]*"unknown"' "${setup_script}"; then
         unknown_guard="true"
@@ -702,6 +821,7 @@ function run_all_tests {
         "test_git_context_resolution"
         "test_setup_script_dir_resolution"
         "test_setup_stamp_layout_guard"
+        "test_stamp_relocated_clean_checkout"
         "test_setup_runner_backup_filter"
         "test_setup_version_injection_guards"
         "test_metadata_field_naming"

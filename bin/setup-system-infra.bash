@@ -677,8 +677,12 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     current_git_hash=$("${git_cmd[@]}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
 
     # Append "-dirty" only when we have a real hash; otherwise a failed
-    # diff-index (git missing, repo absent) would yield "unknown-dirty".
-    if [[ "${current_git_hash}" != "unknown" ]] && ! "${git_cmd[@]}" diff-index --quiet HEAD -- 2>/dev/null; then
+    # diff (git missing, repo absent) would yield "unknown-dirty". The
+    # content diff is used rather than an index comparison: the index's
+    # cached stat data goes stale when a checkout is relocated (tar,
+    # cp -a, snapshot restore), and trusting it stamps a clean tree
+    # dirty (#133).
+    if [[ "${current_git_hash}" != "unknown" ]] && ! "${git_cmd[@]}" diff --quiet HEAD -- 2>/dev/null; then
         current_git_hash="${current_git_hash}-dirty"
     fi
 

@@ -277,7 +277,7 @@ while [[ $# -gt 0 ]]; do
                 script_dir="$(dirname "${BASH_SOURCE[0]}")"
                 if command -v git >/dev/null 2>&1 && git -C "${script_dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
                     display_hash=$(git -C "${script_dir}" rev-parse --short HEAD)
-                    if ! git -C "${script_dir}" diff-index --quiet HEAD -- 2>/dev/null; then
+                    if ! git -C "${script_dir}" diff --quiet HEAD -- 2>/dev/null; then
                         display_hash="${display_hash}-dirty"
                     fi
                     display_hash="${display_hash} (live)"
