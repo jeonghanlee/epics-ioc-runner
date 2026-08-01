@@ -6,12 +6,13 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: obtain plan acceptance for M4 (#133) in this file —
-its detail carries the reproduction, the chosen `git diff --quiet HEAD --`
-replacement, and the two rejected forms with the measurements that rejected
-them. The guard question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31), so
-no work item follows M4. M2 (#130) is Ready and its supplying half is in
-progress in `ansible-provision`; M1 is complete and #131 is closed.
+Next session entry point: M2 (#130), the only work item left before the release
+— it declares which `ioc-runner` baseline a golden carries, and its supplying
+half is in progress in `ansible-provision` as the `-r <ref>` bake flag. M4 is
+complete at `cc9b02e` with T1 through T6 recorded; its issue #133 stays open
+until the release, per the manual-close practice on a long-lived release
+branch. The guard question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31).
+M1 is complete and #131 is closed.
 
 ## Work
 
@@ -19,7 +20,7 @@ progress in `ansible-provision`; M1 is complete and #131 is closed.
 | --- | --- | --- | --- | --- | --- | --- |
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | — | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
-| M4 | (#133) Version stamp reports `-dirty` for a clean checkout whose index is stale | Milestone | Not started | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
+| M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
@@ -30,7 +31,7 @@ progress in `ansible-provision`; M1 is complete and #131 is closed.
 | D2 | The register adopts the current `milestone-tracking` schema at this cycle open, and unassigned work moves to `docs/backlog.md`. | Owner decision, 2026-07-30 |
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
-| D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change, because the defect is one this cycle's own verification work found and it falsifies the provenance stamp a gate record depends on. The exception covers that defect and its regression test; it does not reopen the line to other code work. | Owner decision, 2026-07-31 |
+| D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change. The first rationale — that the stamp falsifies a gate record — was withdrawn the same day, once the reachability check showed the production deployment path cannot reach the condition (M4, Dependencies And Decisions), and the issue was regraded to `enhancement` / `P3-low`. The exception is kept on the narrower ground that survives: the work is done, the change is three lines with its regression coverage, and the condition it removes is one this project's own gate creates every run by pushing the tree under test with `tar`. The exception covers that change and its test; it does not reopen the line to other code work. | Owner decision, 2026-07-31, rationale narrowed the same day after the reachability finding |
 | D6 | The three sites M4 aligns do NOT gain a contract guard: examined through the Ledger promotion test (#100 / M17, `git show 3e47ee6:docs/milestone.md`) and left at Keep, recorded as `CLOSED_DOORS.md` CI-31. Elimination stays blocked (three self-contained scripts, the CI-4/CI-15 premise) and gates A and B pass, but Gate C fails on a netting the first pass of this decision missed: M4's own regression asset drives all three entry points from a relocated clean fixture and a modified one on both goldens, so a one-sided return to a stat-trusting comparison turns it red with no guard in place. The residual — a one-sided move to a comparison those fixtures cannot tell apart, such as one that counts untracked files — is priced too narrow to fund a fifth guard against a base rate of four promotions in eighteen examined findings. The full gate walk, the measured drift history, and the declined fold live in CI-31. | Owner decision, 2026-07-31, superseding the same-day promotion decision after the Gate C netting |
 
 ## ID Migration
@@ -263,7 +264,7 @@ Origin: found 2026-07-31 by the fifth document-only execution of the release
 cycle runbook, at `release-1.2.3` `7511ed7`; filed as #133
 Identity History: none
 GitHub Issue: 133, https://github.com/jeonghanlee/epics-ioc-runner/issues/133
-Status: Not started
+Status: Complete
 
 #### Summary
 
@@ -283,8 +284,15 @@ same file in a tar-extracted copy — mtime `1785439776` in both, inode
 `1785439776` in both, inode `25241295` against `18677075`.
 
 A clean tree therefore stamps `-dirty`. The suffix is the signal that says the
-deployed binary came from a modified tree; a clean tree that produces it leaves
-the signal unable to report the case it exists for.
+deployed binary came from a modified tree; where this fires, it reports the
+opposite of the truth.
+
+It does not fire on the production path, which is why this is a robustness fix
+and not a defect report — see the reachability finding under Dependencies And
+Decisions. It fired here because this project's own release gate pushes the
+tree under test with `tar`, so that uncommitted code can be exercised on a
+golden. That is a verification convenience, not a deployment method, and the
+condition it creates is the one the fix removes.
 
 #### Scope
 
@@ -399,6 +407,19 @@ not open.
   live `-V` fallback run as the invoking user, who owns the tree and traverses
   the ancestor, so no squash-specific behavior applies to them and T1 through
   T3 on local disk carry them in full.
+- Reachability, confirmed 2026-07-31 against `ansible-provision` and
+  `cloud-provision`: the production deployment path cannot reach this, on two
+  independent counts. The tree arrives by `git clone`, or by `git fetch` plus
+  `git checkout --force --detach` when it already exists
+  (`roles/app_ioc_runner/tasks/main.yml`) — both write the index, and no copy,
+  `rsync`, or archive extraction appears in that role or in the bake chain.
+  And the same role runs `git status --porcelain=v1` to compute the expected
+  identity before it invokes `setup-system-infra.bash`, which refreshes the
+  index regardless. What remains reachable is a hand-managed deployment from a
+  copied checkout that keeps its `.git` and is stamped with no intervening git
+  read. A `.git`-less copy stamps `unknown` and belongs to #119 and #128.
+  This finding is why the issue was regraded from `bug` / `P2-medium` to
+  `enhancement` / `P3-low` on the same day.
 - Accepted divergence, observed 2026-07-31: with a modification staged in the
   index and the working tree then reverted to the HEAD content (`git status`
   shows `MM`), the old comparison answers dirty and the replacement answers
@@ -453,26 +474,36 @@ Dependencies And Decisions above rather than deleted
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Both goldens | Pending | none |
-| T2 | Not run | Both goldens | Pending | none |
-| T3 | Not run | One golden | Pending | none |
-| T4 | Not run | Working tree | Pending | none |
-| T5 | Not run | Both goldens | Pending | none |
-| T6 | Not run | Both goldens | Pending | none |
+| T1 | 2026-07-31 | Both goldens | Pass | `test_stamp_relocated_clean_checkout` drives all three entry points from a clone-then-`cp -a` fixture untouched by git. Bare `cc9b02e` at the setup deploy, the live `-V`, and the injector, on rocky8 and debian13. |
+| T2 | 2026-07-31 | Both goldens | Pass | Same fixture with one tracked file appended: `cc9b02e-dirty` at all three, both goldens. The replacement did not silence a real modification. |
+| T3 | 2026-07-31 | Both goldens | Pass | Same fixture with `.git` and `.git/index` made unwritable: bare `cc9b02e` at all three, both goldens. This is the state the rejected refresh form could not satisfy. |
+| T4 | 2026-07-31 | Both goldens | Pass | Honest red then green on the same test. Against the pre-fix tree (`b4ef8b7`), six of the nine stamp assertions failed — the three clean-fixture reads and the three unwritable-index reads, all reporting `b4ef8b7-dirty` — while the three real-modification reads passed, so the test discriminates rather than failing wholesale. Against the fixed tree, system-infra 55/55 on rocky8 and 56/56 on debian13, 0 failures, 0 script errors. |
+| T5 | 2026-07-31 | Both goldens, squashed mount | Pass | Denial precheck `SQUASH REPRODUCED` on both. All three documented entry points — the direct script run, `make install`, `make setup` — stamp bare `cc9b02e` with zero layout warnings, six invocations across the two goldens. Unplanned control from the first attempt: the same six on a tree carrying one real uncommitted file stamped `cc9b02e-dirty`, so the mount path discriminates too. |
+| T6 | 2026-07-31 | Both goldens | Pass | error-handling 206/206 executed==counted; local-lifecycle 94/94 source and 94/94 installed on rocky8, 82/82 and 82/82 on debian13; system-lifecycle 77/77 both. 0 failures, 0 script errors throughout. |
 
 #### Closure Evidence
 
-- none
+- Fix and regression test: commit `cc9b02e`, four files — the three stamp
+  sites, and `tests/test-system-infra.bash` carrying
+  `test_stamp_relocated_clean_checkout` plus the two comment corrections.
+- Verification: T1 through T6 all Pass, 2026-07-31, recorded above. The
+  honest-red evidence is T4: six failures on the pre-fix tree against nine
+  stamp assertions, the three real-modification reads passing throughout.
+- Regrade: `bug` / `P2-medium` to `enhancement` / `P3-low` the same day, on the
+  reachability finding recorded under Dependencies And Decisions; #133's body
+  carries the same finding as its own Reachability section.
+- Issue #133 stays open until the release, per the manual-close practice for a
+  long-lived release branch.
 
 #### GitHub Projection
 
 Title: Version stamp reports -dirty for a clean checkout whose index is stale
-Labels: bug, P2-medium, area/install
+Labels: enhancement, P3-low, area/install
 GitHub Milestone: 1.2.3
 Observed State: open
-Observed Labels: bug, P2-medium, area/install
+Observed Labels: enhancement, P3-low, area/install
 Observed Milestone: 1.2.3
-Last Compared: 2026-07-31
+Last Compared: 2026-07-31, after the regrade and the body sync
 
 ### M3 - Final release
 
