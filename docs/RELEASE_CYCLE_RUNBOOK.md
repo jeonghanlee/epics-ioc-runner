@@ -153,6 +153,15 @@ Required after either repair: the listing shows no `iocrunner-*.qcow2` owned by
 another account. Check it — do not infer it from an exit code. `rm -f` and
 `mv -n` both report success when they did nothing.
 
+The trailing wildcard in that listing also matches `iocrunner-*.qcow2.prevowner`
+and its dated variants. Those are whole previous goldens, renamed aside rather
+than removed by an earlier form of this same repair — foreign-owned and several
+gigabytes each, and nothing in the bake reads them. The bake writes the exact
+names `iocrunner-<os>.qcow2`, its temporary, and its sidecar, and its in-use
+scan globs `*.qcow2`, which no `.prevowner` name matches. So they neither
+satisfy this check nor stop it: read past them. Whether to reclaim the space is
+the operator's call and no part of the gate.
+
 **If the bake is already hung there**, it will not recover: the prompt is on a
 terminal that cannot be written to from outside. End it, clean up per the bake
 runbook's mid-way failure section, apply one of the two repairs, and start the
@@ -395,10 +404,25 @@ Test Plan per work item — that document is where to find them, and a released
 line keeps its copy at its tag (`git show <tag>:docs/milestone.md`). Executing
 them is this step; owning them is not this runbook's business.
 
-Skip any row whose method is "run this runbook". A verification-only cycle can
-define its work as the gate itself, and re-running the gate inside its own
-first step would not terminate. Execute the rows that name something separately
-checkable, and record the rest as satisfied by this run.
+Not every row is executable here, and the three kinds part cleanly.
+
+**A row whose method is "run this runbook"** is skipped. A verification-only
+cycle can define its work as the gate itself, and re-running the gate inside
+its own first step would not terminate. Record it as satisfied by this run.
+
+**A row naming one gate step** — the `root_squash` path, the suites, the
+multi-user scenarios — is satisfied by that step when it runs below. Do not run
+it twice; note which step carried it.
+
+**A row that reads this run's own record** cannot be executed from inside the
+run, because the record does not exist until the run ends and this step is not
+where records are written. Carry it out of the gate: leave it pending, and
+gather the values it will need while they are in front of you — the baked
+baseline, the bake dates, the deployed identity. Whoever writes the gate record
+closes the row then. A row like this is not a failure and not a skip; it
+belongs to the writing, not to the running.
+
+Execute everything else.
 
 ### 2. The four suites, both modes, both goldens
 
@@ -438,7 +462,7 @@ an unset mode silently defaults to the source tree, which is a green in the
 wrong mode rather than an error:
 
 ```bash
-grep -A1 'Runner under test' <log>
+ssh vmadmin@<host> "cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -A1 'Runner under test'"
 ssh vmadmin@<host> 'IOC_RUNNER_TEST_MODE=installed sudo -nE printenv IOC_RUNNER_TEST_MODE'
 ```
 
@@ -503,6 +527,20 @@ totals, and a shorter green is not comparable with a longer one. Record the
 skips beside the counts, and carry each one into "When a check cannot be
 induced" rather than letting a total stand in for coverage.
 
+The system infrastructure suite differs across the goldens the same way, for a
+reason of its own: the sudoers branch a host's sudo version selects decides
+which policy assertions apply, so the glob-branch host skips the regex-deny
+probe and records that skip as an assertion in its own right. Its two totals are
+as legitimate as the lifecycle's. Expect a per-host total from both suites and
+compare a host against itself, never one golden's total against the other's.
+
+The standalone suite prints its count in a shape of its own,
+`Total Assertions : N (executed: N)`. The first number is the total the evidence
+table's Passed / total column wants; the parenthetical is an integrity counter
+for assertions that ran, and the two are meant to agree. When they disagree the
+suite has already scored itself a failure for the mismatch, so the row to record
+is still the first number and the verdict command still catches it.
+
 ### 3. The root_squash deployment path
 
 Neither of the paths above deploys from a squashed mount, so this state is set
@@ -566,14 +604,21 @@ Read the stamp after EACH entry point, not once at the end. With an unchanged
 tree all three stamps are identical, so a single read cannot tell three
 successful deploys from one deploy and two silent no-ops. Read the file's
 modification time alongside it — that is what moves when a deploy actually
-replaced the binary:
+replaced the binary.
+
+Inspect each deploy's output as it runs, in the same invocation that produced
+it. The layout count below is folded in for exactly that reason: asking it
+separately would run the entry point a second time — six deploys per pass
+instead of three — and each extra deploy overwrites the state the stamp read
+beside it has just described. `tee` keeps the deploy's own text, which the count
+alone throws away; give each entry point its own log:
 
 ```bash
-ssh vmadmin@<host> 'cd <abs-toplevel> && sudo -n bash bin/setup-system-infra.bash'
+ssh vmadmin@<host> 'cd <abs-toplevel> && sudo -n bash bin/setup-system-infra.bash 2>&1' | tee <log> | grep -icE 'layout|not a git|unknown'
 ssh vmadmin@<host> 'stat -c "%y" /usr/local/bin/ioc-runner; /usr/local/bin/ioc-runner -V'
-ssh vmadmin@<host> 'cd <abs-toplevel> && make install'
+ssh vmadmin@<host> 'cd <abs-toplevel> && make install 2>&1' | tee <log> | grep -icE 'layout|not a git|unknown'
 ssh vmadmin@<host> 'stat -c "%y" /usr/local/bin/ioc-runner; /usr/local/bin/ioc-runner -V'
-ssh vmadmin@<host> 'cd <abs-toplevel> && make setup'
+ssh vmadmin@<host> 'cd <abs-toplevel> && make setup 2>&1' | tee <log> | grep -icE 'layout|not a git|unknown'
 ssh vmadmin@<host> 'stat -c "%y" /usr/local/bin/ioc-runner; /usr/local/bin/ioc-runner -V'
 ```
 
@@ -589,13 +634,12 @@ rather than `unknown`.
 
 No layout warning means specifically none of the deploy-time warnings about
 the checkout's shape — not a git checkout, tracked files missing, metadata
-unavailable, or a stamp of `unknown`:
+unavailable, or a stamp of `unknown`. That is what the folded count answers, and
+each of the three must print `0`. Read the printed number, not the exit code:
+`grep -c` exits nonzero on a count of `0`, which is the wanted result here, and
+in a pipeline that code is the one the shell reports.
 
-```bash
-ssh vmadmin@<host> 'cd <abs-toplevel> && <entry-point> 2>&1' | grep -icE 'layout|not a git|unknown'
-```
-
-Expect `0`. One warning is expected and is not this class: the golden whose
+One warning is expected and is not this class: the golden whose
 sudo predates the anchored form reports which sudoers form it emitted. S11
 determines which golden that is, and verifies the consequence deliberately.
 
@@ -780,10 +824,17 @@ one the anchored per-verb form.
 
 ### Harness
 
-- **Switching principal**: `sudo -niu <user>`. For local mode also pass
+- **Switching principal**: `sudo -niu <user>`. Every scenario is driven this
+  way, so the whole section assumes the driving account holds password-free sudo
+  to an arbitrary target user. The goldens grant it. A host that does not stops
+  the section at its first switch, before any scenario, and the stop is a
+  property of the host rather than of the tree. For local mode also pass
   `env XDG_RUNTIME_DIR=/run/user/<uid> DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`.
   The runtime directory can lag a few seconds behind linger being enabled;
-  verify it exists first and force it with `systemctl start user@<uid>`.
+  verify it exists first and force it with `sudo -n systemctl start user@<uid>`.
+  That start is privileged. Issued unprivileged it answers
+  `Interactive authentication required`, and over a connection with no terminal
+  there is nobody to authenticate it, so it fails outright rather than asking.
 - **Commands that prompt or hold a console need a terminal, a timeout, and
   EOF.** End-of-file alone is not enough. Wrap them:
   `timeout -k 2 <N> script -qec "<cmd>" /dev/null </dev/null`. For a console
@@ -851,10 +902,21 @@ are harness defects, and every one reads as a product failure until recognized.
   entries, so a command the per-verb rule does not match falls through to the
   password rule. `sudo: a password is required` is the denial, not a harness
   fault. Assert on that string as well as the explicit refusal wording.
-- **The terminal wrapper can leave stray NUL bytes in captured output.** On one
-  of the goldens the recorded stream carries a leading NUL before a line, so an
-  equality comparison against the expected text fails while the text itself is
-  correct. Compare by match, or strip control bytes before comparing.
+- **A console capture carries telnet negotiation bytes, and its closing line can
+  swallow the next one.** Two traps sit in the same place and neither is a NUL:
+  measured over every console capture on both goldens, the count of `0x00` is
+  zero. What is there is procServ's negotiation sequence `FF FB 01 FF FD 22`
+  (IAC WILL ECHO, IAC DO LINEMODE) on a line of its own just before the
+  wrapper's closing message, so an equality comparison fails while the text
+  itself is correct. Separately, where `script` closes a killed session with
+  `Session terminated, killing shell...` it writes no trailing newline and the
+  driver's next line is glued to it — measured on that line, `grep -c '<text>'`
+  returns 1 while `grep -c '^<text>'` returns 0, a silent loss. Where the
+  closing message reads `Session terminated.` nothing is glued. Compare by
+  match, never anchored with `^`, and read past the closing message. Stripping
+  control bytes fixes neither half: the negotiation bytes are high bytes rather
+  than C0 controls, and the glued line holds no stray byte at all. `cat -v` on
+  the raw capture shows both.
 - **A console held from a remote driver keeps the driving connection open.**
   A backgrounded `attach` inherits the connection's output descriptors, so the
   remote shell does not return and the driver appears to hang until its own
@@ -896,7 +958,7 @@ and permission-boundary behavior across the three roles.
 | S8 | Crash-loop detection | opa | An IOC whose configuration adds an extra crash pattern reaches initialization and then emits that token while staying active. The startup poll merges the per-IOC pattern and reports a post-initialization warning, exit 0 — the extra pattern corroborates, it does not stand alone. Choose a distinctive token: a word ordinary log lines carry is rejected at install and again at every start, and the scenario never reaches its warning. The warning text is generic and does not name the token, and other scenarios' IOCs can raise the same wording, so establish the causal link yourself: the token is present in the installed configuration, and the token appears in this IOC's log at the moment the warning was raised. Without both reads the scenario has observed a warning, not this warning. |
 | S9 | Working-directory non-conformance | opa, root | Install with a working directory the service account cannot write: conformance warning and confirmation. Install with a path containing a parent reference: unconditional hard error before the warning flow, no prompt, and the force flag does not bypass it. Root and operator give the identical result. |
 | S10 | Console socket access probe | opb, obs to opa | Layered: for `attach` and `monitor` a principal outside `ioc` is denied at configuration resolution first, so the socket path — directory `0770`, socket file `0660`, both `ioc-srv:ioc` — is a second gate it never reaches. A member of `ioc` attaches and monitors successfully. `inspect` is different: its root gate fires before the configuration gate, so every non-root principal gets the root requirement regardless of group, and the observer never sees the access-barrier message here. Per-distribution wording and exit codes are not asserted. |
-| S11 | sudo-version residual risk | opa | Outside the runner, opa issues a privileged systemd verb against a malformed unit name. The expected result is opposite on the two branches, so determine the branch first — `sudo --version` and the emitted `/etc/sudoers.d/10-epics-ioc`: below 1.9.10 the setup emits the glob fallback and warns that it is doing so, at or above it emits the anchored per-verb form. On the glob branch the sudo gate passes and systemd rejects the name with an escaping complaint and a failed job. On the anchored branch the gate denies it, and the denial surfaces as `sudo: a password is required` — the fallthrough described in the traps, not a harness fault. This is a documented least-privilege drift, verified here rather than fixed. |
+| S11 | sudo-version residual risk | opa | Outside the runner, opa issues a privileged systemd verb against a malformed unit name. The expected result is opposite on the two branches, so determine the branch first — `sudo --version` and the emitted `/etc/sudoers.d/10-epics-ioc`: below 1.9.10 the setup emits the glob fallback and warns that it is doing so, at or above it emits the anchored per-verb form. On the glob branch the sudo gate passes and systemd rejects the name, with an escaping complaint and a failed job assertion in the command's own output — that output is the evidence, not any unit state. On the anchored branch the gate denies it, and the denial surfaces as `sudo: a password is required` — the fallthrough described in the traps, not a harness fault. This is a documented least-privilege drift, verified here rather than fixed. |
 
 ### Driving the scenarios
 
@@ -1042,12 +1104,24 @@ what prevents that, which is why it is not optional.
 fifo="/tmp/s4.fifo.$(id -un)"; rm -f "${fifo}" /tmp/s4.out; mkfifo "${fifo}"
 setsid bash -c "sleep 120 > ${fifo}" < /dev/null > /dev/null 2>&1 &
 setsid bash -c "timeout -k 2 120 script -qec 'ioc-runner attach $2' /dev/null < ${fifo} > /tmp/s4.out 2>&1; echo client_rc=\$? >> /tmp/s4.out" < /dev/null > /dev/null 2>&1 &
+for i in $(seq 30); do grep -q "Child \"$2\"" /tmp/s4.out 2>/dev/null && break; sleep 1; done
 ```
 
 Both `setsid` lines carry their own redirection. Without it on the attach line
 the driver blocks for the client's entire budget and the scenario records a
 timeout — `client_rc=124` and a closing `Session terminated.` instead of the
 `EOF` and `client_rc=0` below.
+
+The loop is why the block ends there and not one line earlier. A detached
+`script` has written nothing at the instant it is launched, so anything that
+reads the result file on the next line reads a file that does not exist yet: the
+`chmod` below fails on a missing path and the attachment check reports
+`NOT attached` for a client that is connecting correctly. Wait for the banner
+rather than for a fixed interval — a sleep long enough for a loaded host is paid
+in full on every good run, and still too short on the run that needed it, while
+the loop returns as soon as the banner lands. Bound it, so the case this exists
+to catch — a client that never launched — ends at the deadline instead of
+hanging.
 
 The result file is written by one operator and read by the other, so open it
 to both before the server half runs:
@@ -1164,6 +1238,17 @@ sed -i "s|^IOC_CHDIR=.*|IOC_CHDIR=\"/home/<operator>/iocBoot/../iocBoot/<name>\"
 ssh vmadmin@<host> "sudo -n timeout -k 2 40 script -qec 'ioc-runner install /home/<operator>/iocBoot/<name>/<name>.conf' /dev/null </dev/null"
 ```
 
+Judge every one of these by its printed verdict, not by an exit code. S10 gives
+that rule because its wrapper owns the code; here the reason is different and
+lands in the same place — each shape exits nonzero, and they all exit alike, so
+the code separates a declined conformance prompt from a hard error not at all.
+The non-conforming working directory reads
+`Warning: IOC_CHDIR ... is not writable by 'ioc-srv'` and then
+`Info: Input stream closed (EOF). Aborting installation.`; the parent reference
+reads `Error: IOC_CHDIR ... contains a '..' component.`, with no prompt ahead of
+it and the same text again under `--force`. Root and the operator print the same
+pair, which is the identity this scenario claims.
+
 The two `sed` lines run as the operator, who owns the file.
 
 **S10 — the console probe.** Run the same three verbs as an `ioc` member and as
@@ -1193,6 +1278,14 @@ A non-zero count is the glob branch. Then, as the operator:
 sudo -n systemctl start 'epics-@bad name.service'
 ```
 
+On the glob branch the evidence is that command's own output and nothing else:
+the escaping complaint, followed by `Assertion failed on job for` naming the
+escaped unit. Do not go looking for a unit state to confirm it. `systemctl
+is-failed` on that name prints `inactive`, not `failed` — no unit was ever
+created, so there is no failed unit to find — and the inversion this document
+warns about elsewhere sits on top of that, making the reading wrong twice over.
+The refused job is the whole result.
+
 ### Order within a run
 
 Scenario order matters, because S4 destroys the IOC every earlier system
@@ -1208,10 +1301,15 @@ scenario shares. Run them in this order:
 4. S8, which needs its own IOC because its payload carries the token.
 5. S4 last of the shared-IOC scenarios: it removes that IOC, and nothing that
    depends on it may run afterwards.
-6. S3 and S7, each on an IOC that still exists — S8's, plus one more the second
-   operator installs with the system payload block under a fresh name, so the
-   concurrency scenario has two. S7 acts as the operator who installed the IOC
-   it uses and is observed by the other.
+6. S3 and S7, each on an IOC that still exists — S8's, which the first operator
+   installed, plus one more the second operator installs with the system payload
+   block under a fresh name, so the concurrency scenario has two. Fix the
+   pairing rather than leaving it to the driver. In S3 each operator acts on the
+   IOC it installed: the first on S8's, the second on the fresh one. S7 runs
+   entirely on the fresh one, acting as the second operator and observed by the
+   first. Keep S7 off S8's IOC — that payload emits its crash token on every
+   start, so a start there raises S8's post-initialization warning again, and
+   S7's claim is that only runtime state moves.
 
 Local and system IOCs accumulate across a run. Between runs, remove them
 through the runner rather than by hand, and clear anything a missing terminal
