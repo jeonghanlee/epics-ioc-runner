@@ -399,23 +399,43 @@ not open.
   live `-V` fallback run as the invoking user, who owns the tree and traverses
   the ancestor, so no squash-specific behavior applies to them and T1 through
   T3 on local disk carry them in full.
+- Accepted divergence, observed 2026-07-31: with a modification staged in the
+  index and the working tree then reverted to the HEAD content (`git status`
+  shows `MM`), the old comparison answers dirty and the replacement answers
+  clean. The replacement's answer is adopted deliberately: the stamp describes
+  what ships, what ships is the working tree, and a working tree whose content
+  equals the commit is what a bare hash claims. Recorded so the next sweep
+  reads the verdict instead of re-deriving the corner.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: owner, 2026-07-31, on the plan as it stands after the review
+that widened it from one site to three, replaced the index refresh with the
+porcelain comparison, and added the issue sync, the comment updates, and the
+recorded staged-revert divergence
+Implementation Authorization: owner, 2026-07-31, covering the five steps below
+and the documentation they carry
+Superseded Plan Artifacts: the single-site scope and the
+`update-index -q --refresh` form, both rejected by measurement and kept in the
+Dependencies And Decisions above rather than deleted
 
-1. Replace `diff-index --quiet HEAD --` with `diff --quiet HEAD --` at all
+1. Before touching code, sync the #133 body from the prepared correction at
+   `work/issue-133-body.md` — the remote issue is the authoritative record and
+   still carries the superseded diagnosis and the rejected fix.
+2. Replace `diff-index --quiet HEAD --` with `diff --quiet HEAD --` at all
    three sites, keeping each site's existing negation idiom and its
-   `2>/dev/null`, and adding no `|| true`.
-2. Add the regression test, building its fixture under the T4 constraint and
+   `2>/dev/null`, and adding no `|| true`. In the same commit, update the two
+   comments that name the old command —
+   `bin/setup-system-infra.bash:680` and the #42 guard comment at
+   `tests/test-system-infra.bash:602` — so no comment points at a command the
+   tree no longer contains.
+3. Add the regression test, building its fixture under the T4 constraint and
    asserting the stamp at all three entry points, plus the unwritable-index
    case of T3.
-3. Confirm it goes red against the unfixed scripts before the change lands, and
+4. Confirm it goes red against the unfixed scripts before the change lands, and
    green after.
-4. Re-run the affected suites on both goldens, then drive the squashed-mount
+5. Re-run the affected suites on both goldens, then drive the squashed-mount
    half from the runbook.
 
 #### Test Plan
