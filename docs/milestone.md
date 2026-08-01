@@ -6,11 +6,12 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: obtain plan acceptance for M4 (#133), the one product
-change D5 admits to this line — its detail carries the reproduction and the
-proposed one-line refresh. M2 (#130) is also Ready and waits on the supplying
-side's version selection; M1 is complete but its issue #131 is not yet synced
-and closed.
+Next session entry point: obtain plan acceptance for M4 (#133) in this file —
+its detail carries the reproduction, the chosen `git diff --quiet HEAD --`
+replacement, and the two rejected forms with the measurements that rejected
+them. The guard question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31), so
+no work item follows M4. M2 (#130) is Ready and its supplying half is in
+progress in `ansible-provision`; M1 is complete and #131 is closed.
 
 ## Work
 
@@ -18,7 +19,7 @@ and closed.
 | --- | --- | --- | --- | --- | --- | --- |
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | — | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
-| M4 | (#133) Version stamp reports `-dirty` for a clean checkout whose index is stale | Milestone | Not started | Yes | D5 | A freshly extracted clean checkout deploys without the suffix, a genuinely modified one still carries it, and a regression test pins both; [detail](#m4---stale-index-dirty-stamp) |
+| M4 | (#133) Version stamp reports `-dirty` for a clean checkout whose index is stale | Milestone | Not started | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
@@ -30,6 +31,7 @@ and closed.
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
 | D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change, because the defect is one this cycle's own verification work found and it falsifies the provenance stamp a gate record depends on. The exception covers that defect and its regression test; it does not reopen the line to other code work. | Owner decision, 2026-07-31 |
+| D6 | The three sites M4 aligns do NOT gain a contract guard: examined through the Ledger promotion test (#100 / M17, `git show 3e47ee6:docs/milestone.md`) and left at Keep, recorded as `CLOSED_DOORS.md` CI-31. Elimination stays blocked (three self-contained scripts, the CI-4/CI-15 premise) and gates A and B pass, but Gate C fails on a netting the first pass of this decision missed: M4's own regression asset drives all three entry points from a relocated clean fixture and a modified one on both goldens, so a one-sided return to a stat-trusting comparison turns it red with no guard in place. The residual — a one-sided move to a comparison those fixtures cannot tell apart, such as one that counts untracked files — is priced too narrow to fund a fifth guard against a base rate of four promotions in eighteen examined findings. The full gate walk, the measured drift history, and the declined fold live in CI-31. | Owner decision, 2026-07-31, superseding the same-day promotion decision after the Gate C netting |
 
 ## ID Migration
 
@@ -50,7 +52,7 @@ and closed.
 Origin: #131, filed 2026-07-30 from the 1.2.2 gate experience
 Identity History: none
 GitHub Issue: 131, https://github.com/jeonghanlee/epics-ioc-runner/issues/131
-Status: Not started
+Status: Complete
 
 #### Summary
 
@@ -265,19 +267,39 @@ Status: Not started
 
 #### Summary
 
-`bin/setup-system-infra.bash` decides the `-dirty` suffix with
-`git diff-index --quiet HEAD --`, which compares against the index's cached
-stat data without refreshing it. A checkout written by an extraction carries
-new timestamps on every file, so the comparison reports a difference the
-content does not have and a clean tree deploys stamped `-dirty`. The suffix is
-the signal that says the deployed binary came from a modified tree; a clean
-tree that produces it leaves the signal unable to report the case it exists
-for.
+Three sites decide the `-dirty` suffix with `git diff-index --quiet HEAD --`
+and none of them refreshes the index first. That comparison trusts the index's
+cached stat data, and the cached data records the device and inode a file had
+where the index was written, not only its timestamps. Any relocation of the
+tree changes those — `tar` extraction, `cp -a`, `rsync -a`, a restored snapshot
+— so every entry reads stat-dirty and the comparison reports a difference the
+content does not have.
+
+New timestamps are not the trigger, and stating it that way sends a reader who
+checks timestamps away with a false diagnosis: `tar` and `cp -a` both restore
+mtime. Measured 2026-07-31, `bin/ioc-runner` in the source tree against the
+same file in a tar-extracted copy — mtime `1785439776` in both, inode
+`162192879` against `742574`. The same pair on the rocky8 golden: mtime
+`1785439776` in both, inode `25241295` against `18677075`.
+
+A clean tree therefore stamps `-dirty`. The suffix is the signal that says the
+deployed binary came from a modified tree; a clean tree that produces it leaves
+the signal unable to report the case it exists for.
 
 #### Scope
 
-The suffix decision and a regression test that drives the real deploy path on a
-freshly extracted clean checkout.
+All three sites that make the decision, because the completion criterion is a
+property of the stamp and not of one entry point:
+
+- `bin/setup-system-infra.bash:681`, the system install path — `make install`,
+  `make setup`, and the direct script run;
+- `bin/ioc-runner:280`, the live `-V` fallback taken when a source checkout is
+  run before anything has stamped it;
+- `configure/inject-runner-version.bash:17`, the `make install.user` injector
+  (`configure/RULES_INSTALL:38`).
+
+And a regression test that drives the real path at each of the three on a
+relocated clean checkout.
 
 Out of scope: the `unknown` stamp and its manual-repair guidance (#119, #128),
 which are unaffected; every other product change on this line, which D5 does
@@ -285,11 +307,17 @@ not open.
 
 #### Completion Criteria
 
-- A checkout extracted from a tar of a clean tree, deployed with no intervening
-  git read, stamps a bare short hash with no suffix.
-- A checkout carrying a real uncommitted change still stamps `-dirty`.
-- Both hold on a local-disk checkout and on the `root_squash` mount.
-- The regression test goes red on the unfixed script.
+- At each of the three entry points, a clean checkout relocated by extraction
+  or copy, with no git invocation touching it first, reports a bare short hash
+  with no suffix.
+- At each of the three, a checkout carrying a real uncommitted change still
+  reports `-dirty`.
+- A clean relocated checkout whose index cannot be written reports bare, not
+  `-dirty`.
+- The system-install case holds on a local-disk checkout and on the
+  `root_squash` mount.
+- The regression test goes red on the unfixed scripts, from a fixture built
+  under the T4 constraint.
 
 #### Dependencies And Decisions
 
@@ -303,6 +331,74 @@ not open.
 - The gate's ordinary path masks the defect: it verifies the pushed tree with
   `git status --porcelain` before deploying, and that read refreshes the index.
   The `root_squash` step has no such read, which is where it surfaced.
+- All three sites, not only the filed one. #133 names the setup script because
+  that is where the runbook run hit it, but the same expression appears
+  verbatim at the other two, and each was reproduced directly on a pristine
+  tar-extracted copy of this repository at `7c73c60` on 2026-07-31:
+  `bash <copy>/bin/ioc-runner -V` reported `1.2.2 (7c73c60-dirty (live))`, and
+  `configure/inject-runner-version.bash` stamped
+  `RUNNER_GIT_HASH="7c73c60-dirty"`. Fixing one leaves `make install.user` and
+  source-mode `-V` failing the criterion above. The repository already carries
+  a guard whose whole purpose is to stop these injectors from drifting apart —
+  `test_metadata_contract_guard` in `tests/test-error-handling.bash:1504`,
+  landed under #84 as CI-9 and cited from `docs/CLOSED_DOORS.md` CI-29 — so
+  leaving two of the three on the defective form is a drift this line has
+  already decided it does not want. Nothing is deliberately left.
+- Chosen form: replace the comparison itself with the porcelain diff,
+  `git diff --quiet HEAD --`. It performs the content comparison in core rather
+  than trusting the cached stat data, so it needs no index write, it is one
+  call rather than two, and it needs no tolerant `|| true`. Verified on
+  pristine extracted checkouts with no prior git read, 2026-07-31, on this
+  control host and through the delegated principal on the rocky8 golden:
+  `diff-index --quiet HEAD --` exits 1 where `diff --quiet HEAD --` exits 0;
+  with one tracked file genuinely modified both exit 1; with a change staged
+  but the worktree matching the index both exit 1; with a tracked file deleted
+  the porcelain diff exits 1. An untracked file present does not make it exit
+  nonzero.
+- Rejected, the refresh form the first plan proposed
+  (`update-index -q --refresh` before the comparison). It must write the index
+  to have any effect, and where it cannot it fails silently: measured on a
+  clean extracted checkout whose `.git` and `.git/index` were made unwritable,
+  `update-index -q --refresh` exited 128 with zero bytes on stderr and the
+  following `diff-index` still exited 1. The tolerant `|| true` the form needs
+  then swallows the one case that should be visible, and the wrong suffix is
+  stamped with no warning. On the same tree `git diff --quiet HEAD --` exited
+  0, which is the correct answer.
+- Rejected, `git status --porcelain` emptiness — but not for the reason the
+  first plan gave. Cost is not the objection: the refresh form adds a whole
+  extra invocation, and in the setup script that invocation is delegated, which
+  is the expensive part. Measured on the rocky8 golden, 2026-07-31: a
+  `sudo -n -u <invoker>` spawn costs 8-10 ms, while `status --porcelain` on a
+  warm tree costs 2-4 ms; on this control host over five fresh extractions each,
+  refresh-plus-`diff-index` averaged 4 ms, `diff --quiet` 6 ms, and
+  `status --porcelain` 3 ms. The real objection is semantic: `status
+  --porcelain` reports untracked files, so a clean checkout carrying one stray
+  file would stamp `-dirty`. Measured on an extracted clean tree with a single
+  untracked file added, `status --porcelain` printed one `??` line while
+  `git diff --quiet HEAD --` exited 0.
+- `set -e` is on in all three scripts (`bin/setup-system-infra.bash:9`,
+  `bin/ioc-runner:11` with `-euo pipefail`, `configure/inject-runner-version.bash:11`),
+  so the replacement keeps each site's existing `if ! <git> ... ; then` negation
+  rather than introducing a bare call.
+- T5 stays a runbook step rather than an automated check, and the split is
+  forced by the environment, not chosen. The suites build scratch with
+  `mktemp -d` (`tests/test-system-infra.bash:474`,
+  `tests/test-system-lifecycle.bash:315`), which resolves to `/dev/shm` or
+  `/tmp` — local disk on the goldens, never the exported mount. And a root-run
+  invocation naming an absolute path under that mount is denied before it
+  starts: measured on the rocky8 golden, the `gitsrc` ancestor of
+  `/home/nfs/simulation/vmadmin/gitsrc/epics-ioc-runner` is `drwxr-x---` owned
+  by the invoker on a `root_squash` export, and `sudo -n test -r` on a file
+  beneath it returns 1 while `sudo -n ls` on the directory reports permission
+  denied. The squashed half is therefore driven from the runbook's
+  `root_squash` deployment section, by an operator standing in the mount.
+- The squashed mount bears on the setup site only. The runbook's three
+  documented entry points there — the direct script run, `make install`, and
+  `make setup` — all route through `bin/setup-system-infra.bash`, which is the
+  one site that runs as root and delegates. The `install.user` injector and the
+  live `-V` fallback run as the invoking user, who owns the tree and traverses
+  the ancestor, so no squash-specific behavior applies to them and T1 through
+  T3 on local disk carry them in full.
 
 #### Implementation Plan
 
@@ -311,28 +407,38 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Refresh the index through the same delegated principal immediately before
-   the comparison, in a form whose own failure cannot change the verdict.
-2. Add the regression test and confirm it goes red on the unfixed script.
-3. Re-run the affected suites on both goldens.
+1. Replace `diff-index --quiet HEAD --` with `diff --quiet HEAD --` at all
+   three sites, keeping each site's existing negation idiom and its
+   `2>/dev/null`, and adding no `|| true`.
+2. Add the regression test, building its fixture under the T4 constraint and
+   asserting the stamp at all three entry points, plus the unwritable-index
+   case of T3.
+3. Confirm it goes red against the unfixed scripts before the change lands, and
+   green after.
+4. Re-run the affected suites on both goldens, then drive the squashed-mount
+   half from the runbook.
 
 #### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Change-specific | Extract a clean tree, deploy with no intervening git read, and read the deployed `-V` | Both goldens, local disk and squashed mount | A bare short hash, no suffix, on all four combinations |
-| T2 | Negative control | Modify one tracked file in the extracted checkout, deploy, and read the deployed `-V` | One golden | The suffix is present; the fix did not silence a real modification |
-| T3 | Regression asset | Run the new test against the unfixed script, then the fixed one | Working tree | Red before, green after; the assertion is not vacuous |
-| T4 | Suites | Re-run the suites the deploy path touches | Both goldens | No failures, counts unchanged from the last recorded run |
+| T1 | Change-specific, automated | Relocate a clean checkout into the scratch tree with `cp -a` or a `tar` extraction and, with no git invocation touching the copy first, drive all three entry points from it — the setup script with its destinations redirected as `test_setup_version_stamp` already does, `configure/inject-runner-version.bash` against an installed copy, and `bash <copy>/bin/ioc-runner -V` — then read the stamped hash from each | Both goldens, local disk | A bare short hash at all three, no suffix |
+| T2 | Negative control, automated | The same fixture with one tracked file genuinely modified; drive the same three | Both goldens, local disk | The suffix is present at all three; the fix did not silence a real modification |
+| T3 | Unwritable-index control, automated | The same clean fixture with `.git` and `.git/index` made unwritable to the stamping principal; drive the same three | One golden | A bare short hash at all three. This is the case that separates the two candidate fixes: the refresh form leaves the wrong suffix here and reports nothing |
+| T4 | Regression-asset non-vacuity | Run the new test against the unfixed scripts, then against the fixed ones. Binding fixture constraint: the tree under test is produced only by copying or extracting an existing checkout, and no git command may touch it before the drive. `git init` + `git add -A` + `git commit` and `git clone` — the two fixture idioms this repository's own suites already use, at `tests/test-system-infra.bash:495` and `tests/test-local-lifecycle.bash:354` — each leave a freshly written index, and the unfixed comparison then returns 0, so the assertion passes on the unfixed script and proves nothing | Working tree | Red before, green after |
+| T5 | Standing procedure, runbook step | The runbook's `root_squash` deployment section, driven on a clean tree placed on the `nfs_sim` mount by the `tar` pipeline that section already prescribes and untouched by git afterwards: its three documented entry points — the direct `bin/setup-system-infra.bash` run, `make install`, `make setup` — all route through the setup site, so this check covers that site only. Not automatable in the suites — see Dependencies And Decisions | Both goldens, squashed mount | Each entry point reports a bare short hash with no layout warning |
+| T6 | Suites | Re-run the suites the three stamp paths touch | Both goldens | No failures, counts unchanged from the last recorded run |
 
 #### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Both goldens | Pending | none |
-| T2 | Not run | One golden | Pending | none |
-| T3 | Not run | Working tree | Pending | none |
-| T4 | Not run | Both goldens | Pending | none |
+| T2 | Not run | Both goldens | Pending | none |
+| T3 | Not run | One golden | Pending | none |
+| T4 | Not run | Working tree | Pending | none |
+| T5 | Not run | Both goldens | Pending | none |
+| T6 | Not run | Both goldens | Pending | none |
 
 #### Closure Evidence
 
@@ -374,8 +480,14 @@ Out of scope: product behavior changes (D1).
 
 #### Dependencies And Decisions
 
-- M1, M2
-- D1: no product code change, so the suites verify unchanged behavior.
+- M1, M2, M4
+- D1 and D5: the line is documents and scenarios apart from one named
+  exception, so the suites verify unchanged behavior everywhere except the
+  version stamp, where M4 changes the comparison and carries its own
+  regression coverage. The integrated re-run below therefore inherits the
+  same expectation as an unchanged-behavior cycle.
+- D6: the contract guard over the three stamp sites was examined and declined
+  (`CLOSED_DOORS.md` CI-31), so no guard work gates this release.
 
 #### Implementation Plan
 
