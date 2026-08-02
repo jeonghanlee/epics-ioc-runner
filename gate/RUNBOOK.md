@@ -825,50 +825,27 @@ one the anchored per-verb form.
 
 ### Harness
 
-- **Switching principal**: `sudo -niu <user>`. Every scenario is driven this
-  way, so the whole section assumes the driving account holds password-free sudo
-  to an arbitrary target user. The goldens grant it. A host that does not stops
-  the section at its first switch, before any scenario, and the stop is a
-  property of the host rather than of the tree. For local mode also pass
-  `env XDG_RUNTIME_DIR=/run/user/<uid> DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`.
-  The runtime directory can lag a few seconds behind linger being enabled;
-  verify it exists first and force it with `sudo -n systemctl start user@<uid>`.
-  That start is privileged. Issued unprivileged it answers
-  `Interactive authentication required`, and over a connection with no terminal
-  there is nobody to authenticate it, so it fails outright rather than asking.
-- **Commands that prompt or hold a console need a terminal, a timeout, and
-  EOF.** End-of-file alone is not enough. Wrap them:
-  `timeout -k 2 <N> script -qec "<cmd>" /dev/null </dev/null`. For a console
-  held open on purpose, feed a fifo in place of `/dev/null` and let the
-  server-side stop or remove end the client. A manual `st.cmd` run likewise
-  needs held input (`sleep <N> | ./st.cmd`) or the shell exits at once.
-- **Payload**: an executable-shebang `st.cmd` naming the absolute `softIoc`
-  path, followed by `iocInit`, is a sufficient stay-alive IOC for every
-  scenario on both goldens. Resolve the path with `command -v softIoc` after
-  sourcing the EPICS environment; do not hard-code it. Place the directory
-  where the running account can reach it: system mode `/opt/epics-iocs/<name>`
-  under a `2775 root:ioc` setgid parent, local mode `~/iocBoot/<name>`.
-- **Generate in the mode you will install in.** `ioc-runner generate <iocBoot>`
-  writes the system-mode identity (`IOC_USER="ioc-srv"`, `IOC_GROUP="ioc"`),
-  and a local install then refuses it with `Local IOCs must run as <user>`. A
-  local payload needs `ioc-runner --local generate <iocBoot>`. Either form
-  writes `<name>.conf` inside the iocBoot directory and prints the install
-  command to run next; when a configuration is already there it prompts to
-  overwrite, so it needs the same terminal wrapper as `install`.
+The drivers under `gate/drivers/` carry the harness: the principal switch, the
+console wrapper, the payload shape, the generate mode, and the capture form are
+all inside them. What is left here is what a driver cannot decide for itself.
+
+- **The host must grant the driving account password-free sudo to an arbitrary
+  target user.** Every scenario is driven through `sudo -niu <user>`, so a host
+  that does not stops the section at its first switch, before any scenario, and
+  that stop is a property of the host rather than of the tree. The goldens grant
+  it.
 - **A negative scenario needs a target the acting principal does not own.**
-  L1 installs the same IOC name for both local users on purpose, so a later
-  scenario that names that IOC while acting as the peer resolves the peer's own
-  IOC and proves nothing. Give the observed principal a second, uniquely named
-  IOC and aim the negatives at that.
-- **Drive from a non-login shell.** A login shell pulls in aliases and
-  environment banners that corrupt piped output. Run the steps from a script
-  that sources the EPICS environment itself.
-- **Where state lives** — the log-read and socket scenarios need the exact
-  paths:
+  `gate/drivers/identities.bash` fixes that once: `lioc1` is installed under the
+  same name by both local users on purpose, and `lioc2` is the owner's uniquely
+  named IOC, which is what L2 and L3 aim at. Reverse a role there and every
+  negative in this section becomes a principal probing its own asset. No other
+  file names an account or an IOC.
+- **Where state lives** — the specification the log-read and socket verdicts are
+  computed against:
   - Log: system `/var/log/procserv/<name>.log`, owned `ioc-srv:ioc` with the
     group read bit set; local `~/.local/state/procserv/<name>.log`, `0640` and
     owned by the user, with a `0700` home blocking a peer at the home
-    directory too. Assert the group read bit rather than a whole mode.
+    directory too. The group read bit is the assertion, never a whole mode.
   - Socket: system `/run/procserv/<name>/control`; local
     `/run/user/<uid>/procserv/<name>/control`.
 
@@ -963,380 +940,149 @@ and permission-boundary behavior across the three roles.
 
 ### Driving the scenarios
 
-Everything below runs on the golden. Put the steps in a script, copy it over,
-make it readable by the principal that will run it, and drive it through the
-principal switch — never paste them into a login shell, whose banner corrupts
-captured output. A copied file keeps the mode of its source, which the
-destination umask can narrow further but never widen, so a driver written
-restrictively arrives unreadable to the principal that must run it and the
-switch fails with a permission error. Do not leave that to the umask of the
-machine the driver was written on — set the mode after the copy:
+The drivers are repository assets under `gate/drivers/`. Nothing in this section
+is typed by hand and nothing is written per run: the instrument is the same one
+every cycle, so one run's green is the same green as the next's.
 
-```bash
-scp <driver>.bash vmadmin@<host>:/tmp/
-ssh -n vmadmin@<host> 'chmod 0644 /tmp/<driver>.bash'
+```
+gate/drivers/
+  identities.bash    the six IOC names, the role mapping, the S8 token
+  push.bash          the tree push, used by the gate steps above, not a scenario
+  control/           runs on the CONTROL HOST
+  host/              copied to the VM and run there as a principal
 ```
 
-```bash
-sudo -niu <operator> bash /tmp/<driver>.bash <setEpicsEnv-path> <ioc-name>
-sudo -niu <local-user> env XDG_RUNTIME_DIR=/run/user/<uid> DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus bash /tmp/<driver>.bash <setEpicsEnv-path> <ioc-name>
-```
+A file's directory states which side it runs on. The `sys-` and `local-`
+prefixes inside `host/` mark the runner's mode and never the side.
 
-Every driver opens the same way:
+Each control driver takes one argument, the host as `user@address`. It switches
+the principal itself, captures whole before reading anything, and prints the
+scenario's verdict. The principal is an argument each host driver checks before
+it acts, so a wrong one is a refusal rather than a plausible transcript.
 
-```bash
-set +u; if [ -z "${EPICS_BASE:-}" ]; then . "$1"; fi; set -u
-```
-
-**Answering a prompt.** The wrapper shown throughout feeds immediate
-end-of-file, which is an answer: it declines. That is the intended result
-wherever a scenario's expected outcome is an abort — the conformance
-confirmation in S9's first case, and any overwrite question from `generate`.
-Where a scenario must proceed past a prompt instead, either supply the
-affirmative input in place of `/dev/null`, or use the verb's `--force` form
-where it has one. Decide per scenario which of the two it is; do not let a
-scenario that was meant to proceed abort silently and read as a pass.
-
-**Local payload — L1, and the target for L2 and L3.** Run once per local user
-with the same name for L1. Then run it once more for the FIRST local user with
-a second, unique name. That second IOC is the owner's; the other local user is
-the actor in L2 and L3 and never owns it. Fix the two roles here and keep them
-for both scenarios — swapping them silently turns each negative into the actor
-probing its own IOC.
+**Stage once per host**, before anything else. A copied file keeps the mode of
+its source, which the destination umask can narrow but never widen, so the
+drivers are opened to the principals that run them after the copy:
 
 ```bash
-boot="${HOME}/iocBoot/$2"; conf="${boot}/$2.conf"
-rm -rf "${boot}"; mkdir -p "${boot}"
-printf '#!%s\niocInit\n' "$(command -v softIoc)" > "${boot}/st.cmd"; chmod +x "${boot}/st.cmd"
-ioc-runner --local generate "${boot}"
-timeout -k 2 60 script -qec "ioc-runner --local install ${conf}" /dev/null </dev/null
-timeout -k 2 90 script -qec "ioc-runner --local start $2" /dev/null </dev/null
-ioc-runner --local list
+bash gate/drivers/control/stage.bash vmadmin@<host>
 ```
 
-**L2 and L3.** Two principals with distinct roles: the **actor** is the one
-running the commands, the **owner** is the other user, whose uniquely named IOC
-is the target. Every placeholder below names the owner, never the actor — if
-the actor's own IOC is named here, the negative proves nothing.
-
-Run as the actor:
+**Then drive the whole step:**
 
 ```bash
-timeout -k 2 20 script -qec "ioc-runner --local attach <owner-ioc>" /dev/null </dev/null
-timeout -k 2 20 script -qec "ioc-runner --local stop <owner-ioc>" /dev/null </dev/null
-stat -c '%U:%G %a %n' "/home/<owner>/.local/state/procserv/<owner-ioc>.log"
-stat -c '%a %n' "/home/<owner>"
-ls "/run/user/<owner-uid>/procserv/<owner-ioc>/"
+bash gate/drivers/control/run-all.bash vmadmin@<host>
 ```
 
-Then run as the owner, to establish the mode the actor could not see:
+That is the invocation. The table below is for driving one scenario on its own
+after a red; every line takes the same single argument and is the same command
+`run-all.bash` issues.
+
+| | Driver |
+|---|---|
+| preconditions | `control/runtime-dirs.bash`, `control/sys-shared.bash`, `control/sys-fresh.bash`, `control/survival.bash` |
+| L1 | `control/l1.bash` |
+| L2, L3 | `control/l2-l3.bash` |
+| S1, S2, S5 | `control/s1-s2-s5.bash` |
+| S3 | `control/s3.bash` |
+| S4 | `control/s4.bash` |
+| S6 | `control/s6.bash` |
+| S7 | `control/s7.bash` |
+| S8 | `control/s8.bash` |
+| S9 | `control/s9.bash` |
+| S10 | `control/s10.bash` |
+| S11 | `control/s11.bash` |
+| between runs | `control/cleanup.bash` |
+
+A single scenario re-driven this way is only valid where the state it needs is
+still standing. After S4 the shared IOC is gone, and the order below says which
+scenarios that ends.
+
+**The verdict.** Every driver computes and prints its own, in one form:
+
+```
+VERDICT <id> <PASS|FAIL> <detail>
+```
+
+The fourteen scenario verdicts of a run are exactly the lines matching
+`VERDICT (L[1-3]|S[1-9]|S1[01]) (PASS|FAIL)`, and nothing else matches it:
+a driver that owns half a scenario prints `<ID>-<HALF>` and the other half's
+driver the rest, with the control driver that makes both invocations printing
+the combined `<ID>`; a precondition prints `P-<WHAT>`. So the count is a
+command and not a reading:
 
 ```bash
-stat -c '%U:%G %a %n' "${HOME}/.local/state/procserv/<owner-ioc>.log"
+grep -coE 'VERDICT (L[1-3]|S[1-9]|S1[01]) PASS' <run-all.log>
 ```
 
-**System payload — the target for S1 through S11.**
+`run-all.bash` prints that count itself as a final `VERDICT RUN` line, naming
+any scenario whose verdict never appeared. A driver that printed no verdict is
+reported as a FAIL naming the transcript, never as an absence.
 
-```bash
-boot="/opt/epics-iocs/$2"; conf="${boot}/$2.conf"
-rm -rf "${boot}"; mkdir -p "${boot}"; chmod 2775 "${boot}"
-printf '#!%s\niocInit\n' "$(command -v softIoc)" > "${boot}/st.cmd"; chmod 0775 "${boot}/st.cmd"
-ioc-runner generate "${boot}"
-timeout -k 2 60 script -qec "ioc-runner install ${conf}" /dev/null </dev/null
-timeout -k 2 90 script -qec "ioc-runner start $2" /dev/null </dev/null
-ioc-runner status "$2"
-```
+Match a verdict UNANCHORED. Where `script` closes a killed session with
+`Session terminated, killing shell...` it writes no trailing newline and the
+next line is glued to its tail, so an anchored read loses the line silently.
 
-**S1, S2, S5 — run as the second operator against the first operator's IOC.**
+Three verdicts are not a reading of one command's exit code, and a run that
+takes them as one is wrong:
 
-```bash
-ioc-runner status "$2"
-timeout -k 2 60 script -qec "ioc-runner stop $2" /dev/null </dev/null
-timeout -k 2 90 script -qec "ioc-runner restart $2" /dev/null </dev/null
-stat -c '%U:%G %a %n' "/etc/procServ.d/$2.conf"
-printf '# touched by %s\n' "$(id -un)" >> "/etc/procServ.d/$2.conf"
-stat -c '%U:%G %a %n' "/var/log/procserv/$2.log"
-head -c 80 "/var/log/procserv/$2.log" >/dev/null
-```
+- **L1** is a comparison across two separate invocations — each local user's
+  listing must show exactly one IOC and it must be its own — so no single
+  driver can reach it. `control/l1.bash` makes both and compares.
+- **S3** reads the printed word against an inverted exit code. `systemctl
+  is-failed` on a healthy unit prints `active` and exits nonzero, so a verdict
+  taken from the code is wrong on every good run. `failed` is the failure.
+- **S10** ignores a nonzero exit code and looks for the connection banner. A
+  successful member `attach` or `monitor` ends when the wrapper's timeout kills
+  it, so the code is the wrapper's and not the verb's.
 
-**S6 — run as the observer.** Capture the exit code of each, not only the text.
+**Reading a run.** Each driver leaves three files per capture in the run
+directory it names on its first line, all absolute:
 
-```bash
-ioc-runner status "$2"; systemctl is-active "epics-@$2.service"
-head -c 40 "/var/log/procserv/$2.log" >/dev/null; ioc-runner list
-timeout -k 2 30 script -qec "ioc-runner start $2" /dev/null </dev/null
-timeout -k 2 30 script -qec "ioc-runner stop $2" /dev/null </dev/null
-timeout -k 2 30 script -qec "ioc-runner remove $2" /dev/null </dev/null
-ls /etc/procServ.d/
-```
+| | |
+|---|---|
+| `<label>.raw` | byte for byte, because the telnet negotiation bytes and the glued closing message are themselves evidence |
+| `<label>.txt` | the `cat -v` read form, colour escapes removed |
+| `<label>.clean` | colour and carriage returns removed; what the verdict logic greps, so a whole-word match means what it says |
 
-**S3 — two principals at once.** A sequential run proves nothing about
-concurrency, so launch both and wait for the pair:
-
-```bash
-( ssh -n vmadmin@<host> "sudo -niu <opA> bash -c 'timeout -k 2 60 script -qec \"ioc-runner restart <ioc-a>\" /dev/null </dev/null'" > /tmp/s3a.out 2>&1 ) &
-( ssh -n vmadmin@<host> "sudo -niu <opB> bash -c 'timeout -k 2 60 script -qec \"ioc-runner restart <ioc-b>\" /dev/null </dev/null'" > /tmp/s3b.out 2>&1 ) &
-wait
-ssh -n vmadmin@<host> 'systemctl is-active epics-@<ioc-a>.service epics-@<ioc-b>.service'
-ssh -n vmadmin@<host> 'systemctl is-failed epics-@<ioc-a>.service epics-@<ioc-b>.service'
-```
-
-`is-failed` reads inverted, the same trap `grep -c` carries: a healthy unit
-prints `active` and exits nonzero. Judge by the printed word, not the code —
-`failed` is the failure, anything else is not. `is-enabled` inverts the same
-way: a disabled unit prints `disabled` and exits nonzero, which is the expected
-result wherever a scenario disables one. And match the whole word when you
-capture it — `disabled` does not contain `enabled`, so a substring test reads a
-correct answer as a missing one.
-
-**S4 — hold a console, then remove underneath it.** Client half, as the second
-operator, fully detached from the driving connection:
-
-Both halves of the client — the feeder and the attach — must be detached, and
-the whole block runs as one piece. A feeder left attached holds the driving
-connection's output open, so a remote driver stalls until the client's own
-budget expires and the attempt dies as a timeout that looks like a product
-failure. And a leftover result file from a dead attempt satisfies the
-attachment check below for a client that never launched, so the removal races
-nothing and the scenario silently records a pass — the block's own `rm` is
-what prevents that, which is why it is not optional.
-
-```bash
-fifo="/tmp/s4.fifo.$(id -un)"; rm -f "${fifo}" /tmp/s4.out; mkfifo "${fifo}"
-setsid bash -c "sleep 120 > ${fifo}" < /dev/null > /dev/null 2>&1 &
-setsid bash -c "timeout -k 2 120 script -qec 'ioc-runner attach $2' /dev/null < ${fifo} > /tmp/s4.out 2>&1; echo client_rc=\$? >> /tmp/s4.out" < /dev/null > /dev/null 2>&1 &
-for i in $(seq 30); do grep -q "Child \"$2\"" /tmp/s4.out 2>/dev/null && break; sleep 1; done
-```
-
-Both `setsid` lines carry their own redirection. Without it on the attach line
-the driver blocks for the client's entire budget and the scenario records a
-timeout — `client_rc=124` and a closing `Session terminated.` instead of the
-`EOF` and `client_rc=0` below.
-
-The loop is why the block ends there and not one line earlier. A detached
-`script` has written nothing at the instant it is launched, so anything that
-reads the result file on the next line reads a file that does not exist yet: the
-`chmod` below fails on a missing path and the attachment check reports
-`NOT attached` for a client that is connecting correctly. Wait for the banner
-rather than for a fixed interval — a sleep long enough for a loaded host is paid
-in full on every good run, and still too short on the run that needed it, while
-the loop returns as soon as the banner lands. Bound it, so the case this exists
-to catch — a client that never launched — ends at the deadline instead of
-hanging.
-
-The result file is written by one operator and read by the other, so open it
-to both before the server half runs:
-
-```bash
-chmod 0644 /tmp/s4.out
-```
-
-Confirm the console is actually attached before touching the server side — a
-removal that races an unattached client proves nothing, and a launch that never
-happened reads as success:
-
-```bash
-grep -q "Child \"$2\"" /tmp/s4.out && echo attached || echo NOT attached
-```
-
-The banner names the IOC, so a stale file from a different attempt cannot
-satisfy it.
-
-Server half, as the first operator, then read the result:
-
-```bash
-timeout -k 2 40 script -qec "ioc-runner remove $2 --force" /dev/null </dev/null
-tail -4 /tmp/s4.out
-ls -d "/run/procserv/$2"
-```
-
-Expect the client's last lines to name the control socket and `EOF`, the
-recorded exit code to be 0, and the socket directory to be gone.
-
-**S7 — disable, run by hand, re-enable.** Hash the configuration before and
-after; the manual run needs held input or the shell exits at once. The
-scenario's observer is the OTHER operator, so the middle read runs as them —
-one principal cannot both change the state and independently observe it.
-
-First operator:
-
-```bash
-md5sum "/etc/procServ.d/$2.conf"
-timeout -k 2 40 script -qec "ioc-runner disable $2" /dev/null </dev/null
-timeout -k 2 40 script -qec "ioc-runner stop $2" /dev/null </dev/null
-```
-
-Second operator, observing the intermediate state:
-
-```bash
-systemctl is-active "epics-@$2.service"; systemctl is-enabled "epics-@$2.service"
-```
-
-First operator again:
-
-```bash
-cd "/opt/epics-iocs/$2" && timeout -k 2 20 bash -c "sleep 6 | ./st.cmd"
-timeout -k 2 90 script -qec "ioc-runner start $2" /dev/null </dev/null
-timeout -k 2 40 script -qec "ioc-runner enable $2" /dev/null </dev/null
-md5sum "/etc/procServ.d/$2.conf"
-```
-
-**S8 — the extra crash pattern.** This scenario builds its own IOC — the block
-is self-contained and does not inherit a directory from an earlier one. Order
-matters and is easy to get wrong: the runner re-reads the pattern from the
-INSTALLED configuration under `/etc/procServ.d`, so appending after the
-install leaves the token where nothing reads it, the warning never fires, and
-a scenario that never ran records as a clean pass. Create, generate, append,
-install, then start:
-
-```bash
-boot="/opt/epics-iocs/$2"; rm -rf "${boot}"; mkdir -p "${boot}"; chmod 2775 "${boot}"
-printf '#!%s\niocInit\nsystem "echo %s"\n' "$(command -v softIoc)" "<TOKEN>" > "${boot}/st.cmd"
-chmod 0775 "${boot}/st.cmd"
-ioc-runner generate "${boot}"
-printf 'CRASH_LOG_PATTERNS_EXTRA="%s"\n' "<TOKEN>" >> "${boot}/$2.conf"
-timeout -k 2 60 script -qec "ioc-runner install ${boot}/$2.conf" /dev/null </dev/null
-timeout -k 2 90 script -qec "ioc-runner start $2" /dev/null </dev/null
-```
-
-Choose a token no ordinary log line carries — a nonsense string of letters,
-not a word like `OK` or `error`. A token that fails the install-time check is
-rejected there and again at every start, and the scenario never reaches the
-warning it exists to observe. Confirm the token reached the installed copy
-before trusting the verdict; that same check tells you the token survived the
-install:
-
-```bash
-grep CRASH_LOG_PATTERNS_EXTRA "/etc/procServ.d/$2.conf"
-```
-
-**S9 — the two non-conforming shapes.** Build the payload in the operator's own
-home, which is what makes the working directory non-conforming; the directory
-must carry `st.cmd` or the install aborts on a missing command long before it
-reaches the conformance question this scenario is about.
-
-```bash
-boot="${HOME}/iocBoot/$2"; rm -rf "${boot}"; mkdir -p "${boot}"
-printf '#!%s\niocInit\n' "$(command -v softIoc)" > "${boot}/st.cmd"; chmod +x "${boot}/st.cmd"
-ioc-runner generate "${boot}"
-timeout -k 2 40 script -qec "ioc-runner install ${boot}/$2.conf" /dev/null </dev/null
-sed -i "s|^IOC_CHDIR=.*|IOC_CHDIR=\"${HOME}/iocBoot/../iocBoot/$2\"|" "${boot}/$2.conf"
-timeout -k 2 40 script -qec "ioc-runner install ${boot}/$2.conf" /dev/null </dev/null
-timeout -k 2 40 script -qec "ioc-runner install --force ${boot}/$2.conf" /dev/null </dev/null
-```
-
-The first install is expected to reach the conformance question and decline on
-end-of-file — that is its result, not a harness failure. The scenario's claim
-is that the operator and root reach identical verdicts on BOTH shapes, and by
-this point the configuration holds only the `..` shape — so restore the
-conforming path first, run root against each shape in turn, and expect the
-warning-and-decline from the first and the hard error from the second:
-
-```bash
-sed -i "s|^IOC_CHDIR=.*|IOC_CHDIR=\"/home/<operator>/iocBoot/<name>\"|" /home/<operator>/iocBoot/<name>/<name>.conf
-ssh vmadmin@<host> "sudo -n timeout -k 2 40 script -qec 'ioc-runner install /home/<operator>/iocBoot/<name>/<name>.conf' /dev/null </dev/null"
-sed -i "s|^IOC_CHDIR=.*|IOC_CHDIR=\"/home/<operator>/iocBoot/../iocBoot/<name>\"|" /home/<operator>/iocBoot/<name>/<name>.conf
-ssh vmadmin@<host> "sudo -n timeout -k 2 40 script -qec 'ioc-runner install /home/<operator>/iocBoot/<name>/<name>.conf' /dev/null </dev/null"
-```
-
-Judge every one of these by its printed verdict, not by an exit code. S10 gives
-that rule because its wrapper owns the code; here the reason is different and
-lands in the same place — each shape exits nonzero, and they all exit alike, so
-the code separates a declined conformance prompt from a hard error not at all.
-The non-conforming working directory reads
-`Warning: IOC_CHDIR ... is not writable by 'ioc-srv'` and then
-`Info: Input stream closed (EOF). Aborting installation.`; the parent reference
-reads `Error: IOC_CHDIR ... contains a '..' component.`, with no prompt ahead of
-it and the same text again under `--force`. Root and the operator print the same
-pair, which is the identity this scenario claims.
-
-The two `sed` lines run as the operator, who owns the file.
-
-**S10 — the console probe.** Run the same three verbs as an `ioc` member and as
-the observer, and read the socket permissions from each side. A successful
-member `attach` or `monitor` under the wrapper ends when the wrapper's own
-timeout kills it, so its exit code is the wrapper's, not the verb's — judge
-the success by the connection banner in the output, never by the code.
-
-```bash
-timeout -k 2 15 script -qec "ioc-runner attach $2" /dev/null </dev/null
-timeout -k 2 15 script -qec "ioc-runner monitor $2" /dev/null </dev/null
-timeout -k 2 15 script -qec "ioc-runner inspect $2" /dev/null </dev/null
-stat -c '%U:%G %a %n' "/run/procserv/$2" "/run/procserv/$2/control"
-```
-
-**S11 — the malformed unit name, outside the runner.** Determine the branch
-first; the two expected results are opposite, so a reader who guesses files a
-defect against correct behavior:
-
-```bash
-ssh vmadmin@<host> 'sudo --version | head -1; sudo -n grep -c "epics-@\*" /etc/sudoers.d/10-epics-ioc'
-```
-
-A non-zero count is the glob branch. Then, as the operator:
-
-```bash
-sudo -n systemctl start 'epics-@bad name.service'
-```
-
-On the glob branch the evidence is that command's own output and nothing else:
-the escaping complaint, followed by `Assertion failed on job for` naming the
-escaped unit. Do not go looking for a unit state to confirm it. `systemctl
-is-failed` on that name prints `inactive`, not `failed` — no unit was ever
-created, so there is no failed unit to find — and the inversion this document
-warns about elsewhere sits on top of that, making the reading wrong twice over.
-The refused job is the whole result.
+Capture whole, then read. A console scenario piped through `tail` loses the
+banner that is its only evidence — measured on S10, where the first attempt
+read `NOT attached` for a client that was connecting correctly.
 
 ### Order within a run
 
-Scenario order matters, because S4 destroys the IOC every earlier system
-scenario shares. Run them in this order:
+`control/run-all.bash` holds the order and is the reason it is not a reading
+task. It is part of the instrument, not a convenience:
 
 1. Local payloads, then L1, then L2 and L3.
-2. One shared system IOC, then S1, S2, S5, S6, S10, S11 against it — every
-   scenario that only observes or manages an existing IOC. S6 aims a removal
-   at that shared IOC and is expected to be refused; confirm the IOC is still
-   there before S10 and S11 run, so a regression in that refusal shows up as
-   S6's failure rather than as theirs.
-3. S9, which builds and discards its own payload in the operator's home.
-4. S8, which needs its own IOC because its payload carries the token.
-5. S4 last of the shared-IOC scenarios: it removes that IOC, and nothing that
+2. One shared system IOC, then S1, S2, S5 and S6 against it — every scenario
+   that only observes or manages an existing IOC.
+3. The survival check. S6 aims a removal at the shared IOC and is expected to be
+   refused, so a regression in that refusal must land on S6 rather than on the
+   scenarios that would then fail for want of a target.
+4. S10 and S11, against the IOC that survived.
+5. S9, which builds and discards its own payload in the operator's home.
+6. S8, which needs its own IOC because its payload carries the token.
+7. S4 last of the shared-IOC scenarios: it removes that IOC, and nothing that
    depends on it may run afterwards.
-6. S3 and S7, each on an IOC that still exists — S8's, which the first operator
-   installed, plus one more the second operator installs with the system payload
-   block under a fresh name, so the concurrency scenario has two. Fix the
-   pairing rather than leaving it to the driver. In S3 each operator acts on the
-   IOC it installed: the first on S8's, the second on the fresh one. S7 runs
-   entirely on the fresh one, acting as the second operator and observed by the
-   first. Keep S7 off S8's IOC — that payload emits its crash token on every
-   start, so a start there raises S8's post-initialization warning again, and
-   S7's claim is that only runtime state moves.
+8. A fresh IOC installed by the second operator, then S3 and S7. In S3 each
+   operator acts on the IOC it installed: the first on S8's, the second on the
+   fresh one. S7 runs entirely on the fresh one, acting as the second operator
+   and observed by the first — kept off S8's IOC, whose payload emits its crash
+   token on every start, which would raise S8's warning again while S7 claims
+   that only runtime state moves.
 
-Local and system IOCs accumulate across a run. Between runs, remove them
-through the runner rather than by hand, and clear anything a missing terminal
-left stuck:
-
-Put the loop in a script on the VM and run it there. Do not try to write it as
-one remote line: the substitution runs on the control host, where the runner
-does not exist, so it removes nothing, exits 0, and leaves a stray file behind
-in whatever checkout you were standing in.
+Local and system IOCs accumulate across a run. Between runs:
 
 ```bash
-cat > /tmp/cleanup.bash <<'SH'
-for n in $(ioc-runner ${MODE} list | awk 'NR>2 {print $1}'); do
-    timeout -k 2 40 script -qec "ioc-runner ${MODE} remove ${n} --force" /dev/null </dev/null
-done
-SH
-chmod 0644 /tmp/cleanup.bash
-sudo -niu <operator> env MODE= bash /tmp/cleanup.bash
-sudo -niu <local-user> env MODE=--local XDG_RUNTIME_DIR=/run/user/<uid> DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus bash /tmp/cleanup.bash
+bash gate/drivers/control/cleanup.bash vmadmin@<host>
 ```
 
-The same loop serves both modes; the local users need theirs too, or their
-IOCs stay installed and running into the next run. Confirm with a listing per
-principal rather than assuming, and reach for `pkill` only for a process a
-missing terminal left stuck — killing a process the runner still tracks leaves
-the configuration behind, which is the state this step exists to clear.
+That removes them through the runner, system operator first and then each local
+user, and confirms each listing empty rather than assuming it. Reach for `pkill`
+only for a process a missing terminal left stuck — killing a process the runner
+still tracks leaves the configuration behind, which is the state this step
+exists to clear.
 
 ## Upstream and downstream
 
