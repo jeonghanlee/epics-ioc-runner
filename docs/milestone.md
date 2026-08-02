@@ -6,7 +6,7 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M5, Implementation Plan step 7 — apply the thirteen
+Next session entry point: M5, Implementation Plan step 7 — apply the twelve
 text findings from the Scope table to the runbook. Steps 1 through 6 are done:
 the drivers are landed under `gate/`, they reached fourteen of fourteen on
 debian13 and then on rocky8 at its first run with no edit, and D8 is final. What
@@ -41,7 +41,7 @@ closed.
 
 | ID | Decision | Source |
 | --- | --- | --- |
-| D1 | 1.2.3 is a verification cycle: documents and test scenarios only, no product code change. | Owner decision, 2026-07-30 |
+| D1 | 1.2.3 is a verification cycle: documents and test scenarios are its ordinary work, and code is not changed in passing. **Amended 2026-08-02:** the line takes a code change where one is genuinely needed to complete the cycle. The authority is the owner's, and the route is formal — the work gets its own row in this register and its own issue before it is written, never an inline repair made while something else was being fixed. What the amendment removes is the standing bar, not the discipline: the bar was there so scope could not widen quietly, and a row plus an issue is what keeps that true while letting the cycle finish. D5 and D7 remain as the record of the two exceptions named under the earlier form; work from here takes the formal route instead of a new named exception. | Owner decision, 2026-07-30, amended by owner decision 2026-08-02 |
 | D2 | The register adopts the current `milestone-tracking` schema at this cycle open, and unassigned work moves to `docs/backlog.md`. | Owner decision, 2026-07-30 |
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
@@ -576,9 +576,10 @@ are the evidence for the whole scope below.
 - The runbook's scenario section reduces to the invocations, the verdicts, and
   the traps. The fragments it currently carries are removed as the drivers
   absorb them.
-- The nineteen findings the two blind runs returned are all resolved here. Six
-  are resolved by the drivers existing at all; thirteen are text corrections
-  that stand on their own.
+- The nineteen findings the two blind runs returned are all resolved here.
+  Seven are resolved by the drivers existing at all; twelve are text corrections
+  that stand on their own. The split was first written as six and thirteen, from
+  before finding 1 moved to the push driver; the table below is what governs.
 
 | # | Finding | Resolution |
 | --- | --- | --- |
@@ -744,7 +745,8 @@ Superseded Plan Artifacts: none
    closing message were written as universal is repaired, and the login-shell
    trap is recorded as confirmed absent here rather than confirmed carried, so
    that defence remains one-host evidence.
-7. Apply the thirteen text findings.
+7. Apply the twelve text findings — the Scope table's Text rows, which are
+   findings 2, 3, 6, 8, 9, 11, 12, 13, 14, 15, 16 and 17.
 8. Restore the goldens' ownership, bake both, create fresh consumers, and
    record the golden acceptance before anything touches them. Both blind runs
    of 2026-08-01 failed the acceptance on a consumer a prior run had already
