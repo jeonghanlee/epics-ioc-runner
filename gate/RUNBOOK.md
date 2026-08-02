@@ -68,10 +68,18 @@ export LIBVIRT_DEFAULT_URI=qemu:///system
 `<host>` throughout this document is one of the two consumers, at the fixed
 addresses their targets reserve:
 
-| Platform | Consumer target | Address |
-|---|---|---|
-| Rocky 8 | `rocky8-iocrunner.server` | `192.168.122.150` |
-| Debian 13 | `debian13-iocrunner.server` | `192.168.122.50` |
+| Platform | Consumer target | Address | libvirt domain |
+|---|---|---|---|
+| Rocky 8 | `rocky8-iocrunner.server` | `192.168.122.150` | `testbed-rocky8-iocrunner-server` |
+| Debian 13 | `debian13-iocrunner.server` | `192.168.122.50` | `testbed-debian13-iocrunner-server` |
+
+The domain is not the target. The make target's name gains a `testbed-` prefix
+and its dots become dashes, so no `virsh` command takes the name the target
+uses. Read the defined set rather than deriving it:
+
+```bash
+virsh list --all
+```
 
 The deployed identity and the commit can differ legitimately: a tree with
 uncommitted documentation edits deploys a `-dirty` stamp. Record both rather
@@ -89,6 +97,19 @@ name of the branch.
 
 A Check result is never cited as Gate evidence. Citing an earlier run in place
 of executing a step produces neither grade.
+
+**A failed "Required to continue" is where the grade is decided, and every one
+of them below has this branch.** Where the remedy named beside it is available,
+apply it and re-run the step; the run keeps whatever grade it had. Where the
+remedy is not available in this run — the golden acceptance's only remedy is a
+rebuild from the golden, which needs a bake and a fresh consumer an operator may
+not be able to produce — the run cannot reach Gate grade, and there are exactly
+two ways forward. Stop, or continue at Check grade with the failed precondition,
+its remedy, and the reason that remedy was out of reach recorded beside every
+result the rest of the run produces. Continuing without recording the downgrade
+is the third option and it is not permitted: it yields a run that reads as Gate
+and was not, which is worse than either honest outcome. Deciding this is not the
+operator's judgement call to invent per run — it is this rule.
 
 ## Preconditions
 
@@ -113,6 +134,25 @@ consumers still present stops before publication.
 make rocky8-iocrunner.server.clean
 make debian13-iocrunner.server.clean
 ```
+
+Confirm the removal from libvirt rather than from the target's exit code, under
+the domain names the table above gives — and where a consumer is still defined,
+read which golden it backs onto, since that backing file is the thing the bake
+refuses to publish through:
+
+```bash
+virsh list --all
+virsh domblklist testbed-rocky8-iocrunner-server
+qemu-img info -U --backing-chain <the vda Source path domblklist printed>
+```
+
+`domblklist` names the consumer's own overlay, not the golden underneath it —
+take the third command's path from its `vda` row rather than assuming where the
+overlay lives. The golden is the `backing file` line that command prints; `-U`
+is what lets it read while the domain is running, and without it the image lock
+refuses the read rather than answering.
+
+Required before the bake starts: neither consumer domain is listed.
 
 Then check that the previous goldens still belong to the account that will
 bake. Creating a consumer hands the whole backing chain to the hypervisor's
@@ -150,9 +190,17 @@ safe here for the same reason the bake can be re-run at all: the bake is about
 to replace it, it publishes only after its own validation passes, and a golden
 that is still needed is one no bake should be starting over.
 
-Required after either repair: the listing shows no `iocrunner-*.qcow2` owned by
-another account. Check it — do not infer it from an exit code. `rm -f` and
-`mv -n` both report success when they did nothing.
+Required after either repair: no `iocrunner-*.qcow2` is owned by another
+account. Check it — do not infer it from an exit code. `rm -f` and `mv -n` both
+report success when they did nothing. Read it with the trailing wildcard, which
+is why this listing is here rather than only inside the second repair: the
+precondition listing at the top of this section has no trailing wildcard, and
+the chown repair carries no listing of its own, so an operator who took the
+first repair has run nothing that could show what the next paragraph is about.
+
+```bash
+ls -l ${IMAGE_DIR}/iocrunner-*.qcow2*
+```
 
 The trailing wildcard in that listing also matches `iocrunner-*.qcow2.prevowner`
 and its dated variants. Those are whole previous goldens, renamed aside rather
@@ -276,11 +324,27 @@ sha256sum ${IMAGE_DIR}/iocrunner-rocky8.qcow2.manifest
 sha256sum ${IMAGE_DIR}/iocrunner-debian13.qcow2.manifest
 ```
 
-Also read the runner the golden already carries, before anything replaces it:
+Also read the runner the golden already carries and the checkout the bake
+retained, before anything replaces either:
 
 ```bash
-ssh vmadmin@<host> '/usr/local/bin/ioc-runner -V'
+ssh vmadmin@<host> 'git -C ~/gitsrc/epics-ioc-runner rev-parse --short HEAD; /usr/local/bin/ioc-runner -V'
 ```
+
+**Both of those must carry the manifest's `app_ioc_runner commit=` hash. That
+comparison is the only check in this document that says a consumer is fresh**,
+and it is why both values are read here rather than one. A consumer
+a previous run deployed to reports a different hash from `-V`; one a previous
+run pushed to reports a different hash from `rev-parse`. Both blind runs of
+2026-08-01 were driven against consumers that were not fresh, and this is the
+comparison that established it afterwards.
+
+Compare as a prefix, not for equality: the manifest records the full
+forty-character `commit=`, while `rev-parse --short` and `-V` both print the
+abbreviated form — `-V` as `<version> (<short> ...)`, with a `-dirty` suffix on
+the hash when the checkout it was stamped from was dirty. A `-dirty` suffix on
+the matching hash is the manifest's `state=dirty` record and not a freshness
+failure; a different hash is.
 
 Read the bake date and the baseline the golden carries straight out of the
 manifest rather than from the eighty-line listing:
@@ -302,8 +366,11 @@ here. Judge by the printed number, not the exit code, or a driver that watches
 exit codes reads the pass as a failure.
 
 Required to continue: the manifest is `root:root 644`, the remote hash equals
-the sidecar hash, the validator reports the bake valid, and the dirty count is
-`0`.
+the sidecar hash, the validator reports the bake valid, the dirty count is `0`,
+and both the retained checkout's `HEAD` and the installed runner's `-V` carry
+the `app_ioc_runner commit=` hash. This precondition's only remedy is a rebuild
+from the golden; where that is out of reach, take the branch in "Two grades of
+result" rather than deciding it here.
 
 The `app_ioc_runner` record names the runner the golden already carries — the
 starting state every later step deploys over. Record its `commit`, `state`, and
@@ -325,8 +392,16 @@ ssh vmadmin@<host> "stat -c '%U:%G %a %n' /opt/epics-iocs"
 Or assert all of it at once:
 
 ```bash
-ssh vmadmin@<host> 'ok=1; for u in opa opb; do getent group ioc | grep -qw "$u" || ok=0; done; id -nG obs | grep -qw ioc && ok=0; for u in usera userb; do [ -e /var/lib/systemd/linger/$u ] || ok=0; done; [ "$(stat -c "%U:%G %a" /opt/epics-iocs)" = "root:ioc 2775" ] || ok=0; [ $ok -eq 1 ] && echo "FIXTURES OK" || echo "FIXTURES FAIL"'
+ssh vmadmin@<host> 'ok=1; for u in opa opb; do getent group ioc | grep -qw "$u" || ok=0; done; getent passwd obs >/dev/null || ok=0; id -nG obs | grep -qw ioc && ok=0; for u in usera userb; do [ -e /var/lib/systemd/linger/$u ] || ok=0; done; [ "$(stat -c "%U:%G %a" /opt/epics-iocs)" = "root:ioc 2775" ] || ok=0; [ $ok -eq 1 ] && echo "FIXTURES OK" || echo "FIXTURES FAIL"'
 ```
+
+The `getent passwd obs` clause is separate from the membership clause on
+purpose, and dropping it puts the whole assertion back where it was: the
+membership clause is a negative test, so an absent `obs` satisfies it. Measured
+on a host with no `obs` account — `id` fails, `grep` matches nothing, `ok` stays
+`1`, and the line prints `FIXTURES OK` for a fixture that is missing its
+observer. The presence clause is what carries the first half of the requirement
+below; the membership clause carries only the second.
 
 Required to continue: `ioc` includes `opa` and `opb`, `obs` exists and is not
 in `ioc`, the linger directory lists `usera` and `userb`, and `/opt/epics-iocs`
@@ -385,10 +460,13 @@ Repeat both for `192.168.122.50`.
 
 ### The EPICS environment
 
-On one golden the environment is loaded from the profile; on the other it is
-not, and there a lifecycle suite exits before its first step with
+On the Rocky 8 golden the environment is on the invoking user's PATH before any
+profile is read; on the Debian 13 golden it is not, and there a lifecycle suite
+exits before its first step with
 `ERROR: The EPICS_BASE environment variable is not set.` Resolve the path and
-source it in every command that runs a suite.
+source it in every command that runs a suite. Measured 2026-08-02 on a
+non-login shell: the Rocky PATH already carries the three EPICS directories, the
+Debian one carries none of them.
 
 Never glob across the tree: a golden carries one tree per OS under
 `/opt/epics/<env-version>/<os>/<base-version>/setEpicsEnv.bash`, and a bare
@@ -481,7 +559,14 @@ ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && . <epics-env> && IOC_RUNNER_
 privilege boundary. Do not take that on trust: each lifecycle suite prints the
 binary it resolved, with its `-V`, before its first step. Read that line back —
 an unset mode silently defaults to the source tree, which is a green in the
-wrong mode rather than an error:
+wrong mode rather than an error.
+
+**`<log>` in this step is a path on the HOST, not on the control host.** Every
+command here that writes it or reads it sits inside the `ssh` quotes, so the
+file never leaves the machine that produced it. One log per host, named
+`/tmp/gate.log` below, carrying all five runs of that host. Step 3's `<log>` is
+the other side and the other shape; it is described there and the two do not
+share a name.
 
 ```bash
 ssh vmadmin@<host> "cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -A1 'Runner under test'"
@@ -530,6 +615,28 @@ the system phases, and a host carrying both a password rule and NOPASSWD
 entries prompts there even though every individual command would pass. The
 orchestrator's local path has no such preflight and is safe to use.
 
+**How long these take is not recorded, so do not read elapsed time as a
+verdict.** No per-suite duration has been measured on either golden; the only
+runtime this runbook can state is step 4's, where a full fourteen-scenario
+driver run took 81 to 84 seconds across five runs on 2026-08-02. That number
+bounds nothing here — the two lifecycle suites run for minutes — and borrowing
+it is how a working suite gets killed as hung. Until the durations exist, tell
+slow from hung by the log rather than by the clock, reading the same file twice
+with a minute between:
+
+```bash
+ssh vmadmin@<host> 'wc -c /tmp/gate.log'
+```
+
+A log that grew is a suite that is working. A log that did not grow is the case
+for the bounded-wait form under "Driver forms", which waits on a completion line
+and never on a process name.
+
+Fill the gap while you are here: wrap each invocation the step already gives in
+`t0=$(date +%s);` and `echo "elapsed=$(( $(date +%s) - t0 ))s"`, and record the
+five numbers per host beside the counts. Two cycles of that retire this
+paragraph.
+
 Required to continue: every suite run on every host reports zero failures and
 zero script errors, and the resolved binary line matches the mode intended.
 Assert it from the captured log, with the guard that refuses to call an empty
@@ -542,12 +649,44 @@ ssh vmadmin@<host> "cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | awk '/Passed/{p++
 Count the blocks against the number of suite runs you launched. A verdict that
 reports fewer blocks than you ran is a truncated log, not a pass.
 
-A skip is not a pass. The local lifecycle skips its monitor-isolation control
-when the host has no persistent user journal, and skips other steps when an
-optional tool is absent — so the same suite legitimately reports two different
-totals, and a shorter green is not comparable with a longer one. Record the
-skips beside the counts, and carry each one into "When a check cannot be
-induced" rather than letting a total stand in for coverage.
+A skip is not a pass. The local lifecycle skips steps when an optional tool is
+absent, so the same suite legitimately reports two different totals and a
+shorter green is not comparable with a longer one. Record the skips beside the
+counts, and carry each one into "When a check cannot be induced" rather than
+letting a total stand in for coverage.
+
+The skip actually observed is `WARN: logrotate not found; U003/M19 rotation
+steps will be skipped.`, and it takes four steps with it — M19.T1, M19.T2,
+M19.T3, and the M19 teardown checks — in both local lifecycle blocks, source
+mode and installed mode alike. The suite does also carry a monitor-isolation
+skip for a host with no persistent user journal, which this paragraph once named
+as the example; it did not occur in the recorded runs on either golden, so do
+not go looking for it as the expected shape.
+
+Beside it sits a pair that reads as a contradiction and is not. The deploy in
+"The tree on each host" prints that it deployed the logrotate policy to
+`/etc/logrotate.d/procserv`, and minutes later the suite reports logrotate not
+found. Both are true at once: the policy file is one thing and the `logrotate`
+binary the suite probes for is another. The suite probes with a PATH lookup made
+under the invoking user; the runner resolves the same binary by absolute path,
+and the deploy runs under `sudo`, whose PATH is not the invoking user's — so a
+deploy that printed that line did find one.
+
+Measured on both goldens, 2026-08-02: the binary is present on each, at
+`/usr/sbin/logrotate`, 3.22.0 on Debian 13 and 3.14.0 on Rocky 8. **Nothing is
+missing.** What differs is the invoking user's PATH: Debian keeps `sbin` off it
+by convention, Rocky puts `/usr/local/sbin:/usr/sbin` on the end, so
+`command -v logrotate` fails on the Debian golden and succeeds on the Rocky one.
+That, and not an absent package, is why the skip appears on one golden only.
+
+```bash
+ssh vmadmin@<host> 'echo "$PATH"; command -v logrotate; ls -l /usr/sbin/logrotate /etc/logrotate.d/procserv'
+```
+
+The suite and the runner therefore disagree about how to find the tool, and the
+suite skips four steps for a feature the runner can use on that host. That is a
+harness gap rather than a product one, and it is recorded rather than repaired
+here.
 
 The system infrastructure suite differs across the goldens the same way, for a
 reason of its own: the sudoers branch a host's sudo version selects decides
@@ -637,7 +776,17 @@ it. The layout count below is folded in for exactly that reason: asking it
 separately would run the entry point a second time — six deploys per pass
 instead of three — and each extra deploy overwrites the state the stamp read
 beside it has just described. `tee` keeps the deploy's own text, which the count
-alone throws away; give each entry point its own log:
+alone throws away.
+
+**`<log>` in this step is a path on the CONTROL HOST**, which is the opposite of
+step 2's. The `tee` sits outside the `ssh` quotes, so it writes the near end of
+the pipe and the file never exists on the host at all. The three placeholders
+below are three different files and not one name used three times: three deploys
+teed through a single name leaves the text of the first two nowhere, which is
+the whole reason the count is folded into the deploy. Put the side, the host and
+the entry point in the name — `/tmp/gate-step3-<host>-setup.log`,
+`/tmp/gate-step3-<host>-make-install.log`,
+`/tmp/gate-step3-<host>-make-setup.log`. Give each entry point its own log:
 
 ```bash
 ssh vmadmin@<host> 'cd <abs-toplevel> && sudo -n bash bin/setup-system-infra.bash 2>&1' | tee <log> | grep -icE 'layout|not a git|unknown'
@@ -665,9 +814,20 @@ each of the three must print `0`. Read the printed number, not the exit code:
 `grep -c` exits nonzero on a count of `0`, which is the wanted result here, and
 in a pipeline that code is the one the shell reports.
 
-One warning is expected and is not this class: the golden whose
-sudo predates the anchored form reports which sudoers form it emitted. S11
-determines which golden that is, and verifies the consequence deliberately.
+One warning is expected and is not this class — but it is expected on ONE golden
+and not on the other, so settle which before reading these three counts rather
+than after. Where the host's sudo is below 1.9.10 the setup emits the glob
+fallback and warns that it is doing so; at or above it emits the anchored
+per-verb form and warns nothing. That warning names neither a layout nor a
+stamp, so it does not reach the folded count either way; what it decides is
+whether an operator reading the deploy's own text should expect to see it.
+
+Determine the branch here, from the two reads S11 names — the host's
+`sudo --version` and the emitted `/etc/sudoers.d/10-epics-ioc`. Do not reach it
+by running S11: S11 is step 4, and a step cannot be read against a branch
+established by a step that has not run. S11 verifies the consequence of the
+branch deliberately; establishing which branch a host is on is a read, and it
+belongs here.
 
 ### 4. The multi-user scenarios
 
@@ -755,7 +915,8 @@ cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | awk '/Passed/{p++} /Failed/{f+=$NF} /
 grep IMAGE_DIR <cloud-provision>/configure/CONFIG_SITE
 export IMAGE_DIR=<the printed value, with $(HOME) expanded>
 
-# before the acceptance: prove nothing has touched the golden yet
+# before the acceptance: prove nothing has touched the golden yet - both values
+# must carry the manifest's app_ioc_runner commit= hash, short against full
 ssh vmadmin@<host> 'git -C ~/gitsrc/epics-ioc-runner rev-parse --short HEAD; /usr/local/bin/ioc-runner -V'
 ```
 
@@ -883,12 +1044,13 @@ are harness defects, and every one reads as a product failure until recognized.
   reads a variable that is normally unset, so a driver running with `set -u`
   dies the instant it sources the file — silently, when the source is
   redirected away. Wrap the source in `set +u` and `set -u`. The trap is
-  invisible on the golden whose profile has already set `EPICS_BASE`.
+  invisible on the Rocky 8 golden, whose PATH already carries `EPICS_BASE`.
 - **A login shell speaks before the command does.** `sudo -niu <user>` is a
   login shell and may print an environment banner ahead of the command's own
   output, so a captured single-value read returns the banner with the value
   glued to its tail. Take the last line, or compare by match rather than
-  equality. On one golden the same shell also emits a block of locale warnings
+  equality. On the Debian 13 golden the same shell also emits a block of locale
+  warnings
   before the banner. They cannot be silenced from the driver: the check runs in
   the login shell before the driver starts, and passing `LC_ALL` there only
   adds it to what the warning lists. Take the last line and read past it.
@@ -907,15 +1069,28 @@ are harness defects, and every one reads as a product failure until recognized.
   fault. Assert on that string as well as the explicit refusal wording.
 - **A console capture carries telnet negotiation bytes, and its closing line can
   swallow the next one.** Two traps sit in the same place and neither is a NUL:
-  measured over every console capture on both goldens, the count of `0x00` is
-  zero. What is there is procServ's negotiation sequence `FF FB 01 FF FD 22`
+  measured over every console capture on both goldens — 189 raw captures from
+  the 2026-08-02 runs — the count of `0x00` is zero. A `cat -v` read of those
+  captures nevertheless prints `^@`, and that is this entry reading as wrong
+  when it is right. `cat -v` renders a NUL as `^@`, but here the caret and the
+  at-sign are literally in the bytes (`0x5E 0x40`), carried by the runner's own
+  output and opening a line in 40 of the 189. Do not settle it by eye on a
+  `cat -v` read, which cannot tell the two apart by construction; settle it on
+  the raw capture, where `tr -dc '\000' < <label>.raw | wc -c` prints `0`.
+  What is there instead is procServ's negotiation sequence `FF FB 01 FF FD 22`
   (IAC WILL ECHO, IAC DO LINEMODE) on a line of its own just before the
   wrapper's closing message, so an equality comparison fails while the text
   itself is correct. Separately, where `script` closes a killed session with
   `Session terminated, killing shell...` it writes no trailing newline and the
-  driver's next line is glued to it — measured on that line, `grep -c '<text>'`
-  returns 1 while `grep -c '^<text>'` returns 0, a silent loss. Where the
-  closing message reads `Session terminated.` nothing is glued. Compare by
+  driver's next line is glued to it. The measurement is taken on that glued
+  line and holds only there: on the S10 member capture of 2026-08-02,
+  `grep -c '### attach rc=137'` returns 1 while `grep -c '^### attach rc=137'`
+  returns 0, a silent loss. The closing message itself loses nothing — it begins
+  its own line, and on the same capture `Session terminated` returns 2 both
+  unanchored and anchored. So the cost of anchoring is zero on one line and
+  total on the next, which is why the rule is unanchored everywhere rather than
+  decided per line. Where the closing message reads `Session terminated.`
+  nothing is glued. Compare by
   match, never anchored with `^`, and read past the closing message. Stripping
   control bytes fixes neither half: the negotiation bytes are high bytes rather
   than C0 controls, and the glued line holds no stray byte at all. `cat -v` on
@@ -1126,6 +1301,40 @@ user, and confirms each listing empty rather than assuming it. Reach for `pkill`
 only for a process a missing terminal left stuck — killing a process the runner
 still tracks leaves the configuration behind, which is the state this step
 exists to clear.
+
+**`remove` does not reach the payloads, and clearing them is this step.**
+Measured three times across both goldens: the runner empties `/etc/procServ.d`
+and every install record, and leaves standing
+
+- `/opt/epics-iocs/<name>` for each system IOC, and
+- `/home/<user>/iocBoot/<name>` under each account that installed a local one.
+
+That is how one cycle's IOCs were still on a consumer two runs later, and a
+scenario that passes because a prior run's IOC happens to exist is the false
+green this whole section exists to end. `cleanup.bash` lists both locations
+after it has run and `control/leftovers.bash` names them again at the start of
+the next run; neither removes anything, deliberately — a driver that deletes
+trees under two roots on a host it did not build is not what the gate is buying.
+The removal is the operator's, and it is by name:
+
+```bash
+ssh vmadmin@<host> "sudo -n rm -rf /opt/epics-iocs/<name>"
+ssh vmadmin@<host> "sudo -n rm -rf /home/<user>/iocBoot/<name>"
+```
+
+By name, never by a glob over the parent. `/opt/epics-iocs` is itself a fixture
+the bake owns and "Fixture accounts" verifies — `root:ioc 2775` — and the five
+`iocBoot` parents are the accounts' own home directories. Take the names from
+the listing `cleanup.bash` has just printed, and confirm the result with the
+reader that already exists rather than by eye:
+
+```bash
+bash gate/drivers/control/leftovers.bash vmadmin@<host>
+```
+
+Its `P-LEFTOVERS` verdict passes only when all three `ioc-runner list` readings
+and all five payload roots are empty, and it fails when a read broke rather than
+scoring the silence as clear.
 
 ## Upstream and downstream
 
