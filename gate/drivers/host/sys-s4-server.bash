@@ -5,8 +5,12 @@
 #
 # Expect the client's last lines to name the control socket and EOF, the
 # recorded exit code to be 0, and the socket directory to be gone. A client that
-# timed out instead records client_rc=124 and a closing `Session terminated.`,
-# which is a driver failure and not a product one.
+# timed out instead records a nonzero client_rc and the wrapper's closing
+# message, which is a driver failure and not a product one. Both differ by host
+# and neither is asserted here: the code is 124 where the wrapper's timeout kills
+# it and 137 where the kill signal is recorded instead, and the closing message
+# is `Session terminated.` on one golden and `Session terminated, killing
+# shell...` without a trailing newline on the other.
 #
 # $1 setEpicsEnv path   $2 ioc name   $3 principal (the first operator)
 . "$(dirname "$0")/gate-lib.bash"
