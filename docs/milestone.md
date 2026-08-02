@@ -18,8 +18,10 @@ what was driven before the rewrite; it is ignored and untracked, and is no
 longer load-bearing now that the drivers are tracked under `gate/drivers/`.
 
 M2 (#130) is the other work item before the release: it declares which
-`ioc-runner` baseline a golden carries, and its supplying half is in progress
-in `ansible-provision` as the `-r <ref>` bake flag. M4 is complete at `cc9b02e`
+`ioc-runner` baseline a golden carries. Its supplying half is done and spans
+both suppliers — `cloud-provision` `8ad180a` gives the bake its `-r <ref>` flag
+and `ansible-provision` writes the `requested=` field — so nothing blocks M2;
+what it declares is settled after step 8 uses the flag for the first time. M4 is complete at `cc9b02e`
 with T1 through T6 recorded; its issue #133 stays open until the release, per
 the manual-close practice on a long-lived release branch. The guard question is
 settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is
@@ -227,9 +229,16 @@ Out of scope: the provisioning implementation, which belongs to the
   gains a `-r <ref>` flag that overrides only the `site.yml` run via
   `-e ioc_runner_version=<ref>`, the value validated against
   `^[A-Za-z0-9._/-]+$`. First use of extra-vars in cloud-provision, confined to
-  that single call. In progress on the ansible side. Consequence for this
-  milestone once it lands: a gate can request a released tag, the manifest
-  records requested beside resolved, and the acceptance step can then require
+  that single call. **Landed, verified 2026-08-02.** It is not on the ansible
+  side alone: `cloud-provision` `8ad180a` carries the operator-facing `-r <ref>`
+  and passes it on as `ioc_runner_version`, doing nothing else with it, and its
+  validator only shape-checks the field; `ansible-provision` writes
+  `requested=<ref>` onto the record, in
+  `roles/bake_provenance/files/record-iocrunner-source.bash`. No golden carries
+  the field yet — the flag landed after the current pair was baked, and their
+  records are the six-field form. Consequence for this
+  milestone now that it has landed: a gate can request a released tag, the
+  manifest records requested beside resolved, and the acceptance step can then require
   `state=clean-tagged` for a pinned bake instead of recording
   `clean-untagged tag=-` as a fact about the golden.
 
