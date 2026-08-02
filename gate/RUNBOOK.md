@@ -343,14 +343,35 @@ than about the golden.
 
 ### The tree on each host
 
-Push the tree with its `.git` directory. The system infrastructure suite reads
-the version stamp a real checkout produces, so a `--exclude=.git` push stamps
-`unknown` and fails an assertion for a reason unrelated to the code under test.
+Push the tree with `gate/drivers/push.bash`, never with a bare `tar`. A plain
+`tar` of the directory carries files the control host hides through its global
+excludes file, so the two sides disagree about whether the tree is clean and the
+operator cannot tell from a `git status` on either side whether the tree under
+test is the tree they pushed. The driver excludes exactly what git ignores at
+the source, and asks git for that set rather than keeping it by hand.
+
+It takes three positional arguments:
+
+| | |
+|---|---|
+| `$1` | the host, as `user@address` |
+| `$2` | the repository root on the control host — the tree itself, not its parent |
+| `$3` | the destination parent directory on the host; a leading `~` is expanded on the host, so quote it here or the control host's shell expands it first |
 
 ```bash
-ssh vmadmin@192.168.122.150 'mkdir -p ~/gitsrc && rm -rf ~/gitsrc/epics-ioc-runner'
-tar -C <repo-parent> -cf - epics-ioc-runner | ssh vmadmin@192.168.122.150 'tar -C ~/gitsrc -xf -'
+bash gate/drivers/push.bash vmadmin@192.168.122.150 <repo-root> '~/gitsrc'
 ```
+
+The driver creates the destination and removes any previous copy of the tree
+itself, so nothing precedes it. It carries the `.git` directory: git never
+reports `.git` as ignored, so the exclusion set never names it. That matters —
+the system infrastructure suite reads the version stamp a real checkout
+produces, and a push without `.git` stamps `unknown` and fails an assertion for
+a reason unrelated to the code under test.
+
+The driver prints the exclusion set, then `git status --porcelain` at the source
+and on the pushed tree. The two must be identical; that agreement is what the
+driver exists to produce.
 
 Then deploy. `--full` is required: with no argument the setup script updates
 only the command wrapper and skips the log directory, the sudoers policy, and
@@ -560,9 +581,13 @@ Place the **tree under test**, at the gate commit and including `.git`, on that
 mount. Not any checkout: step 4 runs its scenarios against whatever binary this
 step last deployed, so a different tree here silently gates the wrong code.
 
+Use the same driver and the same three arguments as "The tree on each host"
+above — host, repository root, destination parent — with only the destination
+changed. It removes the previous copy itself, so nothing precedes it here
+either.
+
 ```bash
-ssh vmadmin@<host> 'rm -rf ~/gitsrc-nfs-sim/epics-ioc-runner'
-tar -C <repo-parent> -cf - epics-ioc-runner | ssh vmadmin@<host> 'tar -C ~/gitsrc-nfs-sim -xf -'
+bash gate/drivers/push.bash vmadmin@<host> <repo-root> '~/gitsrc-nfs-sim'
 ```
 
 `<abs-toplevel>` below is that checkout's root through the mount's real path,
@@ -960,18 +985,22 @@ the principal itself, captures whole before reading anything, and prints the
 scenario's verdict. The principal is an argument each host driver checks before
 it acts, so a wrong one is a refusal rather than a plausible transcript.
 
-**Stage once per host**, before anything else. A copied file keeps the mode of
-its source, which the destination umask can narrow but never widen, so the
-drivers are opened to the principals that run them after the copy:
-
-```bash
-bash gate/drivers/control/stage.bash vmadmin@<host>
-```
-
-**Then drive the whole step:**
+**Drive the whole step with one command.** It reads the consumer first, stages
+the host drivers second, forces both local users' runtime directories third, and
+then runs the scenarios in order:
 
 ```bash
 bash gate/drivers/control/run-all.bash vmadmin@<host>
+```
+
+Staging copies the host drivers to the consumer and opens them to the principals
+that run them: a copied file keeps the mode of its source, which the destination
+umask can narrow but never widen, so the modes are set after the copy rather
+than before it. `run-all.bash` stages on every run, so a separate staging step
+is needed only when driving one scenario by itself:
+
+```bash
+bash gate/drivers/control/stage.bash vmadmin@<host>
 ```
 
 That is the invocation. The table below is for driving one scenario on its own
@@ -980,7 +1009,7 @@ after a red; every line takes the same single argument and is the same command
 
 | | Driver |
 |---|---|
-| preconditions | `control/runtime-dirs.bash`, `control/sys-shared.bash`, `control/sys-fresh.bash`, `control/survival.bash` |
+| preconditions | `control/leftovers.bash`, `control/runtime-dirs.bash`, `control/sys-shared.bash`, `control/sys-fresh.bash`, `control/survival.bash` |
 | L1 | `control/l1.bash` |
 | L2, L3 | `control/l2-l3.bash` |
 | S1, S2, S5 | `control/s1-s2-s5.bash` |
@@ -1052,7 +1081,21 @@ read `NOT attached` for a client that was connecting correctly.
 ### Order within a run
 
 `control/run-all.bash` holds the order and is the reason it is not a reading
-task. It is part of the instrument, not a convenience:
+task. It is part of the instrument, not a convenience.
+
+Its first step is `control/leftovers.bash`, ahead of the staging: it reads what
+a prior run left on the consumer — each principal's `ioc-runner list` and the
+payload directories under `/opt/epics-iocs/` and the accounts' `~/iocBoot` — and
+prints `P-LEFTOVERS`. It reads only. Removing what it names is the between-runs
+step below plus the payload paths that step cannot reach, and a run that starts
+on a consumer this driver reported as not clear is a run whose greens are not
+attributable.
+
+Its third step, after the staging, is `control/runtime-dirs.bash`: the local
+scenarios reach a per-user systemd instance only through that user's runtime
+directory, and on a consumer where nobody has logged in it does not exist yet.
+
+Then the scenarios:
 
 1. Local payloads, then L1, then L2 and L3.
 2. One shared system IOC, then S1, S2, S5 and S6 against it — every scenario

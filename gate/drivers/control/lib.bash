@@ -92,13 +92,23 @@ function root_run {   # $1 seconds  $2 command line, run as root on the VM
 #   <label>.clean  colour and carriage returns removed, what the verdict logic
 #                  greps, so a whole-word match means what it says
 
+# The two read forms, derived from a <label>.raw that already exists. It is a
+# function of its own because `capture` cannot wrap every call that produces a
+# raw: S3 launches two in the background and redirects each into its own file,
+# so it calls this after its `wait` and the run keeps the runbook's promise of
+# three files per capture. One place, two callers.
+function read_forms {   # $1 label
+    local raw="${GATE_LOG_DIR}/$1.raw"
+    cat -v "${raw}" | sed -e 's/\^\[\[[0-9;]*m//g' > "${GATE_LOG_DIR}/$1.txt"
+    sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r//g' "${raw}" > "${GATE_LOG_DIR}/$1.clean" 2>/dev/null
+}
+
 function capture {   # $1 label  $2... the command to run
     local label="$1"; shift
     local raw="${GATE_LOG_DIR}/${label}.raw" rc
     "$@" > "${raw}" 2>&1
     rc=$?
-    cat -v "${raw}" | sed -e 's/\^\[\[[0-9;]*m//g' > "${GATE_LOG_DIR}/${label}.txt"
-    sed -e 's/\x1b\[[0-9;]*m//g' -e 's/\r//g' "${raw}" > "${GATE_LOG_DIR}/${label}.clean" 2>/dev/null
+    read_forms "${label}"
     printf '### capture %s rc=%s file=%s\n' "${label}" "${rc}" "${GATE_LOG_DIR}/${label}.txt"
     return "${rc}"
 }

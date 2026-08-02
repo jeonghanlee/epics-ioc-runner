@@ -24,24 +24,30 @@ capture s9-operator sys_as 300 "${GATE_S9_ACTOR}" sys-s9.bash \
     "${GATE_EPICS_ENV}" "${GATE_IOC_S9}" "${GATE_S9_ACTOR}"
 relay s9-operator S9-OPERATOR
 
-# --- root half, conforming shape ---------------------------------------------
+# --- root half, the non-writable working directory ----------------------------
+# BOTH shapes this scenario drives are non-conforming. `conforming` is the host
+# restore driver's word for the one that holds no parent reference, and it says
+# nothing about the working directory, which the service account still cannot
+# write. So the capture, the printed line, and the verdict id below name the
+# shape by what separates it from the other: the directory is not writable.
+#
 # By the end of the operator half the configuration holds only the parent
-# reference, so the conforming path is restored before root sees it.
+# reference, so the other shape is restored before root sees it.
 capture s9-restore-conforming sys_as 120 "${GATE_S9_ACTOR}" sys-s9-restore.bash \
     "${GATE_EPICS_ENV}" "${GATE_IOC_S9}" "${GATE_S9_ACTOR}" conforming
 relay s9-restore-conforming P-S9-RESTORE
 conf_path="$(fact s9-restore-conforming s9-conf)"
 
-capture s9-root-conforming root_run 120 \
+capture s9-root-nonwritable root_run 120 \
     "timeout -k 2 40 script -qec 'ioc-runner install ${conf_path}' /dev/null </dev/null"
-rc_conforming=$?
-cat "${GATE_LOG_DIR}/s9-root-conforming.txt"
-printf '%s\n' "### root-install-nonconforming rc=${rc_conforming} (recorded, not judged)"
+rc_nonwritable=$?
+cat "${GATE_LOG_DIR}/s9-root-nonwritable.txt"
+printf '%s\n' "### root-install-nonwritable rc=${rc_nonwritable} (recorded, not judged)"
 
-has s9-root-conforming 'is not writable by'; rw=$?
-has s9-root-conforming 'Aborting installation'; ab=$?
-if [ "${rw}" -eq 0 ] && [ "${ab}" -eq 0 ]; then ok_conforming=0; else ok_conforming=1; fi
-verdict S9-ROOT-CONFORMING "${ok_conforming}" "root on the non-writable working directory: warning=${rw} decline on EOF=${ab}, install rc=${rc_conforming}"
+has s9-root-nonwritable 'is not writable by'; rw=$?
+has s9-root-nonwritable 'Aborting installation'; ab=$?
+if [ "${rw}" -eq 0 ] && [ "${ab}" -eq 0 ]; then ok_nonwritable=0; else ok_nonwritable=1; fi
+verdict S9-ROOT-NONWRITABLE "${ok_nonwritable}" "root on the non-writable working directory: warning=${rw} decline on EOF=${ab}, install rc=${rc_nonwritable}"
 
 # --- root half, parent-reference shape ---------------------------------------
 capture s9-restore-parentref sys_as 120 "${GATE_S9_ACTOR}" sys-s9-restore.bash \
@@ -62,5 +68,5 @@ verdict S9-ROOT-PARENTREF "${ok_parentref}" "root on the parent reference: hard 
 
 # --- the identity this scenario claims ----------------------------------------
 vo="$(verdict_of s9-operator S9-OPERATOR)"
-if [ "${vo}" = PASS ] && [ "${ok_conforming}" -eq 0 ] && [ "${ok_parentref}" -eq 0 ]; then vrc=0; else vrc=1; fi
-verdict S9 "${vrc}" "operator half=${vo:-none}, root non-writable=${ok_conforming}, root parent reference=${ok_parentref}; root and operator reach identical verdicts on both shapes"
+if [ "${vo}" = PASS ] && [ "${ok_nonwritable}" -eq 0 ] && [ "${ok_parentref}" -eq 0 ]; then vrc=0; else vrc=1; fi
+verdict S9 "${vrc}" "operator half=${vo:-none}, root non-writable=${ok_nonwritable}, root parent reference=${ok_parentref}; root and operator reach identical verdicts on both shapes"

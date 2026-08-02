@@ -33,6 +33,13 @@ pid_b=$!
 wait "${pid_a}"; rc_a=$?
 wait "${pid_b}"; rc_b=$?
 
+# A backgrounded call cannot be wrapped by `capture`, so the two raws above are
+# written by direct redirection and their read forms are derived here, once both
+# have been waited for. Without this the only captures in a run with no .txt and
+# no .clean are these two, against the runbook's three files per capture.
+read_forms s3a
+read_forms s3b
+
 printf '%s\n' "=== s3a (${GATE_OP_A} on ${GATE_S3_OP_A_IOC}) rc=${rc_a} ==="
 cat -v "${a_out}" | tail -4
 printf '%s\n' "=== s3b (${GATE_OP_B} on ${GATE_S3_OP_B_IOC}) rc=${rc_b} ==="
