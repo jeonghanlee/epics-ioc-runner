@@ -6,13 +6,18 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M5, Implementation Plan step 7 — apply the twelve
-text findings from the Scope table to the runbook. Steps 1 through 6 are done:
-the drivers are landed under `gate/`, they reached fourteen of fourteen on
-debian13 and then on rocky8 at its first run with no edit, and D8 is final. What
-remains after step 7 is expensive rather than uncertain — step 8 restores the
-goldens' ownership, rebakes both, and creates fresh consumers, and step 9 is the
-only run whose scenario verdicts carry Gate grade. The recovered set that step 1
+Next session entry point: M6, then M7. M5 steps 1 through 7 are done — the
+drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
+and then on rocky8 at its first run with no edit, D8 is final, and the twelve
+text findings are applied. What remains of M5 is expensive rather than uncertain:
+step 8 restores the goldens' ownership, rebakes both, and creates fresh
+consumers, and step 9 is the only run whose scenario verdicts carry Gate grade. M6 and M7 opened 2026-08-02
+from a conceptual-integrity sweep and both gate the release: M6 makes a skip
+visible to the verdict, M7 removes the one skip that should not be happening.
+Until M6 lands, what the suites did and did not verify cannot be enumerated, so
+they come before M5's step 9 rather than after it.
+
+The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
 what was driven before the rewrite; it is ignored and untracked, and is no
 longer load-bearing now that the drivers are tracked under `gate/drivers/`.
@@ -35,7 +40,9 @@ closed.
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Not started | Yes | M1 | The verdict refuses a plain `SUITES OK` when the log carries a skip, and a run with a known skip is distinguishable from one without; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
+| M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | Not started | Yes | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -172,6 +179,19 @@ Superseded Plan Artifacts: none
   found the document wrong — recorded per row above.
 - Independent acceptance: T6, 2026-07-31 — a fresh operator completed the
   procedure at Gate grade from the document alone, zero product defects.
+- **Corrected 2026-08-02. What M1 delivered is the first draft of the standing
+  procedure, not the settled one, and T6's verdict did not survive the next
+  day.** Two further blind executions on 2026-08-01, each given the runbook
+  alone, both answered that a first-time operator could not run it without
+  supplying what the document did not carry, and returned nineteen findings
+  against it. The document has since lost its scenario fragments to
+  `gate/drivers/`, gained twelve text corrections, and moved from 1357 lines to
+  1146. The deliverable itself stands and is in use — the completion criteria
+  are met and the row remains Complete — but the claim that an independent
+  operator could execute it unaided was overstated by one run. M5 replaces the
+  half that could not be executed from prose, and M6 and M7 repair what the
+  gate's own verdict could not see. Recorded here rather than by reopening
+  #131, because the work M1 owned was done; the verdict on it was not final.
 
 #### GitHub Projection
 
@@ -746,7 +766,11 @@ Superseded Plan Artifacts: none
    trap is recorded as confirmed absent here rather than confirmed carried, so
    that defence remains one-host evidence.
 7. Apply the twelve text findings — the Scope table's Text rows, which are
-   findings 2, 3, 6, 8, 9, 11, 12, 13, 14, 15, 16 and 17.
+   findings 2, 3, 6, 8, 9, 11, 12, 13, 14, 15, 16 and 17. Done, 2026-08-02.
+   Finding 15's recorded cause was wrong and was corrected against measurement:
+   logrotate is present on both goldens and the user PATH differs, which is the
+   root M7 now owns. The three places the document read "one golden" anonymously
+   are named from the same measurements.
 8. Restore the goldens' ownership, bake both, create fresh consumers, and
    record the golden acceptance before anything touches them. Both blind runs
    of 2026-08-01 failed the acceptance on a consumer a prior run had already
@@ -810,6 +834,198 @@ Observed State: open
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
 Last Compared: 2026-08-01
+
+### M6 - The suite verdict cannot see a skip
+
+Origin: the conceptual-integrity sweep of 2026-08-02, run against the gate after
+M5's step 6
+Identity History: none
+GitHub Issue: 135, https://github.com/jeonghanlee/epics-ioc-runner/issues/135
+Status: Not started
+
+#### Summary
+
+`gate/RUNBOOK.md` says `A skip is not a pass.` in those words. Six lines above
+that sentence, the command that decides a suite run counts `Failed` and
+`Script Errors` and nothing else, so a skipped step is invisible to it. A run
+that dropped four checks scores identically to one that ran them.
+
+This is not a new class. The same document already records the same defect on a
+different axis: a truncated log once printed `SUITES OK (1 blocks)`, which it
+calls "a green for four suites that were thrown away", and the repair was to
+count the blocks. The skip axis got prose instead of a count, and the prose can
+be walked past.
+
+Measured: debian13's local lifecycle reports 82/82 with M19.T1, M19.T2, M19.T3
+and the M19 teardown absent, in both source and installed mode. rocky8 reports
+94/94 with them present. The verdict says `SUITES OK` for both.
+
+#### Scope
+
+- The suite verdict command in `gate/RUNBOOK.md`, in both the gate step and the
+  driver-forms copy, so the two do not drift.
+- Whatever the verdict needs to read a skip. The suites report skips as prose in
+  the body rather than in the summary block, so the count comes from the body.
+- The evidence format, so a recorded run carries what was skipped beside the
+  counts rather than only the counts.
+
+Out of scope: making the skipped checks run, which is M7; the suites' own
+reporting format, which this milestone reads rather than changes.
+
+#### Completion Criteria
+
+- The verdict does not print a plain `SUITES OK` for a log carrying a skip.
+- A run with a known skip and a run without are distinguishable from the verdict
+  line alone.
+- The driver-forms copy of the command and the gate step's copy are the same
+  command.
+- The twelve differing checks between the two goldens' local lifecycle totals
+  are enumerated, not just counted.
+
+#### Dependencies And Decisions
+
+- D1 as amended 2026-08-02: this is documentation work and needs no exception,
+  but it takes the formal route regardless.
+- M7 is the other half. M6 makes a skip visible; M7 removes the one skip that
+  should not be happening. Neither substitutes for the other.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Read a real suite log from each golden and record how a skip is actually
+   printed, per suite. The form is not assumed.
+2. Extend the verdict to count skips from the body, and decide with the owner
+   what a nonzero count does to the verdict line.
+3. Apply it to both copies of the command.
+4. Enumerate the twelve-check difference between the goldens.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Verdict execution | Run the verdict over a real log known to carry the M19 skips, and over one known not to | Both goldens' logs | The two produce different verdict lines |
+| T2 | Drift check | Compare the gate step's copy of the command against the driver-forms copy | Working tree | They are the same command |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | — | — | pending | |
+| T2 | — | — | pending | |
+
+#### Closure Evidence
+
+Pending.
+
+#### GitHub Projection
+
+Title: The suite verdict cannot see a skip
+Labels: docs, tests, P2-medium
+GitHub Milestone: 1.2.3
+Observed State: open
+Observed Labels: P2-medium, docs, tests
+Observed Milestone: 1.2.3
+Last Compared: 2026-08-02
+
+### M7 - The suite tool probe disagrees with the runner
+
+Origin: the same sweep of 2026-08-02, measured on both goldens
+Identity History: none
+GitHub Issue: 136, https://github.com/jeonghanlee/epics-ioc-runner/issues/136
+Status: Not started
+
+#### Summary
+
+`bin/ioc-runner` resolves `logrotate`, `con` and `procServ` by searching
+absolute paths first and falling back to a PATH lookup. The reason is written at
+`bin/ioc-runner:1100`: the systemd user manager runs services with a minimal
+PATH, so the install must bake an absolute path. `tests/test-local-lifecycle.bash`
+probes the same tools with `command -v` alone.
+
+Measured 2026-08-02 in one shell on debian13: `command -v logrotate` fails while
+`/usr/sbin/logrotate` is present and executable, version 3.22.0. rocky8 carries
+`/usr/local/sbin:/usr/sbin` on the user PATH and rocky8 does not fail. Debian
+keeps `sbin` off a user's PATH by convention; nothing is missing on either host.
+
+The consequence is not a wrong pass. It is four checks — M19.T1, M19.T2,
+M19.T3 and the M19 teardown — that do not run on debian13, in both modes, for a
+feature the runner installs there correctly. `con` and `procServ` have the same
+shape and are latent: both are on the user PATH on both goldens today.
+
+#### Scope
+
+- The tool probes in `tests/test-local-lifecycle.bash`, brought to the same
+  answer the runner gives. The owner's direction is to augment the PATH the
+  probe searches.
+- The other suites' probes only where the same shape is present.
+
+Out of scope: `bin/ioc-runner`'s resolution, which is correct and is the
+reference this milestone aligns the probe to; the `lsof` probe at line 35, which
+aborts rather than skips and is a different decision.
+
+#### Completion Criteria
+
+- The probe answers what the runner answers, on both goldens.
+- M19.T1, M19.T2, M19.T3 and the M19 teardown execute on debian13 in both modes.
+- No probe that guards a skip disagrees with a runner resolver for the same tool.
+- The duplicated path knowledge is either avoided or recorded as a known second
+  copy with the reason.
+
+#### Dependencies And Decisions
+
+- D1 as amended 2026-08-02: this is a code change under `tests/`, taken on the
+  owner's authority by the formal route rather than a new named exception.
+- M6 is the other half and does not substitute for this one: making the skip
+  visible does not make the check run.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Enumerate every probe in the suites that guards a skip, and every runner
+   resolver, and pair them.
+2. Augment the probe's search per the owner's direction, and record what the
+   second copy of the path knowledge costs.
+3. Drive the local lifecycle on debian13 in both modes and confirm the four
+   steps run.
+4. Drive it on rocky8 and confirm nothing changed there.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Suite execution | Run the local lifecycle in both modes on debian13 | debian13 | The M19 skip is absent and the four steps execute |
+| T2 | No-regression | Run the same on rocky8 | rocky8 | The totals are unchanged from before |
+| T3 | Pairing walk | Walk every skip-guarding probe against the runner resolver for the same tool | Working tree | No pair disagrees |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | — | — | pending | |
+| T2 | — | — | pending | |
+| T3 | — | — | pending | |
+
+#### Closure Evidence
+
+Pending.
+
+#### GitHub Projection
+
+Title: The suite tool probe disagrees with the runner's resolution
+Labels: bug, tests, P2-medium
+GitHub Milestone: 1.2.3
+Observed State: open
+Observed Labels: P2-medium, bug, tests
+Observed Milestone: 1.2.3
+Last Compared: 2026-08-02
 
 ### M3 - Final release
 
