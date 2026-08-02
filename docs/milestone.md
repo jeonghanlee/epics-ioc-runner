@@ -6,11 +6,15 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M5, Implementation Plan step 2 — settle where the
-drivers live under `tests/`, the argument convention, and how a verdict is
-printed. Step 1 is done: the seventeen drivers of the 2026-08-01 debian13 run
-are recovered verbatim, with the S3 block that was never a file and a notes
-file, each byte count matching the listing taken on the VM after the copy.
+Next session entry point: M5, Implementation Plan step 2 — clear the debian13
+consumer of the prior runs' leftovers by name, then drive the recovered set
+unchanged to confirm it still runs. The shape is settled provisionally as D8,
+read off the seventeen recovered files; steps 2 and 6 are the two runs expected
+to move it, and it is final only when step 6 passes. Step 1 is done: the
+seventeen drivers of
+the 2026-08-01 debian13 run are recovered verbatim, with the S3 block that was
+never a file and a notes file, each byte count matching the listing taken on
+the VM after the copy.
 They are held at `work/gate-drivers-debian13-20260801/`, which is ignored and
 therefore still untracked — the same condition M5 exists to end, parked rather
 than resolved.
@@ -30,7 +34,7 @@ closed.
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | — | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
-| M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | Not started | Yes | M1, D7 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
+| M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
@@ -43,6 +47,7 @@ closed.
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
 | D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change. The first rationale — that the stamp falsifies a gate record — was withdrawn the same day, once the reachability check showed the production deployment path cannot reach the condition (M4, Dependencies And Decisions), and the issue was regraded to `enhancement` / `P3-low`. The exception is kept on the narrower ground that survives: the work is done, the change is three lines with its regression coverage, and the condition it removes is one this project's own gate creates every run by pushing the tree under test with `tar`. The exception covers that change and its test; it does not reopen the line to other code work. | Owner decision, 2026-07-31, rationale narrowed the same day after the reachability finding |
 | D7 | M5 is a named exception to D1 on the same footing as D5: the scenario drivers ship as repository assets under a top-level `gate/` directory, which also takes the runbook, and D1 otherwise stands. The ground is that D1 admits test scenarios, and the drivers are the executable half of the scenarios this cycle was opened to re-set — M1 carried the describing half and named the executable half out of scope, so the cycle's own purpose is unmet while it stays out. The exception covers the drivers, the runbook edits they force, and their verification; it does not reopen the line to work under `bin/`. Its cost is stated rather than discovered: the drivers are only accepted by a two-host gate run, which is the same run the release needs, so the release moves out by that run. | Owner decision, 2026-08-01 |
+| D8 | The gate drivers take the shape the 2026-08-01 debian13 set already holds, read off all seventeen files rather than designed fresh, because that set is the only one that drove all fourteen scenarios to their stated results. Adopted as they stand: positional arguments, with `$1` always the EPICS environment path and `$2` always the IOC name and later positions carrying only that scenario's own values; the one sourcing line `set +u; if [ -z "${EPICS_BASE:-}" ]; then . "$1"; fi; set -u`, identical in every file; a header comment naming the scenarios covered and, past two arguments, the argument list; no `set -e`, because almost every command's nonzero exit is the observation itself; a console-opening command wrapped as `timeout -k 2 <N> script -qec "<cmd>" /dev/null </dev/null`, and a held console fed by a fifo from a detached `setsid`; absolute paths throughout. Seven places where the seventeen disagree are settled toward the majority, which is also the cheaper move: one verdict form rather than three; `cleanup.bash` and the S3 block brought inside the convention, the second becoming a file for the first time; the execution side (control host against VM) marked by the layout, since `sys-`/`local-` marks the mode and not the side; per-run scratch paths, since `/tmp/s4.out` is a fixed name two runs collide on; the scenario identities collected into one file rather than supplied by the caller, that being the exact place the per-run reinvention enters; the principal switch made by the caller and never inside a driver, as only `sys-s11.bash` does today; and `ssh -n` with batch options as a rule on every call rather than in the S3 block alone. This shape is provisional through step 6 and not before. It is read off one successful set on one host, so two runs are expected to move it: step 2 drives the recovered set unchanged and shows what the shape cannot carry, and step 6 is the only place the two hosts' divergences appear at all — at least the S11 sudo branch and the wrapper's closing message. Each revision amends this row with its date and what moved it; the shape is final when step 6 passes, and step 9 verifies rather than settles it. | Owner decision, 2026-08-01, on the shape read off the recovered set; provisional through step 6 |
 | D6 | The three sites M4 aligns do NOT gain a contract guard: examined through the Ledger promotion test (#100 / M17, `git show 3e47ee6:docs/milestone.md`) and left at Keep, recorded as `CLOSED_DOORS.md` CI-31. Elimination stays blocked (three self-contained scripts, the CI-4/CI-15 premise) and gates A and B pass, but Gate C fails on a netting the first pass of this decision missed: M4's own regression asset drives all three entry points from a relocated clean fixture and a modified one on both goldens, so a one-sided return to a stat-trusting comparison turns it red with no guard in place. The residual — a one-sided move to a comparison those fixtures cannot tell apart, such as one that counts untracked files — is priced too narrow to fund a fifth guard against a base rate of four promotions in eighteen examined findings. The full gate walk, the measured drift history, and the declined fold live in CI-31. | Owner decision, 2026-07-31, superseding the same-day promotion decision after the Gate C netting |
 
 ## ID Migration
@@ -602,6 +607,8 @@ cycle and which therefore does not move into `gate/`.
   and print each scenario's verdict rather than deciding it silently.
 - The runbook's scenario section cites the drivers and no longer carries
   fragments the reader must classify.
+- The push driver makes `git status --porcelain` on the pushed tree agree with
+  the same command on the control host, with nothing removed by hand.
 - All nineteen findings above are resolved, each traceable to the driver or the
   text edit that resolves it.
 - An independent operator, given the runbook and the shipped drivers and
@@ -609,7 +616,7 @@ cycle and which therefore does not move into `gate/`.
 
 #### Dependencies And Decisions
 
-- D1, D7, M1.
+- D1, D7, D8, M1.
 - The drivers are reconstructed from two sources, neither authoritative alone:
   the 2026-08-01 debian13 run, which drove all fourteen scenarios and is the
   only recorded set with a settled verdict per scenario; and the earlier rocky8
@@ -622,9 +629,10 @@ cycle and which therefore does not move into `gate/`.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner, 2026-08-01, on this plan as revised through the
+third-person review and its four repairs
+Implementation Authorization: owner, 2026-08-01, same exchange
 Superseded Plan Artifacts: none
 
 1. Recover the 2026-08-01 debian13 drivers verbatim. Done: seventeen drivers,
@@ -633,25 +641,86 @@ Superseded Plan Artifacts: none
    exists — that run stopped before the scenarios — and the earlier scratch
    material is two overlapping sets with no record of which was current and no
    settled verdict per scenario, so it is not mined. rocky8 coverage comes from
-   step 4 instead, which is cheaper and is evidence rather than archaeology.
-2. Write the push driver, then fold the resolved findings into the recovered
-   drivers and drive the whole scenario step on debian13 from them. This run
-   builds the drivers and is Check grade by intent: a fresh consumer buys
-   nothing here, because what is under test is the driver rather than the tree.
-3. Settle the shape inside `gate/` from that run: the argument convention, how
-   a verdict is printed, and where the scenario identities are fixed. Land the
-   drivers, and reduce the runbook's scenario section to invocations, verdicts,
-   and traps.
-4. Drive the landed drivers on rocky8 and repair what that host's own branches
-   break. Until this step passes the set is one-host-proven.
-5. Apply the thirteen text findings.
-6. Restore the goldens' ownership, bake both, create fresh consumers, and
+   step 6 instead, which is cheaper and is evidence rather than archaeology.
+2. Clear the debian13 consumer of the prior runs' leftovers by name — `s3b`,
+   `s8ioc` and `sshared` under `/opt/epics-iocs/`, and `lowna` and `lshared`
+   under the local users' `~/iocBoot` — and confirm the removal by listing both
+   locations. This step asks only that the consumer already carry a deployed
+   runner; the recovered drivers are copied over on their own, so nothing here
+   needs the tree pushed and nothing here depends on the push driver, which
+   step 3 builds and step 6 is the first to need. Then drive the whole scenario
+   step from the recovered set exactly as it stands, altering nothing in it, to
+   confirm the set still runs and to
+   produce the evidence the shape decision rests on. The findings are not
+   folded in here: findings 4, 5, 18 and 19 each need the shape settled first,
+   and the shape is settled from this run. The clearing comes first because
+   `remove` never reaches the payload directories (finding 11), and a scenario
+   that passes because a prior run's IOC happens to exist is exactly the false
+   green this milestone exists to end. The run is Check grade in one narrow
+   sense only — that the drivers execute, capture, and print — and in no other:
+   its scenario verdicts are not evidence about the product, because the
+   consumer is not freshly built and S3 and S4 turn on timing. Gate-grade
+   verdicts come only from step 9.
+3. Write the push driver and check it on its own, before anything is built on
+   it: push the tree with it, compare `git status --porcelain` on the pushed
+   tree against the same command on the control host, and confirm the excluded
+   set is exactly what
+   `git ls-files --others --ignored --exclude-standard --directory` prints at
+   the source (T5). That agreement is finding 1's whole claim and costs one
+   push to check; leaving it to first run inside step 9 spends a two-host gate
+   run to learn it.
+4. Take the shape to the owner and stop there. Done, provisionally, as D8. The
+   proposal carried the argument convention, how a verdict is printed, where
+   the scenario identities are fixed, the absolute output paths, and the `ssh`
+   hardening every call carries — findings 4, 5, 18 and 19. Its evidence is not
+   what this step first planned: rather than waiting for the step 2 and step 3
+   runs, it was read off all seventeen recovered files, on the ground that the
+   2026-08-01 debian13 run is itself a successful run and the seventeen already
+   agree on most of the shape, leaving only seven divergences to settle. That
+   is why D8 is provisional through step 6 rather than final. These are durable
+   design decisions on a standing asset that later cycles execute unchanged, so
+   each revision is a dated owner decision amending D8, never a change the
+   implementer makes mid-run.
+5. Fold those four findings into the recovered set in the accepted shape, land
+   the drivers and the push driver under `gate/`, and reduce the runbook's
+   scenario section to invocations, verdicts, and traps.
+6. Drive the landed drivers on rocky8 and repair what that host's own branches
+   break. This consumer stands where step 2's does, and is treated the same
+   way: no recorded run names its leftovers, so the step first reads them —
+   `ioc-runner list` in both modes, plus the payload directories under
+   `/opt/epics-iocs/` and the local users' `~/iocBoot` — clears what it finds,
+   and then drives under step 2's narrowed Check grade, for step 2's reason.
+   Until this step passes the set is one-host-proven.
+7. Apply the thirteen text findings.
+8. Restore the goldens' ownership, bake both, create fresh consumers, and
    record the golden acceptance before anything touches them. Both blind runs
    of 2026-08-01 failed the acceptance on a consumer a prior run had already
    deployed to, and the goldens are `libvirt-qemu`-owned, which stops a bake at
    its publish step without saying so.
-7. Verify: the honest-red check (T2), the walk of all nineteen findings (T3),
-   and blind execution on both goldens at Gate grade (T1, T4).
+9. Verify: the honest-red check (T2), the walk of all nineteen findings (T3),
+   and blind execution on both goldens at Gate grade (T1, T4, T5). This is the
+   only step whose scenario verdicts carry Gate grade, because it is the only
+   one whose consumers are fresh.
+
+Where a red sends the run. Every red is taken through the runbook's own
+"When a red appears" order before anything is changed. In steps 2 and 6 the
+order reaches its "Rebake and reproduce" rule and cannot pass it, because a red
+seen only on a reused consumer is not attributable. That rule's own remedy is
+deferred here rather than dropped — step 9 is where the fresh-consumer
+reproduction happens — so until then such a red is pursued only as far as the
+driver and the fixtures. One that
+resolves there is repaired and its step re-driven whole rather than resumed at
+the failing scenario; one that does not is recorded as unattributed and carried
+to step 9 for reproduction on a fresh consumer, and the step does not continue
+on the assumption that it is harmless. In step 9 a driver red returns the work
+to the step that owns the driver, after which step 9 is driven again from fresh
+consumers rather than patched in place, per the runbook's rule that a change to
+the tree invalidates the steps already run. A product red stops the milestone
+and goes to the owner with its evidence: D1 and D7 authorize no work under
+`bin/`, so this milestone does not absorb it. A red that survives the whole
+order unattributed also stops the milestone and is recorded as such; it is not
+re-driven until its attribution is settled, because a red that disappears on a
+re-drive is the condition this milestone exists to end.
 
 #### Test Plan
 
@@ -661,6 +730,7 @@ Superseded Plan Artifacts: none
 | T2 | Honest-red check | Break one scenario's precondition deliberately and confirm the driver reports it rather than exiting green | One golden | The driver returns the red and names the scenario |
 | T3 | Finding traceability | Walk the nineteen findings against the landed drivers and text | Working tree | Each finding names the driver line or the text edit that resolves it; none is closed by assertion |
 | T4 | Blind execution | Hand an independent agent the runbook and the shipped drivers, with no access to this conversation, and have it run the scenario step on both goldens | Both goldens | The operator completes all fourteen scenarios on each golden without writing a driver of its own |
+| T5 | Push-driver agreement | Push the tree with the push driver, then run `git status --porcelain` on the pushed tree and on the control host and compare, and compare the driver's exclusion set against `git ls-files --others --ignored --exclude-standard --directory` at the source | One golden, then both at the step 9 gate | The two `git status --porcelain` outputs are identical, the exclusion sets match, and finding 1's one-sided `?? .claude/` does not reappear |
 
 #### Verification Results
 
@@ -670,6 +740,7 @@ Superseded Plan Artifacts: none
 | T2 | — | — | pending | |
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
+| T5 | — | — | pending | |
 
 #### Closure Evidence
 
