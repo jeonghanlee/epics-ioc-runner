@@ -6,12 +6,14 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M5, Implementation Plan step 2 — clear the debian13
-consumer of the prior runs' leftovers by name, then drive the recovered set
-unchanged to confirm it still runs. The shape is settled provisionally as D8,
-read off the seventeen recovered files; steps 2 and 6 are the two runs expected
-to move it, and it is final only when step 6 passes. Step 1 is done: the
-seventeen drivers of
+Next session entry point: M5, Implementation Plan step 3 — write the push
+driver and check it on its own against T5, before anything is built on it.
+Steps 1 and 2 are done; step 2 drove all fourteen scenarios from the recovered
+set unchanged, all fourteen matching, with no red carried forward, and returned
+the twelve gaps recorded under that step. Those twelve are what step 4 revises
+D8 against, and the first of them says D8 understates the verdict problem: no
+driver prints a scenario verdict at all. The shape is provisional until step 6
+passes. From step 1: the seventeen drivers of
 the 2026-08-01 debian13 run are recovered verbatim, with the S3 block that was
 never a file and a notes file, each byte count matching the listing taken on
 the VM after the copy.
@@ -47,7 +49,7 @@ closed.
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
 | D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change. The first rationale — that the stamp falsifies a gate record — was withdrawn the same day, once the reachability check showed the production deployment path cannot reach the condition (M4, Dependencies And Decisions), and the issue was regraded to `enhancement` / `P3-low`. The exception is kept on the narrower ground that survives: the work is done, the change is three lines with its regression coverage, and the condition it removes is one this project's own gate creates every run by pushing the tree under test with `tar`. The exception covers that change and its test; it does not reopen the line to other code work. | Owner decision, 2026-07-31, rationale narrowed the same day after the reachability finding |
 | D7 | M5 is a named exception to D1 on the same footing as D5: the scenario drivers ship as repository assets under a top-level `gate/` directory, which also takes the runbook, and D1 otherwise stands. The ground is that D1 admits test scenarios, and the drivers are the executable half of the scenarios this cycle was opened to re-set — M1 carried the describing half and named the executable half out of scope, so the cycle's own purpose is unmet while it stays out. The exception covers the drivers, the runbook edits they force, and their verification; it does not reopen the line to work under `bin/`. Its cost is stated rather than discovered: the drivers are only accepted by a two-host gate run, which is the same run the release needs, so the release moves out by that run. | Owner decision, 2026-08-01 |
-| D8 | The gate drivers take the shape the 2026-08-01 debian13 set already holds, read off all seventeen files rather than designed fresh, because that set is the only one that drove all fourteen scenarios to their stated results. Adopted as they stand: positional arguments, with `$1` always the EPICS environment path and `$2` always the IOC name and later positions carrying only that scenario's own values; the one sourcing line `set +u; if [ -z "${EPICS_BASE:-}" ]; then . "$1"; fi; set -u`, identical in every file; a header comment naming the scenarios covered and, past two arguments, the argument list; no `set -e`, because almost every command's nonzero exit is the observation itself; a console-opening command wrapped as `timeout -k 2 <N> script -qec "<cmd>" /dev/null </dev/null`, and a held console fed by a fifo from a detached `setsid`; absolute paths throughout. Seven places where the seventeen disagree are settled toward the majority, which is also the cheaper move: one verdict form rather than three; `cleanup.bash` and the S3 block brought inside the convention, the second becoming a file for the first time; the execution side (control host against VM) marked by the layout, since `sys-`/`local-` marks the mode and not the side; per-run scratch paths, since `/tmp/s4.out` is a fixed name two runs collide on; the scenario identities collected into one file rather than supplied by the caller, that being the exact place the per-run reinvention enters; the principal switch made by the caller and never inside a driver, as only `sys-s11.bash` does today; and `ssh -n` with batch options as a rule on every call rather than in the S3 block alone. This shape is provisional through step 6 and not before. It is read off one successful set on one host, so two runs are expected to move it: step 2 drives the recovered set unchanged and shows what the shape cannot carry, and step 6 is the only place the two hosts' divergences appear at all — at least the S11 sudo branch and the wrapper's closing message. Each revision amends this row with its date and what moved it; the shape is final when step 6 passes, and step 9 verifies rather than settles it. | Owner decision, 2026-08-01, on the shape read off the recovered set; provisional through step 6 |
+| D8 | The gate drivers take the shape the 2026-08-01 debian13 set already holds, read off all seventeen files rather than designed fresh, because that set is the only one that drove all fourteen scenarios to their stated results. Adopted as they stand: positional arguments, with `$1` always the EPICS environment path and `$2` always the IOC name and later positions carrying only that scenario's own values; the one sourcing line `set +u; if [ -z "${EPICS_BASE:-}" ]; then . "$1"; fi; set -u`, identical in every file; a header comment naming the scenarios covered and, past two arguments, the argument list; no `set -e`, because almost every command's nonzero exit is the observation itself; a console-opening command wrapped as `timeout -k 2 <N> script -qec "<cmd>" /dev/null </dev/null`, and a held console fed by a fifo from a detached `setsid`; absolute paths throughout. Seven places where the seventeen disagree are settled toward the majority, which is also the cheaper move: one verdict form rather than three; `cleanup.bash` and the S3 block brought inside the convention, the second becoming a file for the first time; the execution side (control host against VM) marked by the layout, since `sys-`/`local-` marks the mode and not the side; per-run scratch paths, since `/tmp/s4.out` is a fixed name two runs collide on; the scenario identities collected into one file rather than supplied by the caller, that being the exact place the per-run reinvention enters; the principal switch made by the caller and never inside a driver, as only `sys-s11.bash` does today; and `ssh -n` with batch options as a rule on every call rather than in the S3 block alone. This shape is provisional through step 6 and not before. It is read off one successful set on one host, so two runs are expected to move it: step 2 drives the recovered set unchanged and shows what the shape cannot carry, and step 6 is the only place the two hosts' divergences appear at all — at least the S11 sudo branch and the wrapper's closing message. Each revision amends this row with its date and what moved it; the shape is final when step 6 passes, and step 9 verifies rather than settles it. **Amended 2026-08-01 by the step 2 and step 3 runs**, which moved six of the settlements above. One of them was measured false: `ssh -n` is not a rule for every call, because `-n` redirects stdin from `/dev/null` and the call that reads the archive off the pipe then feeds an empty stream to `tar`, which reports `This does not look like a tar archive` — so the rule splits, `-n` on a call that only issues a command and never on one that reads a stream. "One verdict form rather than three" understated the problem and is replaced: step 2 showed no driver prints a scenario verdict at all, only per-command exit lines, so every one of the fourteen verdicts was a human reading a transcript — three of them load-bearing, since L1's verdict is a comparison across two invocations no driver makes, S3's needs a printed word read against an inverted exit code, and S10's needs a nonzero code ignored and a banner found. Each driver therefore computes and prints its own scenario verdict. The principal becomes an argument the driver checks before acting rather than a value it reports afterwards, because three drivers run under more than one principal and a wrong one yields a plausible transcript. The parts of the run that have no driver at all get one: S9's root half, from which two of that scenario's four verdicts come, the local-user runtime directory forcing, and the survival check between S6 and S10. The capture form and the run order move into the set, both being outside it today. `set -e` stays off for scenario drivers and is on for the push driver, where a failed push is a failure rather than an observation. | Owner decision, 2026-08-01, on the shape read off the recovered set; amended the same day by the step 2 and step 3 runs; provisional through step 6 |
 | D6 | The three sites M4 aligns do NOT gain a contract guard: examined through the Ledger promotion test (#100 / M17, `git show 3e47ee6:docs/milestone.md`) and left at Keep, recorded as `CLOSED_DOORS.md` CI-31. Elimination stays blocked (three self-contained scripts, the CI-4/CI-15 premise) and gates A and B pass, but Gate C fails on a netting the first pass of this decision missed: M4's own regression asset drives all three entry points from a relocated clean fixture and a modified one on both goldens, so a one-sided return to a stat-trusting comparison turns it red with no guard in place. The residual — a one-sided move to a comparison those fixtures cannot tell apart, such as one that counts untracked files — is priced too narrow to fund a fifth guard against a base rate of four promotions in eighteen examined findings. The full gate walk, the measured drift history, and the declined fold live in CI-31. | Owner decision, 2026-07-31, superseding the same-day promotion decision after the Gate C netting |
 
 ## ID Migration
@@ -661,6 +663,43 @@ Superseded Plan Artifacts: none
    its scenario verdicts are not evidence about the product, because the
    consumer is not freshly built and S3 and S4 turn on timing. Gate-grade
    verdicts come only from step 9.
+   Done, 2026-08-01. The clearing measured finding 11 rather than inferring it:
+   all three runner listings had nothing to remove and all three install records
+   were empty, while the five payload directories were still there. All fourteen
+   scenarios drove and all fourteen matched their stated expected results. Five
+   observations read as red on sight and every one resolved at the first rule of
+   the runbook's order or at the fixtures; none reached "Rebake and reproduce",
+   so no red is carried forward unattributed. What the set could not carry is
+   below, and it is the input to step 4's revision of D8:
+   1. No driver prints a scenario verdict at all. Every verdict was a human
+      reading of a transcript. L1's verdict is a comparison across two separate
+      invocations that no driver makes; S3's needs the printed word read against
+      an inverted exit code; S10's needs `rc=137` ignored and the banner found.
+      D8's "one verdict form rather than three" understates this: there is no
+      scenario verdict to unify.
+   2. The principal is not an argument and cannot be checked. `sys-s10.bash`
+      runs as two principals, `sys-s9-restore.bash` twice with different values,
+      `cleanup.bash` three times; each only reports `id -un` after the fact, so
+      a wrong principal yields a plausible transcript.
+   3. Three parts of the run have no driver: the local-user runtime directory
+      forcing, the survival check between S6 and S10, and S9's whole root half —
+      two of S9's four verdicts come from a hand-typed command.
+   4. Every identity lives outside the set: the environment path, six IOC names,
+      five uids, the S8 token, the role mapping. Without the notes file not one
+      driver runs.
+   5. The execution side is in no file; `sys-`/`local-` marks the mode.
+   6. The order is in no file.
+   7. `sys-s11.bash` cannot tell which answer is correct; the branch
+      determination is a separate lookup.
+   8. `cleanup.bash` is outside the convention and its only input is an
+      undocumented environment variable.
+   9. `sys-payload.bash` serves two roles separated only by the name argument.
+   10. The capture form is in no driver; every read was piped by hand.
+   11. `/tmp/s4.out` is a fixed name two runs collide on.
+   12. The notes file's S9 root half prints one exit code and it is false: `$?`
+       captures the `sed` at the end of the read pipeline, so an install that
+       aborts reports `rc=0`, under a label naming the wrong shape. The
+       parent-reference invocation prints none. Confirmed by reading the file.
 3. Write the push driver and check it on its own, before anything is built on
    it: push the tree with it, compare `git status --porcelain` on the pushed
    tree against the same command on the control host, and confirm the excluded
