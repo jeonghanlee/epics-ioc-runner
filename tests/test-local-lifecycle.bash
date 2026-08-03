@@ -764,15 +764,18 @@ function test_console_attach {
     if [[ "${socket_perm}" == "srw-rw----" ]]; then perm_ok="true"; fi
     verify_state "true" "${perm_ok}" "UDS socket has correct permissions (srw-rw----)"
 
-    local con_cmd
-    if command -v con >/dev/null 2>&1; then
-        con_cmd="con"
-    else
-        con_cmd="/usr/local/bin/con"
-    fi
-
-    local con_ok="false"
-    if command -v "${con_cmd}" >/dev/null 2>&1; then con_ok="true"; fi
+    # Probe con exactly where bin/ioc-runner's resolve_con_tool searches in
+    # user mode (home bin first, then /usr/local/bin, /usr/bin); the runner
+    # never consults PATH for con, so neither does the probe. The runner's
+    # socat fallback is not mirrored: this check asserts the con utility
+    # itself.
+    local con_ok="false" con_candidate
+    for con_candidate in "${HOME}/.local/bin/con" /usr/local/bin/con /usr/bin/con; do
+        if [[ -x "${con_candidate}" ]]; then
+            con_ok="true"
+            break
+        fi
+    done
     verify_state "true" "${con_ok}" "con utility is available"
 
     local socket_listening="false"

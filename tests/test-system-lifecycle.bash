@@ -632,15 +632,17 @@ function test_console_attach {
     if [[ "${socket_perm}" == "srw-rw----" ]]; then perm_ok="true"; fi
     verify_state "true" "${perm_ok}" "UDS socket has correct permissions (srw-rw----)"
 
-    local con_cmd
-    if command -v con >/dev/null 2>&1; then
-        con_cmd="con"
-    else
-        con_cmd="/usr/local/bin/con"
-    fi
-
-    local con_ok="false"
-    if command -v "${con_cmd}" >/dev/null 2>&1; then con_ok="true"; fi
+    # Probe con exactly where bin/ioc-runner's resolve_con_tool searches in
+    # system mode (/usr/local/bin, then /usr/bin); the runner never consults
+    # PATH for con, so neither does the probe. The runner's socat fallback is
+    # not mirrored: this check asserts the con utility itself.
+    local con_ok="false" con_candidate
+    for con_candidate in /usr/local/bin/con /usr/bin/con; do
+        if [[ -x "${con_candidate}" ]]; then
+            con_ok="true"
+            break
+        fi
+    done
     verify_state "true" "${con_ok}" "con utility is available"
 
     local socket_listening="false"
@@ -944,6 +946,25 @@ function test_logrotate_boundary {
         return 0
     fi
 
+    # Resolve logrotate the way bin/ioc-runner's resolve_logrotate_tool does
+    # (a second copy of its LOGROTATE_SEARCH_PATHS, like the local suite's
+    # probe): root's PATH normally carries sbin, but under set -e a bare name
+    # that fails to resolve would abort the whole suite instead of skipping.
+    local logrotate_bin="" logrotate_candidate
+    for logrotate_candidate in /usr/sbin/logrotate /sbin/logrotate /usr/bin/logrotate; do
+        if [[ -x "${logrotate_candidate}" ]]; then
+            logrotate_bin="${logrotate_candidate}"
+            break
+        fi
+    done
+    if [[ -z "${logrotate_bin}" ]]; then
+        logrotate_bin=$(command -v logrotate 2>/dev/null || true)
+    fi
+    if [[ -z "${logrotate_bin}" ]]; then
+        _log "WARN" "logrotate not found, skipping logrotate boundary test."
+        return 0
+    fi
+
     # M11/#67: the T2 fixtures intentionally never call iocInit (they stay in the
     # pre-marker phase so an in-window FATAL is a deterministic exit-1), so the
     # marker-less clean cases would otherwise wait out the full readiness timeout.
@@ -990,7 +1011,7 @@ EOF
 
     # Force rotation: copytruncate moves history into <name>.log.1.gz and
     # truncates the active log in place.
-    logrotate -f "${logrotate_conf}" >/dev/null 2>&1
+    "${logrotate_bin}" -f "${logrotate_conf}" >/dev/null 2>&1
 
     # Evidence 1 (boundary created): the marker now lives in the rotated file
     # and no longer in the active log.
