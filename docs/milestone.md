@@ -1223,20 +1223,81 @@ which class each emission belongs to, and where the count lives.
 - The summary block of each suite extended to carry the skip count beside
   `Passed`, `Failed` and `Script Errors`, so a verdict reads a count
   rather than grepping prose.
+- The reporting model below, refined and settled with the owner in step 2,
+  applied across the four suites.
+- The SKIP-versus-NA boundary for per-OS differences, defined explicitly:
+  test counts and methods legitimately differ per OS, and the policy must
+  say who declares "this check was never meant to run here" — the check
+  code deciding at run time, or a per-OS expected list the run is compared
+  against. Undefined today; owner decision in step 2. (Owner direction,
+  2026-08-03.)
+- rocky8's monitor-isolation skip (`User-scope journal unavailable`),
+  examined under that boundary: whether it is a legitimate NA or a
+  removable skip (enabling the user-scope journal), and resolved
+  accordingly. (Owner direction, 2026-08-03 — pulled into M8 rather than
+  opened separately.)
+- A full re-verification once the policy lands: the owner's direction of
+  2026-08-03 is that the whole suite set is re-verified on both goldens
+  under the new reporting, so every state the old format could not record
+  is observed once with the new one before the release gate reads it.
 
 Out of scope: the verdict command, which is M6 and reads whatever the
-suites print; making any individual skipped check run (the M7 class —
-e.g. whether rocky8's monitor-isolation skip is removable is its own
-question, opened separately if the owner wants it); the drivers under
-`gate/`, whose verdict convention D8 fixed.
+suites print; making any other individual skipped check run (the M7
+class); the drivers under `gate/`, whose verdict convention D8 fixed.
+
+#### Reporting model (draft, 2026-08-03 — owner direction; settled in step 2)
+
+The owner's requirement: the output and the summary must record the state
+of the test procedure exactly, the per-step records must be fine-grained,
+and at release-gate time those records alone must say what state the
+product is in. Four layers follow from that:
+
+1. **A closed state set per check.** Every check terminates in exactly one
+   of: `PASS`, `FAIL`, `SKIP` (was meant to run and did not, with the
+   reason), `NA` (examined and found not applicable, with the reason), or
+   `SCRIPT ERROR`. A check that ends in none of these is itself a suite
+   defect — silence is not a state. This gives every suite a denominator:
+   the count of checks it owns, independent of what a particular run
+   executed.
+2. **A step outcome line per STEP.** Each numbered STEP closes with one
+   line carrying the step's identity and its assert tally (pass, fail,
+   skip, na). This is the granularity the goldens differ at — the
+   twelve-check difference between debian13's 82 and rocky8's 94 becomes
+   an enumerable list of steps, not a subtraction — and it feeds M6's
+   fourth completion criterion directly.
+3. **A summary block that carries the full vector.** `Total`, `Passed`,
+   `Failed`, `Skipped`, `Not applicable`, `Script Errors` — zero printed,
+   never omitted — followed by one line per SKIP and NA repeating the
+   check identity and reason, so a reader gets the exceptions without
+   scanning the body.
+4. **One machine-readable trailer per suite run.** A single fixed-form
+   final line (shape settled in step 2, e.g.
+   `SUITE <name> total=<n> pass=<n> fail=<n> skip=<n> na=<n> err=<n>`)
+   that the gate verdict parses. Five runs per host means five trailers in
+   one log; the verdict counts blocks and reads trailers, and a green
+   requires every trailer present, `fail=0`, `err=0`, `skip=0` — with a
+   nonzero `na` allowed only because each NA line above names its reason.
+
+At the release gate this makes the recorded state exact: the gate record
+stores each host's five trailers plus the enumerated SKIP and NA lines, so
+"passed" is always "passed out of the declared total, with these named
+exceptions", never "of what ran".
 
 #### Completion Criteria
 
-- Every suite's summary block reports a skip count, zero included.
+- Every check in the four suites terminates in exactly one state from the
+  closed set, and a check with no state is treated as a suite defect.
+- Every suite's summary block reports the full vector — skip and
+  not-applicable counts included, zero printed — and enumerates each SKIP
+  and NA with its reason.
+- Each numbered STEP closes with its own outcome line, and the difference
+  between the two goldens' totals is enumerable from those lines alone.
+- Every suite run ends in one fixed-form machine-readable trailer, and
+  M6's verdict (or its successor) reads the trailers instead of the body
+  forms.
 - Every skip emission in the four suites matches its class's policy form,
   verified by a sweep, and no `[ PASS ]` name can be confused with one.
-- The policy is written down beside the suites, and M6's verdict (or its
-  successor) reads the count instead of the body forms.
+- The policy and the reporting model are written down beside the suites.
 
 #### Dependencies And Decisions
 
@@ -1257,10 +1318,11 @@ Superseded Plan Artifacts: none
 
 1. Sweep the four suites for every skip, WARN, and does-not-apply emission;
    classify each against the three classes and list the misfits.
-2. Write the policy with the owner: the form per class, and the summary
-   line the count lives on.
-3. Apply the policy to every emission and extend the four summary blocks.
-4. Point the verdict at the count and retire its body-form anchors.
+2. Settle the policy and the reporting model with the owner: the form per
+   class, the closed state set, the step outcome line, the summary vector,
+   and the trailer's exact shape.
+3. Apply both to every emission, every STEP, and the four summary blocks.
+4. Point the verdict at the trailers and retire its body-form anchors.
 
 #### Test Plan
 
@@ -1269,6 +1331,8 @@ Superseded Plan Artifacts: none
 | T1 | Suite execution | Run a suite on a host with a known skip | A golden carrying one | The summary block counts it and the verdict refuses a plain green |
 | T2 | Suite execution | Run the same suite where nothing skips | The other golden | The summary reports zero skips and the verdict passes |
 | T3 | Policy sweep | Grep every emission against the policy forms | Working tree | No emission outside its class's form, and no `[ PASS ]` name collides |
+| T4 | Gate readback | Reconstruct each host's state from the five trailers, the step outcome lines, and the enumerated exceptions alone, without the log body | Both goldens' logs | The reconstruction matches the body, and the goldens' total difference is enumerated step by step |
+| T5 | Full re-verification | Run the whole suite set on both goldens under the new reporting | Both goldens | Every trailer present; every SKIP and NA enumerated with its reason; the monitor-isolation case carries the state the step 2 boundary decision assigned it |
 
 #### Verification Results
 
@@ -1277,6 +1341,8 @@ Superseded Plan Artifacts: none
 | T1 | — | — | pending | |
 | T2 | — | — | pending | |
 | T3 | — | — | pending | |
+| T4 | — | — | pending | |
+| T5 | — | — | pending | |
 
 #### Closure Evidence
 
