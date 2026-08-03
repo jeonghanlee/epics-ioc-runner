@@ -6,15 +6,17 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: continue M7 — step 2 is fully implemented
-2026-08-03: the logrotate fix is committed as `9f8d01c`, and the decision 2
-(con probes) and decision 3 (boundary-test logrotate) fixes as `9f6a3e9`.
-The local suite on the dev host top passed 96 of 96 with all fourteen M19
-assertions running (evidence in the M7 detail); what remains is T1 on
-debian13 and T2 on rocky8 on the golden VMs. The owner
-accepted the plan and authorized implementation, reviewed with the owner
-directly rather than an agent panel; re-verify the detail's findings against
-the code before acting on them. Then M6. M5 steps 1 through 7 are done — the
+Next session entry point: M6 first, then one golden-VM run closes both M6
+and M7 — the owner approved this order 2026-08-03. Work M6's four steps and
+its cheap T1 and T2, which need only recorded logs and the working tree, no
+VM. Then a single golden-VM run drives M7's T1 (debian13, both modes) and T2
+(rocky8) under the new skip-aware verdict, doubling as that verdict's live
+confirmation, and the two milestones close together. M7 stays In progress
+meanwhile: its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev
+host top passed 96 of 96 with all fourteen M19 assertions running (evidence
+in the M7 detail). Both milestones are reviewed with the owner directly, no
+agent panel; re-verify each detail's findings against the code before acting
+on them. M5 steps 1 through 7 are done — the
 drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
 and then on rocky8 at its first run with no edit, D8 is final, and the twelve
 text findings are applied. What remains of M5 is expensive rather than uncertain:
@@ -896,12 +898,19 @@ reporting format, which this milestone reads rather than changes.
   but it takes the formal route regardless.
 - M7 is the other half. M6 makes a skip visible; M7 removes the one skip that
   should not be happening. Neither substitutes for the other.
+- Ordering, owner-approved 2026-08-03: M6 runs before M7's golden-VM
+  verification, so the one VM run drives M7's T1 and T2 under the new verdict
+  and confirms it live. M6's step 1 does not need M7's skip to still exist:
+  the pre-fix logs of 2026-08-02 carry the real skip form.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner decision in session, 2026-08-03
+Implementation Authorization: owner decision in session, 2026-08-03; reviewed
+with the owner directly, no agent review panel, as for M7. Step 2's verdict
+behavior on a nonzero skip count is decided with the owner before it is
+written, per the step's own wording.
 Superseded Plan Artifacts: none
 
 1. Read a real suite log from each golden and record how a skip is actually
@@ -989,6 +998,9 @@ aborts rather than skips and is a different decision.
   owner's authority by the formal route rather than a new named exception.
 - M6 is the other half and does not substitute for this one: making the skip
   visible does not make the check run.
+- Ordering, owner-approved 2026-08-03: T1 and T2 wait for M6's skip-aware
+  verdict, so the one golden-VM run verifies both milestones. This milestone
+  stays In progress, not blocked — everything except T1 and T2 is done.
 
 #### Implementation Plan
 
