@@ -16,7 +16,9 @@ meanwhile: its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev
 host top passed 96 of 96 with all fourteen M19 assertions running (evidence
 in the M7 detail). Both milestones are reviewed with the owner directly, no
 agent panel; re-verify each detail's findings against the code before acting
-on them. M5 steps 1 through 7 are done — the
+on them. M8 (suite skip-reporting policy) opened 2026-08-03 behind M6 and
+gates the release — it is in M3's dependency row. M5
+steps 1 through 7 are done — the
 drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
 and then on rocky8 at its first run with no edit, D8 is final, and the twelve
 text findings are applied. What remains of M5 is expensive rather than uncertain:
@@ -50,9 +52,10 @@ closed.
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
-| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Not started | Yes | M1 | The verdict refuses a plain `SUITES OK` when the log carries a skip, and a run with a known skip is distinguishable from one without; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
+| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | In progress | No | M1 | The verdict refuses a plain `SUITES OK` when the log carries a skip, and a run with a known skip is distinguishable from one without; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | No | M6 | Every suite's summary block carries a skip count, every skip emission follows one written policy form per class, and the verdict reads the count instead of grepping prose; [detail](#m8---suite-skip-reporting-policy) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -851,7 +854,7 @@ Origin: the conceptual-integrity sweep of 2026-08-02, run against the gate after
 M5's step 6
 Identity History: none
 GitHub Issue: 135, https://github.com/jeonghanlee/epics-ioc-runner/issues/135
-Status: Not started
+Status: In progress
 
 #### Summary
 
@@ -914,11 +917,57 @@ written, per the step's own wording.
 Superseded Plan Artifacts: none
 
 1. Read a real suite log from each golden and record how a skip is actually
-   printed, per suite. The form is not assumed.
+   printed, per suite. The form is not assumed. Done 2026-08-03 — the log
+   inventory and the step 1 findings below.
 2. Extend the verdict to count skips from the body, and decide with the owner
    what a nonzero count does to the verdict line.
 3. Apply it to both copies of the command.
 4. Enumerate the twelve-check difference between the goldens.
+
+Log inventory, observed 2026-08-03 from top over ssh (recheck with the
+commands in `gate/RUNBOOK.md`'s verdict step):
+
+- Both iocrunner testbeds are running: `testbed-debian13-iocrunner-server`
+  (192.168.122.50) and `testbed-rocky8-iocrunner-server` (192.168.122.150),
+  both up since 2026-08-01.
+- rocky8 holds a real gate log: `/tmp/gate.log`, 121,654 bytes, 1,524
+  lines, mtime Aug 1 00:13 — the no-skip side of T1.
+- debian13 holds no log anywhere (`/tmp`, `/dev/shm`, home): the
+  skip-carrying side of T1 did not survive. Its tree is at `1ee17fa` with
+  step 2/3 driving edits in `gate/` — before the M7 fixes — so the testbed
+  as it stands can regenerate a real skip-carrying log by running its own
+  local lifecycle suite unmodified. rocky8's tree is at `57c2c3d`, also
+  pre-fix, which keeps its existing log representative.
+- Consequence for M7's T2: rocky8's pre-fix log doubles as the "totals
+  unchanged from before" baseline (local lifecycle 94 of 94).
+
+Step 1 findings, observed 2026-08-03, from both testbeds' `/tmp/gate.log`
+(debian13's regenerated that day on its pre-fix tree at `1ee17fa`: local
+lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
+
+- The debian13 log carries exactly five skip lines, all M19: the probe's
+  `WARN: logrotate not found; U003/M19 rotation steps will be skipped.` and
+  four step-level `[WARN   ] logrotate unavailable; skipping M19.T1.` (T2,
+  T3, `M19 teardown checks.`) lines.
+- The word `skip` alone cannot be the anchor. rocky8's log has nine
+  case-insensitive matches, of which three are `[ PASS ]` lines whose check
+  NAMES contain the word (`takes the skip path`, `Identical-skip reasserts
+  conf mode 0600`, `warns and skips rotation`). A verdict grepping the bare
+  word counts passes as skips.
+- The "rocky8 is the no-skip side" assumption from the log inventory above
+  was measured false. rocky8's log carries a real skip, twice (once per
+  lifecycle run): `The monitor-isolation step will be skipped.` followed by
+  `[WARN   ] User-scope journal unavailable, skipping monitor isolation
+  test.` Its 94 of 94 green also meant "of what ran". The new verdict will
+  flag rocky8's current log, correctly.
+- A third form exists: `[INFO   ] SKIP: deployed sudoers uses glob
+  fallback; regex-deny probe does not apply.` followed by a `[ PASS ]`
+  line asserting the skip. This is a deliberate does-not-apply recorded as
+  a pass, not a dropped check; whether the verdict counts it is a step 2
+  decision for the owner.
+- Real skip forms observed so far: step-level `[WARN   ] ... skipping ...`
+  (the load-bearing one), probe-level prose `... will be skipped.`, and
+  the `[INFO   ] SKIP:` does-not-apply form.
 
 #### Test Plan
 
@@ -1144,6 +1193,104 @@ Observed State: open
 Observed Labels: P2-medium, bug, tests
 Observed Milestone: 1.2.3
 Last Compared: 2026-08-02
+
+### M8 - Suite skip-reporting policy
+
+Origin: M6's step 1 findings of 2026-08-03 in this register, opened at the
+owner's direction the same day
+Identity History: none
+GitHub Issue: 137, https://github.com/jeonghanlee/epics-ioc-runner/issues/137
+Status: Not started
+
+#### Summary
+
+The suites report a skip three different ways — step-level `[WARN   ] ...
+skipping ...`, probe-level prose `... will be skipped.`, and `[INFO   ]
+SKIP:` for a deliberate does-not-apply — and none of them reaches the
+summary block, which counts only `Passed`, `Failed` and `Script Errors`.
+Meanwhile three `[ PASS ]` check names contain the word `skip`, so no bare
+word can anchor a count. M6 makes the verdict read these forms from the log
+body; that is a reading of what exists, not a policy. Counting skips
+exactly requires the tests' own verification policy to say what a skip is,
+which class each emission belongs to, and where the count lives.
+
+#### Scope
+
+- Every skip, WARN, and does-not-apply emission across the four suites,
+  enumerated and classified: a dropped check, a deliberate does-not-apply,
+  or a benign warning.
+- One written policy form per class, applied to every emission.
+- The summary block of each suite extended to carry the skip count beside
+  `Passed`, `Failed` and `Script Errors`, so a verdict reads a count
+  rather than grepping prose.
+
+Out of scope: the verdict command, which is M6 and reads whatever the
+suites print; making any individual skipped check run (the M7 class —
+e.g. whether rocky8's monitor-isolation skip is removable is its own
+question, opened separately if the owner wants it); the drivers under
+`gate/`, whose verdict convention D8 fixed.
+
+#### Completion Criteria
+
+- Every suite's summary block reports a skip count, zero included.
+- Every skip emission in the four suites matches its class's policy form,
+  verified by a sweep, and no `[ PASS ]` name can be confused with one.
+- The policy is written down beside the suites, and M6's verdict (or its
+  successor) reads the count instead of the body forms.
+
+#### Dependencies And Decisions
+
+- M6: its step 1 enumeration is this milestone's input, and its verdict is
+  the consumer of the count. M8 lands after M6 so the interim body-reading
+  verdict is not rewritten mid-flight; the owner approved the M6-first
+  order 2026-08-03.
+- M8 gates the 1.2.3 release — owner decision 2026-08-03, accepting that
+  the release moves by the cost of a tests-wide reporting change plus a
+  two-golden re-run. M3's dependency row carries M8.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Sweep the four suites for every skip, WARN, and does-not-apply emission;
+   classify each against the three classes and list the misfits.
+2. Write the policy with the owner: the form per class, and the summary
+   line the count lives on.
+3. Apply the policy to every emission and extend the four summary blocks.
+4. Point the verdict at the count and retire its body-form anchors.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Suite execution | Run a suite on a host with a known skip | A golden carrying one | The summary block counts it and the verdict refuses a plain green |
+| T2 | Suite execution | Run the same suite where nothing skips | The other golden | The summary reports zero skips and the verdict passes |
+| T3 | Policy sweep | Grep every emission against the policy forms | Working tree | No emission outside its class's form, and no `[ PASS ]` name collides |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | — | — | pending | |
+| T2 | — | — | pending | |
+| T3 | — | — | pending | |
+
+#### Closure Evidence
+
+Pending.
+
+#### GitHub Projection
+
+Title: Suite skip-reporting policy: make a skip countable from the summary
+Labels: tests, P2-medium
+GitHub Milestone: 1.2.3
+Observed State: open
+Observed Labels: P2-medium, tests
+Observed Milestone: 1.2.3
+Last Compared: 2026-08-03
 
 ### M3 - Final release
 
