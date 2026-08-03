@@ -6,7 +6,13 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M6, then M7. M5 steps 1 through 7 are done — the
+Next session entry point: continue M7 — step 1's pairing walk and step 2's
+logrotate fix are done 2026-08-03, the fix is committed as `9f8d01c`, and
+what remains is the owner's call on open decisions 2 and 3 in the
+detail, then T1 on debian13 and T2 on rocky8 on the golden VMs. The owner
+accepted the plan and authorized implementation, reviewed with the owner
+directly rather than an agent panel; re-verify the detail's findings against
+the code before acting on them. Then M6. M5 steps 1 through 7 are done — the
 drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
 and then on rocky8 at its first run with no edit, D8 is final, and the twelve
 text findings are applied. What remains of M5 is expensive rather than uncertain:
@@ -41,7 +47,7 @@ closed.
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Not started | Yes | M1 | The verdict refuses a plain `SUITES OK` when the log carries a skip, and a run with a known skip is distinguishable from one without; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
-| M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | Not started | Yes | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
+| M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
@@ -936,7 +942,7 @@ Last Compared: 2026-08-02
 Origin: the same sweep of 2026-08-02, measured on both goldens
 Identity History: none
 GitHub Issue: 136, https://github.com/jeonghanlee/epics-ioc-runner/issues/136
-Status: Not started
+Status: In progress
 
 #### Summary
 
@@ -984,18 +990,92 @@ aborts rather than skips and is a different decision.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner decision in session, 2026-08-03
+Implementation Authorization: owner decision in session, 2026-08-03; the review
+runs with the owner directly, no agent review panel this milestone (token
+budget). The owner's stated inclination is to bring the runner's verified
+resolution over rather than design a fresh one.
 Superseded Plan Artifacts: none
 
 1. Enumerate every probe in the suites that guards a skip, and every runner
-   resolver, and pair them.
+   resolver, and pair them. Done 2026-08-03; findings below.
 2. Augment the probe's search per the owner's direction, and record what the
-   second copy of the path knowledge costs.
+   second copy of the path knowledge costs. Done for logrotate 2026-08-03,
+   committed as `9f8d01c`; con and the system-lifecycle boundary item wait on
+   open decisions 2 and 3 below.
 3. Drive the local lifecycle on debian13 in both modes and confirm the four
    steps run.
 4. Drive it on rocky8 and confirm nothing changed there.
+
+Step 2 result, 2026-08-03, committed as `9f8d01c`:
+`tests/test-local-lifecycle.bash` resolves one `LOGROTATE_BIN` at
+the top in the runner's order — `/usr/sbin/logrotate`, `/sbin/logrotate`,
+`/usr/bin/logrotate`, then `command -v` as fallback — and the probe plus the
+three M19 invocations (the T1 `-d` validation and the T2 and T3 forced
+rotations) all route through it. The comment above the block records the
+second copy of the path knowledge, names `LOGROTATE_SEARCH_PATHS` in
+`bin/ioc-runner` as the reference, and states why `IOC_RUNNER_LOGROTATE_TOOL`
+is not consulted (the suite verifies the default deployment). Static
+verification observed 2026-08-03: `bash -n` clean and `shellcheck -S warning`
+clean on the edited file. The dev host top is itself the defect condition —
+`command -v logrotate` fails while `/usr/sbin/logrotate` is executable — and
+the new resolution order picks the first candidate there, so the probe no
+longer skips on the shape that produced the finding. T1 and T2 remain the
+real verification and need the golden VMs.
+
+Before acting on this plan, re-verify it against the code. The session that
+wrote it ran under a tight token budget, so this document can lag the working
+tree: the line numbers and shapes below are observations at `6223a04`, not
+guarantees. Re-run the pairing grep before step 2 and trust the tree over
+this text where they disagree.
+
+Step 1 findings, 2026-08-03, working tree at `6223a04`:
+
+- The runner resolves three tools, each by env override first and then an
+  absolute search list, in `bin/ioc-runner`: logrotate
+  (`IOC_RUNNER_LOGROTATE_TOOL`; `/usr/sbin`, `/sbin`, `/usr/bin`; then a
+  `command -v` fallback; returns nonzero when absent because rotation is
+  best-effort), con and procServ (`IOC_RUNNER_CON_TOOL` /
+  `IOC_RUNNER_PROCSERV_TOOL`; `/usr/local/bin`, `/usr/bin`, with
+  `~/.local/bin` prepended in user mode; exit on failure).
+- logrotate is the defect proper, and the probe is not the whole fix:
+  `tests/test-local-lifecycle.bash:62` probes with `command -v` alone and
+  gates the four M19 steps, but the M19 bodies also invoke `logrotate` by
+  bare name at lines 1262, 1312 and 1348. A repaired probe alone would stop
+  the skip on debian13 and then turn M19.T1 red (exit 127 on the `-d`
+  validation) while T2 and T3 swallow the bare-name failure with `|| true`
+  and fail later on the archive checks. The fix must resolve one absolute
+  path and route the probe and all three invocations through it.
+- con is latent in two places: `tests/test-local-lifecycle.bash:751` and
+  `tests/test-system-lifecycle.bash:636` probe PATH and then only
+  `/usr/local/bin/con`, missing the runner's `/usr/bin/con` and user-mode
+  `~/.local/bin/con`. No symptom on either golden today (con is on PATH),
+  and these are assertions rather than skip guards, so a disagreement would
+  show as a false red, not a silent skip.
+- procServ has no suite probe at all, so no pair can disagree; nothing to do.
+- Tools with no runner resolver (lsof, socat, truncate, camonitor, sudo) have
+  no pairing by construction; lsof aborts rather than skips and stays out of
+  scope per this milestone's Scope.
+- Boundary finding held for the owner: `tests/test-system-lifecycle.bash:993`
+  runs bare `logrotate -f` with stderr swallowed, guarded by the existence of
+  `/etc/logrotate.d/procserv` rather than a tool probe. That suite runs as
+  root, whose PATH carries sbin, so there is no symptom today.
+
+Open decisions before step 2; decision 1 is settled, 2 and 3 await the
+owner's call:
+
+1. Fix shape — decided (a) by the owner, 2026-08-03: copy the runner's search
+   order into the suite, resolving one `LOGROTATE_BIN` at the top and routing
+   the probe and the three invocations through it, with the second copy of
+   the path knowledge recorded in a comment naming `bin/ioc-runner`'s
+   `LOGROTATE_SEARCH_PATHS` as the reference. The alternative (b), prepending
+   `/usr/sbin:/sbin` to PATH at the suite top, was declined for changing PATH
+   for the whole suite.
+2. Whether the two latent con probes are brought to the runner's list in this
+   milestone; Scope already admits them as the same shape in another suite.
+3. Whether `tests/test-system-lifecycle.bash:993` is taken here, recorded as
+   a known latent second copy, or left as is.
 
 #### Test Plan
 
