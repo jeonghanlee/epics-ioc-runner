@@ -55,11 +55,28 @@ if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}
     printf "  sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald\n" >&2
 fi
 
-# U003/M19: the local log-rotation steps need logrotate. Hosts without it
-# cannot verify rotation; mark it unavailable so those steps skip with a WARN
-# rather than fail (deploy_local_logrotate itself warns and skips).
+# U003/M19: the local log-rotation steps need logrotate. Resolve it the way
+# bin/ioc-runner's resolve_logrotate_tool does - absolute paths first, PATH
+# lookup as fallback - because Debian keeps sbin off a user PATH while the
+# runner still installs rotation there; the probe must answer what the runner
+# answers. The path list is a deliberate second copy of the runner's
+# LOGROTATE_SEARCH_PATHS; IOC_RUNNER_LOGROTATE_TOOL is not consulted because
+# the suite verifies the default deployment. Hosts without logrotate cannot
+# verify rotation; mark it unavailable so those steps skip with a WARN rather
+# than fail (deploy_local_logrotate itself warns and skips).
 declare -g LOGROTATE_AVAILABLE="true"
-if ! command -v logrotate >/dev/null 2>&1; then
+declare -g LOGROTATE_BIN=""
+for logrotate_candidate in /usr/sbin/logrotate /sbin/logrotate /usr/bin/logrotate; do
+    if [[ -x "${logrotate_candidate}" ]]; then
+        LOGROTATE_BIN="${logrotate_candidate}"
+        break
+    fi
+done
+unset logrotate_candidate
+if [[ -z "${LOGROTATE_BIN}" ]]; then
+    LOGROTATE_BIN=$(command -v logrotate 2>/dev/null || true)
+fi
+if [[ -z "${LOGROTATE_BIN}" ]]; then
     LOGROTATE_AVAILABLE="false"
     printf "${YELLOW}%s${NC}\n" "WARN: logrotate not found; U003/M19 rotation steps will be skipped." >&2
 fi
@@ -1259,7 +1276,7 @@ function test_local_logrotate {
         local su_absent="true"; grep -qE '^[[:space:]]*su ' "${cfg}" && su_absent="false"
         verify_state "true" "${su_absent}" "M19.T1: no 'su' directive (single-user dir)"
 
-        local validate_ok="true"; logrotate -d "${cfg}" >/dev/null 2>&1 || validate_ok="false"
+        local validate_ok="true"; "${LOGROTATE_BIN}" -d "${cfg}" >/dev/null 2>&1 || validate_ok="false"
         verify_state "true" "${validate_ok}" "M19.T1: logrotate -d validates the config"
     fi
 
@@ -1309,7 +1326,7 @@ function test_logrotate_rotation {
     local probe="${log_dir}/rotateprobe.log"
     printf 'seed line for copytruncate\n' > "${probe}"
     local state; state=$(mktemp)
-    logrotate -f --state "${state}" "${cfg}" >/dev/null 2>&1 || true
+    "${LOGROTATE_BIN}" -f --state "${state}" "${cfg}" >/dev/null 2>&1 || true
 
     local archived="false"; [[ -f "${probe}.1.gz" ]] && archived="true"
     verify_state "true" "${archived}" "M19.T2: copytruncate produced rotateprobe.log.1.gz"
@@ -1345,7 +1362,7 @@ function test_logrotate_maxsize {
     local probe="${log_dir}/maxprobe.log"
     head -c 4096 /dev/zero | tr '\0' 'x' > "${probe}"
     local state; state=$(mktemp)
-    logrotate --state "${state}" "${tcfg}" >/dev/null 2>&1 || true
+    "${LOGROTATE_BIN}" --state "${state}" "${tcfg}" >/dev/null 2>&1 || true
 
     local rotated="false"; [[ -f "${probe}.1.gz" ]] && rotated="true"
     verify_state "true" "${rotated}" "M19.T3: maxsize rotates the log before the weekly mark"
