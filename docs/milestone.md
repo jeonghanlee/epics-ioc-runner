@@ -1283,6 +1283,32 @@ stores each host's five trailers plus the enumerated SKIP and NA lines, so
 "passed" is always "passed out of the declared total, with these named
 exceptions", never "of what ran".
 
+#### Release-gate requirements
+
+What the gate demands from the reporting, written here because these
+demands are the real acceptance bar of this milestone: if they were left
+unwritten, they would still be what the gate tests — only undocumented.
+T4 and T5 verify against this list.
+
+1. **A declared run count per host.** The gate knows how many suite runs a
+   host's log must carry (five today) from a declaration, not from
+   counting what happens to be present; a missing run is a failed gate,
+   not a shorter log.
+2. **A mechanical verdict.** Green is derivable from the trailers alone:
+   every declared trailer present, `fail=0`, `err=0`, `skip=0`, and any
+   nonzero `na` covered by an enumerated reason line. No prose reading,
+   no ANSI stripping, no scan regex over the body.
+3. **Evidence that pastes into the record.** The trailers and the SKIP/NA
+   enumeration lines are the gate evidence, verbatim — the Release
+   Verification rows store "passed X of declared Y, exceptions named"
+   without reformatting.
+4. **Cross-host accountability.** From the step outcome lines the gate can
+   enumerate every difference between the goldens and confirm each one is
+   a declared NA under the step 2 boundary, not a drop.
+5. **One recheck command.** A single command per host reproduces the
+   verdict from that host's log, recorded in the runbook in both copies
+   (M6's drift criterion carries over to the trailer reader).
+
 #### Completion Criteria
 
 - Every check in the four suites terminates in exactly one state from the
@@ -1297,6 +1323,8 @@ exceptions", never "of what ran".
   forms.
 - Every skip emission in the four suites matches its class's policy form,
   verified by a sweep, and no `[ PASS ]` name can be confused with one.
+- The five release-gate requirements above are each demonstrated, T4 and
+  T5 citing them item by item.
 - The policy and the reporting model are written down beside the suites.
 
 #### Dependencies And Decisions
