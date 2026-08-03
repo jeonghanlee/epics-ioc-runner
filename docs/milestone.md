@@ -6,10 +6,12 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: continue M7 — step 1's pairing walk and step 2's
-logrotate fix are done 2026-08-03, the fix is committed as `9f8d01c`, and
-what remains is the owner's call on open decisions 2 and 3 in the
-detail, then T1 on debian13 and T2 on rocky8 on the golden VMs. The owner
+Next session entry point: continue M7 — step 2 is fully implemented
+2026-08-03: the logrotate fix is committed as `9f8d01c`, and the decision 2
+(con probes) and decision 3 (boundary-test logrotate) fixes as `9f6a3e9`.
+The local suite on the dev host top passed 96 of 96 with all fourteen M19
+assertions running (evidence in the M7 detail); what remains is T1 on
+debian13 and T2 on rocky8 on the golden VMs. The owner
 accepted the plan and authorized implementation, reviewed with the owner
 directly rather than an agent panel; re-verify the detail's findings against
 the code before acting on them. Then M6. M5 steps 1 through 7 are done — the
@@ -1002,8 +1004,9 @@ Superseded Plan Artifacts: none
    resolver, and pair them. Done 2026-08-03; findings below.
 2. Augment the probe's search per the owner's direction, and record what the
    second copy of the path knowledge costs. Done for logrotate 2026-08-03,
-   committed as `9f8d01c`; con and the system-lifecycle boundary item wait on
-   open decisions 2 and 3 below.
+   committed as `9f8d01c`. Decisions 2 and 3 were both decided as fix by the
+   owner later the same day and are committed as `9f6a3e9`; the decision
+   paragraphs below record their shape.
 3. Drive the local lifecycle on debian13 in both modes and confirm the four
    steps run.
 4. Drive it on rocky8 and confirm nothing changed there.
@@ -1062,8 +1065,7 @@ Step 1 findings, 2026-08-03, working tree at `6223a04`:
   `/etc/logrotate.d/procserv` rather than a tool probe. That suite runs as
   root, whose PATH carries sbin, so there is no symptom today.
 
-Open decisions before step 2; decision 1 is settled, 2 and 3 await the
-owner's call:
+Decisions taken during step 2 — all three are settled:
 
 1. Fix shape — decided (a) by the owner, 2026-08-03: copy the runner's search
    order into the suite, resolving one `LOGROTATE_BIN` at the top and routing
@@ -1073,9 +1075,33 @@ owner's call:
    `/usr/sbin:/sbin` to PATH at the suite top, was declined for changing PATH
    for the whole suite.
 2. Whether the two latent con probes are brought to the runner's list in this
-   milestone; Scope already admits them as the same shape in another suite.
-3. Whether `tests/test-system-lifecycle.bash:993` is taken here, recorded as
-   a known latent second copy, or left as is.
+   milestone — decided fix by the owner, 2026-08-03, committed as
+   `9f6a3e9`. The probes in both suites now walk `resolve_con_tool`'s
+   absolute list (user mode adds `${HOME}/.local/bin/con` first; system mode
+   is `/usr/local/bin/con`, `/usr/bin/con`) with no PATH fallback, because
+   the runner never consults PATH for con; the runner's socat fallback is
+   deliberately not mirrored since the check asserts the con utility itself.
+3. Whether the bare `logrotate -f` in `test_logrotate_boundary`
+   (`tests/test-system-lifecycle.bash`) is taken here — decided fix by the
+   owner, 2026-08-03, committed as `9f6a3e9`. The boundary test resolves
+   `logrotate_bin` in the runner's order with a `command -v` fallback and,
+   when unresolved, now WARN-skips like that function's other two guards
+   instead of aborting the whole suite under `set -e`. The new skip path is
+   one more instance for M6 to make visible.
+
+Static verification of the decision 2 and 3 edits, observed 2026-08-03:
+`bash -n` clean and `shellcheck -S warning` clean on both edited suites.
+
+Dev-host run observed 2026-08-03 on top — debian with sbin off the user
+PATH, the defect condition itself — in source mode with the 1.2.1
+debian-13/7.0.10 environment: `bash tests/test-local-lifecycle.bash` passed
+96 of 96 with zero failures and zero script errors, the log carries no skip
+line, the fourteen M19 assertions all ran and passed (T1 nine, T2 two, T3
+one, teardown two), and the con check passed through the new absolute-list
+probe. Before the fix this host skipped every M19 step. This is the dev-host
+tier, not T1: T1 (debian13 golden, both modes) and T2 (rocky8 golden) remain,
+and the system suite has not yet run with the decision 3 edit — it runs on
+the golden VMs as part of those.
 
 #### Test Plan
 
