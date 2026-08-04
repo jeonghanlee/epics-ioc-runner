@@ -34,6 +34,12 @@ The system lifecycle runs under root for system-wide systemd control and
 cross-user anonymous-peer mapping (`inspect` via Kernel Netlink); `sudo -E`
 preserves the EPICS environment across that boundary.
 
+## Result Reporting Contract
+
+See [REPORTING_CONTRACT.md](REPORTING_CONTRACT.md) for the stable catalog,
+result dimensions, terminal states, machine-readable grammar, invariants, and
+producer boundary.
+
 ---
 
 ## Debugging and Workspace Retention
