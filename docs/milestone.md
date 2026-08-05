@@ -6,7 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M6 first, then one golden-VM run closes both M6
+Next session entry point: M9 first. Create its GitHub issue, implement the
+accepted `source-regression` suite and separate `--source-regression` selection,
+split source-regression checks from post-install infrastructure
+verification, and complete M9 before returning to M8. M8 remains Not started and not ready until
+both M6 and M9 are complete. M6 then proceeds, and one golden-VM run closes both M6
 and M7 — the owner approved this order 2026-08-03. Work M6's four steps and
 its cheap T1 and T2, which need only recorded logs and the working tree, no
 VM. Then a single golden-VM run drives M7's T1 (debian13, both modes) and T2
@@ -17,7 +21,8 @@ host top passed 96 of 96 with all fourteen M19 assertions running (evidence
 in the M7 detail). Both milestones are reviewed with the owner directly, no
 agent panel; re-verify each detail's findings against the code before acting
 on them. M8 (suite skip-reporting policy) opened 2026-08-03 behind M6 and
-gates the release — it is in M3's dependency row. M5
+now also waits for M9's suite-category separation; it gates the release and is
+in M3's dependency row. M5
 steps 1 through 7 are done — the
 drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
 and then on rocky8 at its first run with no edit, D8 is final, and the twelve
@@ -54,8 +59,9 @@ closed.
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | In progress | No | M1 | The verdict refuses a plain `SUITES OK` when the log carries a skip, and a run with a known skip is distinguishable from one without; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
-| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | No | M6 | Every suite's summary block carries a skip count, every skip emission follows one written policy form per class, and the verdict reads the count instead of grepping prose; [detail](#m8---suite-skip-reporting-policy) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M9 | Separate source regression from post-install infrastructure verification | Milestone | Not started | No | D9, D10, D11 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
+| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | No | M6, M9 | Every suite defines one Git-style terminal state for every check, emits one uniform report format, keeps totals invariant, and produces statistics from those states; [detail](#m8---suite-skip-reporting-policy) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -69,6 +75,9 @@ closed.
 | D7 | M5 is a named exception to D1 on the same footing as D5: the scenario drivers ship as repository assets under a top-level `gate/` directory, which also takes the runbook, and D1 otherwise stands. The ground is that D1 admits test scenarios, and the drivers are the executable half of the scenarios this cycle was opened to re-set — M1 carried the describing half and named the executable half out of scope, so the cycle's own purpose is unmet while it stays out. The exception covers the drivers, the runbook edits they force, and their verification; it does not reopen the line to work under `bin/`. Its cost is stated rather than discovered: the drivers are only accepted by a two-host gate run, which is the same run the release needs, so the release moves out by that run. | Owner decision, 2026-08-01 |
 | D8 | The gate drivers take the shape the 2026-08-01 debian13 set already holds, read off all seventeen files rather than designed fresh, because that set is the only one that drove all fourteen scenarios to their stated results. Adopted as they stand: positional arguments, with `$1` always the EPICS environment path and `$2` always the IOC name and later positions carrying only that scenario's own values; the one sourcing line `set +u; if [ -z "${EPICS_BASE:-}" ]; then . "$1"; fi; set -u`, identical in every file; a header comment naming the scenarios covered and, past two arguments, the argument list; no `set -e`, because almost every command's nonzero exit is the observation itself; a console-opening command wrapped as `timeout -k 2 <N> script -qec "<cmd>" /dev/null </dev/null`, and a held console fed by a fifo from a detached `setsid`; absolute paths throughout. Seven places where the seventeen disagree are settled toward the majority, which is also the cheaper move: one verdict form rather than three; `cleanup.bash` and the S3 block brought inside the convention, the second becoming a file for the first time; the execution side (control host against VM) marked by the layout, since `sys-`/`local-` marks the mode and not the side; per-run scratch paths, since `/tmp/s4.out` is a fixed name two runs collide on; the scenario identities collected into one file rather than supplied by the caller, that being the exact place the per-run reinvention enters; the principal switch made by the caller and never inside a driver, as only `sys-s11.bash` does today; and `ssh -n` with batch options as a rule on every call rather than in the S3 block alone. This shape is provisional through step 6 and not before. It is read off one successful set on one host, so two runs are expected to move it: step 2 drives the recovered set unchanged and shows what the shape cannot carry, and step 6 is the only place the two hosts' divergences appear at all — at least the S11 sudo branch and the wrapper's closing message. Each revision amends this row with its date and what moved it; the shape is final when step 6 passes, and step 9 verifies rather than settles it. **Final as of 2026-08-02, when step 6 drove rocky8.** The set reached fourteen of fourteen there on its first run with no driver edited, so the shape carried a host it had never seen. Four of the five divergences the amendment predicted moved as predicted and needed no repair: `control/s11.bash` read `sudo 1.9.5p2` with six glob lines, took the glob branch, and asserted the result opposite to debian13's — the escaping complaint and the failed job assertion in the command's own output, with its own detail stating that the exit code is not the evidence; the environment path resolved to the rocky OS tree from `/etc/os-release`; this golden's wrapper closes with a trailing newline so nothing glues, which cost nothing because every verdict read is unanchored by construction rather than by branch; and the killed console recorded 124 here against 137 on the other, both ignored in favour of the connection banner. The fifth is recorded as **confirmed absent, not confirmed carried**: no login shell spoke ahead of any capture on rocky8, so the `tail -1` and match-not-equality defences ran without ever being loaded, and the claim that the set handles a speaking login shell still rests on the debian13 run alone. One repair the run forced, and the only place in the seventeen files where a host-specific value appeared at all: `host/sys-s4-server.bash` described a timed-out client in prose as recording one exit code and one closing message, both of them this host's; it now names both hosts' forms and asserts neither. **Amended 2026-08-01 by the step 2 and step 3 runs**, which moved six of the settlements above. One of them was measured false: `ssh -n` is not a rule for every call, because `-n` redirects stdin from `/dev/null` and the call that reads the archive off the pipe then feeds an empty stream to `tar`, which reports `This does not look like a tar archive` — so the rule splits, `-n` on a call that only issues a command and never on one that reads a stream. "One verdict form rather than three" understated the problem and is replaced: step 2 showed no driver prints a scenario verdict at all, only per-command exit lines, so every one of the fourteen verdicts was a human reading a transcript — three of them load-bearing, since L1's verdict is a comparison across two invocations no driver makes, S3's needs a printed word read against an inverted exit code, and S10's needs a nonzero code ignored and a banner found. Each driver therefore computes and prints its own scenario verdict. The principal becomes an argument the driver checks before acting rather than a value it reports afterwards, because three drivers run under more than one principal and a wrong one yields a plausible transcript. The parts of the run that have no driver at all get one: S9's root half, from which two of that scenario's four verdicts come, the local-user runtime directory forcing, and the survival check between S6 and S10. The capture form and the run order move into the set, both being outside it today. `set -e` stays off for scenario drivers and is on for the push driver, where a failed push is a failure rather than an observation. | Owner decision, 2026-08-01, on the shape read off the recovered set; amended the same day by the step 2 and step 3 runs; final 2026-08-02 on the step 6 rocky8 run |
 | D6 | The three sites M4 aligns do NOT gain a contract guard: examined through the Ledger promotion test (#100 / M17, `git show 3e47ee6:docs/milestone.md`) and left at Keep, recorded as `CLOSED_DOORS.md` CI-31. Elimination stays blocked (three self-contained scripts, the CI-4/CI-15 premise) and gates A and B pass, but Gate C fails on a netting the first pass of this decision missed: M4's own regression asset drives all three entry points from a relocated clean fixture and a modified one on both goldens, so a one-sided return to a stat-trusting comparison turns it red with no guard in place. The residual — a one-sided move to a comparison those fixtures cannot tell apart, such as one that counts untracked files — is priced too narrow to fund a fifth guard against a base rate of four promotions in eighteen examined findings. The full gate walk, the measured drift history, and the declined fold live in CI-31. | Owner decision, 2026-07-31, superseding the same-day promotion decision after the Gate C netting |
+| D9 | Source regression and post-install infrastructure conformance are separate test categories and belong in separate suites. The former runs real shipped source paths with only their outer filesystem targets redirected to isolated temporary paths and is selected separately through `run-all-tests.bash --source-regression`; it is not part of the post-install `--system` selection. The latter reads the actual configured host state. M9 completes this separation before M8 changes reporting across the suite set. **Amended by D10:** the initially proposed `system-installer` identity was too narrow for the existing S07 through S14 inventory. | Owner decision, 2026-08-04; amended the same day after conceptual-integrity review |
+| D10 | Use one `tests/test-source-regression.bash` suite with suite ID `source-regression` for the complete existing S07 through S14 inventory. Do not create a separate `test-harness-integrity` suite: setup, live runner, injection, Git fixture, and test path-safety checks already share one source-tree validity boundary, and splitting one path-safety assertion into another suite would invent a dependency and widen M9 without changing what must be verified. The suite reports `scope=system` and `runner=source`. `run-all-tests.bash --source-regression` is an exclusive selection and rejects combinations with `--local`, `--system`, `--source`, or `--installed`. The suite starts through `sudo bash`, retains the invoking identity in `SUDO_USER`, and drops to that identity only for the existing source and Git operations. | Owner decision, 2026-08-04, after conceptual-integrity review |
+| D11 | Suspend the unfinished M8 reporter prototype before M9 as a local Git stash, not a `work/` copy or repository commit. Snapshot commit `f330b4e9962031de37c904ece23c653c800620c8` contains the four lifecycle and infrastructure suite edits plus `tests/lib/test-reporting.bash`; the active code paths were verified equal to local `HEAD` after capture. The stash is local-only, is not verification evidence, and is reconsidered against the M9 suite layout when M8 resumes. | Owner decision and local snapshot, 2026-08-04 |
 
 ## ID Migration
 
@@ -221,7 +230,7 @@ Last Compared: 2026-07-30
 Origin: #130, filed 2026-07-29 during the 1.2.2 gate
 Identity History: Backlog row (`docs/backlog.md`) moved to this register at the 1.2.3 open
 GitHub Issue: 130, https://github.com/jeonghanlee/epics-ioc-runner/issues/130
-Status: Not started
+Status: In progress
 
 #### Summary
 
@@ -1194,6 +1203,143 @@ Observed Labels: P2-medium, bug, tests
 Observed Milestone: 1.2.3
 Last Compared: 2026-08-02
 
+### M9 - Source regression suite separation
+
+Origin: M8 architecture review on 2026-08-04 found that
+`test-system-infra.bash` combines source-regression checks with
+installed-conformance checks
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+#### Summary
+
+`test-system-infra.bash` currently combines two verification targets. S01
+through S06 inspect the configured host after installation. S07 through S14
+exercise setup, live runner, version injection, Git fixture, and test
+path-safety behavior from the source tree. A result from one category cannot
+establish the other, and keeping both in one suite gives the suite two
+incompatible execution contexts.
+
+#### Scope
+
+- Keep S01 through S06 in system infrastructure as
+  `installed-conformance`: actual accounts, paths, ownership, permissions,
+  sudoers policy, systemd units, logrotate configuration, and policy behavior
+  on the configured host.
+- Move S07 through S14 into `tests/test-source-regression.bash`, suite ID
+  `source-regression`, without replacing shipped setup, live runner, injection,
+  Git, or test-script paths. Filesystem writes may be redirected only at their
+  outer boundary to isolated temporary targets.
+- Preserve every existing assertion and expected result while assigning the
+  moved checks to the new suite identity and catalog.
+- Add the exclusive `run-all-tests.bash --source-regression` selection. Reject
+  combinations with `--local`, `--system`, `--source`, or `--installed`, and do
+  not include this suite in the post-install `--system` selection.
+- Run the suite through `sudo bash`, retain the invoking identity in
+  `SUDO_USER`, and drop to that identity only for the existing source and Git
+  operations.
+- Do not create a separate `test-harness-integrity` suite. The S08 test-script
+  path guard stays in the single source-regression suite under the same
+  source-tree validity boundary as S07 through S14.
+- Apply the category and real-path rules in `tests/REPORTING_CONTRACT.md` to
+  both resulting suites.
+
+Out of scope: changing installer behavior; changing installed system policy;
+the M8 terminal-state reporter; the M6 gate consumer; making an existing
+skipped lifecycle check run.
+
+#### Completion Criteria
+
+- System infrastructure contains only post-install
+  `installed-conformance` checks. It does not inspect product source files or
+  require Git metadata; its test code and shared test library remain normal
+  invocation dependencies.
+- The dedicated `source-regression` suite owns all former S07 through S14
+  checks and executes the real shipped script paths against isolated outer
+  filesystem targets.
+- The destination catalog accounts for every moved check with no duplicate or
+  dropped assertion.
+- Direct invocation and `run-all-tests.bash --source-regression` are documented
+  and implemented; post-install `--system` does not invoke source regression.
+- The source-regression result uses `suite=source-regression`, `scope=system`,
+  and `runner=source`; unsupported selector combinations fail before suite
+  execution.
+- No `test-harness-integrity` suite or additional result is created.
+- Both suites pass their accepted real-path verification on Debian 13 and
+  Rocky 8 before M8 begins.
+
+#### Dependencies And Decisions
+
+- D9 defines the category boundary and D10 fixes the single-suite shape; both
+  require this milestone to complete before M8.
+- D11 removes the unfinished M8 reporter prototype from the active test paths
+  while M9 runs. M9 starts from local `HEAD`; the local-only snapshot is not an
+  implementation input for this milestone.
+- A GitHub issue under milestone `1.2.3` is required before implementation by
+  D1. No issue existed when the remote was checked on 2026-08-04; #137 was the
+  latest issue.
+- Owner decision, 2026-08-04: use one `tests/test-source-regression.bash` suite,
+  suite ID `source-regression`, and an exclusive
+  `run-all-tests.bash --source-regression` selection outside the post-install
+  `--system` group. Do not add a test-harness suite.
+- M8 depends on M9 and must re-inventory the resulting suite set rather than
+  preserving the current four-suite assumption.
+
+#### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: owner, 2026-08-04, amended after conceptual-integrity review
+to one source-regression suite and no test-harness suite
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Inventory every assertion and prerequisite in S07 through S14 and record
+   its destination STEP and check identity.
+2. Add `tests/test-source-regression.bash` with suite ID `source-regression`,
+   the exclusive `run-all-tests.bash --source-regression` selection, and the
+   accepted root-to-`SUDO_USER` execution boundary.
+3. Move the source-regression checks without rewriting their product path;
+   retain S01 through S06 as the system-infrastructure suite.
+4. Update suite documentation, catalog ownership, and orchestrator collection
+   for the accepted invocation.
+5. Verify both resulting suites through the real shipped paths on Debian 13
+   and Rocky 8, then review the assertion inventory for omissions.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Assertion inventory | Map every current S07 through S14 assertion and prerequisite to exactly one destination identity before and after the move | Working tree | No assertion, prerequisite, or expected result is dropped or duplicated |
+| T2 | Source regression | Run the dedicated suite through shipped setup, live runner, injection, Git, and test-script paths with only outer filesystem writes redirected | Debian 13 and Rocky 8 source trees | Every applicable source regression executes and reaches its expected result without claiming installed-host conformance |
+| T3 | Installed conformance | Run system infrastructure on a configured host without inspecting product source files or Git metadata | Debian 13 and Rocky 8 installed hosts | Every S01 through S06 requirement is evaluated against actual installed state and no source-regression check runs |
+| T4 | Boundary check | Inspect both suite catalogs and execution logs against the category rules in `tests/REPORTING_CONTRACT.md` | Both goldens | Each suite owns one primary category and runs only checks valid in its execution context |
+| T5 | Orchestrator collection | Invoke `run-all-tests.bash --source-regression`, compare it with direct invocation, and try every rejected selector combination | Both goldens | The source-regression result is collected once with the accepted dimensions, and every unsupported combination fails before suite execution |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Working tree | Pending | none |
+| T2 | Not run | Debian 13 and Rocky 8 source trees | Pending | none |
+| T3 | Not run | Debian 13 and Rocky 8 installed hosts | Pending | none |
+| T4 | Not run | Both goldens | Pending | none |
+| T5 | Not run | Both goldens | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Separate source regression from post-install infrastructure verification
+Labels: tests, P2-medium
+GitHub Milestone: 1.2.3
+Observed State: not created
+Observed Labels: none
+Observed Milestone: none
+Last Compared: 2026-08-04
+
 ### M8 - Suite skip-reporting policy
 
 Origin: M6's step 1 findings of 2026-08-03 in this register, opened at the
@@ -1204,48 +1350,32 @@ Status: Not started
 
 #### Summary
 
-The suites report a skip three different ways — step-level `[WARN   ] ...
-skipping ...`, probe-level prose `... will be skipped.`, and `[INFO   ]
-SKIP:` for a deliberate does-not-apply — and none of them reaches the
-summary block, which counts only `Passed`, `Failed` and `Script Errors`.
-Meanwhile three `[ PASS ]` check names contain the word `skip`, so no bare
-word can anchor a count. M6 makes the verdict read these forms from the log
-body; that is a reading of what exists, not a policy. Counting skips
-exactly requires the tests' own verification policy to say what a skip is,
-which class each emission belongs to, and where the count lives.
+The suites currently derive their apparent result from assertion counters and
+human-readable body text. Conditional branches, warnings, skips, and early
+returns can therefore remove checks from the denominator without producing a
+terminal state. Counting skips exactly requires the test code to define the
+state of every check before a reporter aggregates it.
 
 #### Scope
 
-- Every skip, WARN, and does-not-apply emission across the four suites,
-  enumerated and classified: a dropped check, a deliberate does-not-apply,
-  or a benign warning.
-- One written policy form per class, applied to every emission.
-- The summary block of each suite extended to carry the skip count beside
-  `Passed`, `Failed` and `Script Errors`, so a verdict reads a count
-  rather than grepping prose.
-- The reporting model below, refined and settled with the owner in step 2,
-  applied across the four suites.
-- The SKIP-versus-NA boundary for per-OS differences, defined explicitly:
-  test counts and methods legitimately differ per OS, and the policy must
-  say who declares "this check was never meant to run here" — the check
-  code deciding at run time, or a per-OS expected list the run is compared
-  against. Undefined today; owner decision in step 2. (Owner direction,
-  2026-08-03.)
-- rocky8's monitor-isolation skip (`User-scope journal unavailable`),
-  examined under that boundary: whether it is a legitimate NA or a
-  removable skip (enabling the user-scope journal), and resolved
-  accordingly. (Owner direction, 2026-08-03 — pulled into M8 rather than
-  opened separately.)
-- A full re-verification once the policy lands: the owner's direction of
-  2026-08-03 is that the whole suite set is re-verified on both goldens
-  under the new reporting, so every state the old format could not record
-  is observed once with the new one before the release gate reads it.
+- A Git-style closed result state is defined in the test code: `PASS`,
+  `FAIL`, `SKIP`, `NA`, and `SCRIPT_ERROR`.
+- Every test-related script under `tests/` uses the same report envelope;
+  `run-all-tests.bash` collects suite records without inventing states.
+- Every check in the resulting suite set has a stable identity, STEP owner, and one
+  explicit terminal state. Inventory and total are owned by the test code.
+- Every existing `SKIP`, `WARN`, does-not-apply branch, prerequisite branch,
+  and early return is classified and closed explicitly.
+- The reporter validates and aggregates test-owned states; it never converts
+  an unvisited check into `NA`.
+- The whole suite set is re-verified on both goldens after the state-first
+  implementation, with OS differences recorded as explicit test-owned states.
 
 Out of scope: the verdict command, which is M6 and reads whatever the
 suites print; making any other individual skipped check run (the M7
 class); the drivers under `gate/`, whose verdict convention D8 fixed.
 
-#### Reporting model (draft, 2026-08-03 — owner direction; settled in step 2)
+#### Reporting model (draft, 2026-08-03 — revised by owner direction)
 
 The owner's requirement: the output and the summary must record the state
 of the test procedure exactly, the per-step records must be fine-grained,
@@ -1261,78 +1391,74 @@ product is in. Four layers follow from that:
    executed.
 2. **A step outcome line per STEP.** Each numbered STEP closes with one
    line carrying the step's identity and its assert tally (pass, fail,
-   skip, na). This is the granularity the goldens differ at — the
-   twelve-check difference between debian13's 82 and rocky8's 94 becomes
-   an enumerable list of steps, not a subtraction — and it feeds M6's
-   fourth completion criterion directly.
+   skip, na). The difference between goldens becomes an enumerable list of
+   test-owned states, not a subtraction from a total.
 3. **A summary block that carries the full vector.** `Total`, `Passed`,
    `Failed`, `Skipped`, `Not applicable`, `Script Errors` — zero printed,
    never omitted — followed by one line per SKIP and NA repeating the
    check identity and reason, so a reader gets the exceptions without
    scanning the body.
 4. **One machine-readable trailer per suite run.** A single fixed-form
-   final line (shape settled in step 2, e.g.
-   `SUITE <name> total=<n> pass=<n> fail=<n> skip=<n> na=<n> err=<n>`)
-   that the gate verdict parses. Five runs per host means five trailers in
-   one log; the verdict counts blocks and reads trailers, and a green
-   requires every trailer present, `fail=0`, `err=0`, `skip=0` — with a
-   nonzero `na` allowed only because each NA line above names its reason.
+   final line carries the complete vector and is produced only after every
+   test-owned identity has a terminal state. The producer records are the
+   input for the separate M6 consumer; M8 does not implement that consumer.
 
-At the release gate this makes the recorded state exact: the gate record
-stores each host's five trailers plus the enumerated SKIP and NA lines, so
-"passed" is always "passed out of the declared total, with these named
-exceptions", never "of what ran".
+This makes the producer state exact: the suite record describes the declared
+inventory and every terminal state, so a total never means merely "of what
+ran".
 
-#### Release-gate requirements
+#### Producer implementation boundary
 
-What the gate demands from the reporting, written here because these
-demands are the real acceptance bar of this milestone: if they were left
-unwritten, they would still be what the gate tests — only undocumented.
-T4 and T5 verify against this list.
+The previous implementation used a compatibility adapter that supplied fixed
+numbers and synthesized states for unvisited checks. Reviewers rejected that
+boundary because it does not make the test code the source of truth. The
+revised implementation starts with the test-owned state definitions and uses
+the shared library only for validation, aggregation, file-backed evidence,
+STEP records, and the final `SUITE` record. Existing human-readable output
+remains additive.
 
-1. **A declared run count per host.** The gate knows how many suite runs a
-   host's log must carry (five today) from a declaration, not from
-   counting what happens to be present; a missing run is a failed gate,
-   not a shorter log.
-2. **A mechanical verdict.** Green is derivable from the trailers alone:
-   every declared trailer present, `fail=0`, `err=0`, `skip=0`, and any
-   nonzero `na` covered by an enumerated reason line. No prose reading,
-   no ANSI stripping, no scan regex over the body.
-3. **Evidence that pastes into the record.** The trailers and the SKIP/NA
-   enumeration lines are the gate evidence, verbatim — the Release
-   Verification rows store "passed X of declared Y, exceptions named"
-   without reformatting.
-4. **Cross-host accountability.** From the step outcome lines the gate can
-   enumerate every difference between the goldens and confirm each one is
-   a declared NA under the step 2 boundary, not a drop.
-5. **One recheck command.** A single command per host reproduces the
-   verdict from that host's log, recorded in the runbook in both copies
-   (M6's drift criterion carries over to the trailer reader).
+The producer implementation does not modify `gate/` or the M6/#135 verdict
+parser. Gate consumption of the `SUITE` records remains a separate milestone
+item.
+
+The unfinished pre-M9 reporter prototype is suspended in local Git stash
+commit `f330b4e9962031de37c904ece23c653c800620c8` under D11. It is not accepted
+implementation or verification evidence. After M9 completes, M8 re-inventories
+the resulting suite set and compares the snapshot against that structure
+before deciding which parts remain applicable.
+
+#### Producer acceptance requirements
+
+These are the acceptance conditions for the M8 producer. M6 owns the gate
+consumer requirements.
+
+1. Every test-related script uses the same report grammar.
+2. Each suite declares its inventory and state owner in test code.
+3. Every real check closes exactly once with a terminal state.
+4. Missing, duplicate, unknown, or unclosed identities produce
+   `SCRIPT_ERROR`; the reporter never fabricates `NA`.
+5. `Total = PASS + FAIL + SKIP + NA + SCRIPT_ERROR` and the identity set is
+   invariant across supported OS and execution modes.
 
 #### Completion Criteria
 
-- Every check in the four suites terminates in exactly one state from the
-  closed set, and a check with no state is treated as a suite defect.
-- Every suite's summary block reports the full vector — skip and
-  not-applicable counts included, zero printed — and enumerates each SKIP
-  and NA with its reason.
-- Each numbered STEP closes with its own outcome line, and the difference
-  between the two goldens' totals is enumerable from those lines alone.
-- Every suite run ends in one fixed-form machine-readable trailer, and
-  M6's verdict (or its successor) reads the trailers instead of the body
-  forms.
-- Every skip emission in the four suites matches its class's policy form,
-  verified by a sweep, and no `[ PASS ]` name can be confused with one.
-- The five release-gate requirements above are each demonstrated, T4 and
-  T5 citing them item by item.
-- The policy and the reporting model are written down beside the suites.
+- Every test-related script uses the uniform report envelope.
+- Every check in the resulting suite set terminates in exactly one state from the
+  closed set, and a check with no state is a suite defect.
+- Every existing skip, warning, does-not-apply branch, prerequisite branch,
+  and early return has a named policy and explicit terminal state.
+- Every suite run ends in one fixed-form machine-readable trailer after state
+  completeness is verified.
+- The identity set and total remain invariant across supported OS and modes.
+- The state policy, report grammar, and implementation order are documented
+  beside the suites.
 
 #### Dependencies And Decisions
 
 - M6: its step 1 enumeration is this milestone's input, and its verdict is
-  the consumer of the count. M8 lands after M6 so the interim body-reading
-  verdict is not rewritten mid-flight; the owner approved the M6-first
-  order 2026-08-03.
+  the consumer of the producer records. M8 does not change the M6 consumer.
+- M9: installer source regression must be separated from installed
+  infrastructure conformance before M8 inventories and migrates the suite set.
 - M8 gates the 1.2.3 release — owner decision 2026-08-03, accepting that
   the release moves by the cost of a tests-wide reporting change plus a
   two-golden re-run. M3's dependency row carries M8.
@@ -1342,25 +1468,34 @@ T4 and T5 verify against this list.
 Plan Status: draft
 Plan Acceptance: none
 Implementation Authorization: none
-Superseded Plan Artifacts: none
+Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
-1. Sweep the four suites for every skip, WARN, and does-not-apply emission;
-   classify each against the three classes and list the misfits.
-2. Settle the policy and the reporting model with the owner: the form per
-   class, the closed state set, the step outcome line, the summary vector,
-   and the trailer's exact shape.
-3. Apply both to every emission, every STEP, and the four summary blocks.
-4. Point the verdict at the trailers and retire its body-form anchors.
+1. Inventory all scripts under `tests/`, map every assertion and every
+   conditional result branch, and assign stable test and STEP identities.
+2. Define the Git-style closed state set and uniform report grammar. Refactor
+   the shared reporter to validate and aggregate test-owned states only; it
+   must not synthesize `NA` for an unvisited check.
+3. Update every producer suite script so its test code owns inventory and emits
+   one explicit state for every check, including skip, NA, warning,
+   prerequisite, and early-return paths.
+4. Update `run-all-tests.bash` to collect uniform suite records and reject
+   missing, duplicate, malformed, or unexpected records without inventing
+   test states.
+5. Ask all three reviewers to review the state-first implementation and
+   require no blocking findings before statistics are accepted.
+6. Run the current reporting method on both golden OS families and compare
+   identity sets, totals, and state vectors across supported modes.
 
 #### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Suite execution | Run a suite on a host with a known skip | A golden carrying one | The summary block counts it and the verdict refuses a plain green |
-| T2 | Suite execution | Run the same suite where nothing skips | The other golden | The summary reports zero skips and the verdict passes |
-| T3 | Policy sweep | Grep every emission against the policy forms | Working tree | No emission outside its class's form, and no `[ PASS ]` name collides |
-| T4 | Gate readback | Reconstruct each host's state from the five trailers, the step outcome lines, and the enumerated exceptions alone, without the log body | Both goldens' logs | The reconstruction matches the body, and the goldens' total difference is enumerated step by step |
-| T5 | Full re-verification | Run the whole suite set on both goldens under the new reporting | Both goldens | Every trailer present; every SKIP and NA enumerated with its reason; the monitor-isolation case carries the state the step 2 boundary decision assigned it |
+| T1 | Static inventory | Map every assertion, branch, skip, warning, and early return to one test ID and STEP | Working tree | No result-producing path is unmapped or multiply mapped |
+| T2 | Reporter contract | Run the real reporter self-tests, including missing state and abort cases | Working tree | Missing state is `SCRIPT_ERROR`; no synthetic `NA` is emitted |
+| T3 | Uniform format | Run all suite scripts and the orchestrator through the shared grammar | Working tree | Every suite has valid `TEST`, `STEP`, and `SUITE` records; the orchestrator invents no state |
+| T4 | State-first suite execution | Run a suite with a known environment exception and one without it | Both goldens | The test code emits explicit states, fixed identity sets remain equal, and totals reconcile |
+| T5 | Reviewer gate | Three reviewers inspect the implementation and the state mapping | Review session | No blocking finding remains on inventory, terminal states, or statistics |
+| T6 | Full re-verification | Run the whole suite set on both goldens under the new reporting | Both goldens | Every check has one state, every trailer is valid, and statistics derive from test-owned states |
 
 #### Verification Results
 
@@ -1371,6 +1506,7 @@ Superseded Plan Artifacts: none
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
 | T5 | — | — | pending | |
+| T6 | — | — | pending | |
 
 #### Closure Evidence
 
@@ -1412,7 +1548,7 @@ Out of scope: product behavior changes (D1).
 
 #### Dependencies And Decisions
 
-- M1, M2, M4
+- M1, M2, M4, M5, M6, M7, M8, M9
 - D1 and D5: the line is documents and scenarios apart from one named
   exception, so the suites verify unchanged behavior everywhere except the
   version stamp, where M4 changes the comparison and carries its own
@@ -1467,7 +1603,7 @@ Superseded Plan Artifacts: none
 | Label | Layer | Timing | Method | Environment | Expected Result | Evidence Target |
 | --- | --- | --- | --- | --- | --- | --- |
 | Release Verification 1 | Golden acceptance | pre-change | The bake runbook's acceptance sequence: manifest ownership and hash, the provenance validator, the sidecar comparison, the deployed `-V` | Both goldens | All four checks pass and the baseline is recorded | Command output in the result row |
-| Release Verification 2 | Automated suites | pre-change | All four suites in both permission modes, following the runbook's mode table | Both goldens | Green with counts recorded per host and mode | Suite summaries |
+| Release Verification 2 | Automated suites | pre-change | Run the complete suite set in each applicable permission mode, following the runbook's mode table | Both goldens | Green with counts recorded per host, suite, and applicable mode | Suite summaries |
 | Release Verification 3 | Standing scenarios | pre-change | The multi-user plan, driven from its own text | Both goldens | Every scenario meets its stated expected result | Per-scenario results |
 | Release Verification 4 | Standing procedure | pre-change | The root_squash path through the three documented entry points from the `nfs_sim` mount | Both goldens | Each entry point stamps a real short hash with no layout warning | Stamp output and `-V` |
 | Release Verification 5 | Version consistency | pre-change | Read `RUNNER_VERSION` on the release branch | Working tree | The value is the planned release version before the mutation is verified | Commit and file read |
