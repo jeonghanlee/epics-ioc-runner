@@ -6,23 +6,18 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M9 first. Create its GitHub issue, implement the
-accepted `source-regression` suite and separate `--source-regression` selection,
-split source-regression checks from post-install infrastructure
-verification, and complete M9 before returning to M8. M8 remains Not started and not ready until
-both M6 and M9 are complete. M6 then proceeds, and one golden-VM run closes both M6
-and M7 — the owner approved this order 2026-08-03. Work M6's four steps and
-its cheap T1 and T2, which need only recorded logs and the working tree, no
-VM. Then a single golden-VM run drives M7's T1 (debian13, both modes) and T2
-(rocky8) under the new skip-aware verdict, doubling as that verdict's live
-confirmation, and the two milestones close together. M7 stays In progress
-meanwhile: its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev
-host top passed 96 of 96 with all fourteen M19 assertions running (evidence
-in the M7 detail). Both milestones are reviewed with the owner directly, no
-agent panel; re-verify each detail's findings against the code before acting
-on them. M8 (suite skip-reporting policy) opened 2026-08-03 behind M6 and
-now also waits for M9's suite-category separation; it gates the release and is
-in M3's dependency row. M5
+Next session entry point: M9 step 2 implementation authorization. Step 1 is
+complete: all 36 S07 through S14 assertions and all eight validity prerequisites
+have one accepted D13 disposition in `tests/SOURCE_REGRESSION_INVENTORY.md`.
+After authorization, add the accepted `source-regression` suite and exclusive
+selection, then complete M9. Next implement the M8 catalog, recording path,
+ledger, human summary, and machine-readable records. M6 follows as the consumer
+of those records and does not scan body prose. After M6, one golden-VM run
+drives M7's T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7
+stays In progress meanwhile:
+its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
+passed 96 of 96 with all fourteen M19 assertions running (evidence in the M7
+detail). M5
 steps 1 through 7 are done — the
 drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
 and then on rocky8 at its first run with no edit, D8 is final, and the twelve
@@ -55,12 +50,12 @@ closed.
 | --- | --- | --- | --- | --- | --- | --- |
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | — | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
-| M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | Yes | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
+| M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | — | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
-| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | In progress | No | M1 | The verdict refuses a plain `SUITES OK` when the log carries a skip, and a run with a known skip is distinguishable from one without; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
+| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Blocked | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
-| M9 | Separate source regression from post-install infrastructure verification | Milestone | Not started | No | D9, D10, D11 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
-| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | No | M6, M9 | Every suite defines one Git-style terminal state for every check, emits one uniform report format, keeps totals invariant, and produces statistics from those states; [detail](#m8---suite-skip-reporting-policy) |
+| M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | In progress | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
+| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | No | M9, D14 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
@@ -78,6 +73,9 @@ closed.
 | D9 | Source regression and post-install infrastructure conformance are separate test categories and belong in separate suites. The former runs real shipped source paths with only their outer filesystem targets redirected to isolated temporary paths and is selected separately through `run-all-tests.bash --source-regression`; it is not part of the post-install `--system` selection. The latter reads the actual configured host state. M9 completes this separation before M8 changes reporting across the suite set. **Amended by D10:** the initially proposed `system-installer` identity was too narrow for the existing S07 through S14 inventory. | Owner decision, 2026-08-04; amended the same day after conceptual-integrity review |
 | D10 | Use one `tests/test-source-regression.bash` suite with suite ID `source-regression` for the complete existing S07 through S14 inventory. Do not create a separate `test-harness-integrity` suite: setup, live runner, injection, Git fixture, and test path-safety checks already share one source-tree validity boundary, and splitting one path-safety assertion into another suite would invent a dependency and widen M9 without changing what must be verified. The suite reports `scope=system` and `runner=source`. `run-all-tests.bash --source-regression` is an exclusive selection and rejects combinations with `--local`, `--system`, `--source`, or `--installed`. The suite starts through `sudo bash`, retains the invoking identity in `SUDO_USER`, and drops to that identity only for the existing source and Git operations. | Owner decision, 2026-08-04, after conceptual-integrity review |
 | D11 | Suspend the unfinished M8 reporter prototype before M9 as a local Git stash, not a `work/` copy or repository commit. Snapshot commit `f330b4e9962031de37c904ece23c653c800620c8` contains the four lifecycle and infrastructure suite edits plus `tests/lib/test-reporting.bash`; the active code paths were verified equal to local `HEAD` after capture. The stash is local-only, is not verification evidence, and is reconsidered against the M9 suite layout when M8 resumes. | Owner decision and local snapshot, 2026-08-04 |
+| D12 | Every check is classified on three independent axes: test category, check kind, and test method. `tests/REPORTING_CONTRACT.md` is authoritative for category and check kind; `tests/README.md` "Test Classification" is authoritative for test method. Only real-path execution can support a behavior-verification claim. Direct state inspection can support only the state or contract directly observed, and a hand-built reproduction is invalid as verification evidence. Test method alone does not create a suite or selector. | Owner decision, 2026-08-05 |
+| D13 | M9 does not preserve the current assertion count as an end in itself. Its migration inventory accounts for every current assertion and prerequisite and assigns exactly one reviewed disposition: `retain` keeps the valid check, `replace` preserves a needed verification target through valid evidence, and `remove` retires a redundant or invalid target with an owner-approved reason. No row disappears silently, and M9 step 1 remains open until every row has an accepted disposition. | Owner decision, 2026-08-05, after the second conceptual-integrity review |
+| D14 | One canonical check catalog carries category, check kind, and test method. A single recording path combines that metadata with each observed terminal state in one ledger; the human summary and machine-readable records are two projections of that ledger and never separate calculations. M9 defines destination metadata and valid evidence without implementing reporting. M8 implements the record path, ledger, and both projections across the resulting suite set. M6 consumes only M8's machine-readable records and does not infer states from human-readable prose. The execution order is M9, then M8 producer, then M6 consumer. | Owner decision, 2026-08-05 |
 
 ## ID Migration
 
@@ -230,7 +228,7 @@ Last Compared: 2026-07-30
 Origin: #130, filed 2026-07-29 during the 1.2.2 gate
 Identity History: Backlog row (`docs/backlog.md`) moved to this register at the 1.2.3 open
 GitHub Issue: 130, https://github.com/jeonghanlee/epics-ioc-runner/issues/130
-Status: In progress
+Status: Not started
 
 #### Summary
 
@@ -863,7 +861,7 @@ Origin: the conceptual-integrity sweep of 2026-08-02, run against the gate after
 M5's step 6
 Identity History: none
 GitHub Issue: 135, https://github.com/jeonghanlee/epics-ioc-runner/issues/135
-Status: In progress
+Status: Blocked
 
 #### Summary
 
@@ -886,28 +884,33 @@ and the M19 teardown absent, in both source and installed mode. rocky8 reports
 
 - The suite verdict command in `gate/RUNBOOK.md`, in both the gate step and the
   driver-forms copy, so the two do not drift.
-- Whatever the verdict needs to read a skip. The suites report skips as prose in
-  the body rather than in the summary block, so the count comes from the body.
+- The machine-readable records produced by M8 from the same ledger as the
+  human summary. The verdict reads declared identities and terminal states
+  from those records; it does not scan body prose.
 - The evidence format, so a recorded run carries what was skipped beside the
   counts rather than only the counts.
 
 Out of scope: making the skipped checks run, which is M7; the suites' own
-reporting format, which this milestone reads rather than changes.
+reporting format and ledger, which M8 produces before this consumer runs.
 
 #### Completion Criteria
 
 - The verdict does not print a plain `SUITES OK` for a log carrying a skip.
-- A run with a known skip and a run without are distinguishable from the verdict
-  line alone.
+- A run with a known skip and a run without are distinguishable from the M8
+  machine-readable records and the verdict line derived from them.
 - The driver-forms copy of the command and the gate step's copy are the same
   command.
 - The twelve differing checks between the two goldens' local lifecycle totals
-  are enumerated, not just counted.
+  are enumerated from declared check and STEP records, not inferred from prose.
 
 #### Dependencies And Decisions
 
 - D1 as amended 2026-08-02: this is documentation work and needs no exception,
   but it takes the formal route regardless.
+- D14 and M8 define the producer-consumer boundary. M6 retains its observed
+  skip inventory as producer input, but its implementation follows M8 and
+  consumes only M8's machine-readable records. M6 is blocked until M8 produces
+  that accepted record grammar.
 - M7 is the other half. M6 makes a skip visible; M7 removes the one skip that
   should not be happening. Neither substitutes for the other.
 - Ordering, owner-approved 2026-08-03: M6 runs before M7's golden-VM
@@ -918,7 +921,8 @@ reporting format, which this milestone reads rather than changes.
 #### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: owner decision in session, 2026-08-03
+Plan Acceptance: owner decision in session, 2026-08-03; amended by owner
+decision 2026-08-05 to consume M8 records rather than scan log prose
 Implementation Authorization: owner decision in session, 2026-08-03; reviewed
 with the owner directly, no agent review panel, as for M7. Step 2's verdict
 behavior on a nonzero skip count is decided with the owner before it is
@@ -928,8 +932,9 @@ Superseded Plan Artifacts: none
 1. Read a real suite log from each golden and record how a skip is actually
    printed, per suite. The form is not assumed. Done 2026-08-03 — the log
    inventory and the step 1 findings below.
-2. Extend the verdict to count skips from the body, and decide with the owner
-   what a nonzero count does to the verdict line.
+2. After M8 emits the accepted machine-readable records, extend the verdict to
+   validate the declared suite and check identities and reject any nonzero
+   `SKIP`, `FAIL`, or `SCRIPT_ERROR` state without scanning body prose.
 3. Apply it to both copies of the command.
 4. Enumerate the twelve-check difference between the goldens.
 
@@ -982,7 +987,7 @@ lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Verdict execution | Run the verdict over a real log known to carry the M19 skips, and over one known not to | Both goldens' logs | The two produce different verdict lines |
+| T1 | Verdict execution | Run the verdict over real M8 records from a run known to carry a skip and one known not to | Both goldens' logs | The records and verdicts differ, and the skipped run cannot produce plain `SUITES OK` |
 | T2 | Drift check | Compare the gate step's copy of the command against the driver-forms copy | Working tree | They are the same command |
 
 #### Verification Results
@@ -1209,8 +1214,8 @@ Origin: M8 architecture review on 2026-08-04 found that
 `test-system-infra.bash` combines source-regression checks with
 installed-conformance checks
 Identity History: none
-GitHub Issue: none
-Status: Not started
+GitHub Issue: 138, https://github.com/jeonghanlee/epics-ioc-runner/issues/138
+Status: In progress
 
 #### Summary
 
@@ -1231,8 +1236,10 @@ incompatible execution contexts.
   `source-regression`, without replacing shipped setup, live runner, injection,
   Git, or test-script paths. Filesystem writes may be redirected only at their
   outer boundary to isolated temporary targets.
-- Preserve every existing assertion and expected result while assigning the
-  moved checks to the new suite identity and catalog.
+- Account for every existing assertion and prerequisite in the migration
+  inventory, then assign exactly one D13 disposition: `retain`, `replace`, or
+  `remove`. A replacement names its valid evidence path; a removal names the
+  redundancy or invalid target and requires owner approval.
 - Add the exclusive `run-all-tests.bash --source-regression` selection. Reject
   combinations with `--local`, `--system`, `--source`, or `--installed`, and do
   not include this suite in the post-install `--system` selection.
@@ -1242,8 +1249,10 @@ incompatible execution contexts.
 - Do not create a separate `test-harness-integrity` suite. The S08 test-script
   path guard stays in the single source-regression suite under the same
   source-tree validity boundary as S07 through S14.
-- Apply the category and real-path rules in `tests/REPORTING_CONTRACT.md` to
-  both resulting suites.
+- Classify every moved check on all three axes in D12. Use
+  `tests/REPORTING_CONTRACT.md` for category and check kind, and
+  `tests/README.md` "Test Classification" for test method. Do not treat direct
+  state inspection or hand-built reproduction as real-path behavior evidence.
 
 Out of scope: changing installer behavior; changing installed system policy;
 the M8 terminal-state reporter; the M6 gate consumer; making an existing
@@ -1258,31 +1267,46 @@ skipped lifecycle check run.
 - The dedicated `source-regression` suite owns all former S07 through S14
   checks and executes the real shipped script paths against isolated outer
   filesystem targets.
-- The destination catalog accounts for every moved check with no duplicate or
-  dropped assertion.
+- The migration inventory accounts for every current assertion and prerequisite
+  with one accepted D13 disposition and no silent omission. Every retained or
+  replacement destination records its identity, category, check kind, test
+  method, and decision reason against the D12 references.
 - Direct invocation and `run-all-tests.bash --source-regression` are documented
   and implemented; post-install `--system` does not invoke source regression.
 - The source-regression result uses `suite=source-regression`, `scope=system`,
   and `runner=source`; unsupported selector combinations fail before suite
   execution.
 - No `test-harness-integrity` suite or additional result is created.
+- Every behavior-verification result executes the real shipped path. No direct
+  state inspection or hand-built reproduction is accepted as behavior evidence.
 - Both suites pass their accepted real-path verification on Debian 13 and
   Rocky 8 before M8 begins.
 
 #### Dependencies And Decisions
 
-- D9 defines the category boundary and D10 fixes the single-suite shape; both
-  require this milestone to complete before M8.
+- D9 defines the category boundary, D10 fixes the single-suite shape, D12 fixes
+  the three classification axes, D13 fixes the migration dispositions, and D14
+  fixes the reporting boundary and M9-to-M8 handoff. They require this
+  milestone to complete before M8.
 - D11 removes the unfinished M8 reporter prototype from the active test paths
   while M9 runs. M9 starts from local `HEAD`; the local-only snapshot is not an
   implementation input for this milestone.
-- A GitHub issue under milestone `1.2.3` is required before implementation by
-  D1. No issue existed when the remote was checked on 2026-08-04; #137 was the
-  latest issue.
+- GitHub issue #138 under milestone `1.2.3` satisfies D1. Its open state,
+  labels, milestone, and assignee were observed on 2026-08-05 after creation.
 - Owner decision, 2026-08-04: use one `tests/test-source-regression.bash` suite,
   suite ID `source-regression`, and an exclusive
   `run-all-tests.bash --source-regression` selection outside the post-install
   `--system` group. Do not add a test-harness suite.
+- Owner decision, 2026-08-05: classify every M9 check using D12. Test method
+  remains a check-level property and does not split the accepted suite.
+- Owner decision, 2026-08-05: M9 step 1 reviews every current assertion and
+  prerequisite through D13 rather than preserving the current count. M9
+  records destination metadata but leaves ledger and output implementation to
+  M8 under D14.
+- M9 step 1 completed 2026-08-05: the accepted inventory maps all 36 current
+  assertions and all eight validity prerequisites to 29 `retain`, seven
+  `replace`, and eight `remove` dispositions with no duplicate source or
+  destination identity.
 - M8 depends on M9 and must re-inventory the resulting suite set rather than
   preserving the current four-suite assumption.
 
@@ -1291,11 +1315,18 @@ skipped lifecycle check run.
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-04, amended after conceptual-integrity review
 to one source-regression suite and no test-harness suite
-Implementation Authorization: none
+Implementation Authorization: owner, 2026-08-05, plan step 1 only, by assent
+to begin the S07 through S14 assertion and prerequisite inventory after #138
+was recorded
 Superseded Plan Artifacts: none
 
-1. Inventory every assertion and prerequisite in S07 through S14 and record
-   its destination STEP and check identity.
+1. Inventory every assertion and prerequisite in S07 through S14. Record its
+   current identity, verification target, check kind, test method, and evidence
+   validity; then review it as `retain`, `replace`, or `remove`. For `retain`
+   and `replace`, record the destination STEP, check identity, category, check
+   kind, test method, and reason. For `remove`, record the owner-approved reason.
+   Do not close this step until every row has one accepted disposition.
+   Completed 2026-08-05 in `tests/SOURCE_REGRESSION_INVENTORY.md`.
 2. Add `tests/test-source-regression.bash` with suite ID `source-regression`,
    the exclusive `run-all-tests.bash --source-regression` selection, and the
    accepted root-to-`SUDO_USER` execution boundary.
@@ -1310,17 +1341,17 @@ Superseded Plan Artifacts: none
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Assertion inventory | Map every current S07 through S14 assertion and prerequisite to exactly one destination identity before and after the move | Working tree | No assertion, prerequisite, or expected result is dropped or duplicated |
+| T1 | Assertion inventory | Map every current S07 through S14 assertion and prerequisite to one D13 disposition and classify every retained or replacement destination on all three D12 axes | Working tree | Every current row is accounted for; each retained or replacement check names one valid destination and reason, and each removal carries an owner-approved reason |
 | T2 | Source regression | Run the dedicated suite through shipped setup, live runner, injection, Git, and test-script paths with only outer filesystem writes redirected | Debian 13 and Rocky 8 source trees | Every applicable source regression executes and reaches its expected result without claiming installed-host conformance |
 | T3 | Installed conformance | Run system infrastructure on a configured host without inspecting product source files or Git metadata | Debian 13 and Rocky 8 installed hosts | Every S01 through S06 requirement is evaluated against actual installed state and no source-regression check runs |
-| T4 | Boundary check | Inspect both suite catalogs and execution logs against the category rules in `tests/REPORTING_CONTRACT.md` | Both goldens | Each suite owns one primary category and runs only checks valid in its execution context |
+| T4 | Boundary check | Inspect both suite catalogs and execution logs against `tests/REPORTING_CONTRACT.md` and `tests/README.md` "Test Classification" | Both goldens | Each suite owns one primary category, every check records one valid method, and only real-path execution supports behavior verification |
 | T5 | Orchestrator collection | Invoke `run-all-tests.bash --source-regression`, compare it with direct invocation, and try every rejected selector combination | Both goldens | The source-regression result is collected once with the accepted dimensions, and every unsupported combination fails before suite execution |
 
 #### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Working tree | Pending | none |
+| T1 | 2026-08-05 | Working tree | Pass | `tests/test-system-infra.bash` contains 36 S07 through S14 `verify_state` calls; the inventory maps those assertions and eight validity prerequisites to 44 unique source rows and 36 unique retained or replacement destination identities: 29 `retain`, seven `replace`, and eight owner-approved `remove`; every accepted destination carries STEP, check ID, category, check kind, test method, and reason; `git diff --check` and `git diff --no-index --check -- /dev/null tests/SOURCE_REGRESSION_INVENTORY.md` passed |
 | T2 | Not run | Debian 13 and Rocky 8 source trees | Pending | none |
 | T3 | Not run | Debian 13 and Rocky 8 installed hosts | Pending | none |
 | T4 | Not run | Both goldens | Pending | none |
@@ -1333,12 +1364,13 @@ Superseded Plan Artifacts: none
 #### GitHub Projection
 
 Title: Separate source regression from post-install infrastructure verification
-Labels: tests, P2-medium
+Labels: P2-medium, refactor, tests, area/architecture
 GitHub Milestone: 1.2.3
-Observed State: not created
-Observed Labels: none
-Observed Milestone: none
-Last Compared: 2026-08-04
+Observed State: open
+Observed Labels: P2-medium, refactor, tests, area/architecture
+Observed Milestone: 1.2.3
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-05
 
 ### M8 - Suite skip-reporting policy
 
@@ -1362,8 +1394,11 @@ state of every check before a reporter aggregates it.
   `FAIL`, `SKIP`, `NA`, and `SCRIPT_ERROR`.
 - Every test-related script under `tests/` uses the same report envelope;
   `run-all-tests.bash` collects suite records without inventing states.
-- Every check in the resulting suite set has a stable identity, STEP owner, and one
-  explicit terminal state. Inventory and total are owned by the test code.
+- Every check in the resulting suite set has one canonical catalog entry with
+  a stable identity, STEP owner, category, check kind, and test method.
+- One shared recording path combines catalog metadata with the test-owned
+  terminal state in one ledger. The human summary and machine-readable records
+  are generated from that ledger, never counted independently.
 - Every existing `SKIP`, `WARN`, does-not-apply branch, prerequisite branch,
   and early return is classified and closed explicitly.
 - The reporter validates and aggregates test-owned states; it never converts
@@ -1380,7 +1415,9 @@ class); the drivers under `gate/`, whose verdict convention D8 fixed.
 The owner's requirement: the output and the summary must record the state
 of the test procedure exactly, the per-step records must be fine-grained,
 and at release-gate time those records alone must say what state the
-product is in. Four layers follow from that:
+product is in. The catalog supplies identity, category, check kind, and test
+method; the recording path adds the observed state and detail once. Four
+output layers follow from that one ledger:
 
 1. **A closed state set per check.** Every check terminates in exactly one
    of: `PASS`, `FAIL`, `SKIP` (was meant to run and did not, with the
@@ -1393,15 +1430,17 @@ product is in. Four layers follow from that:
    line carrying the step's identity and its assert tally (pass, fail,
    skip, na). The difference between goldens becomes an enumerable list of
    test-owned states, not a subtraction from a total.
-3. **A summary block that carries the full vector.** `Total`, `Passed`,
+3. **A human summary that carries the full vector.** Generated from the ledger,
+   it reports `Total`, `Passed`,
    `Failed`, `Skipped`, `Not applicable`, `Script Errors` — zero printed,
    never omitted — followed by one line per SKIP and NA repeating the
    check identity and reason, so a reader gets the exceptions without
    scanning the body.
-4. **One machine-readable trailer per suite run.** A single fixed-form
-   final line carries the complete vector and is produced only after every
-   test-owned identity has a terminal state. The producer records are the
-   input for the separate M6 consumer; M8 does not implement that consumer.
+4. **Machine-readable records from the same ledger.** Fixed-form check, STEP,
+   and suite records carry the catalog metadata, observed states, and complete
+   vector. They are produced only after state completeness is validated and
+   are the sole input for the separate M6 consumer; M8 does not implement that
+   consumer.
 
 This makes the producer state exact: the suite record describes the declared
 inventory and every terminal state, so a total never means merely "of what
@@ -1412,10 +1451,10 @@ ran".
 The previous implementation used a compatibility adapter that supplied fixed
 numbers and synthesized states for unvisited checks. Reviewers rejected that
 boundary because it does not make the test code the source of truth. The
-revised implementation starts with the test-owned state definitions and uses
-the shared library only for validation, aggregation, file-backed evidence,
-STEP records, and the final `SUITE` record. Existing human-readable output
-remains additive.
+revised implementation starts with the canonical catalog and test-owned state
+definitions. The shared recording path writes one ledger, and the shared
+library validates it before generating the human summary and machine-readable
+check, STEP, and suite records.
 
 The producer implementation does not modify `gate/` or the M6/#135 verdict
 parser. Gate consumption of the `SUITE` records remains a separate milestone
@@ -1433,30 +1472,36 @@ These are the acceptance conditions for the M8 producer. M6 owns the gate
 consumer requirements.
 
 1. Every test-related script uses the same report grammar.
-2. Each suite declares its inventory and state owner in test code.
-3. Every real check closes exactly once with a terminal state.
-4. Missing, duplicate, unknown, or unclosed identities produce
+2. Each suite declares one canonical catalog containing identity, STEP,
+   category, check kind, and test method.
+3. Every real check closes exactly once through the shared recording path.
+4. The human summary and machine-readable records project the same ledger and
+   reconcile without a second count.
+5. Missing, duplicate, unknown, or unclosed identities produce
    `SCRIPT_ERROR`; the reporter never fabricates `NA`.
-5. `Total = PASS + FAIL + SKIP + NA + SCRIPT_ERROR` and the identity set is
+6. `Total = PASS + FAIL + SKIP + NA + SCRIPT_ERROR` and the identity set is
    invariant across supported OS and execution modes.
 
 #### Completion Criteria
 
 - Every test-related script uses the uniform report envelope.
+- Every check has one catalog entry carrying category, check kind, and test
+  method, and every observed state enters through one shared recording path.
 - Every check in the resulting suite set terminates in exactly one state from the
   closed set, and a check with no state is a suite defect.
 - Every existing skip, warning, does-not-apply branch, prerequisite branch,
   and early return has a named policy and explicit terminal state.
-- Every suite run ends in one fixed-form machine-readable trailer after state
-  completeness is verified.
+- Every suite run generates its human summary and machine-readable records from
+  the same validated ledger after state completeness is verified.
 - The identity set and total remain invariant across supported OS and modes.
 - The state policy, report grammar, and implementation order are documented
   beside the suites.
 
 #### Dependencies And Decisions
 
-- M6: its step 1 enumeration is this milestone's input, and its verdict is
-  the consumer of the producer records. M8 does not change the M6 consumer.
+- M6: its step 1 enumeration is this milestone's input. Under D14, M8 produces
+  the records first and M6 subsequently changes its verdict to consume them;
+  M8 does not implement that consumer.
 - M9: installer source regression must be separated from installed
   infrastructure conformance before M8 inventories and migrates the suite set.
 - M8 gates the 1.2.3 release — owner decision 2026-08-03, accepting that
@@ -1472,9 +1517,10 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 1. Inventory all scripts under `tests/`, map every assertion and every
    conditional result branch, and assign stable test and STEP identities.
-2. Define the Git-style closed state set and uniform report grammar. Refactor
-   the shared reporter to validate and aggregate test-owned states only; it
-   must not synthesize `NA` for an unvisited check.
+2. Define the Git-style closed state set, canonical catalog fields, shared
+   recording path, ledger, and uniform report grammar. Refactor the shared
+   reporter to validate test-owned states and generate both output projections;
+   it must not synthesize `NA` for an unvisited check.
 3. Update every producer suite script so its test code owns inventory and emits
    one explicit state for every check, including skip, NA, warning,
    prerequisite, and early-return paths.
@@ -1491,8 +1537,8 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | Static inventory | Map every assertion, branch, skip, warning, and early return to one test ID and STEP | Working tree | No result-producing path is unmapped or multiply mapped |
-| T2 | Reporter contract | Run the real reporter self-tests, including missing state and abort cases | Working tree | Missing state is `SCRIPT_ERROR`; no synthetic `NA` is emitted |
-| T3 | Uniform format | Run all suite scripts and the orchestrator through the shared grammar | Working tree | Every suite has valid `TEST`, `STEP`, and `SUITE` records; the orchestrator invents no state |
+| T2 | Reporter contract | Run the real reporter self-tests, including missing state, abort, and projection-agreement cases | Working tree | Missing state is `SCRIPT_ERROR`, no synthetic `NA` is emitted, and both outputs reconcile to the same ledger |
+| T3 | Uniform format | Run all suite scripts and the orchestrator through the shared grammar | Working tree | Every suite has valid check, STEP, and suite records with catalog metadata; the human summary agrees and the orchestrator invents no state |
 | T4 | State-first suite execution | Run a suite with a known environment exception and one without it | Both goldens | The test code emits explicit states, fixed identity sets remain equal, and totals reconcile |
 | T5 | Reviewer gate | Three reviewers inspect the implementation and the state mapping | Review session | No blocking finding remains on inventory, terminal states, or statistics |
 | T6 | Full re-verification | Run the whole suite set on both goldens under the new reporting | Both goldens | Every check has one state, every trailer is valid, and statistics derive from test-owned states |

@@ -2,9 +2,54 @@
 
 This directory contains automated integration and error handling tests to verify both local user-level and system-wide systemd management architectures.
 
+## Test Classification
+
+Every check has three independent classifications. Each axis answers a
+different question and cannot substitute for another.
+
+### Test Category
+
+The category identifies the verification target and its valid execution
+context. The canonical category definitions are in
+[REPORTING_CONTRACT.md](REPORTING_CONTRACT.md).
+
+| Category | Verification Target |
+| :--- | :--- |
+| `source-regression` | Behavior and source contracts of the shipped source tree |
+| `installed-conformance` | State and policy of an installed, configured host |
+| `lifecycle-behavior` | IOC lifecycle behavior through the selected runner binary |
+| `error-contract` | Rejection, validation, and error behavior of the selected runner binary |
+
+### Check Kind
+
+The check kind identifies a check's role in the result contract. The canonical
+definitions of `REQUIRED`, `PREREQUISITE`, `APPLICABILITY`, `BEHAVIOR`, and
+`INTEGRITY` are in [REPORTING_CONTRACT.md](REPORTING_CONTRACT.md). Check kind
+does not state how the evidence was obtained.
+
+### Test Method
+
+This section is the canonical definition of test method for this repository.
+The method identifies how a check obtains its evidence.
+
+| Method | Catalog Value | Evidence | Valid Claim |
+| :--- | :--- | :--- | :--- |
+| Real-path execution | `real-path` | Executes the shipped product path; only an outermost boundary such as filesystem target, HTTP transport, or clock may be redirected | May support a behavior-verification claim |
+| Direct state inspection | `direct-inspection` | Reads actual source, configuration, installed-host, prerequisite, or fixture state without executing product behavior | Supports only the directly observed state or contract, not runtime behavior |
+| Hand-built reproduction | `hand-built-reproduction` | Reimplements or reconstructs an internal product path in test code or a fixture instead of executing the shipped path | Invalid as verification evidence and must not appear in an accepted check catalog |
+
+The three axes remain independent: one suite may contain multiple test methods
+when all checks share one category and execution boundary. Different methods
+are recorded as separate checks or STEPs; they do not create a new suite or
+selector by themselves. A `BEHAVIOR` result requires real-path execution.
+Direct state inspection cannot establish behavior, and a hand-built
+reproduction cannot establish any verification result. Tests may redirect or
+mock only the outermost boundary; they must not replace an internal function or
+any other span of the product path under test.
+
 ## Test Organization
 
-Test runs vary along two independent axes, plus one standalone static check.
+Test invocation varies along two selection axes, plus one standalone suite.
 
 **Permission mode** (set by `run-all-tests.bash --local` / `--system`):
 - `--local`: the local lifecycle, as the current user. No `sudo`, no `ioc` group.
@@ -17,7 +62,7 @@ Test runs vary along two independent axes, plus one standalone static check.
 - `--installed`: `/usr/local/bin/ioc-runner` — the deployed binary, for
   validating a finished build or a production install.
 
-**Standalone static check** (run on its own, not through the dispatcher):
+**Standalone source-fixed suite** (run on its own, not through the dispatcher):
 - `test-error-handling.bash`: a source-fixed behavioral and parse suite —
   it parses the `ioc-runner` source for contract guards AND executes the
   source-tree binary against dummy inputs for the validation and error

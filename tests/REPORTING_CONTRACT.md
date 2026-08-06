@@ -106,8 +106,14 @@ Each suite declares its complete ordered STEP and check catalog before any
 environment probe or test body runs. Each declaration contains:
 
 ```text
-suite_id step_id check_id check_kind description
+suite_id step_id check_id category check_kind test_method description
 ```
+
+`category` uses one value from Test Categories. `test_method` uses the accepted
+catalog values `real-path` or `direct-inspection` from `README.md` "Test
+Classification". `hand-built-reproduction` may describe a migration finding,
+but it is invalid verification evidence and cannot be registered in an
+accepted runtime catalog.
 
 Check IDs use this form:
 
@@ -221,7 +227,7 @@ one STEP, and all STEP vectors must sum to the final suite vector.
 Record type and field order are fixed:
 
 ```text
-TEST suite=<suite> run=<run_id> step=<step_id> id=<check_id> state=<PASS|FAIL|SKIP|NA|SCRIPT_ERROR> reason_b64=<reason>
+TEST suite=<suite> run=<run_id> step=<step_id> id=<check_id> category=<category> kind=<check_kind> method=<test_method> state=<PASS|FAIL|SKIP|NA|SCRIPT_ERROR> reason_b64=<reason>
 STEP suite=<suite> run=<run_id> step=<step_id> pass=<n> fail=<n> skip=<n> na=<n> err=<n>
 SUITE suite=<suite> run=<run_id> scope=<scope> runner=<runner> os=<os_id> arch=<arch_id> total=<n> pass=<n> fail=<n> skip=<n> na=<n> err=<n>
 ```
@@ -259,9 +265,23 @@ The following conditions invalidate a result and produce a nonzero suite exit:
 - duplicate, missing, or non-final SUITE record;
 - different catalog identity sets across supported environments.
 
+## Human And Machine Projections
+
+One recording path combines the canonical catalog metadata with each observed
+terminal state in one ledger. The final human-readable summary and the
+machine-readable `TEST`, `STEP`, and `SUITE` records are generated from that
+ledger. Neither projection maintains independent counters or infers a state
+that is absent from the ledger.
+
+The human summary carries the complete state vector and names every non-PASS
+check with its identity, check kind, test method, state, and reason. The
+machine-readable records carry the same metadata and state in the fixed grammar
+above. Both projections must reconcile with the ledger before `SUITE` is
+emitted.
+
 ## Producer and Consumer Boundary
 
-The machine-readable records are additive to existing human-readable suite
-output. The test suites and shared reporter own the producer contract. Gate
-consumption remains outside this contract until the gate parser adopts these
-records.
+The test suites and shared reporter own the catalog, recording path, ledger,
+and both output projections. Gate consumption is separate and reads only the
+machine-readable records after M8 implements this producer contract; it does
+not infer states from human-readable prose.
