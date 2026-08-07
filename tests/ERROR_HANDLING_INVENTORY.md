@@ -14,15 +14,15 @@ runner=source. Its primary category is error-contract.
 ## Inventory Basis
 
 The source pipeline contains S01 through S36. Its full non-root branch contains
-173 current assertion calls. Source review adds seven result-producing
+172 current assertion calls. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 180 identities. S01, S12, S13, S14, S15,
-S16, and S18 are setup-only and own no check. Each loop case has its own semantic key. The 30
+The fixed catalog therefore contains 179 identities. S01, S12, S13, S14, S15,
+S16, S18, and S20 are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
 
@@ -53,13 +53,14 @@ disposition moves four unit-template source contracts to source-regression S16
 as REQUIRED direct inspections. S16's accepted disposition moves three
 metadata-injection source contracts to source-regression S17 as REQUIRED direct
 inspections. S18's accepted disposition replaces two internal LOG_DIR
-reproductions with real local installs in local-lifecycle S35. S20 and S22
-directly inspect source contracts. In S33, sixteen pipeline checks are hand-built reproductions and
+reproductions with real local installs in local-lifecycle S35. S20's accepted
+disposition moves one source contract to source-regression S18 as a REQUIRED
+direct inspection. S22 directly inspects source contracts. In S33, sixteen pipeline checks are hand-built reproductions and
 six checks directly inspect the extracted source constants. In S34, four
 pipeline checks are hand-built reproductions and three checks directly inspect
 the extracted source constants.
 
-These four unresolved STEPs contain 34 rows. Each row needs an accepted
+These three unresolved STEPs contain 33 rows. Each row needs an accepted
 disposition before it can enter the runtime catalog.
 
 ## Accepted S13 Disposition
@@ -126,6 +127,14 @@ Owner accepted all S16 dispositions on 2026-08-07.
 | `error-handling.S18.xdg-state-home-set-local-log-dir-uses-xdg-state-home-procserv` | `replace-and-move` | `local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The selected runner performs a real local install with log overrides unset and `XDG_STATE_HOME` set; the emitted unit must use `<XDG_STATE_HOME>/procserv`. |
 
 Owner accepted both S18 dispositions on 2026-08-07.
+
+## Accepted S20 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S20.no-h-2-1-grep-q-pipeline-probes-remain-in-bin-ioc-runner-110` | `move` | `source-regression.S18.pipefail-help-probe-pattern.absent` | `source-regression` | `REQUIRED` | `direct-inspection` | The check enforces a runner source rule and does not execute helper capability behavior. |
+
+Owner accepted the S20 disposition on 2026-08-07.
 
 ## Stable Identity Mapping
 
@@ -200,7 +209,6 @@ Owner accepted both S18 dispositions on 2026-08-07.
 | S19 | `error-handling.S19.whitespace-conf-dir-exits-1-on-status` | `BEHAVIOR` | `real-path` | whitespace CONF_DIR exits 1 on status |
 | S19 | `error-handling.S19.whitespace-conf-dir-error-names-the-resolved-directory` | `BEHAVIOR` | `real-path` | whitespace CONF_DIR error names the resolved directory |
 | S19 | `error-handling.S19.absolute-conf-dir-passes-the-guard` | `BEHAVIOR` | `real-path` | absolute CONF_DIR passes the guard |
-| S20 | `error-handling.S20.no-h-2-1-grep-q-pipeline-probes-remain-in-bin-ioc-runner-110` | `BEHAVIOR` | `direct-inspection` | no '-h 2>&1 \| grep -q' pipeline probes remain in bin/ioc-runner (#110) |
 | S21 | `error-handling.S21.install-proceeds-when-the-rotation-cfg-dir-is-uncreatable-110` | `BEHAVIOR` | `real-path` | install proceeds when the rotation cfg_dir is uncreatable (#110) |
 | S21 | `error-handling.S21.uncreatable-cfg-dir-warns-and-skips-rotation-110` | `BEHAVIOR` | `real-path` | uncreatable cfg_dir warns and skips rotation (#110) |
 | S22 | `error-handling.S22.six-regex-form-cmnd-eres-found-in-setup` | `BEHAVIOR` | `direct-inspection` | six regex-form Cmnd EREs found in setup |
@@ -316,12 +324,12 @@ Owner accepted both S18 dispositions on 2026-08-07.
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 173 |
+| Current non-root assertion calls | 172 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 180 |
+| Fixed catalog total | 179 |
 
-The mapping is complete only while all 173 current assertion descriptions map
+The mapping is complete only while all 172 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,
 and the source pipeline remains S01 through S36.

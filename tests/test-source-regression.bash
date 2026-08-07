@@ -967,6 +967,24 @@ function test_metadata_injection_contract {
         "${SUITE_ID}.S17.metadata.declaration-anchors-present"
 }
 
+# Verifies that capability probes in the runner do not pipe helper usage output
+# directly into grep -q. Under pipefail, a helper usage exit or an early-match
+# SIGPIPE can otherwise turn a supported capability into a false negative.
+function test_pipefail_help_probe_contract {
+    local step="$1"
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local hits=""
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Pipefail Help-Probe Source Contract"
+    print_sub_divider
+
+    hits=$(run_as_invoker grep -cE -- \
+        '-h 2>&1 \| grep -q' "${runner_script}" || true)
+    verify_state "0" "${hits}" \
+        "${SUITE_ID}.S18.pipefail-help-probe-pattern.absent"
+}
+
 function run_all_tests {
     if ! test_preflight; then
         return
@@ -982,6 +1000,7 @@ function run_all_tests {
     test_system_identity_contract "S15"
     test_unit_template_contract "S16"
     test_metadata_injection_contract "S17"
+    test_pipefail_help_probe_contract "S18"
 }
 
 run_all_tests

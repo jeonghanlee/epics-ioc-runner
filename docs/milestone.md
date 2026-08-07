@@ -7,9 +7,9 @@ Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
 Next session entry point: continue M8's pre-step-2 row-by-row disposition
-review at error-handling S20. Step 1's static inventory is complete. Four STEPs
-and 34 rows remain unresolved after two S18 LOG_DIR reproductions were replaced
-by real local installs in local-lifecycle S35. The five-suite inventory
+review at error-handling S22. Step 1's static inventory is complete. Three STEPs
+and 33 rows remain unresolved after the S20 source rule moved to
+source-regression S18. The five-suite inventory
 contains 489 unique stable identities.
 M8 step 2 implements the catalog, recording path, ledger, human summary, and
 machine-readable records. M6 follows as the consumer of those records and does
@@ -1598,15 +1598,18 @@ consumer requirements.
 - Owner decision, 2026-08-07: replace both S18 hand-built LOG_DIR
   reproductions with real local installs in local-lifecycle S35. One install
   unsets all log overrides and `XDG_STATE_HOME`; the other sets
-  `XDG_STATE_HOME`. Both inspect the emitted unit's `--logfile` path. Before
-  step 2 begins, S20, S22, S33, and S34 must receive accepted method, category,
-  and evidence-path dispositions for their 34 rows.
+  `XDG_STATE_HOME`. Both inspect the emitted unit's `--logfile` path.
+- Owner decision, 2026-08-07: move the S20 pipefail help-probe source rule to
+  source-regression S18 as a REQUIRED direct inspection. The suite reads the
+  runner through the invoking-user boundary; the check does not claim helper
+  capability behavior. Before step 2 begins, S22, S33, and S34 must receive
+  accepted method, category, and evidence-path dispositions for their 33 rows.
 
 #### Implementation Plan
 
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-06, after the reconciled #137 plan was shown and M8 step 1 was selected as the next work
-Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16 and S18 dispositions
+Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16, S18, and S20 dispositions
 Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 1. Inventory all scripts under `tests/`, map every assertion and every
@@ -1630,8 +1633,8 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Step | Status | Evidence |
 | --- | --- | --- |
-| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 180 error-handling, 125 local-lifecycle, 55 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S17 own the accepted S14 through S16 source contracts. |
-| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 34 rows in S20, S22, S33, and S34. |
+| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 179 error-handling, 125 local-lifecycle, 56 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S18 own the accepted S14 through S16 and S20 source contracts. |
+| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 33 rows in S22, S33, and S34. |
 | 3 | Not started | Depends on step 2. |
 | 4 | Not started | Depends on step 3. |
 | 5 | Not started | Depends on steps 2 through 4. |
@@ -1652,7 +1655,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-08-07T00:49:21-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 489 unique IDs: error-handling 180, local-lifecycle 125, source-regression 55, system-infra 36, and system-lifecycle 93. The real error suite executed all 173 current assertions with 163 PASS, 10 FAIL outside moved S18, and zero script errors. The real source local-lifecycle suite passed 109 of 109, including both S35 XDG fallback installs. The existing installed runner 1.2.1 passed both new S35 checks and finished 103 of 109; its six `_EXTRA` gate differences are outside S18 and are compatibility evidence, not current release installation verification. The prior real source-regression suite passed 55 of 55. Syntax, local-lifecycle and source-regression ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
+| T1 | 2026-08-07T01:33:18-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 489 unique IDs: error-handling 179, local-lifecycle 125, source-regression 56, system-infra 36, and system-lifecycle 93. The real error suite executed all 172 current assertions with 162 PASS, the same 10 FAIL outside moved S20, and zero script errors. The real source-regression suite passed 56 of 56, including the S18 pipefail source contract. The prior real source local-lifecycle suite passed 109 of 109, including both S35 XDG fallback installs. The existing installed runner 1.2.1 passed both new S35 checks and finished 103 of 109; its six `_EXTRA` gate differences are outside S18 and are compatibility evidence, not current release installation verification. Syntax, source-regression ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
 | T2 | — | — | pending | |
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
@@ -1672,9 +1675,9 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-07T07:03:06Z
-Observed Body: stale after the accepted S18 disposition; projection update pending
-Last Compared: 2026-08-07T00:03:06-07:00
+Observed Updated At: 2026-08-07T08:12:54Z
+Observed Body: stale after the accepted S20 disposition; projection update pending
+Last Compared: 2026-08-07T01:33:18-07:00
 
 ### M10 - Release record reconciliation
 

@@ -1393,19 +1393,6 @@ function test_conf_dir_guard {
     verify_exit_code "0" "${ec}" "absolute CONF_DIR passes the guard"
 }
 
-# M7/#110 (CI-H class): no capability probe may pipe a helper's -h output
-# straight into grep -q — under pipefail a usage exit or an early-match
-# SIGPIPE turns a capable tool into a false negative. Capture-first only.
-function test_pipefail_probe_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Pipefail Probe Guard (#110)"
-    print_sub_divider
-    local hits
-    hits=$(grep -cE -- '-h 2>&1 \| grep -q' "${RUNNER_SCRIPT}" || true)
-    verify_exit_code "0" "${hits}" "no '-h 2>&1 | grep -q' pipeline probes remain in bin/ioc-runner (#110)"
-}
-
 # M7/#110 (1a): an uncreatable local logrotate cfg_dir must skip rotation
 # with a warning, never abort the IOC install (never-abort contract).
 function test_logrotate_skip_guard {
@@ -1797,7 +1784,7 @@ function run_all_tests {
         "test_log_dir_guard"
         "no_error_contract_checks"
         "test_conf_dir_guard"
-        "test_pipefail_probe_guard"
+        "no_error_contract_checks"
         "test_logrotate_skip_guard"
         "test_ioc_name_charset_parity"
         "test_completion"
