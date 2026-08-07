@@ -1245,62 +1245,6 @@ function test_list_empty {
 }
 
 
-# Validates the #87 single-source identity contract: bin/ioc-runner and
-# bin/setup-system-infra.bash resolve the same IOC_RUNNER_SYSTEM_USER /
-# IOC_RUNNER_SYSTEM_GROUP / IOC_RUNNER_SYSTEM_LOG_DIR overrides with the same
-# shipped defaults. A one-sided edit of either declaration fails here before it
-# can ship. LOG_DIR joins the family per CI-14 (Refs #87): the runner declares
-# it as SYSTEM_LOG_DIR (no TARGET_ prefix, unlike USER/GROUP), so the runner
-# side maps each field to its declaration name explicitly.
-function test_system_identity_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: System Identity Single-Source Guard (#87)"
-    print_sub_divider
-
-    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
-    local line field
-    local -A runner_env=() runner_def=() setup_env=() setup_def=()
-    # The runner names USER/GROUP with a TARGET_ prefix but the log dir as a
-    # bare SYSTEM_LOG_DIR; map each field to its runner-side declaration name.
-    local -A runner_decl=( [USER]="TARGET_SYSTEM_USER" [GROUP]="TARGET_SYSTEM_GROUP" [LOG_DIR]="SYSTEM_LOG_DIR" )
-
-    while IFS= read -r line; do
-        for field in USER GROUP LOG_DIR; do
-            if [[ "${line}" == "declare -g ${runner_decl[${field}]}="* ]]; then
-                runner_env[${field}]="${line#*\$\{}"
-                runner_env[${field}]="${runner_env[${field}]%%:-*}"
-                runner_def[${field}]="${line#*:-}"
-                runner_def[${field}]="${runner_def[${field}]%%\}*}"
-            fi
-        done
-    done < "${RUNNER_SCRIPT}"
-
-    while IFS= read -r line; do
-        for field in USER GROUP LOG_DIR; do
-            if [[ "${line}" == "declare -g SYSTEM_${field}="* ]]; then
-                setup_env[${field}]="${line#*\$\{}"
-                setup_env[${field}]="${setup_env[${field}]%%:-*}"
-                setup_def[${field}]="${line#*:-}"
-                setup_def[${field}]="${setup_def[${field}]%%\}*}"
-            fi
-        done
-    done < "${setup_script}"
-
-    verify_state "IOC_RUNNER_SYSTEM_USER" "${runner_env[USER]:-}" "Runner user identity resolves the IOC_RUNNER_SYSTEM_USER override"
-    verify_state "IOC_RUNNER_SYSTEM_USER" "${setup_env[USER]:-}" "Setup user identity resolves the same override variable"
-    verify_state "ioc-srv" "${runner_def[USER]:-}" "Runner user default pinned to ioc-srv"
-    verify_state "${runner_def[USER]:-runner-unset}" "${setup_def[USER]:-setup-unset}" "User defaults agree across both scripts"
-    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${runner_env[GROUP]:-}" "Runner group identity resolves the IOC_RUNNER_SYSTEM_GROUP override"
-    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${setup_env[GROUP]:-}" "Setup group identity resolves the same override variable"
-    verify_state "ioc" "${runner_def[GROUP]:-}" "Runner group default pinned to ioc"
-    verify_state "${runner_def[GROUP]:-runner-unset}" "${setup_def[GROUP]:-setup-unset}" "Group defaults agree across both scripts"
-    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${runner_env[LOG_DIR]:-}" "Runner log dir resolves the IOC_RUNNER_SYSTEM_LOG_DIR override"
-    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${setup_env[LOG_DIR]:-}" "Setup log dir resolves the same override variable"
-    verify_state "/var/log/procserv" "${runner_def[LOG_DIR]:-}" "Runner log dir default pinned to /var/log/procserv"
-    verify_state "${runner_def[LOG_DIR]:-runner-unset}" "${setup_def[LOG_DIR]:-setup-unset}" "Log dir defaults agree across both scripts"
-}
-
 # Extract the procServ unit-template heredoc body from a script (the block whose
 # Description names procServ), normalize the known mode-divergent variables
 # (procServ binary, log dir), and drop the mode-divergent rows. The remaining
@@ -2015,7 +1959,7 @@ function run_all_tests {
         "test_local_ioc_port_replacement_warns"
         "no_error_contract_checks"
         "no_error_contract_checks"
-        "test_system_identity_guard"
+        "no_error_contract_checks"
         "test_template_contract_guard"
         "test_metadata_contract_guard"
         "test_log_dir_guard"

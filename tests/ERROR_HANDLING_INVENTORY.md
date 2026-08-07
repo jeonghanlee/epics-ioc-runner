@@ -14,15 +14,15 @@ runner=source. Its primary category is error-contract.
 ## Inventory Basis
 
 The source pipeline contains S01 through S36. Its full non-root branch contains
-194 current assertion calls. Source review adds seven result-producing
+182 current assertion calls. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 201 identities. S01, S12, and S13 are
-setup-only and own no check. Each loop case has its own semantic key. The 30
+The fixed catalog therefore contains 189 identities. S01, S12, S13, and S14
+are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
 
@@ -47,13 +47,15 @@ function.
 
 S13's accepted disposition moves eight checks to local-lifecycle S35 and
 removes one check duplicated by the existing namespaced LOG_DIR artifact
-check. S14, S15, S16, S20, and S22 directly inspect source contracts. S18
-reconstructs internal LOG_DIR resolution. In S33, sixteen pipeline checks are
-hand-built reproductions and six checks directly inspect the extracted source
-constants. In S34, four pipeline checks are hand-built reproductions and three
-checks directly inspect the extracted source constants.
+check. S14's accepted disposition moves twelve source contracts to
+source-regression S15 as REQUIRED direct inspections. S15, S16, S20, and S22
+directly inspect source contracts. S18 reconstructs internal LOG_DIR
+resolution. In S33, sixteen pipeline checks are hand-built reproductions and
+six checks directly inspect the extracted source constants. In S34, four
+pipeline checks are hand-built reproductions and three checks directly inspect
+the extracted source constants.
 
-These eight unresolved STEPs contain 55 rows. Each row needs an accepted
+These seven unresolved STEPs contain 43 rows. Each row needs an accepted
 disposition before it can enter the runtime catalog.
 
 ## Accepted S13 Disposition
@@ -71,6 +73,25 @@ disposition before it can enter the runtime catalog.
 | `error-handling.S13.log-dir-namespaced-var-honored-when-no-unified` | `remove` | - | - | - | - | Existing `local-lifecycle.S35.namespaced-log-path-baked-into-unit` verifies the same contract through the real emitted unit. |
 
 Owner accepted all S13 dispositions on 2026-08-06.
+
+## Accepted S14 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S14.runner-user-identity-resolves-the-ioc-runner-system-user-override` | `move` | `source-regression.S15.runner-user-override-declaration` | `source-regression` | `REQUIRED` | `direct-inspection` | The check reads the runner declaration; it does not execute override behavior. |
+| `error-handling.S14.setup-user-identity-resolves-the-same-override-variable` | `move` | `source-regression.S15.setup-user-override-declaration` | `source-regression` | `REQUIRED` | `direct-inspection` | The check reads the setup declaration for the shared user override. |
+| `error-handling.S14.runner-user-default-pinned-to-ioc-srv` | `move` | `source-regression.S15.runner-user-default-ioc-srv` | `source-regression` | `REQUIRED` | `direct-inspection` | The check pins the runner source contract for the user default. |
+| `error-handling.S14.user-defaults-agree-across-both-scripts` | `move` | `source-regression.S15.user-defaults-agree` | `source-regression` | `REQUIRED` | `direct-inspection` | The check prevents one-sided drift between the two source declarations. |
+| `error-handling.S14.runner-group-identity-resolves-the-ioc-runner-system-group-override` | `move` | `source-regression.S15.runner-group-override-declaration` | `source-regression` | `REQUIRED` | `direct-inspection` | The check reads the runner declaration; it does not execute override behavior. |
+| `error-handling.S14.setup-group-identity-resolves-the-same-override-variable` | `move` | `source-regression.S15.setup-group-override-declaration` | `source-regression` | `REQUIRED` | `direct-inspection` | The check reads the setup declaration for the shared group override. |
+| `error-handling.S14.runner-group-default-pinned-to-ioc` | `move` | `source-regression.S15.runner-group-default-ioc` | `source-regression` | `REQUIRED` | `direct-inspection` | The check pins the runner source contract for the group default. |
+| `error-handling.S14.group-defaults-agree-across-both-scripts` | `move` | `source-regression.S15.group-defaults-agree` | `source-regression` | `REQUIRED` | `direct-inspection` | The check prevents one-sided drift between the two source declarations. |
+| `error-handling.S14.runner-log-dir-resolves-the-ioc-runner-system-log-dir-override` | `move` | `source-regression.S15.runner-log-dir-override-declaration` | `source-regression` | `REQUIRED` | `direct-inspection` | The check reads the runner declaration; it does not execute override behavior. |
+| `error-handling.S14.setup-log-dir-resolves-the-same-override-variable` | `move` | `source-regression.S15.setup-log-dir-override-declaration` | `source-regression` | `REQUIRED` | `direct-inspection` | The check reads the setup declaration for the shared log-directory override. |
+| `error-handling.S14.runner-log-dir-default-pinned-to-var-log-procserv` | `move` | `source-regression.S15.runner-log-dir-default` | `source-regression` | `REQUIRED` | `direct-inspection` | The check pins the runner source contract for the system log default. |
+| `error-handling.S14.log-dir-defaults-agree-across-both-scripts` | `move` | `source-regression.S15.log-dir-defaults-agree` | `source-regression` | `REQUIRED` | `direct-inspection` | The check prevents one-sided drift between the two source declarations. |
+
+Owner accepted all S14 dispositions on 2026-08-06.
 
 ## Stable Identity Mapping
 
@@ -137,18 +158,6 @@ Owner accepted all S13 dispositions on 2026-08-06.
 | S10 | `error-handling.S10.view-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | view on a never-installed name exits 1 |
 | S10 | `error-handling.S10.gate-message-names-the-missing-configuration` | `BEHAVIOR` | `real-path` | gate message names the missing configuration |
 | S11 | `error-handling.S11.exactly-one-ioc-port-replacement-warning` | `BEHAVIOR` | `real-path` | exactly one IOC_PORT replacement warning |
-| S14 | `error-handling.S14.runner-user-identity-resolves-the-ioc-runner-system-user-override` | `BEHAVIOR` | `direct-inspection` | Runner user identity resolves the IOC_RUNNER_SYSTEM_USER override |
-| S14 | `error-handling.S14.setup-user-identity-resolves-the-same-override-variable` | `BEHAVIOR` | `direct-inspection` | Setup user identity resolves the same override variable |
-| S14 | `error-handling.S14.runner-user-default-pinned-to-ioc-srv` | `BEHAVIOR` | `direct-inspection` | Runner user default pinned to ioc-srv |
-| S14 | `error-handling.S14.user-defaults-agree-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | User defaults agree across both scripts |
-| S14 | `error-handling.S14.runner-group-identity-resolves-the-ioc-runner-system-group-override` | `BEHAVIOR` | `direct-inspection` | Runner group identity resolves the IOC_RUNNER_SYSTEM_GROUP override |
-| S14 | `error-handling.S14.setup-group-identity-resolves-the-same-override-variable` | `BEHAVIOR` | `direct-inspection` | Setup group identity resolves the same override variable |
-| S14 | `error-handling.S14.runner-group-default-pinned-to-ioc` | `BEHAVIOR` | `direct-inspection` | Runner group default pinned to ioc |
-| S14 | `error-handling.S14.group-defaults-agree-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | Group defaults agree across both scripts |
-| S14 | `error-handling.S14.runner-log-dir-resolves-the-ioc-runner-system-log-dir-override` | `BEHAVIOR` | `direct-inspection` | Runner log dir resolves the IOC_RUNNER_SYSTEM_LOG_DIR override |
-| S14 | `error-handling.S14.setup-log-dir-resolves-the-same-override-variable` | `BEHAVIOR` | `direct-inspection` | Setup log dir resolves the same override variable |
-| S14 | `error-handling.S14.runner-log-dir-default-pinned-to-var-log-procserv` | `BEHAVIOR` | `direct-inspection` | Runner log dir default pinned to /var/log/procserv |
-| S14 | `error-handling.S14.log-dir-defaults-agree-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | Log dir defaults agree across both scripts |
 | S15 | `error-handling.S15.both-unit-templates-extracted-from-source` | `BEHAVIOR` | `direct-inspection` | Both unit templates extracted from source |
 | S15 | `error-handling.S15.unit-template-must-agree-rows-identical-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | Unit template must-agree rows identical across both scripts |
 | S15 | `error-handling.S15.m10-restart-directives-present-in-the-unit-must-agree-block` | `BEHAVIOR` | `direct-inspection` | M10 restart directives present in the unit must-agree block |
@@ -282,12 +291,12 @@ Owner accepted all S13 dispositions on 2026-08-06.
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 194 |
+| Current non-root assertion calls | 182 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 201 |
+| Fixed catalog total | 189 |
 
-The mapping is complete only while all 194 current assertion descriptions map
+The mapping is complete only while all 182 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,
 and the source pipeline remains S01 through S36.

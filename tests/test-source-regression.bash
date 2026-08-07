@@ -747,6 +747,86 @@ function test_runner_version_path_resolution {
         "${SUITE_ID}.S14.live-version.readlink-failure-hash"
     rm -rf "${work}"
 }
+
+# Verifies that the runner and privileged setup declare the same supported
+# system identity overrides and defaults. Source content is read as the
+# invoking user so a root-started suite does not bypass checkout ownership.
+function test_system_identity_contract {
+    local step="$1"
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local setup_script="${REPO_TOP}/bin/setup-system-infra.bash"
+    local runner_source=""
+    local setup_source=""
+    local line
+    local field
+    local -A runner_contract_env=()
+    local -A runner_contract_def=()
+    local -A setup_contract_env=()
+    local -A setup_contract_def=()
+    local -A runner_decl=(
+        [USER]="TARGET_SYSTEM_USER"
+        [GROUP]="TARGET_SYSTEM_GROUP"
+        [LOG_DIR]="SYSTEM_LOG_DIR"
+    )
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify System Identity Source Contract"
+    print_sub_divider
+
+    runner_source=$(run_as_invoker cat -- "${runner_script}" 2>/dev/null) || runner_source=""
+    setup_source=$(run_as_invoker cat -- "${setup_script}" 2>/dev/null) || setup_source=""
+
+    while IFS= read -r line || [[ -n "${line:-}" ]]; do
+        for field in USER GROUP LOG_DIR; do
+            if [[ "${line}" == "declare -g ${runner_decl[${field}]}="* ]]; then
+                runner_contract_env[${field}]="${line#*\$\{}"
+                runner_contract_env[${field}]="${runner_contract_env[${field}]%%:-*}"
+                runner_contract_def[${field}]="${line#*:-}"
+                runner_contract_def[${field}]="${runner_contract_def[${field}]%%\}*}"
+            fi
+        done
+    done <<< "${runner_source}"
+
+    while IFS= read -r line || [[ -n "${line:-}" ]]; do
+        for field in USER GROUP LOG_DIR; do
+            if [[ "${line}" == "declare -g SYSTEM_${field}="* ]]; then
+                setup_contract_env[${field}]="${line#*\$\{}"
+                setup_contract_env[${field}]="${setup_contract_env[${field}]%%:-*}"
+                setup_contract_def[${field}]="${line#*:-}"
+                setup_contract_def[${field}]="${setup_contract_def[${field}]%%\}*}"
+            fi
+        done
+    done <<< "${setup_source}"
+
+    verify_state "IOC_RUNNER_SYSTEM_USER" "${runner_contract_env[USER]:-}" \
+        "${SUITE_ID}.S15.runner-user-override-declaration"
+    verify_state "IOC_RUNNER_SYSTEM_USER" "${setup_contract_env[USER]:-}" \
+        "${SUITE_ID}.S15.setup-user-override-declaration"
+    verify_state "ioc-srv" "${runner_contract_def[USER]:-}" \
+        "${SUITE_ID}.S15.runner-user-default-ioc-srv"
+    verify_state "${runner_contract_def[USER]:-runner-unset}" \
+        "${setup_contract_def[USER]:-setup-unset}" \
+        "${SUITE_ID}.S15.user-defaults-agree"
+    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${runner_contract_env[GROUP]:-}" \
+        "${SUITE_ID}.S15.runner-group-override-declaration"
+    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${setup_contract_env[GROUP]:-}" \
+        "${SUITE_ID}.S15.setup-group-override-declaration"
+    verify_state "ioc" "${runner_contract_def[GROUP]:-}" \
+        "${SUITE_ID}.S15.runner-group-default-ioc"
+    verify_state "${runner_contract_def[GROUP]:-runner-unset}" \
+        "${setup_contract_def[GROUP]:-setup-unset}" \
+        "${SUITE_ID}.S15.group-defaults-agree"
+    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${runner_contract_env[LOG_DIR]:-}" \
+        "${SUITE_ID}.S15.runner-log-dir-override-declaration"
+    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${setup_contract_env[LOG_DIR]:-}" \
+        "${SUITE_ID}.S15.setup-log-dir-override-declaration"
+    verify_state "/var/log/procserv" "${runner_contract_def[LOG_DIR]:-}" \
+        "${SUITE_ID}.S15.runner-log-dir-default"
+    verify_state "${runner_contract_def[LOG_DIR]:-runner-unset}" \
+        "${setup_contract_def[LOG_DIR]:-setup-unset}" \
+        "${SUITE_ID}.S15.log-dir-defaults-agree"
+}
+
 function run_all_tests {
     if ! test_preflight; then
         return
@@ -759,6 +839,7 @@ function run_all_tests {
     test_setup_version_injection_guards "S12"
     test_metadata_field_naming "S13"
     test_runner_version_path_resolution "S14"
+    test_system_identity_contract "S15"
 }
 
 run_all_tests

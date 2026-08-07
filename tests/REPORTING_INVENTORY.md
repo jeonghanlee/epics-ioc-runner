@@ -11,9 +11,9 @@ preserve.
 
 | Suite | Script | Scope | Runner | Category | Inventory | Fixed Total |
 | --- | --- | --- | --- | --- | --- | ---: |
-| error-handling | test-error-handling.bash | none | source | error-contract | ERROR_HANDLING_INVENTORY.md | 201 |
+| error-handling | test-error-handling.bash | none | source | error-contract | ERROR_HANDLING_INVENTORY.md | 189 |
 | local-lifecycle | test-local-lifecycle.bash | local | source or installed | lifecycle-behavior | LOCAL_LIFECYCLE_INVENTORY.md | 123 |
-| source-regression | test-source-regression.bash | system | source | source-regression | SOURCE_REGRESSION_INVENTORY.md and the 36 current source IDs | 36 |
+| source-regression | test-source-regression.bash | system | source | source-regression | SOURCE_REGRESSION_INVENTORY.md | 48 |
 | system-infra | test-system-infra.bash | system | none | installed-conformance | SYSTEM_INFRA_INVENTORY.md | 36 |
 | system-lifecycle | test-system-lifecycle.bash | system | source or installed | lifecycle-behavior | SYSTEM_LIFECYCLE_INVENTORY.md | 93 |
 | All suites | - | - | - | - | - | 489 |
@@ -35,9 +35,10 @@ and must not create a terminal state for a suite check.
 ## Method and Category Boundary
 
 The former error-handling S12 checks and eight S13 checks have an accepted
-destination at local-lifecycle S35; one duplicate S13 check is removed. Eight
-error-handling STEPs remain unresolved: S14, S15, S16, S18, S20, S22, S33,
-and S34. Their 55 rows include category
+destination at local-lifecycle S35; one duplicate S13 check is removed. Twelve
+S14 source contracts have an accepted destination at source-regression S15.
+Seven error-handling STEPs remain unresolved: S15, S16, S18, S20, S22, S33,
+and S34. Their 43 rows include category
 mismatches, direct source inspections marked as BEHAVIOR, and hand-built
 reproductions. None enters the accepted runtime catalog until its kind, method,
 category, and evidence path have one accepted disposition.

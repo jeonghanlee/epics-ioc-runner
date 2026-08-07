@@ -2,13 +2,13 @@
 
 ## Scope
 
-This document defines the pre-move inventory for S07 through S14 in `tests/test-system-infra.bash`. It accounts for every current result-producing branch and validity prerequisite before assigning a reviewed `retain`, `replace`, or `remove` disposition.
+This document preserves the pre-move inventory for S07 through S14 in `tests/test-system-infra.bash` and records later accepted source-regression additions. The original move accounts for every result-producing branch and validity prerequisite before assigning a reviewed `retain`, `replace`, or `remove` disposition.
 
 **Out of scope:** Reporter implementation, terminal-state emission, gate consumption, and changes to product behavior. Those remain in #137, #135, or the product issue that owns the behavior.
 
 ## Suite Boundary
 
-The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing pipeline STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; moving the checks does not renumber them.
+The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline with S15 without renumbering them.
 
 The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Only their outer write destinations are redirected to an invoking-user-owned temporary workspace.
 
@@ -24,6 +24,7 @@ The suite runs through `sudo bash`. Source and Git operations run as the invokin
 | S12 | `test_setup_version_injection_guards` | Privilege-drop and unknown-hash guards in setup | `bin/setup-system-infra.bash` | None |
 | S13 | `test_metadata_field_naming` | Version metadata declarations, legacy-name absence, and setup injection | `bin/ioc-runner`, `bin/setup-system-infra.bash` | None |
 | S14 | `test_runner_version_path_resolution` | Live `-V` path resolution without canonicalization | `bin/ioc-runner` | None |
+| S15 | `test_system_identity_contract` | Shared system user, group, and log-directory declarations and defaults | `bin/ioc-runner`, `bin/setup-system-infra.bash` | None |
 
 ## Current Assertion Mapping
 
@@ -140,6 +141,27 @@ Normal shell utilities used only to implement the harness are invocation depende
 | `source-regression.S09.fixture.unrelated-checkout-built` | `retain` | S09 | `source-regression.S09.fixture.unrelated-checkout-built` | `source-regression` | `REQUIRED` | Direct state inspection | Require the copied `bin/` tree to be committed in a distinct Git repository before the S09 negative layout checks run. This establishes the unrelated-checkout boundary those behavior results claim to exercise. Owner accepted 2026-08-05. |
 | `source-regression.S11.fixture.source-copy-built` | `retain` | S11 | `source-regression.S11.fixture.source-copy-built` | `source-regression` | `REQUIRED` | Direct state inspection | Require the scratch runner source copy and baseline deployment to succeed before backup counts begin. Otherwise a zero or one count could describe failed setup executions rather than unchanged and changed redeployment behavior. Owner accepted 2026-08-05. |
 
+## Accepted M8 S15 Addition
+
+S15 adds twelve REQUIRED direct-inspection identities accepted by the owner on 2026-08-06. Both source files are read through the invoking-user boundary established by P00.
+
+| Check ID | Kind | Test Method | Source Contract |
+| --- | --- | --- | --- |
+| `source-regression.S15.runner-user-override-declaration` | `REQUIRED` | `direct-inspection` | Runner declares the `IOC_RUNNER_SYSTEM_USER` override. |
+| `source-regression.S15.setup-user-override-declaration` | `REQUIRED` | `direct-inspection` | Setup declares the same user override. |
+| `source-regression.S15.runner-user-default-ioc-srv` | `REQUIRED` | `direct-inspection` | Runner user default is `ioc-srv`. |
+| `source-regression.S15.user-defaults-agree` | `REQUIRED` | `direct-inspection` | Runner and setup user defaults agree. |
+| `source-regression.S15.runner-group-override-declaration` | `REQUIRED` | `direct-inspection` | Runner declares the `IOC_RUNNER_SYSTEM_GROUP` override. |
+| `source-regression.S15.setup-group-override-declaration` | `REQUIRED` | `direct-inspection` | Setup declares the same group override. |
+| `source-regression.S15.runner-group-default-ioc` | `REQUIRED` | `direct-inspection` | Runner group default is `ioc`. |
+| `source-regression.S15.group-defaults-agree` | `REQUIRED` | `direct-inspection` | Runner and setup group defaults agree. |
+| `source-regression.S15.runner-log-dir-override-declaration` | `REQUIRED` | `direct-inspection` | Runner declares the `IOC_RUNNER_SYSTEM_LOG_DIR` override. |
+| `source-regression.S15.setup-log-dir-override-declaration` | `REQUIRED` | `direct-inspection` | Setup declares the same log-directory override. |
+| `source-regression.S15.runner-log-dir-default` | `REQUIRED` | `direct-inspection` | Runner system log default is `/var/log/procserv`. |
+| `source-regression.S15.log-dir-defaults-agree` | `REQUIRED` | `direct-inspection` | Runner and setup log-directory defaults agree. |
+
+The fixed source-regression catalog contains 48 identities: the 36 accepted M9 identities plus these twelve M8 identities.
+
 ## Move Invariants
 
 1. Each current assertion and prerequisite receives exactly one accepted D13 disposition and reason.
@@ -155,4 +177,4 @@ Normal shell utilities used only to implement the harness are invocation depende
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the twelve accepted S15 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
