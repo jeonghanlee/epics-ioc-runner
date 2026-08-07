@@ -56,7 +56,7 @@ closed.
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Blocked | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
-| M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | In progress | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
+| M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | No | M9, D14 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
@@ -1217,16 +1217,16 @@ Origin: M8 architecture review on 2026-08-04 found that
 installed-conformance checks
 Identity History: none
 GitHub Issue: 138, https://github.com/jeonghanlee/epics-ioc-runner/issues/138
-Status: In progress
+Status: Complete
 
 #### Summary
 
-`test-system-infra.bash` currently combines two verification targets. S01
-through S06 inspect the configured host after installation. S07 through S14
-exercise setup, live runner, version injection, Git fixture, and test
-path-safety behavior from the source tree. A result from one category cannot
-establish the other, and keeping both in one suite gives the suite two
-incompatible execution contexts.
+`test-system-infra.bash` previously combined two verification targets. S01
+through S06 now inspect the configured host after installation, while S07
+through S14 exercise setup, live runner, version injection, Git fixture, and
+test path-safety behavior from the dedicated source-regression suite. A result
+from one category does not establish the other, so each suite now has one
+execution context.
 
 #### Scope
 
@@ -1329,10 +1329,9 @@ to one source-regression suite and no test-harness suite; amended 2026-08-06 to
 make suite creation and check movement one atomic step 2 and add the step 3
 review gate
 Implementation Authorization: owner, 2026-08-05, step 1 and the former suite
-scaffold; expanded by the owner's 2026-08-06 instruction to proceed with the
-complete amended step 2, including the S07 through S14 move, and then by the
-owner's instructions to proceed with the amended step 3 review and step 4
-documentation update. Step 5 remains unauthorized.
+scaffold; expanded by the owner's 2026-08-06 instructions through the complete
+amended steps 2 through 5, including the two-OS real-path verification and
+result synchronization.
 Superseded Plan Artifacts: none
 
 1. Inventory every assertion and prerequisite in S07 through S14. Record its
@@ -1381,6 +1380,17 @@ Superseded Plan Artifacts: none
    additions, and diff format passed their checks.
 5. Verify both resulting suites through the real shipped paths on Debian 13
    and Rocky 8, then review the assertion inventory for omissions.
+   Completed 2026-08-06 on fresh consumers created from the 2026-08-03
+   ioc-runner goldens. The first Rocky 8 run exposed two test-harness
+   assumptions: the direct suite retained a relative self-path across a working
+   directory change, and S10 selected the first version line through an
+   early-closing `head` pipeline under `pipefail`. Commit `75f5073` retains a
+   lexical absolute suite path without canonicalization and consumes the full
+   real `-V` response before selecting its first line. On the committed clean
+   tree, dispatcher and direct source-regression runs each passed 36 of 36 on
+   both OS families; system infrastructure passed 25 of 25 on Rocky 8 and 26
+   of 26 on Debian 13; and all four unsupported selector combinations exited 1
+   before suite execution on both hosts.
 
 #### Test Plan
 
@@ -1397,25 +1407,31 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | 2026-08-05 | Working tree | Pass | `tests/test-system-infra.bash` contains 36 S07 through S14 `verify_state` calls; the inventory maps those assertions and eight validity prerequisites to 44 unique source rows and 36 unique retained or replacement destination identities: 29 `retain`, seven `replace`, and eight owner-approved `remove`; every accepted destination carries STEP, check ID, category, check kind, test method, and reason; `git diff --check` and `git diff --no-index --check -- /dev/null tests/SOURCE_REGRESSION_INVENTORY.md` passed |
-| T2 | Not run | Debian 13 and Rocky 8 source trees | Pending | none |
-| T3 | Not run | Debian 13 and Rocky 8 installed hosts | Pending | none |
-| T4 | Not run | Both goldens | Pending | none |
-| T5 | Not run | Both goldens | Pending | none |
+| T2 | 2026-08-06 | Debian 13 and Rocky 8 source trees at `75f5073` | Pass | The exclusive dispatcher and documented relative-path direct invocation each executed the real setup, live runner, injection, Git, and test-script paths and reported 36/36, zero failures, and zero script errors on both OS families |
+| T3 | 2026-08-06 | Fresh Debian 13 and Rocky 8 installed hosts | Pass | Full setup reported 9/9 on Debian 13 and 10/10 on Rocky 8; system infrastructure then reported 26/26 and 25/25 respectively, with zero failures and zero script errors; Rocky 8 took the documented sudo glob fallback branch and no source-regression check ran in either infrastructure invocation |
+| T4 | 2026-08-06 | Both ioc-runner goldens | Pass | Source-regression output carried `suite=source-regression`, `scope=system`, and `runner=source`; system infrastructure executed only the S01 through S06 installed-state catalog; all behavior claims came from the shipped paths on the two fresh consumers |
+| T5 | 2026-08-06 | Both ioc-runner goldens | Pass | Dispatcher and direct results matched at 36/36; combinations with `--local`, `--system`, `--source`, and `--installed` each exited 1 with the selector-boundary error before suite execution on both hosts |
 
 #### Closure Evidence
 
-- none
+- `c5b5058` separates the suites and updates their documentation and gate
+  collection.
+- `75f5073` removes nondeterministic version-output collection and preserves
+  the documented direct invocation without introducing path canonicalization.
+- Fresh consumers used working golden manifests baked on 2026-08-03; each
+  in-image manifest hash matched its control-host sidecar before the current
+  tree was installed.
 
 #### GitHub Projection
 
 Title: Separate source regression from post-install infrastructure verification
 Labels: P2-medium, refactor, tests, area/architecture
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, refactor, tests, area/architecture
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-05
+Last Compared: 2026-08-06
 
 ### M8 - Suite skip-reporting policy
 
