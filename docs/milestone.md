@@ -1648,7 +1648,9 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06
+Observed Updated At: 2026-08-07T05:14:02Z
+Observed Body: matches the canonical projection through M8 step 1 and T1
+Last Compared: 2026-08-06T22:14:02-07:00
 
 ### M10 - Release record reconciliation
 
