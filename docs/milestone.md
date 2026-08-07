@@ -1690,9 +1690,9 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-07T08:36:51Z
-Observed Body: stale after the accepted S34 disposition; projection update pending
-Last Compared: 2026-08-07T01:58:36-07:00
+Observed Updated At: 2026-08-07T19:41:45Z
+Observed Body: matches the accepted S34 disposition, 487-identity inventory, T1 evidence, and step 2 entry point
+Last Compared: 2026-08-07T12:44:28-07:00
 
 ### M10 - Release record reconciliation
 
