@@ -1051,6 +1051,219 @@ function test_ioc_name_source_contract {
         "${SUITE_ID}.S19.runner-sudoers-name-contracts.agree"
 }
 
+# Extracts one double-quoted global declaration from runner source through the
+# invoking-user boundary. The runner cannot be sourced because it dispatches at
+# module load time.
+function _runner_quoted_global {
+    local variable_name="$1"
+    local runner_script="$2"
+    local declaration=""
+
+    declaration=$(run_as_invoker grep -m1 -E \
+        "^declare -g ${variable_name}=\".*\"$" \
+        "${runner_script}" || true)
+    declaration="${declaration#*\"}"
+    declaration="${declaration%\"}"
+    printf '%s' "${declaration}"
+}
+
+# Evaluates an extracted regex against one contract fixture. This verifies
+# source-level pattern membership only; runtime crash behavior remains owned by
+# the local lifecycle suite's real softIoc paths.
+function _verify_regex_source_fixture {
+    local expected="$1"
+    local regex="$2"
+    local fixture="$3"
+    local check_id="$4"
+    local actual="nomatch"
+
+    if [[ -n "${regex}" ]] \
+       && grep -qiE -- "${regex}" <<< "${fixture}"; then
+        actual="match"
+    fi
+    verify_state "${expected}" "${actual}" "${check_id}"
+}
+
+# Verifies base crash-pattern membership and the fatal/ambiguous source split.
+# The benign-noise exclusion pipeline is intentionally absent; S21 owns that
+# separate source contract.
+function test_crash_pattern_source_contract {
+    local step="$1"
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local base_patterns=""
+    local fatal_patterns=""
+    local ambiguous_patterns=""
+    local base_tokens=""
+    local union_state="unequal"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Crash Pattern Source Contract"
+    print_sub_divider
+
+    base_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS" "${runner_script}")
+    fatal_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS_FATAL" "${runner_script}")
+    ambiguous_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS_AMBIGUOUS" "${runner_script}")
+
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "ERROR st.cmd line 52: Unbalanced quote." \
+        "${SUITE_ID}.S20.pattern-unbalanced-quote"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "Invalid directory path: /opt/ioc/missing" \
+        "${SUITE_ID}.S20.pattern-invalid-directory-path"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "Can't open db/example.db" \
+        "${SUITE_ID}.S20.pattern-can-t-open"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "iocsh: cannot open '/etc/protocol/foo.proto'" \
+        "${SUITE_ID}.S20.pattern-cannot-open"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "symbol lookup error: undefined symbol: epicsRingNew" \
+        "${SUITE_ID}.S20.pattern-undefined-symbol"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "/opt/ioc/iocBoot/iocX/st.cmd: No such file or directory" \
+        "${SUITE_ID}.S20.pattern-no-such-file-or-directory"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "ERROR: device timeout" \
+        "${SUITE_ID}.S20.case-insensitive-error-upper"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "Error: cannot allocate" \
+        "${SUITE_ID}.S20.case-insensitive-error-title"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "error: nullptr deref" \
+        "${SUITE_ID}.S20.case-insensitive-error-lower"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "FATAL: aborting" \
+        "${SUITE_ID}.S20.case-insensitive-fatal-upper"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "fatal allocation failure" \
+        "${SUITE_ID}.S20.case-insensitive-fatal-lower"
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "Segmentation fault (core dumped)" \
+        "${SUITE_ID}.S20.regression-segmentation-fault"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "procServ: Restarting child" \
+        "${SUITE_ID}.S20.negative-procserv-child-start-line"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "iocInit: All initialization complete" \
+        "${SUITE_ID}.S20.negative-iocinit-complete-line"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "## EPICS R7.0.7 banner" \
+        "${SUITE_ID}.S20.negative-epics-banner"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "Starting iocsh.bash" \
+        "${SUITE_ID}.S20.negative-startup-banner"
+
+    base_tokens="${base_patterns#\(}"
+    base_tokens="${base_tokens%\)}"
+    if [[ "$(printf '%s' "${base_tokens}" | tr '|' '\n' | sort)" \
+          == "$(printf '%s' "${fatal_patterns}|${ambiguous_patterns}" \
+              | tr '|' '\n' | sort)" ]]; then
+        union_state="equal"
+    fi
+    verify_state "equal" "${union_state}" \
+        "${SUITE_ID}.S20.base-patterns.equal-subset-union"
+
+    _verify_regex_source_fixture "match" "${fatal_patterns}" \
+        "FATAL: aborting" \
+        "${SUITE_ID}.S20.subset-fatal-is-fatal"
+    _verify_regex_source_fixture "match" "${fatal_patterns}" \
+        "undefined symbol: epicsRingNew" \
+        "${SUITE_ID}.S20.subset-undefined-symbol-is-fatal"
+    _verify_regex_source_fixture "match" "${ambiguous_patterns}" \
+        "Can't open db/example.db" \
+        "${SUITE_ID}.S20.subset-can-t-open-is-ambiguous"
+    _verify_regex_source_fixture "match" "${ambiguous_patterns}" \
+        "ERROR: device timeout" \
+        "${SUITE_ID}.S20.subset-error-is-ambiguous"
+    _verify_regex_source_fixture "match" "${ambiguous_patterns}" \
+        "config: Invalid directory path, ignored" \
+        "${SUITE_ID}.S20.subset-invalid-directory-path-is-ambiguous"
+}
+
+# Verifies the benign-history exclusion as source contracts only. Real startup
+# outcomes remain owned by local lifecycle S30 through shipped softIoc paths.
+function test_crash_exclusion_source_contract {
+    local step="$1"
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local base_patterns=""
+    local exclude_patterns=""
+    local nonempty_state="empty"
+    local compile_state="invalid"
+    local compile_exit=2
+    local writing_state="nomatch"
+    local filter_line=""
+    local fatal_scan_line=""
+    local corroborating_scan_line=""
+    local filter_needle=""
+    local fatal_scan_needle=""
+    local corroborating_scan_needle=""
+    local order_state="invalid"
+    local benign_loading=$'\033[31;1mERROR\033[0m Permission denied (13) loading \'/opt/epics-iocs/demo/iocBoot/iocdemo/.iocsh_history\''
+    local benign_writing=$'\033[31;1mERROR\033[0m Permission denied (13) writing \'.iocsh_history\''
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Crash Exclusion Source Contract"
+    print_sub_divider
+
+    base_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS" "${runner_script}")
+    exclude_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_EXCLUDE_PATTERNS" "${runner_script}")
+
+    if [[ -n "${exclude_patterns}" ]]; then
+        nonempty_state="nonempty"
+    fi
+    verify_state "nonempty" "${nonempty_state}" \
+        "${SUITE_ID}.S21.exclude-pattern.nonempty"
+
+    if grep -E -- "${exclude_patterns}" </dev/null >/dev/null 2>&1; then
+        compile_exit=0
+    else
+        compile_exit=$?
+    fi
+    if [[ -n "${exclude_patterns}" && ${compile_exit} -le 1 ]]; then
+        compile_state="valid"
+    fi
+    verify_state "valid" "${compile_state}" \
+        "${SUITE_ID}.S21.exclude-pattern.compiles"
+
+    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "${benign_loading}" \
+        "${SUITE_ID}.S21.history-load.matches-base-patterns"
+
+    if [[ -n "${exclude_patterns}" ]] \
+       && grep -qE -- "${exclude_patterns}" <<< "${benign_writing}"; then
+        writing_state="match"
+    fi
+    verify_state "match" "${writing_state}" \
+        "${SUITE_ID}.S21.history-write.matches-exclude-pattern"
+
+    filter_needle="filtered=\$(grep -avE -- \"\${CRASH_LOG_EXCLUDE_PATTERNS}\" 2>/dev/null <<< \"\${window}\" || true)"
+    fatal_scan_needle="if grep -qaiE -- \"\${CRASH_LOG_PATTERNS_FATAL}\" 2>/dev/null <<< \"\${filtered}\"; then"
+    corroborating_scan_needle="if grep -qaiE -- \"\${effective_patterns}\" 2>/dev/null <<< \"\${filtered}\"; then"
+    filter_line=$(run_as_invoker grep -nFm1 \
+        "${filter_needle}" "${runner_script}" || true)
+    fatal_scan_line=$(run_as_invoker grep -nFm1 \
+        "${fatal_scan_needle}" "${runner_script}" || true)
+    corroborating_scan_line=$(run_as_invoker grep -nFm1 \
+        "${corroborating_scan_needle}" "${runner_script}" || true)
+    filter_line="${filter_line%%:*}"
+    fatal_scan_line="${fatal_scan_line%%:*}"
+    corroborating_scan_line="${corroborating_scan_line%%:*}"
+    if [[ "${filter_line}" =~ ^[0-9]+$ \
+          && "${fatal_scan_line}" =~ ^[0-9]+$ \
+          && "${corroborating_scan_line}" =~ ^[0-9]+$ \
+          && ${filter_line} -lt ${fatal_scan_line} \
+          && ${filter_line} -lt ${corroborating_scan_line} ]]; then
+        order_state="valid"
+    fi
+    verify_state "valid" "${order_state}" \
+        "${SUITE_ID}.S21.line-filter.precedes-crash-scans"
+}
+
 function run_all_tests {
     if ! test_preflight; then
         return
@@ -1068,6 +1281,8 @@ function run_all_tests {
     test_metadata_injection_contract "S17"
     test_pipefail_help_probe_contract "S18"
     test_ioc_name_source_contract "S19"
+    test_crash_pattern_source_contract "S20"
+    test_crash_exclusion_source_contract "S21"
 }
 
 run_all_tests

@@ -27,40 +27,6 @@ SC_TOP="${SC_RPATH%/*}"
 
 declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
 
-# Extract CRASH_LOG_PATTERNS and CRASH_LOG_EXCLUDE_PATTERNS from runner script via
-# zero-fork parameter expansion.
-# Source-and-execute is not viable: the runner auto-dispatches commands at module bottom.
-declare -g CRASH_LOG_PATTERNS=""
-declare -g CRASH_LOG_PATTERNS_FATAL=""
-declare -g CRASH_LOG_PATTERNS_AMBIGUOUS=""
-declare -g CRASH_LOG_EXCLUDE_PATTERNS=""
-declare _line
-# Order matters: the _FATAL / _AMBIGUOUS clauses are tested before the bare
-# CRASH_LOG_PATTERNS= clause. The bare glob anchors on '=' so it cannot capture
-# the '_FATAL='/'_AMBIGUOUS=' lines, but listing the specific keys first keeps the
-# intent explicit (M11/#67 subset extraction for the DRY-base guard).
-while IFS= read -r _line; do
-    if [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS_FATAL='* ]]; then
-        CRASH_LOG_PATTERNS_FATAL="${_line#*\"}"
-        CRASH_LOG_PATTERNS_FATAL="${CRASH_LOG_PATTERNS_FATAL%\"}"
-    elif [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS_AMBIGUOUS='* ]]; then
-        CRASH_LOG_PATTERNS_AMBIGUOUS="${_line#*\"}"
-        CRASH_LOG_PATTERNS_AMBIGUOUS="${CRASH_LOG_PATTERNS_AMBIGUOUS%\"}"
-    elif [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS='* ]]; then
-        CRASH_LOG_PATTERNS="${_line#*\"}"
-        CRASH_LOG_PATTERNS="${CRASH_LOG_PATTERNS%\"}"
-    elif [[ "${_line}" == 'declare -g CRASH_LOG_EXCLUDE_PATTERNS='* ]]; then
-        CRASH_LOG_EXCLUDE_PATTERNS="${_line#*\"}"
-        CRASH_LOG_EXCLUDE_PATTERNS="${CRASH_LOG_EXCLUDE_PATTERNS%\"}"
-    fi
-    if [[ -n "${CRASH_LOG_PATTERNS}" && -n "${CRASH_LOG_PATTERNS_FATAL}" \
-          && -n "${CRASH_LOG_PATTERNS_AMBIGUOUS}" && -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
-        break
-    fi
-done < "${RUNNER_SCRIPT}"
-unset _line
-
-
 declare -g MOCK_CON_BIN
 declare -g TEST_TMPDIR
 # Issue #98: assertion-count integrity. Every verify_* call appends one line
@@ -212,76 +178,6 @@ function _run {
     local exit_code
     "${cmd[@]}" >/dev/null 2>&1; exit_code=$?; true
     printf "%d" "${exit_code}"
-}
-
-# Asserts whether a fixture string matches CRASH_LOG_PATTERNS through the same
-# pipeline the runner's startup-signal reader (read_startup_signals) uses: the
-# case-sensitive benign-noise pre-filter (grep -vE), then the case-insensitive
-# match (grep -qiE). Mirrors the runner's empty-value guard so the mirror never
-# blanks its input.
-function verify_match {
-    local expected="$1"
-    local fixture="$2"
-    local step_name="$3"
-    local actual="nomatch"
-
-    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
-        if printf "%s\n" "${fixture}" | grep -vE "${CRASH_LOG_EXCLUDE_PATTERNS}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
-            actual="match"
-        fi
-    elif printf "%s\n" "${fixture}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
-        actual="match"
-    fi
-    verify_state "${expected}" "${actual}" "${step_name}"
-}
-
-# Asserts a fixture against CRASH_LOG_PATTERNS alone, bypassing the benign-noise
-# pre-filter. Pins that an excluded fixture is cleared by the exclusion, not by a
-# pattern-set change.
-function verify_match_unfiltered {
-    local expected="$1"
-    local fixture="$2"
-    local step_name="$3"
-    local actual="nomatch"
-
-    if printf "%s\n" "${fixture}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
-        actual="match"
-    fi
-    verify_state "${expected}" "${actual}" "${step_name}"
-}
-
-# DRY-base guard (M11/#67): the spelled-out base CRASH_LOG_PATTERNS must be exactly
-# the union of the fatal and ambiguous subsets, compared as SETS (split on '|',
-# sorted) so token order and the outer parentheses do not matter. The base is a
-# literal (the zero-fork scraper above cannot expand a derived form), so this guard
-# is what enforces the subsets as the single source of truth.
-function verify_base_subset_union {
-    local step_name="$1"
-    local base actual="unequal"
-    base="${CRASH_LOG_PATTERNS#\(}"
-    base="${base%\)}"
-    if [[ "$(printf '%s' "${base}" | tr '|' '\n' | sort)" \
-          == "$(printf '%s' "${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS}" | tr '|' '\n' | sort)" ]]; then
-        actual="equal"
-    fi
-    verify_state "equal" "${actual}" "${step_name}"
-}
-
-# Asserts a fixture matches the named subset regex (fatal | ambiguous), pinning the
-# fatal-vs-ambiguous split at the token level (M11/#67, D031).
-function verify_match_subset {
-    local subset="$1"
-    local fixture="$2"
-    local step_name="$3"
-    local regex="" actual="nomatch"
-    case "${subset}" in
-        fatal)     regex="${CRASH_LOG_PATTERNS_FATAL}" ;;
-        ambiguous) regex="${CRASH_LOG_PATTERNS_AMBIGUOUS}" ;;
-    esac
-    if [[ -n "${regex}" ]] && printf '%s\n' "${fixture}" | grep -qiE "${regex}"; then
-        actual="match"
-    fi
-    verify_state "match" "${actual}" "${step_name}"
 }
 
 # ==============================================================================
@@ -1212,93 +1108,6 @@ function test_inspect_errors {
 }
 
 
-function test_crash_pattern_matching {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Crash Log Pattern Matching"
-    print_sub_divider
-
-    # Issue #4: iocsh parser, dynamic linker, and startup path failures
-    verify_match "match"   "ERROR st.cmd line 52: Unbalanced quote."             "Pattern: Unbalanced quote"
-    verify_match "match"   "Invalid directory path: /opt/ioc/missing"            "Pattern: Invalid directory path"
-    verify_match "match"   "Can't open db/example.db"                            "Pattern: Can't open"
-    verify_match "match"   "iocsh: cannot open '/etc/protocol/foo.proto'"        "Pattern: cannot open"
-    verify_match "match"   "symbol lookup error: undefined symbol: epicsRingNew" "Pattern: undefined symbol"
-    verify_match "match"   "/opt/ioc/iocBoot/iocX/st.cmd: No such file or directory" "Pattern: No such file or directory"
-
-    # Issue #5: case-insensitive matching across casing variants
-    verify_match "match"   "ERROR: device timeout"                  "Case-insensitive: ERROR (upper)"
-    verify_match "match"   "Error: cannot allocate"                 "Case-insensitive: Error (title)"
-    verify_match "match"   "error: nullptr deref"                   "Case-insensitive: error (lower)"
-    verify_match "match"   "FATAL: aborting"                        "Case-insensitive: FATAL (upper)"
-    verify_match "match"   "fatal allocation failure"               "Case-insensitive: fatal (lower)"
-
-    # Regression: fatal startup patterns continue to match
-    verify_match "match"   "Segmentation fault (core dumped)"       "Regression: Segmentation fault"
-
-    # Negative: routine startup lines must not trigger crash detection
-    verify_match "nomatch" "procServ: Restarting child"             "Negative: procServ child start line"
-    verify_match "nomatch" "iocInit: All initialization complete"   "Negative: iocInit complete line"
-    verify_match "nomatch" "## EPICS R7.0.7 banner"                 "Negative: EPICS banner"
-    verify_match "nomatch" "Starting iocsh.bash"                    "Negative: startup banner"
-
-    # M11/#67: the spelled-out base must equal the fatal|ambiguous union (set eq).
-    verify_base_subset_union "DRY-base CRASH_LOG_PATTERNS == fatal|ambiguous subsets"
-
-    # M11/#67: subset membership — fatal tokens are the standalone pre-marker
-    # exit-1 triggers; ambiguous tokens are corroborating-only. Asserted via the
-    # extracted subset regexes so a future mis-split is caught here.
-    verify_match_subset "fatal"     "FATAL: aborting"                  "Subset: FATAL is fatal"
-    verify_match_subset "fatal"     "undefined symbol: epicsRingNew"   "Subset: undefined symbol is fatal"
-    verify_match_subset "ambiguous" "Can't open db/example.db"         "Subset: Can't open is ambiguous"
-    verify_match_subset "ambiguous" "ERROR: device timeout"            "Subset: ERROR is ambiguous"
-    verify_match_subset "ambiguous" "config: Invalid directory path, ignored" "Subset: Invalid directory path is ambiguous (benign EPICS warning)"
-}
-
-
-# Validates the issue #92 benign-noise exclusion contract: the iocsh history
-# load/save failure line is removed before pattern matching, the exclusion is
-# line-targeted, and the constant itself is pinned non-empty and well-formed.
-# Fixtures carry the raw ANSI escape bytes the EPICS errlog ERL_ERROR macro
-# emits around 'ERROR'; a regex spanning the escape boundary would not match.
-function test_crash_scan_exclusion {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Crash Scan Benign-Noise Exclusion (#92)"
-    print_sub_divider
-
-    local benign_loading=$'\033[31;1mERROR\033[0m Permission denied (13) loading \'/opt/epics-iocs/demo/iocBoot/iocdemo/.iocsh_history\''
-    local benign_writing=$'\033[31;1mERROR\033[0m Permission denied (13) writing \'.iocsh_history\''
-    local benign_plus_fatal="${benign_loading}"$'\nFATAL: real crash in the same window'
-    local same_line_collision="${benign_loading} FATAL: marker on the same physical line"
-
-    # Guard pins: an empty or invalid exclude regex must fail here, not at runtime.
-    local exclude_state="empty"
-    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
-        exclude_state="nonempty"
-    fi
-    verify_state "nonempty" "${exclude_state}" "Exclusion: constant extracted non-empty from runner script"
-
-    local compile_state="invalid"
-    if printf "%s\n" "compile probe" | grep -vE "${CRASH_LOG_EXCLUDE_PATTERNS}" >/dev/null 2>&1; then
-        compile_state="valid"
-    fi
-    verify_state "valid" "${compile_state}" "Exclusion: constant compiles under grep -E"
-
-    # The benign line matches the raw pattern set; the exclusion is what clears it.
-    verify_match_unfiltered "match"   "${benign_loading}" "Exclusion pin: history-load line matches patterns without filter"
-    verify_match "nomatch" "${benign_loading}"            "Exclusion: history-load line cleared through pipeline"
-    verify_match "nomatch" "${benign_writing}"            "Exclusion: history-write variant cleared through pipeline"
-
-    # Line-targeted proof: a real fatal marker on another line in the same window still matches.
-    verify_match "match"   "${benign_plus_fatal}"         "Exclusion: FATAL on another line in the window still matches"
-
-    # Accepted residual (#92 design record): a marker sharing the benign line is
-    # excluded with it; pinned as documented semantics, not engineered around.
-    verify_match "nomatch" "${same_line_collision}"       "Exclusion: same-line collision excluded (documented residual)"
-}
-
-
 # Validates the install-time CRASH_LOG_PATTERNS_EXTRA contract from #25:
 # valid extras are accepted, illegal characters and invalid regex syntax
 # are rejected before the conf reaches the runtime grep call.
@@ -1738,8 +1547,8 @@ function run_all_tests {
         "test_view_message_streams"
         "test_attach_access_barrier"
         "test_install_local_perm_hint"
-        "test_crash_pattern_matching"
-        "test_crash_scan_exclusion"
+        "no_error_contract_checks"
+        "no_error_contract_checks"
         "test_crash_pattern_extra"
         "test_tool_resolution"
     )

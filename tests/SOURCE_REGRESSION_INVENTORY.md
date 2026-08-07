@@ -8,7 +8,7 @@ This document preserves the pre-move inventory for S07 through S14 in `tests/tes
 
 ## Suite Boundary
 
-The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S19 without renumbering them.
+The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S21 without renumbering them.
 
 The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Only their outer write destinations are redirected to an invoking-user-owned temporary workspace.
 
@@ -29,6 +29,8 @@ The suite runs through `sudo bash`. Source and Git operations run as the invokin
 | S17 | `test_metadata_injection_contract` | Shared metadata injection targets and runner declaration anchors | `bin/ioc-runner`, `bin/setup-system-infra.bash`, `configure/inject-runner-version.bash` | None |
 | S18 | `test_pipefail_help_probe_contract` | Forbidden helper help-output pipeline form | `bin/ioc-runner` | None |
 | S19 | `test_ioc_name_source_contract` | Runner and regex-form sudoers IOC-name source agreement | `bin/ioc-runner`, `bin/setup-system-infra.bash` | None |
+| S20 | `test_crash_pattern_source_contract` | Base crash-pattern membership and fatal/ambiguous subset agreement | `bin/ioc-runner` | None |
+| S21 | `test_crash_exclusion_source_contract` | Benign-history exclusion regex and line-filter ordering | `bin/ioc-runner` | None |
 
 ## Current Assertion Mapping
 
@@ -204,7 +206,48 @@ S19 adds four REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S19.runner-name.max-length-64` | `REQUIRED` | `direct-inspection` | The runner IOC-name source contract retains the maximum length of 64. |
 | `source-regression.S19.runner-sudoers-name-contracts.agree` | `REQUIRED` | `direct-inspection` | After normalizing equivalent ASCII letter-range order, the setup expression exactly matches the runner character classes and derived remaining-character limit. |
 
-The fixed source-regression catalog contains 60 identities: the 36 accepted M9 identities plus twenty-four M8 identities.
+## Accepted M8 S20 Addition
+
+S20 adds twenty-two REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in local lifecycle S30.
+
+| Check ID | Kind | Test Method | Source Contract |
+| --- | --- | --- | --- |
+| `source-regression.S20.pattern-unbalanced-quote` | `REQUIRED` | `direct-inspection` | The base regex matches an unbalanced-quote line. |
+| `source-regression.S20.pattern-invalid-directory-path` | `REQUIRED` | `direct-inspection` | The base regex matches an invalid-directory line. |
+| `source-regression.S20.pattern-can-t-open` | `REQUIRED` | `direct-inspection` | The base regex matches a `Can't open` line. |
+| `source-regression.S20.pattern-cannot-open` | `REQUIRED` | `direct-inspection` | The base regex matches a `cannot open` line. |
+| `source-regression.S20.pattern-undefined-symbol` | `REQUIRED` | `direct-inspection` | The base regex matches an undefined-symbol line. |
+| `source-regression.S20.pattern-no-such-file-or-directory` | `REQUIRED` | `direct-inspection` | The base regex matches a missing-file line. |
+| `source-regression.S20.case-insensitive-error-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `ERROR`. |
+| `source-regression.S20.case-insensitive-error-title` | `REQUIRED` | `direct-inspection` | Base matching recognizes title-case `Error`. |
+| `source-regression.S20.case-insensitive-error-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `error`. |
+| `source-regression.S20.case-insensitive-fatal-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `FATAL`. |
+| `source-regression.S20.case-insensitive-fatal-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `fatal`. |
+| `source-regression.S20.regression-segmentation-fault` | `REQUIRED` | `direct-inspection` | The base regex matches a segmentation-fault line. |
+| `source-regression.S20.negative-procserv-child-start-line` | `REQUIRED` | `direct-inspection` | The base regex excludes a routine procServ child line. |
+| `source-regression.S20.negative-iocinit-complete-line` | `REQUIRED` | `direct-inspection` | The base regex excludes the IOC-ready line. |
+| `source-regression.S20.negative-epics-banner` | `REQUIRED` | `direct-inspection` | The base regex excludes a normal EPICS banner. |
+| `source-regression.S20.negative-startup-banner` | `REQUIRED` | `direct-inspection` | The base regex excludes a normal startup line. |
+| `source-regression.S20.base-patterns.equal-subset-union` | `REQUIRED` | `direct-inspection` | The base token set equals the fatal and ambiguous subset union. |
+| `source-regression.S20.subset-fatal-is-fatal` | `REQUIRED` | `direct-inspection` | `FATAL` remains in the fatal subset. |
+| `source-regression.S20.subset-undefined-symbol-is-fatal` | `REQUIRED` | `direct-inspection` | `undefined symbol` remains in the fatal subset. |
+| `source-regression.S20.subset-can-t-open-is-ambiguous` | `REQUIRED` | `direct-inspection` | `Can't open` remains in the ambiguous subset. |
+| `source-regression.S20.subset-error-is-ambiguous` | `REQUIRED` | `direct-inspection` | `ERROR` remains in the ambiguous subset. |
+| `source-regression.S20.subset-invalid-directory-path-is-ambiguous` | `REQUIRED` | `direct-inspection` | `Invalid directory path` remains in the ambiguous subset. |
+
+## Accepted M8 S21 Addition
+
+S21 adds five REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. Real history-noise startup outcomes remain in local lifecycle S30.
+
+| Check ID | Kind | Test Method | Source Contract |
+| --- | --- | --- | --- |
+| `source-regression.S21.exclude-pattern.nonempty` | `REQUIRED` | `direct-inspection` | The exclusion source constant is nonempty. |
+| `source-regression.S21.exclude-pattern.compiles` | `REQUIRED` | `direct-inspection` | The exclusion source constant is valid for `grep -E`. |
+| `source-regression.S21.history-load.matches-base-patterns` | `REQUIRED` | `direct-inspection` | The emitted history-load diagnostic remains a base-pattern positive control before exclusion. |
+| `source-regression.S21.history-write.matches-exclude-pattern` | `REQUIRED` | `direct-inspection` | The exclusion source constant recognizes the history-write diagnostic. |
+| `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The runner filters whole lines before fatal and corroborating scans consume the filtered window. |
+
+The fixed source-regression catalog contains 87 identities: the 36 accepted M9 identities plus fifty-one M8 identities.
 
 ## Move Invariants
 
@@ -221,4 +264,4 @@ The fixed source-regression catalog contains 60 identities: the 36 accepted M9 i
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the twenty-four accepted S15 through S19 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the fifty-one accepted S15 through S21 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.

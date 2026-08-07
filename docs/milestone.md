@@ -6,11 +6,10 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: continue M8's pre-step-2 row-by-row disposition
-review at error-handling S33. Step 1's static inventory is complete. Two STEPs
-and 29 rows remain unresolved after the S22 IOC-name source contracts moved to
-source-regression S19. The five-suite inventory
-contains 489 unique stable identities.
+Next session entry point: request owner authorization for M8 step 2. The
+pre-step-2 review is complete after five S34 source contracts moved to
+source-regression S21 and two duplicate S34 behavior checks were removed. The
+five-suite inventory contains 487 unique stable identities.
 M8 step 2 implements the catalog, recording path, ledger, human summary, and
 machine-readable records. M6 follows as the consumer of those records and does
 not scan body prose. After M6, one golden-VM run drives M7's T1 (debian13, both
@@ -1610,12 +1609,22 @@ consumer requirements.
   permits only equivalent ASCII letter-range order. Before step 2 begins, S33
   and S34 must receive accepted method, category, and evidence-path
   dispositions for their 29 rows.
+- Owner decision, 2026-08-07: move all twenty-two S33 crash-pattern source
+  contracts to source-regression S20 as REQUIRED direct inspections. The
+  sixteen base-pattern fixtures evaluate the extracted regex without copying
+  the exclusion pipeline; S34 owns exclusion, and local lifecycle S30 retains
+  real softIoc crash behavior. Before step 2 begins, S34 must receive accepted
+  method, category, and evidence-path dispositions for its seven rows.
+- Owner decision, 2026-08-07: move five S34 exclusion source contracts to
+  source-regression S21 as REQUIRED direct inspections. Remove two hand-built
+  behavior checks already covered by real softIoc paths in local lifecycle S30.
+  The pre-step-2 disposition review is complete.
 
 #### Implementation Plan
 
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-06, after the reconciled #137 plan was shown and M8 step 1 was selected as the next work
-Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16, S18, S20, and S22 dispositions
+Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16, S18, S20, S22, S33, and S34 dispositions
 Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 1. Inventory all scripts under `tests/`, map every assertion and every
@@ -1639,8 +1648,8 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Step | Status | Evidence |
 | --- | --- | --- |
-| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 175 error-handling, 125 local-lifecycle, 60 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S19 own the accepted S14 through S16, S20, and S22 source contracts. |
-| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 29 rows in S33 and S34. |
+| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 146 error-handling, 125 local-lifecycle, 87 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S21 own the accepted S14 through S16, S20, S22, S33, and S34 source contracts. |
+| 2 | Not started | The pre-step-2 review is complete and owner implementation authorization is pending. |
 | 3 | Not started | Depends on step 2. |
 | 4 | Not started | Depends on step 3. |
 | 5 | Not started | Depends on steps 2 through 4. |
@@ -1661,7 +1670,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-08-07T02:08:33-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 489 unique IDs: error-handling 175, local-lifecycle 125, source-regression 60, system-infra 36, and system-lifecycle 93. The real error suite executed all 168 current assertions with 158 PASS, the same 10 FAIL outside moved S22, and zero script errors. The real source-regression suite passed 60 of 60, including all four S19 IOC-name source contracts. The prior real source local-lifecycle suite passed 109 of 109, including both S35 XDG fallback installs. The existing installed runner 1.2.1 passed both new S35 checks and finished 103 of 109; its six `_EXTRA` gate differences are outside S18 and are compatibility evidence, not current release installation verification. Syntax, source-regression ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
+| T1 | 2026-08-07T12:01:42-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 487 unique IDs: error-handling 146, local-lifecycle 125, source-regression 87, system-infra 36, and system-lifecycle 93. The real error suite executed all 139 current assertions with 129 PASS, the same 10 FAIL outside moved S34, and zero script errors. The real source-regression suite passed 87 of 87, including all five S21 crash-exclusion source contracts. The prior real source local-lifecycle suite passed 109 of 109, including both S35 XDG fallback installs and the S30 real softIoc history-noise paths. The existing installed runner 1.2.1 passed both new S35 checks and finished 103 of 109; its six `_EXTRA` gate differences are outside S18 and are compatibility evidence, not current release installation verification. Syntax, source-regression ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
 | T2 | — | — | pending | |
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
@@ -1682,7 +1691,7 @@ Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Observed Updated At: 2026-08-07T08:36:51Z
-Observed Body: stale after the accepted S22 disposition; projection update pending
+Observed Body: stale after the accepted S34 disposition; projection update pending
 Last Compared: 2026-08-07T01:58:36-07:00
 
 ### M10 - Release record reconciliation

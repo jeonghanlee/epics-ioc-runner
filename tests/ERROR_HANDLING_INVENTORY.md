@@ -14,15 +14,15 @@ runner=source. Its primary category is error-contract.
 ## Inventory Basis
 
 The source pipeline contains S01 through S36. Its full non-root branch contains
-168 current assertion calls. Source review adds seven result-producing
+139 current assertion calls. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 175 identities. S01, S12, S13, S14, S15,
-S16, S18, S20, and S22 are setup-only and own no check. Each loop case has its own semantic key. The 30
+The fixed catalog therefore contains 146 identities. S01, S12, S13, S14, S15,
+S16, S18, S20, S22, S33, and S34 are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
 
@@ -57,13 +57,14 @@ reproductions with real local installs in local-lifecycle S35. S20's accepted
 disposition moves one source contract to source-regression S18 as a REQUIRED
 direct inspection. S22's accepted disposition moves three source contracts and
 one normalized exact source-contract replacement to source-regression S19 as REQUIRED
-direct inspections. In S33, sixteen pipeline checks are hand-built reproductions and
-six checks directly inspect the extracted source constants. In S34, four
-pipeline checks are hand-built reproductions and three checks directly inspect
-the extracted source constants.
+direct inspections. S33's accepted disposition moves all twenty-two pattern
+source contracts to source-regression S20 and removes the exclusion pipeline
+from the sixteen base-pattern fixtures. S34's accepted disposition moves five
+source contracts to source-regression S21 and removes two behavior checks
+already covered through real softIoc paths in local-lifecycle S30.
 
-These two unresolved STEPs contain 29 rows. Each row needs an accepted
-disposition before it can enter the runtime catalog.
+Every source check now has an accepted category, kind, method, and evidence
+path before reporter implementation begins.
 
 ## Accepted S13 Disposition
 
@@ -149,11 +150,54 @@ Owner accepted the S20 disposition on 2026-08-07.
 
 Owner accepted all S22 dispositions on 2026-08-07.
 
+## Accepted S33 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S33.pattern-unbalanced-quote` | `replace-and-move` | `source-regression.S20.pattern-unbalanced-quote` | `source-regression` | `REQUIRED` | `direct-inspection` | Evaluate the extracted base regex directly; runtime crash behavior remains in local lifecycle. |
+| `error-handling.S33.pattern-invalid-directory-path` | `replace-and-move` | `source-regression.S20.pattern-invalid-directory-path` | `source-regression` | `REQUIRED` | `direct-inspection` | Evaluate the extracted base regex directly without reproducing the exclusion pipeline. |
+| `error-handling.S33.pattern-can-t-open` | `replace-and-move` | `source-regression.S20.pattern-can-t-open` | `source-regression` | `REQUIRED` | `direct-inspection` | Evaluate the extracted base regex directly without reproducing the exclusion pipeline. |
+| `error-handling.S33.pattern-cannot-open` | `replace-and-move` | `source-regression.S20.pattern-cannot-open` | `source-regression` | `REQUIRED` | `direct-inspection` | Evaluate the extracted base regex directly without reproducing the exclusion pipeline. |
+| `error-handling.S33.pattern-undefined-symbol` | `replace-and-move` | `source-regression.S20.pattern-undefined-symbol` | `source-regression` | `REQUIRED` | `direct-inspection` | Evaluate the extracted base regex directly; runtime fatal detection remains in local lifecycle. |
+| `error-handling.S33.pattern-no-such-file-or-directory` | `replace-and-move` | `source-regression.S20.pattern-no-such-file-or-directory` | `source-regression` | `REQUIRED` | `direct-inspection` | Evaluate the extracted base regex directly without reproducing the exclusion pipeline. |
+| `error-handling.S33.case-insensitive-error-upper` | `replace-and-move` | `source-regression.S20.case-insensitive-error-upper` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin case-insensitive base-regex membership without claiming runtime behavior. |
+| `error-handling.S33.case-insensitive-error-title` | `replace-and-move` | `source-regression.S20.case-insensitive-error-title` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin case-insensitive base-regex membership without claiming runtime behavior. |
+| `error-handling.S33.case-insensitive-error-lower` | `replace-and-move` | `source-regression.S20.case-insensitive-error-lower` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin case-insensitive base-regex membership without claiming runtime behavior. |
+| `error-handling.S33.case-insensitive-fatal-upper` | `replace-and-move` | `source-regression.S20.case-insensitive-fatal-upper` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin case-insensitive base-regex membership without claiming runtime behavior. |
+| `error-handling.S33.case-insensitive-fatal-lower` | `replace-and-move` | `source-regression.S20.case-insensitive-fatal-lower` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin case-insensitive base-regex membership without claiming runtime behavior. |
+| `error-handling.S33.regression-segmentation-fault` | `replace-and-move` | `source-regression.S20.regression-segmentation-fault` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin base-regex membership; runtime fatal detection remains in local lifecycle. |
+| `error-handling.S33.negative-procserv-child-start-line` | `replace-and-move` | `source-regression.S20.negative-procserv-child-start-line` | `source-regression` | `REQUIRED` | `direct-inspection` | Require the extracted base regex not to match routine procServ output. |
+| `error-handling.S33.negative-iocinit-complete-line` | `replace-and-move` | `source-regression.S20.negative-iocinit-complete-line` | `source-regression` | `REQUIRED` | `direct-inspection` | Require the extracted base regex not to match the ready marker. |
+| `error-handling.S33.negative-epics-banner` | `replace-and-move` | `source-regression.S20.negative-epics-banner` | `source-regression` | `REQUIRED` | `direct-inspection` | Require the extracted base regex not to match a normal EPICS banner. |
+| `error-handling.S33.negative-startup-banner` | `replace-and-move` | `source-regression.S20.negative-startup-banner` | `source-regression` | `REQUIRED` | `direct-inspection` | Require the extracted base regex not to match a normal startup line. |
+| `error-handling.S33.dry-base-crash-log-patterns-fatal-ambiguous-subsets` | `move` | `source-regression.S20.base-patterns.equal-subset-union` | `source-regression` | `REQUIRED` | `direct-inspection` | Compare the extracted base and subset token sets without a runtime behavior claim. |
+| `error-handling.S33.subset-fatal-is-fatal` | `move` | `source-regression.S20.subset-fatal-is-fatal` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin fatal-subset source membership. |
+| `error-handling.S33.subset-undefined-symbol-is-fatal` | `move` | `source-regression.S20.subset-undefined-symbol-is-fatal` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin fatal-subset source membership. |
+| `error-handling.S33.subset-can-t-open-is-ambiguous` | `move` | `source-regression.S20.subset-can-t-open-is-ambiguous` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin ambiguous-subset source membership. |
+| `error-handling.S33.subset-error-is-ambiguous` | `move` | `source-regression.S20.subset-error-is-ambiguous` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin ambiguous-subset source membership. |
+| `error-handling.S33.subset-invalid-directory-path-is-ambiguous-benign-epics-warning` | `move` | `source-regression.S20.subset-invalid-directory-path-is-ambiguous` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin ambiguous-subset source membership. |
+
+Owner accepted all S33 dispositions on 2026-08-07.
+
+## Accepted S34 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S34.exclusion-constant-extracted-non-empty-from-runner-script` | `move` | `source-regression.S21.exclude-pattern.nonempty` | `source-regression` | `REQUIRED` | `direct-inspection` | Pin the extracted exclusion source constant without a runtime behavior claim. |
+| `error-handling.S34.exclusion-constant-compiles-under-grep-e` | `move` | `source-regression.S21.exclude-pattern.compiles` | `source-regression` | `REQUIRED` | `direct-inspection` | Validate the extracted exclusion regex as a source contract. |
+| `error-handling.S34.exclusion-pin-history-load-line-matches-patterns-without-filter` | `replace-and-move` | `source-regression.S21.history-load.matches-base-patterns` | `source-regression` | `REQUIRED` | `direct-inspection` | Retain the source-level positive control without reproducing the exclusion pipeline. |
+| `error-handling.S34.exclusion-history-load-line-cleared-through-pipeline` | `remove-duplicate` | `local-lifecycle.S30.history-noise-exits-zero` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | Local lifecycle already emits the history-load diagnostic and verifies healthy startup through the shipped path. |
+| `error-handling.S34.exclusion-history-write-variant-cleared-through-pipeline` | `replace-and-move` | `source-regression.S21.history-write.matches-exclude-pattern` | `source-regression` | `REQUIRED` | `direct-inspection` | Narrow the unsupported behavior claim to exclusion-regex source membership. |
+| `error-handling.S34.exclusion-fatal-on-another-line-in-the-window-still-matches` | `remove-duplicate` | `local-lifecycle.S30.history-fatal-exits-one` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | Local lifecycle already verifies a real fatal event beside emitted history noise through the shipped path. |
+| `error-handling.S34.exclusion-same-line-collision-excluded-documented-residual` | `replace-and-move` | `source-regression.S21.line-filter.precedes-crash-scans` | `source-regression` | `REQUIRED` | `direct-inspection` | Narrow the constructed collision claim to the shipped line-filter ordering contract. |
+
+Owner accepted all S34 dispositions on 2026-08-07.
+
 ## Stable Identity Mapping
 
 | STEP | Check ID | Kind | Current Method | Current Assertion or Condition |
 | --- | --- | --- | --- | --- |
-| P00 | `error-handling.P00.runner-source-readable` | `REQUIRED` | `direct-inspection` | The shipped runner source is readable before pattern extraction. |
+| P00 | `error-handling.P00.runner-source-readable` | `REQUIRED` | `direct-inspection` | The shipped runner source is readable before suite execution. |
 | S02 | `error-handling.S02.help-exits-0` | `BEHAVIOR` | `real-path` | --help exits 0 |
 | S02 | `error-handling.S02.h-exits-0` | `BEHAVIOR` | `real-path` | -h exits 0 |
 | S02 | `error-handling.S02.no-arguments-exits-0` | `BEHAVIOR` | `real-path` | no arguments exits 0 |
@@ -278,35 +322,6 @@ Owner accepted all S22 dispositions on 2026-08-07.
 | S32 | `error-handling.S32.local-install-into-a-non-writable-conf-dir-exits-1` | `BEHAVIOR` | `real-path` | Local install into a non-writable CONF_DIR exits 1 |
 | S32 | `error-handling.S32.local-install-names-the-non-writable-conf-dir-branch-reached` | `BEHAVIOR` | `real-path` | Local install names the non-writable CONF_DIR (branch reached) |
 | S32 | `error-handling.S32.local-install-drops-the-ioc-group-question` | `BEHAVIOR` | `real-path` | Local install drops the ioc group question |
-| S33 | `error-handling.S33.pattern-unbalanced-quote` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: Unbalanced quote |
-| S33 | `error-handling.S33.pattern-invalid-directory-path` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: Invalid directory path |
-| S33 | `error-handling.S33.pattern-can-t-open` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: Can't open |
-| S33 | `error-handling.S33.pattern-cannot-open` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: cannot open |
-| S33 | `error-handling.S33.pattern-undefined-symbol` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: undefined symbol |
-| S33 | `error-handling.S33.pattern-no-such-file-or-directory` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: No such file or directory |
-| S33 | `error-handling.S33.case-insensitive-error-upper` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: ERROR (upper) |
-| S33 | `error-handling.S33.case-insensitive-error-title` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: Error (title) |
-| S33 | `error-handling.S33.case-insensitive-error-lower` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: error (lower) |
-| S33 | `error-handling.S33.case-insensitive-fatal-upper` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: FATAL (upper) |
-| S33 | `error-handling.S33.case-insensitive-fatal-lower` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: fatal (lower) |
-| S33 | `error-handling.S33.regression-segmentation-fault` | `BEHAVIOR` | `hand-built-reproduction` | Regression: Segmentation fault |
-| S33 | `error-handling.S33.negative-procserv-child-start-line` | `BEHAVIOR` | `hand-built-reproduction` | Negative: procServ child start line |
-| S33 | `error-handling.S33.negative-iocinit-complete-line` | `BEHAVIOR` | `hand-built-reproduction` | Negative: iocInit complete line |
-| S33 | `error-handling.S33.negative-epics-banner` | `BEHAVIOR` | `hand-built-reproduction` | Negative: EPICS banner |
-| S33 | `error-handling.S33.negative-startup-banner` | `BEHAVIOR` | `hand-built-reproduction` | Negative: startup banner |
-| S33 | `error-handling.S33.dry-base-crash-log-patterns-fatal-ambiguous-subsets` | `BEHAVIOR` | `direct-inspection` | DRY-base CRASH_LOG_PATTERNS == fatal\|ambiguous subsets |
-| S33 | `error-handling.S33.subset-fatal-is-fatal` | `BEHAVIOR` | `direct-inspection` | Subset: FATAL is fatal |
-| S33 | `error-handling.S33.subset-undefined-symbol-is-fatal` | `BEHAVIOR` | `direct-inspection` | Subset: undefined symbol is fatal |
-| S33 | `error-handling.S33.subset-can-t-open-is-ambiguous` | `BEHAVIOR` | `direct-inspection` | Subset: Can't open is ambiguous |
-| S33 | `error-handling.S33.subset-error-is-ambiguous` | `BEHAVIOR` | `direct-inspection` | Subset: ERROR is ambiguous |
-| S33 | `error-handling.S33.subset-invalid-directory-path-is-ambiguous-benign-epics-warning` | `BEHAVIOR` | `direct-inspection` | Subset: Invalid directory path is ambiguous (benign EPICS warning) |
-| S34 | `error-handling.S34.exclusion-constant-extracted-non-empty-from-runner-script` | `BEHAVIOR` | `direct-inspection` | Exclusion: constant extracted non-empty from runner script |
-| S34 | `error-handling.S34.exclusion-constant-compiles-under-grep-e` | `BEHAVIOR` | `direct-inspection` | Exclusion: constant compiles under grep -E |
-| S34 | `error-handling.S34.exclusion-pin-history-load-line-matches-patterns-without-filter` | `BEHAVIOR` | `direct-inspection` | Exclusion pin: history-load line matches patterns without filter |
-| S34 | `error-handling.S34.exclusion-history-load-line-cleared-through-pipeline` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: history-load line cleared through pipeline |
-| S34 | `error-handling.S34.exclusion-history-write-variant-cleared-through-pipeline` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: history-write variant cleared through pipeline |
-| S34 | `error-handling.S34.exclusion-fatal-on-another-line-in-the-window-still-matches` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: FATAL on another line in the window still matches |
-| S34 | `error-handling.S34.exclusion-same-line-collision-excluded-documented-residual` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: same-line collision excluded (documented residual) |
 | S35 | `error-handling.S35.valid-crash-log-patterns-extra-accepted-at-install` | `BEHAVIOR` | `real-path` | Valid CRASH_LOG_PATTERNS_EXTRA accepted at install |
 | S35 | `error-handling.S35.illegal-characters-in-crash-log-patterns-extra-rejected-at-install` | `BEHAVIOR` | `real-path` | Illegal characters in CRASH_LOG_PATTERNS_EXTRA rejected at install |
 | S35 | `error-handling.S35.invalid-regex-in-crash-log-patterns-extra-rejected-at-install` | `BEHAVIOR` | `real-path` | Invalid regex in CRASH_LOG_PATTERNS_EXTRA rejected at install |
@@ -333,12 +348,12 @@ Owner accepted all S22 dispositions on 2026-08-07.
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 168 |
+| Current non-root assertion calls | 139 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 175 |
+| Fixed catalog total | 146 |
 
-The mapping is complete only while all 168 current assertion descriptions map
+The mapping is complete only while all 139 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,
 and the source pipeline remains S01 through S36.
