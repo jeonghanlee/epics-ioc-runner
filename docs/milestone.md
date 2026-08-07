@@ -6,17 +6,12 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M9 step 5 two-OS verification. Steps 1 through 4 are
-complete in the working tree. The dedicated suite contains all 36 accepted
-destination checks, system infrastructure contains only S01 through S06, and
-the complete source-regression entry point passed 36 of 36 on the dev host
-after the step 3 review findings were corrected. Suite documentation, category
-ownership, and dispatcher collection now describe the separated structure.
-Step 5 remains unauthorized. After M9, implement the M8 catalog, recording path,
-ledger, human summary, and machine-readable records. M6 follows as the consumer
-of those records and does not scan body prose. After M6, one golden-VM run
-drives M7's T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7
-stays In progress meanwhile:
+Next session entry point: M8 step 1, inventory every assertion and conditional
+result branch across the five suites and assign stable check and STEP identities.
+M8 then implements the catalog, recording path, ledger, human summary, and
+machine-readable records. M6 follows as the consumer of those records and does
+not scan body prose. After M6, one golden-VM run drives M7's T1 (debian13, both
+modes) and T2 (rocky8) under the new verdict. M7 stays In progress meanwhile:
 its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
 passed 96 of 96 with all fourteen M19 assertions running (evidence in the M7
 detail). M5
@@ -40,25 +35,26 @@ M2 (#130) is the other work item before the release: it declares which
 `ioc-runner` baseline a golden carries. Its supplying half is done and spans
 both suppliers — `cloud-provision` `8ad180a` gives the bake its `-r <ref>` flag
 and `ansible-provision` writes the `requested=` field — so nothing blocks M2;
-what it declares is settled after step 8 uses the flag for the first time. M4 is complete at `cc9b02e`
-with T1 through T6 recorded; its issue #133 stays open until the release, per
-the manual-close practice on a long-lived release branch. The guard question is
-settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is
-closed.
+what it declares is settled after step 8 uses the flag for the first time. M4
+is complete at `cc9b02e` with T1 through T6 recorded. The owner replaced its
+older deferred-close record on 2026-08-06: #133 closes as a completed
+standalone milestone after separate issue authority. The guard question is
+settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed.
 
 ## Work
 
 | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | — | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
+| M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | No | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
-| M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | — | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
+| M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Blocked | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
-| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | No | M9, D14 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | Yes | M9, D14 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
+| M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | Internal status fields agree, every linked issue matches its canonical projection or records an owner-approved exception, and all observed GitHub metadata is current; [detail](#m10---release-record-reconciliation) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -220,10 +216,11 @@ Superseded Plan Artifacts: none
 Title: Re-set the verification scenarios and write the release-cycle runbook
 Labels: docs, tests, P2-medium
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
-Last Compared: 2026-07-30
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-06
 
 ### M2 - Golden baseline declaration
 
@@ -321,7 +318,8 @@ GitHub Milestone: 1.2.3
 Observed State: open
 Observed Labels: P3-low, tests
 Observed Milestone: 1.2.3
-Last Compared: 2026-07-30
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-06
 
 ### M4 - Stale index dirty stamp
 
@@ -557,18 +555,20 @@ Dependencies And Decisions above rather than deleted
 - Regrade: `bug` / `P2-medium` to `enhancement` / `P3-low` the same day, on the
   reachability finding recorded under Dependencies And Decisions; #133's body
   carries the same finding as its own Reachability section.
-- Issue #133 stays open until the release, per the manual-close practice for a
-  long-lived release branch.
+- Owner decision, 2026-08-06: close #133 as a completed standalone milestone
+  after separate issue authority. This replaces the older deferred-close
+  record and does not change M4's technical scope or verification evidence.
 
 #### GitHub Projection
 
 Title: Version stamp reports -dirty for a clean checkout whose index is stale
 Labels: enhancement, P3-low, area/install
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: enhancement, P3-low, area/install
 Observed Milestone: 1.2.3
-Last Compared: 2026-07-31, after the regrade and the body sync
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-06, after the reconciled body sync and manual close
 
 ### M5 - Shipped scenario drivers
 
@@ -576,7 +576,7 @@ Origin: the two blind runbook executions of 2026-08-01 against `7d82f4f`, one
 per golden, each given the runbook alone
 Identity History: none
 GitHub Issue: 134, https://github.com/jeonghanlee/epics-ioc-runner/issues/134
-Status: Not started
+Status: In progress
 
 #### Summary
 
@@ -855,7 +855,8 @@ GitHub Milestone: 1.2.3
 Observed State: open
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
-Last Compared: 2026-08-01
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-06
 
 ### M6 - The suite verdict cannot see a skip
 
@@ -1011,7 +1012,8 @@ GitHub Milestone: 1.2.3
 Observed State: open
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
-Last Compared: 2026-08-02
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-06
 
 ### M7 - The suite tool probe disagrees with the runner
 
@@ -1208,7 +1210,8 @@ GitHub Milestone: 1.2.3
 Observed State: open
 Observed Labels: P2-medium, bug, tests
 Observed Milestone: 1.2.3
-Last Compared: 2026-08-02
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-06
 
 ### M9 - Source regression suite separation
 
@@ -1627,7 +1630,117 @@ GitHub Milestone: 1.2.3
 Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
-Last Compared: 2026-08-03
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-06
+
+### M10 - Release record reconciliation
+
+Origin: 1.2.3 / M10
+Identity History: none
+GitHub Issue: none
+Status: Complete
+
+#### Summary
+
+The canonical register and the linked GitHub issues contain status, workflow,
+and projected-content differences accumulated during the 1.2.3 cycle. Restore
+one current account before release work relies on those records.
+
+#### Scope
+
+- Reconcile internal status fields, derived Ready values, the release
+  dependency list, and the next-session entry point in this register.
+- Compare every linked 1.2.3 issue (#130, #131, and #133 through #138) with its
+  canonical detail and classify every difference as canonical projection, live
+  metadata, or an owner decision.
+- Project accepted canonical content to GitHub after separate issue authority.
+- Re-read every changed issue and record its observed state, labels, milestone,
+  assignee, and comparison date in the matching detail.
+
+Out of scope: implementing or verifying M2, M5, M6, M7, or M8; changing their
+accepted technical decisions; executing the final release.
+
+#### Completion Criteria
+
+- The work table, matching details, and next-session entry point contain no
+  contradictory status or dependency information.
+- Every linked issue matches its canonical projection or the matching detail
+  records an explicit owner-approved exception.
+- Every linked issue detail carries current observed GitHub metadata.
+- No reconciliation difference remains unclassified or unresolved.
+
+#### Dependencies And Decisions
+
+- M10 does not block M8 implementation, but M3 depends on M10 completion.
+- GitHub mutations require separate issue authority under `git-workflow`.
+- Owner decision, 2026-08-06: apply the current standalone milestone-close
+  workflow to completed M4 and close #133 after separate issue authority. This
+  replaces the older deferred-close record.
+
+#### Reconciliation Inventory
+
+Observed 2026-08-06T19:03:22-07:00 from the live GitHub issues.
+
+| Issue | Canonical Work | Difference Class | Result |
+| --- | --- | --- | --- |
+| #130 | M2 | Live metadata | Current open state, labels, milestone, assignee, and comparison date recorded; body aligned with the unfinished consuming half |
+| #131 | M1 | Live metadata | Current closed state, labels, milestone, assignee, and comparison date recorded |
+| #133 | M4 | Canonical projection and live metadata | Reconciled body published and issue closed; owner decision 2026-08-06 replaces the older deferred-close record |
+| #134 | M5 | Canonical projection | Current implementation progress, remaining verification, and closure state published |
+| #135 | M6 | Canonical projection | Accepted M8 machine-readable-record consumer boundary published; body-prose parser plan removed |
+| #136 | M7 | Canonical projection | Landed implementation and pending two-golden verification published |
+| #137 | M8 | Canonical projection and live metadata | Current five-suite catalog, ledger, and two-projection model published; canonical owner assigned |
+| #138 | M9 | Live metadata | Current closed state and metadata recorded; projected implementation and verification content confirmed current |
+
+#### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: owner, 2026-08-06, after reviewing the five-step reconciliation plan
+Implementation Authorization: owner, 2026-08-06, same exchange
+Superseded Plan Artifacts: none
+
+1. Audit the canonical work table, details, derived Ready values, dependency
+   lists, and next-session entry point; correct internal contradictions.
+2. Compare #130, #131, and #133 through #138 with their matching canonical
+   details and record each difference by authority class.
+3. Present genuine conflicts for owner decision and update the canonical
+   details with those decisions.
+4. Prepare the complete GitHub projection changes and obtain separate issue
+   authority before applying them.
+5. Re-read the live issues, update observed metadata in the canonical details,
+   and verify that no difference remains.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Register consistency | Compare every work row with its detail, dependencies, Ready value, and next-session entry point | Working tree | No internal status, dependency, or entry-point contradiction remains |
+| T2 | GitHub reconciliation | Compare every linked issue field and projected body section with its canonical detail | GitHub and working tree | Every difference is classified and no genuine conflict remains unresolved |
+| T3 | Post-update verification | Re-read every changed issue and compare live metadata and projected content with the updated canonical detail | GitHub and working tree | Every issue matches its projection or carries an owner-approved exception, and observed metadata is current |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-08-06T19:01:46-07:00 | Working tree | Pass | Work-row/detail status comparison, dependency and Ready audit, and `git diff --check` |
+| T2 | 2026-08-06T20:16:03-07:00 | GitHub and working tree | Pass | All eight linked issues classified; #133 owner conflict resolved; #133 through #137 canonical projection changes published |
+| T3 | 2026-08-06T20:16:03-07:00 | GitHub and working tree | Pass | #133 through #137 remote body hashes matched the reviewed local drafts; states, labels, milestone, and assignees matched; #133 observed closed |
+
+#### Closure Evidence
+
+- Internal work-row/detail status and Ready values reconciled in this document.
+- GitHub issues #133 through #137 reconciled on 2026-08-06; #133 closed and
+  #137 assigned to `jeonghanlee`.
+- Post-update body hashes matched the reviewed local drafts for all five
+  changed issues, and live metadata matched their canonical projections.
+
+#### GitHub Projection
+
+Title: none
+Labels: none
+GitHub Milestone: 1.2.3
+Observed State: none
+Last Compared: 2026-08-06
 
 ### M3 - Final release
 
@@ -1655,7 +1768,7 @@ Out of scope: product behavior changes (D1).
 
 #### Dependencies And Decisions
 
-- M1, M2, M4, M5, M6, M7, M8, M9
+- M1, M2, M4, M5, M6, M7, M8, M9, M10
 - D1 and D5: the line is documents and scenarios apart from one named
   exception, so the suites verify unchanged behavior everywhere except the
   version stamp, where M4 changes the comparison and carries its own
