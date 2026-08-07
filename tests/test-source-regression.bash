@@ -24,11 +24,16 @@ declare -g -a FAILED_DETAILS=()
 
 declare -g SC_TOP
 declare -g REPO_TOP
+declare -g SC_PATH
 declare -g INVOKING_USER="${SUDO_USER:-}"
 declare -gr SUITE_ID="source-regression"
 declare -gr SUITE_SCOPE="system"
 declare -gr SUITE_RUNNER="source"
-SC_TOP="$(dirname "${BASH_SOURCE[0]}")"
+SC_PATH="${BASH_SOURCE[0]}"
+if [[ "${SC_PATH}" != /* ]]; then
+    SC_PATH="${PWD}/${SC_PATH}"
+fi
+SC_TOP="${SC_PATH%/*}"
 REPO_TOP="${SC_TOP}/.."
 
 function print_divider {
@@ -444,7 +449,11 @@ function test_stamp_relocated_clean_checkout {
         stamp_of "${work}/$2-runner"
     }
     drive_live_v() {  # $1 = fixture dir; prints the -V version line
-        "${as_invoker[@]}" "set -o pipefail; bash '$1/bin/ioc-runner' -V 2>/dev/null | head -1"
+        local output
+        # Read the complete response before selecting its first line so the
+        # runner status cannot depend on an early-closing output consumer.
+        output=$("${as_invoker[@]}" "bash '$1/bin/ioc-runner' -V 2>/dev/null") || return $?
+        printf '%s\n' "${output%%$'\n'*}"
     }
     drive_inject() {  # $1 = fixture dir, $2 = tag; prints the injected hash
         "${as_invoker[@]}" "cp '$1/bin/ioc-runner' '${work}/$2-target' \
