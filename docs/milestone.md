@@ -7,10 +7,10 @@ Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
 Next session entry point: continue M8's pre-step-2 row-by-row disposition
-review at error-handling S15. Step 1's static inventory is complete. Seven
-STEPs and 43 rows remain unresolved after twelve S14 source contracts moved to
-source-regression S15. The five-suite inventory contains 489 unique stable
-identities.
+review at error-handling S20. Step 1's static inventory is complete. Four STEPs
+and 34 rows remain unresolved after two S18 LOG_DIR reproductions were replaced
+by real local installs in local-lifecycle S35. The five-suite inventory
+contains 489 unique stable identities.
 M8 step 2 implements the catalog, recording path, ledger, human summary, and
 machine-readable records. M6 follows as the consumer of those records and does
 not scan body prose. After M6, one golden-VM run drives M7's T1 (debian13, both
@@ -1586,15 +1586,27 @@ consumer requirements.
 - Owner decision, 2026-08-06: move all twelve S14 declaration and default
   checks to source-regression S15 as REQUIRED direct inspections. The suite
   reads both source files as the invoking user, and S15 performs no privileged
-  product write. Before step 2 begins, S15, S16, S18, S20, S22, S33, and S34
-  must receive accepted method, category, and evidence-path dispositions for
-  their 43 rows.
+  product write.
+- Owner decision, 2026-08-07: move all four S15 unit-template source-contract
+  checks to source-regression S16 as REQUIRED direct inspections. The suite
+  reads both templates through the invoking-user boundary, compares the
+  normalized must-agree rows, and performs no privileged product write.
+- Owner decision, 2026-08-07: move all three S16 metadata-injection source
+  contracts to source-regression S17 as REQUIRED direct inspections. The suite
+  reads the runner and both injectors through the invoking-user boundary and
+  performs no privileged product write.
+- Owner decision, 2026-08-07: replace both S18 hand-built LOG_DIR
+  reproductions with real local installs in local-lifecycle S35. One install
+  unsets all log overrides and `XDG_STATE_HOME`; the other sets
+  `XDG_STATE_HOME`. Both inspect the emitted unit's `--logfile` path. Before
+  step 2 begins, S20, S22, S33, and S34 must receive accepted method, category,
+  and evidence-path dispositions for their 34 rows.
 
 #### Implementation Plan
 
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-06, after the reconciled #137 plan was shown and M8 step 1 was selected as the next work
-Implementation Authorization: owner, 2026-08-06, for step 1 inventory and the accepted S12, S13, and S14 dispositions
+Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16 and S18 dispositions
 Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 1. Inventory all scripts under `tests/`, map every assertion and every
@@ -1618,8 +1630,8 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Step | Status | Evidence |
 | --- | --- | --- |
-| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 189 error-handling, 123 local-lifecycle, 48 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12 and S13 path-resolution checks; source-regression S15 owns the accepted S14 source contracts. |
-| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 43 rows in S15, S16, S18, S20, S22, S33, and S34. |
+| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 180 error-handling, 125 local-lifecycle, 55 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S17 own the accepted S14 through S16 source contracts. |
+| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 34 rows in S20, S22, S33, and S34. |
 | 3 | Not started | Depends on step 2. |
 | 4 | Not started | Depends on step 3. |
 | 5 | Not started | Depends on steps 2 through 4. |
@@ -1640,7 +1652,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-08-06T23:36:43-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 489 unique IDs: error-handling 189, local-lifecycle 123, source-regression 48, system-infra 36, and system-lifecycle 93. The real error suite executed all 182 current assertions with 172 PASS, 10 FAIL outside moved S14, and zero script errors. The real source-regression suite passed 48 of 48, including all twelve S15 source-contract checks, and the real source local-lifecycle run passed 107 of 107. Syntax, source-regression and local-lifecycle ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
+| T1 | 2026-08-07T00:49:21-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 489 unique IDs: error-handling 180, local-lifecycle 125, source-regression 55, system-infra 36, and system-lifecycle 93. The real error suite executed all 173 current assertions with 163 PASS, 10 FAIL outside moved S18, and zero script errors. The real source local-lifecycle suite passed 109 of 109, including both S35 XDG fallback installs. The existing installed runner 1.2.1 passed both new S35 checks and finished 103 of 109; its six `_EXTRA` gate differences are outside S18 and are compatibility evidence, not current release installation verification. The prior real source-regression suite passed 55 of 55. Syntax, local-lifecycle and source-regression ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
 | T2 | — | — | pending | |
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
@@ -1660,9 +1672,9 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-07T06:17:46Z
-Observed Body: stale after the accepted S14 disposition; projection update pending
-Last Compared: 2026-08-06T23:17:46-07:00
+Observed Updated At: 2026-08-07T07:03:06Z
+Observed Body: stale after the accepted S18 disposition; projection update pending
+Last Compared: 2026-08-07T00:03:06-07:00
 
 ### M10 - Release record reconciliation
 

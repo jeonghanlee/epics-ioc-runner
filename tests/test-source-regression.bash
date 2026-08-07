@@ -827,6 +827,146 @@ function test_system_identity_contract {
         "${SUITE_ID}.S15.log-dir-defaults-agree"
 }
 
+# Extracts the procServ unit-template heredoc through the invoking-user
+# boundary, normalizes fields that differ by mode, and returns only the rows
+# that form the shared source contract.
+function _unit_must_agree_block {
+    local source_file="$1"
+
+    # The parser and normalization expressions must preserve literal shell
+    # parameter syntax from the source templates.
+    # shellcheck disable=SC2016
+    run_as_invoker awk '/<<EOF/{cap=1;buf="";next} cap&&/^[[:space:]]*EOF[[:space:]]*$/{if(buf~/Description=procServ for/){printf "%s",buf;exit} cap=0;next} cap{buf=buf $0 "\n"}' \
+        "${source_file}" \
+        | sed 's/${procserv_bin}/@BIN@/g; s/${RESOLVED_PROCSERV_BIN}/@BIN@/g; s/${LOG_DIR}/@LOGDIR@/g; s/${SYSTEM_LOG_DIR}/@LOGDIR@/g' \
+        | grep -vE '^(Description=|Wants=|After=|UMask=|User=|Group=|WantedBy=)'
+}
+
+# Verifies the rows that must agree between the local and system procServ unit
+# templates. The comparison is byte-exact after documented mode differences
+# are removed, and required restart rows are pinned against two-sided removal.
+function test_unit_template_contract {
+    local step="$1"
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local setup_script="${REPO_TOP}/bin/setup-system-infra.bash"
+    local runner_block=""
+    local setup_block=""
+    local extracted="empty"
+    local restart_row
+    local restart_rows="all"
+    local preserve_state="present"
+    local source_file
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify procServ Unit Template Source Contract"
+    print_sub_divider
+
+    runner_block=$(_unit_must_agree_block "${runner_script}" || true)
+    setup_block=$(_unit_must_agree_block "${setup_script}" || true)
+
+    if [[ -n "${runner_block}" && -n "${setup_block}" ]]; then
+        extracted="nonempty"
+    fi
+    verify_state "nonempty" "${extracted}" \
+        "${SUITE_ID}.S16.templates.extracted"
+
+    if [[ "${runner_block}" != "${setup_block}" ]]; then
+        printf "%b%s%b\n" "${YELLOW}" \
+            "  must-agree drift (local < > system):" "${NC}"
+        diff <(printf '%s\n' "${runner_block}") \
+            <(printf '%s\n' "${setup_block}") || true
+    fi
+    verify_state "${runner_block}" "${setup_block}" \
+        "${SUITE_ID}.S16.templates.must-agree"
+
+    for restart_row in \
+        "StartLimitIntervalSec=0" \
+        "StartLimitBurst=5" \
+        "StartLimitAction=none" \
+        "Restart=always" \
+        "RestartSec=2" \
+        "KillMode=mixed"; do
+        if ! grep -qxF "${restart_row}" <<< "${runner_block}"; then
+            restart_rows="missing:${restart_row}"
+            break
+        fi
+    done
+    verify_state "all" "${restart_rows}" \
+        "${SUITE_ID}.S16.restart-directives.present"
+
+    for source_file in "${runner_script}" "${setup_script}"; do
+        if ! run_as_invoker grep -qxF \
+            "RuntimeDirectoryPreserve=restart" "${source_file}"; then
+            preserve_state="missing:${source_file##*/}"
+            break
+        fi
+    done
+    verify_state "present" "${preserve_state}" \
+        "${SUITE_ID}.S16.runtime-directory-preserve.present"
+}
+
+# Extracts the sorted RUNNER_* variable names targeted by one metadata
+# injector. The source file is read through the invoking-user boundary.
+function _metadata_injection_targets {
+    local source_file="$1"
+
+    run_as_invoker grep -oE 's/\^declare -g RUNNER_[A-Z_]+=' \
+        "${source_file}" 2>/dev/null \
+        | grep -oE 'RUNNER_[A-Z_]+' \
+        | sort -u
+}
+
+# Verifies that both metadata injectors target the same RUNNER_* declaration
+# set and that every injected name has a declaration anchor in the runner.
+function test_metadata_injection_contract {
+    local step="$1"
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local setup_script="${REPO_TOP}/bin/setup-system-infra.bash"
+    local inject_script="${REPO_TOP}/configure/inject-runner-version.bash"
+    local setup_set=""
+    local inject_set=""
+    local anchor_set=""
+    local missing=""
+    local extracted="empty"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Metadata Injection Source Contract"
+    print_sub_divider
+
+    setup_set=$(_metadata_injection_targets "${setup_script}" || true)
+    inject_set=$(_metadata_injection_targets "${inject_script}" || true)
+    anchor_set=$(run_as_invoker grep -oE '^declare -g RUNNER_[A-Z_]+=' \
+        "${runner_script}" 2>/dev/null \
+        | grep -oE 'RUNNER_[A-Z_]+' \
+        | sort -u || true)
+
+    if [[ -n "${setup_set}" && -n "${inject_set}" ]]; then
+        extracted="nonempty"
+    fi
+    verify_state "nonempty" "${extracted}" \
+        "${SUITE_ID}.S17.metadata.targets-extracted"
+
+    if [[ "${setup_set}" != "${inject_set}" ]]; then
+        printf "%b%s%b\n" "${YELLOW}" \
+            "  injector drift (setup < > inject):" "${NC}"
+        diff <(printf '%s\n' "${setup_set}") \
+            <(printf '%s\n' "${inject_set}") || true
+    fi
+    verify_state "${setup_set}" "${inject_set}" \
+        "${SUITE_ID}.S17.metadata.injectors-agree"
+
+    missing=$(comm -23 \
+        <(printf '%s\n' "${setup_set}") \
+        <(printf '%s\n' "${anchor_set}"))
+    if [[ -n "${missing}" ]]; then
+        printf "%b%s%b\n%s\n" "${YELLOW}" \
+            "  injected names with no declaration anchor:" "${NC}" \
+            "${missing}"
+    fi
+    verify_state "" "${missing}" \
+        "${SUITE_ID}.S17.metadata.declaration-anchors-present"
+}
+
 function run_all_tests {
     if ! test_preflight; then
         return
@@ -840,6 +980,8 @@ function run_all_tests {
     test_metadata_field_naming "S13"
     test_runner_version_path_resolution "S14"
     test_system_identity_contract "S15"
+    test_unit_template_contract "S16"
+    test_metadata_injection_contract "S17"
 }
 
 run_all_tests

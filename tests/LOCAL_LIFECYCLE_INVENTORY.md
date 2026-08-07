@@ -256,7 +256,7 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S34.shared-timer-survives-ioc-remove` | `BEHAVIOR` | Per-IOC remove preserves the shared timer.
 - `local-lifecycle.S34.manual-teardown-removes-timer` | `BEHAVIOR` | Manual teardown removes the shared timer.
 
-### S35 - Local Install Path Resolution (11)
+### S35 - Local Install Path Resolution (13)
 
 - `local-lifecycle.S35.namespaced-install-succeeds` | `BEHAVIOR` | Namespaced CONF_DIR, SYSTEMD_DIR, and LOG_DIR permit installation through the selected runner.
 - `local-lifecycle.S35.namespaced-conf-path-used` | `BEHAVIOR` | The installed configuration is emitted under `IOC_RUNNER_LOCAL_CONF_DIR`.
@@ -269,10 +269,12 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S35.unified-systemd-path-used` | `BEHAVIOR` | The unit is emitted under `IOC_RUNNER_SYSTEMD_DIR`.
 - `local-lifecycle.S35.namespaced-systemd-path-unused` | `BEHAVIOR` | No unit is emitted under `IOC_RUNNER_LOCAL_SYSTEMD_DIR` when the unified variable is set.
 - `local-lifecycle.S35.unified-log-path-baked-into-unit` | `BEHAVIOR` | The installed unit's `--logfile` uses `IOC_RUNNER_LOG_DIR`.
+- `local-lifecycle.S35.xdg-state-home-unset-log-path-baked-into-unit` | `BEHAVIOR` | With log overrides and `XDG_STATE_HOME` unset, the real install emits a unit using `HOME/.local/state/procserv`.
+- `local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit` | `BEHAVIOR` | With log overrides unset, the real install emits a unit using `XDG_STATE_HOME/procserv`.
 
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 123 identities in this
+Every source and installed invocation declares these 125 identities in this
 order. Runner origin changes the selected binary and the SUITE `runner` field,
 not the identity set. Missing prerequisites and non-applicable permission
 branches close their declared dependent checks without changing `Total`.

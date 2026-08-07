@@ -214,28 +214,6 @@ function _run {
     printf "%d" "${exit_code}"
 }
 
-# Extracts LOG_DIR-related declarations and the set_local_mode function
-# from RUNNER_SCRIPT, sources them in a clean subshell, and prints the
-# resolved LOG_DIR for the requested mode. Use to validate Phase A LOG_DIR
-# routing without requiring Phase B file-system side effects.
-#
-# Usage: _probe_log_dir <system|local> [env_modifier...]
-#   env_modifier is any argument accepted by env(1), e.g.,
-#   "IOC_RUNNER_LOG_DIR=/tmp/x" or "-u XDG_STATE_HOME".
-function _probe_log_dir {
-    local mode="$1"
-    shift
-    local probe
-    probe=$(mktemp)
-    {
-        sed -n '/^declare -g SYSTEM_CONF_DIR=/,/^declare -g LOCAL_LOG_DIR=/p' "${RUNNER_SCRIPT}"
-        sed -n '/^declare -g EXEC_MODE=/,/^declare -g LOG_DIR=/p' "${RUNNER_SCRIPT}"
-        sed -n '/^function set_local_mode {/,/^}/p' "${RUNNER_SCRIPT}"
-    } > "${probe}"
-    env "$@" bash -c "source '${probe}'; if [[ '${mode}' == 'local' ]]; then set_local_mode; fi; printf '%s' \"\${LOG_DIR}\""
-    rm -f "${probe}"
-}
-
 # Asserts whether a fixture string matches CRASH_LOG_PATTERNS through the same
 # pipeline the runner's startup-signal reader (read_startup_signals) uses: the
 # case-sensitive benign-noise pre-filter (grep -vE), then the case-insensitive
@@ -852,30 +830,6 @@ function test_log_dir_guard {
     rm -f "${stderr_cap}"
 }
 
-# Validates XDG_STATE_HOME fallback semantics for LOCAL_LOG_DIR:
-# when XDG_STATE_HOME is unset, LOCAL_LOG_DIR falls back to
-# $HOME/.local/state/procserv; when set, LOCAL_LOG_DIR uses
-# $XDG_STATE_HOME/procserv.
-function test_log_dir_xdg_fallback {
-    local step="$1"
-    local actual
-
-    print_divider
-    _log "INFO" "STEP ${step}: LOG_DIR XDG_STATE_HOME Fallback"
-    print_sub_divider
-
-    # Case 1: XDG_STATE_HOME unset -> $HOME/.local/state/procserv.
-    actual=$(_probe_log_dir "local" "-u" "XDG_STATE_HOME" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR")
-    verify_state "${HOME}/.local/state/procserv" "${actual}" \
-        "XDG_STATE_HOME unset: LOCAL_LOG_DIR falls back to \$HOME/.local/state/procserv"
-
-    # Case 2: XDG_STATE_HOME set -> <XDG_STATE_HOME>/procserv.
-    # env(1) requires options before VAR=value pairs.
-    actual=$(_probe_log_dir "local" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR" "XDG_STATE_HOME=/tmp/xdg_fallback_test")
-    verify_state "/tmp/xdg_fallback_test/procserv" "${actual}" \
-        "XDG_STATE_HOME set: LOCAL_LOG_DIR uses <XDG_STATE_HOME>/procserv"
-}
-
 # Validates the bash completion script by sourcing it in isolated subshells
 # and invoking _ioc_runner_completions with synthesized COMP_WORDS/COMP_CWORD.
 # Targets the env-var refactor to ensure completion picks up namespaced vars.
@@ -1244,128 +1198,6 @@ function test_list_empty {
     fi
 }
 
-
-# Extract the procServ unit-template heredoc body from a script (the block whose
-# Description names procServ), normalize the known mode-divergent variables
-# (procServ binary, log dir), and drop the mode-divergent rows. The remaining
-# lines are the must-agree contract. Assumes the heredoc uses the unquoted
-# <<EOF delimiter; converting it to <<'EOF' or <<-EOF yields an empty block,
-# which the caller catches loudly via its nonempty sentinel (fail-closed, never
-# a false pass).
-function _unit_must_agree_block {
-    awk '/<<EOF/{cap=1;buf="";next} cap&&/^[[:space:]]*EOF[[:space:]]*$/{if(buf~/Description=procServ for/){printf "%s",buf;exit} cap=0;next} cap{buf=buf $0 "\n"}' "$1" \
-      | sed 's/${procserv_bin}/@BIN@/g; s/${RESOLVED_PROCSERV_BIN}/@BIN@/g; s/${LOG_DIR}/@LOGDIR@/g; s/${SYSTEM_LOG_DIR}/@LOGDIR@/g' \
-      | grep -vE '^(Description=|Wants=|After=|UMask=|User=|Group=|WantedBy=)'
-}
-
-# Validates the #81 / CI-4 shared-contract: the must-agree rows of the procServ
-# systemd unit template are byte-identical between bin/ioc-runner (local user
-# unit) and bin/setup-system-infra.bash (system unit), after normalizing the
-# known mode-divergent variables. The two copies are examined-Keep (the runner
-# is self-contained and cannot share a sourced lib); this guard forbids a
-# one-sided drift of any must-agree row. Comparison is byte-exact (row order and
-# blank lines included) — deliberate lockstep. The dropped rows are principled
-# mode-divergences: UMask=0027 is local-only (the system unit keeps the default
-# for group-readable logs, see LOG_LAYOUT.md); User/Group and Wants/After are
-# system-only; WantedBy/Description differ by mode.
-function test_template_contract_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: procServ Unit Template Shared-Contract Guard (#81/CI-4)"
-    print_sub_divider
-
-    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
-    local local_blk system_blk extracted="empty"
-    local_blk="$(_unit_must_agree_block "${RUNNER_SCRIPT}")"
-    system_blk="$(_unit_must_agree_block "${setup_script}")"
-
-    if [[ -n "${local_blk}" && -n "${system_blk}" ]]; then extracted="nonempty"; fi
-    verify_state "nonempty" "${extracted}" "Both unit templates extracted from source"
-
-    if [[ "${local_blk}" != "${system_blk}" ]]; then
-        printf "${YELLOW}  must-agree drift (local < > system):${NC}\n"
-        diff <(printf '%s\n' "${local_blk}") <(printf '%s\n' "${system_blk}") || true
-    fi
-    verify_state "${local_blk}" "${system_blk}" "Unit template must-agree rows identical across both scripts"
-
-    # M10/#54 (M10.T1): the byte-exact compare above catches a one-sided drift, but
-    # a two-sided removal of a shared row would still agree. Assert each M10 restart
-    # directive is PRESENT in the must-agree block so a both-copies removal fails.
-    local m10_row m10_present="all"
-    for m10_row in "StartLimitIntervalSec=0" "StartLimitBurst=5" "StartLimitAction=none" \
-                   "Restart=always" "RestartSec=2" "KillMode=mixed"; do
-        if ! printf '%s\n' "${local_blk}" | grep -qxF "${m10_row}"; then
-            m10_present="missing:${m10_row}"
-            break
-        fi
-    done
-    verify_state "all" "${m10_present}" "M10 restart directives present in the unit must-agree block"
-
-    # M5/#108: RuntimeDirectoryPreserve existence pin. The byte-exact
-    # compare above cannot catch a both-copies removal (absent from
-    # both still agrees), and the M10 loop pins only the M10 rows.
-    # Pin the bin files directly so this assert does not depend on
-    # the extraction/equality asserts above.
-    local m5_pin="present" m5_script
-    for m5_script in "${RUNNER_SCRIPT}" "${setup_script}"; do
-        if ! grep -qxF "RuntimeDirectoryPreserve=restart" "${m5_script}"; then
-            m5_pin="missing:${m5_script##*/}"
-            break
-        fi
-    done
-    verify_state "present" "${m5_pin}" "RuntimeDirectoryPreserve=restart present in both unit templates (M5/#108)"
-}
-
-# Extract the set of RUNNER_* metadata variables an installer injects via sed,
-# i.e. the names targeted by s/^declare -g RUNNER_X=. Sorted and deduplicated.
-# An empty result trips the caller's nonempty sentinel (fail-closed), so a
-# rewrite of the injection lines that stops matching fails loudly, not silently.
-function _metadata_injection_targets {
-    grep -oE 's/\^declare -g RUNNER_[A-Z_]+=' "$1" 2>/dev/null \
-      | grep -oE 'RUNNER_[A-Z_]+' \
-      | sort -u
-}
-
-# Validates the #84 / CI-9 shared-contract: the git-metadata injection targets
-# agree across the runner declaration anchor (bin/ioc-runner) and the two
-# installers that sed them in (bin/setup-system-infra.bash,
-# configure/inject-runner-version.bash). The metadata is hand-maintained in
-# three places; a one-sided rename, a dropped injection line, or a field added
-# to one injector only would silently leave the installed binary reporting the
-# placeholder value with no install error. The guard forbids that drift:
-# (1) both injectors must target the same RUNNER_* set, and (2) every injected
-# name must have a matching declaration anchor in the runner, so the sed regex
-# keeps matching its target. RUNNER_VERSION is the source-controlled value (not
-# injected) and is intentionally excluded.
-function test_metadata_contract_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Git-Metadata Injection Shared-Contract Guard (#84/CI-9)"
-    print_sub_divider
-
-    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
-    local inject_script="${SC_TOP}/../configure/inject-runner-version.bash"
-    local setup_set inject_set anchor_set missing extracted="empty"
-
-    setup_set="$(_metadata_injection_targets "${setup_script}")"
-    inject_set="$(_metadata_injection_targets "${inject_script}")"
-    anchor_set="$(grep -oE '^declare -g RUNNER_[A-Z_]+=' "${RUNNER_SCRIPT}" | grep -oE 'RUNNER_[A-Z_]+' | sort -u)"
-
-    if [[ -n "${setup_set}" && -n "${inject_set}" ]]; then extracted="nonempty"; fi
-    verify_state "nonempty" "${extracted}" "Metadata sed targets extracted from both injectors"
-
-    if [[ "${setup_set}" != "${inject_set}" ]]; then
-        printf "${YELLOW}  injector drift (setup < > inject):${NC}\n"
-        diff <(printf '%s\n' "${setup_set}") <(printf '%s\n' "${inject_set}") || true
-    fi
-    verify_state "${setup_set}" "${inject_set}" "Both injectors target the same RUNNER_* metadata set"
-
-    missing="$(comm -23 <(printf '%s\n' "${setup_set}") <(printf '%s\n' "${anchor_set}"))"
-    if [[ -n "${missing}" ]]; then
-        printf "${YELLOW}  injected names with no declaration anchor:${NC}\n%s\n" "${missing}"
-    fi
-    verify_state "" "${missing}" "Every injected RUNNER_* has a declaration anchor in the runner"
-}
 
 function test_inspect_errors {
     local step="$1"
@@ -1960,10 +1792,10 @@ function run_all_tests {
         "no_error_contract_checks"
         "no_error_contract_checks"
         "no_error_contract_checks"
-        "test_template_contract_guard"
-        "test_metadata_contract_guard"
+        "no_error_contract_checks"
+        "no_error_contract_checks"
         "test_log_dir_guard"
-        "test_log_dir_xdg_fallback"
+        "no_error_contract_checks"
         "test_conf_dir_guard"
         "test_pipefail_probe_guard"
         "test_logrotate_skip_guard"

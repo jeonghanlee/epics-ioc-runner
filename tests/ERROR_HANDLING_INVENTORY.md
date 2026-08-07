@@ -14,15 +14,15 @@ runner=source. Its primary category is error-contract.
 ## Inventory Basis
 
 The source pipeline contains S01 through S36. Its full non-root branch contains
-182 current assertion calls. Source review adds seven result-producing
+173 current assertion calls. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 189 identities. S01, S12, S13, and S14
-are setup-only and own no check. Each loop case has its own semantic key. The 30
+The fixed catalog therefore contains 180 identities. S01, S12, S13, S14, S15,
+S16, and S18 are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
 
@@ -48,14 +48,18 @@ function.
 S13's accepted disposition moves eight checks to local-lifecycle S35 and
 removes one check duplicated by the existing namespaced LOG_DIR artifact
 check. S14's accepted disposition moves twelve source contracts to
-source-regression S15 as REQUIRED direct inspections. S15, S16, S20, and S22
-directly inspect source contracts. S18 reconstructs internal LOG_DIR
-resolution. In S33, sixteen pipeline checks are hand-built reproductions and
+source-regression S15 as REQUIRED direct inspections. S15's accepted
+disposition moves four unit-template source contracts to source-regression S16
+as REQUIRED direct inspections. S16's accepted disposition moves three
+metadata-injection source contracts to source-regression S17 as REQUIRED direct
+inspections. S18's accepted disposition replaces two internal LOG_DIR
+reproductions with real local installs in local-lifecycle S35. S20 and S22
+directly inspect source contracts. In S33, sixteen pipeline checks are hand-built reproductions and
 six checks directly inspect the extracted source constants. In S34, four
 pipeline checks are hand-built reproductions and three checks directly inspect
 the extracted source constants.
 
-These seven unresolved STEPs contain 43 rows. Each row needs an accepted
+These four unresolved STEPs contain 34 rows. Each row needs an accepted
 disposition before it can enter the runtime catalog.
 
 ## Accepted S13 Disposition
@@ -92,6 +96,36 @@ Owner accepted all S13 dispositions on 2026-08-06.
 | `error-handling.S14.log-dir-defaults-agree-across-both-scripts` | `move` | `source-regression.S15.log-dir-defaults-agree` | `source-regression` | `REQUIRED` | `direct-inspection` | The check prevents one-sided drift between the two source declarations. |
 
 Owner accepted all S14 dispositions on 2026-08-06.
+
+## Accepted S15 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S15.both-unit-templates-extracted-from-source` | `move` | `source-regression.S16.templates.extracted` | `source-regression` | `REQUIRED` | `direct-inspection` | The check establishes that both source contracts were extracted before comparison; it does not execute unit behavior. |
+| `error-handling.S15.unit-template-must-agree-rows-identical-across-both-scripts` | `move` | `source-regression.S16.templates.must-agree` | `source-regression` | `REQUIRED` | `direct-inspection` | The check compares normalized source rows and prevents one-sided drift between the two templates. |
+| `error-handling.S15.m10-restart-directives-present-in-the-unit-must-agree-block` | `move` | `source-regression.S16.restart-directives.present` | `source-regression` | `REQUIRED` | `direct-inspection` | The check pins required restart directives against two-sided source removal. |
+| `error-handling.S15.runtimedirectorypreserve-restart-present-in-both-unit-templates-m5-108` | `move` | `source-regression.S16.runtime-directory-preserve.present` | `source-regression` | `REQUIRED` | `direct-inspection` | The check pins `RuntimeDirectoryPreserve=restart` in both source templates. |
+
+Owner accepted all S15 dispositions on 2026-08-07.
+
+## Accepted S16 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S16.metadata-sed-targets-extracted-from-both-injectors` | `move` | `source-regression.S17.metadata.targets-extracted` | `source-regression` | `REQUIRED` | `direct-inspection` | The check establishes that both injector source contracts were extracted before comparison; it does not execute injection behavior. |
+| `error-handling.S16.both-injectors-target-the-same-runner-metadata-set` | `move` | `source-regression.S17.metadata.injectors-agree` | `source-regression` | `REQUIRED` | `direct-inspection` | The check compares the source-level `RUNNER_*` target sets and prevents one-sided drift. |
+| `error-handling.S16.every-injected-runner-has-a-declaration-anchor-in-the-runner` | `move` | `source-regression.S17.metadata.declaration-anchors-present` | `source-regression` | `REQUIRED` | `direct-inspection` | The check requires every injected source name to retain a runner declaration anchor. |
+
+Owner accepted all S16 dispositions on 2026-08-07.
+
+## Accepted S18 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S18.xdg-state-home-unset-local-log-dir-falls-back-to-home-local-state-procserv` | `replace-and-move` | `local-lifecycle.S35.xdg-state-home-unset-log-path-baked-into-unit` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The selected runner performs a real local install with all log overrides and `XDG_STATE_HOME` unset; the emitted unit must use the isolated `HOME/.local/state/procserv` path. |
+| `error-handling.S18.xdg-state-home-set-local-log-dir-uses-xdg-state-home-procserv` | `replace-and-move` | `local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The selected runner performs a real local install with log overrides unset and `XDG_STATE_HOME` set; the emitted unit must use `<XDG_STATE_HOME>/procserv`. |
+
+Owner accepted both S18 dispositions on 2026-08-07.
 
 ## Stable Identity Mapping
 
@@ -158,18 +192,9 @@ Owner accepted all S14 dispositions on 2026-08-06.
 | S10 | `error-handling.S10.view-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | view on a never-installed name exits 1 |
 | S10 | `error-handling.S10.gate-message-names-the-missing-configuration` | `BEHAVIOR` | `real-path` | gate message names the missing configuration |
 | S11 | `error-handling.S11.exactly-one-ioc-port-replacement-warning` | `BEHAVIOR` | `real-path` | exactly one IOC_PORT replacement warning |
-| S15 | `error-handling.S15.both-unit-templates-extracted-from-source` | `BEHAVIOR` | `direct-inspection` | Both unit templates extracted from source |
-| S15 | `error-handling.S15.unit-template-must-agree-rows-identical-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | Unit template must-agree rows identical across both scripts |
-| S15 | `error-handling.S15.m10-restart-directives-present-in-the-unit-must-agree-block` | `BEHAVIOR` | `direct-inspection` | M10 restart directives present in the unit must-agree block |
-| S15 | `error-handling.S15.runtimedirectorypreserve-restart-present-in-both-unit-templates-m5-108` | `BEHAVIOR` | `direct-inspection` | RuntimeDirectoryPreserve=restart present in both unit templates (M5/#108) |
-| S16 | `error-handling.S16.metadata-sed-targets-extracted-from-both-injectors` | `BEHAVIOR` | `direct-inspection` | Metadata sed targets extracted from both injectors |
-| S16 | `error-handling.S16.both-injectors-target-the-same-runner-metadata-set` | `BEHAVIOR` | `direct-inspection` | Both injectors target the same RUNNER_* metadata set |
-| S16 | `error-handling.S16.every-injected-runner-has-a-declaration-anchor-in-the-runner` | `BEHAVIOR` | `direct-inspection` | Every injected RUNNER_* has a declaration anchor in the runner |
 | S17 | `error-handling.S17.system-differing-ioc-runner-log-dir-triggers-warning` | `BEHAVIOR` | `real-path` | system + differing IOC_RUNNER_LOG_DIR triggers warning |
 | S17 | `error-handling.S17.system-matching-ioc-runner-log-dir-suppresses-warning` | `BEHAVIOR` | `real-path` | system + matching IOC_RUNNER_LOG_DIR suppresses warning |
 | S17 | `error-handling.S17.local-mode-suppresses-log-dir-guard` | `BEHAVIOR` | `real-path` | --local mode suppresses LOG_DIR guard |
-| S18 | `error-handling.S18.xdg-state-home-unset-local-log-dir-falls-back-to-home-local-state-procserv` | `BEHAVIOR` | `hand-built-reproduction` | XDG_STATE_HOME unset: LOCAL_LOG_DIR falls back to $HOME/.local/state/procserv |
-| S18 | `error-handling.S18.xdg-state-home-set-local-log-dir-uses-xdg-state-home-procserv` | `BEHAVIOR` | `hand-built-reproduction` | XDG_STATE_HOME set: LOCAL_LOG_DIR uses <XDG_STATE_HOME>/procserv |
 | S19 | `error-handling.S19.relative-ioc-runner-conf-dir-exits-1-on-list` | `BEHAVIOR` | `real-path` | relative IOC_RUNNER_CONF_DIR exits 1 on list |
 | S19 | `error-handling.S19.relative-conf-dir-error-names-the-resolved-directory` | `BEHAVIOR` | `real-path` | relative CONF_DIR error names the resolved directory |
 | S19 | `error-handling.S19.whitespace-conf-dir-exits-1-on-status` | `BEHAVIOR` | `real-path` | whitespace CONF_DIR exits 1 on status |
@@ -291,12 +316,12 @@ Owner accepted all S14 dispositions on 2026-08-06.
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 182 |
+| Current non-root assertion calls | 173 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 189 |
+| Fixed catalog total | 180 |
 
-The mapping is complete only while all 182 current assertion descriptions map
+The mapping is complete only while all 173 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,
 and the source pipeline remains S01 through S36.

@@ -160,7 +160,28 @@ S15 adds twelve REQUIRED direct-inspection identities accepted by the owner on 2
 | `source-regression.S15.runner-log-dir-default` | `REQUIRED` | `direct-inspection` | Runner system log default is `/var/log/procserv`. |
 | `source-regression.S15.log-dir-defaults-agree` | `REQUIRED` | `direct-inspection` | Runner and setup log-directory defaults agree. |
 
-The fixed source-regression catalog contains 48 identities: the 36 accepted M9 identities plus these twelve M8 identities.
+## Accepted M8 S16 Addition
+
+S16 adds four REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. Both source files are read through the invoking-user boundary established by P00.
+
+| Check ID | Kind | Test Method | Source Contract |
+| --- | --- | --- | --- |
+| `source-regression.S16.templates.extracted` | `REQUIRED` | `direct-inspection` | Both procServ unit-template source contracts are extracted before comparison. |
+| `source-regression.S16.templates.must-agree` | `REQUIRED` | `direct-inspection` | Normalized must-agree rows are byte-identical across the local and system templates. |
+| `source-regression.S16.restart-directives.present` | `REQUIRED` | `direct-inspection` | All required restart directives remain in the shared source contract. |
+| `source-regression.S16.runtime-directory-preserve.present` | `REQUIRED` | `direct-inspection` | Both templates retain `RuntimeDirectoryPreserve=restart`. |
+
+## Accepted M8 S17 Addition
+
+S17 adds three REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. All three source files are read through the invoking-user boundary established by P00.
+
+| Check ID | Kind | Test Method | Source Contract |
+| --- | --- | --- | --- |
+| `source-regression.S17.metadata.targets-extracted` | `REQUIRED` | `direct-inspection` | Both metadata injector target sets are extracted before comparison. |
+| `source-regression.S17.metadata.injectors-agree` | `REQUIRED` | `direct-inspection` | Setup and standalone injectors target the same `RUNNER_*` names. |
+| `source-regression.S17.metadata.declaration-anchors-present` | `REQUIRED` | `direct-inspection` | Every injected name retains a declaration anchor in the runner. |
+
+The fixed source-regression catalog contains 55 identities: the 36 accepted M9 identities plus nineteen M8 identities.
 
 ## Move Invariants
 
@@ -177,4 +198,4 @@ The fixed source-regression catalog contains 48 identities: the 36 accepted M9 i
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the twelve accepted S15 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the nineteen accepted S15 through S17 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.

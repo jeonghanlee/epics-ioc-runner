@@ -1434,6 +1434,25 @@ function test_local_install_path_resolution {
     local unit_in_unified="false"
     local unit_in_namespaced="false"
     local precedence_baked_log=""
+    local fallback_unset_root="${WORKSPACE}/fallback-unset"
+    local fallback_unset_dir="${fallback_unset_root}/fallbackUnset"
+    local fallback_unset_conf="${fallback_unset_root}/config/procServ.d"
+    local fallback_unset_systemd="${fallback_unset_root}/systemd"
+    local fallback_unset_home="${fallback_unset_root}/home"
+    local fallback_unset_log="${fallback_unset_home}/.local/state/procserv"
+    local fallback_unset_unit="${fallback_unset_systemd}/epics-@.service"
+    local fallback_unset_rc=0
+    local fallback_unset_baked_log=""
+    local fallback_xdg_root="${WORKSPACE}/fallback-xdg"
+    local fallback_xdg_dir="${fallback_xdg_root}/fallbackXdg"
+    local fallback_xdg_conf="${fallback_xdg_root}/config/procServ.d"
+    local fallback_xdg_systemd="${fallback_xdg_root}/systemd"
+    local fallback_xdg_home="${fallback_xdg_root}/home"
+    local fallback_xdg_state="${fallback_xdg_root}/state"
+    local fallback_xdg_log="${fallback_xdg_state}/procserv"
+    local fallback_xdg_unit="${fallback_xdg_systemd}/epics-@.service"
+    local fallback_xdg_rc=0
+    local fallback_xdg_baked_log=""
 
     print_divider
     _log "INFO" "STEP ${step}: Local Install Path Resolution"
@@ -1534,6 +1553,54 @@ function test_local_install_path_resolution {
         "IOC_RUNNER_LOCAL_SYSTEMD_DIR is unused when IOC_RUNNER_SYSTEMD_DIR is set"
     verify_state "${unified_log}" "${precedence_baked_log}" \
         "IOC_RUNNER_LOG_DIR reaches the installed unit logfile path"
+
+    mkdir -p "${fallback_unset_dir}" "${fallback_unset_conf}" \
+        "${fallback_unset_systemd}" "${fallback_unset_home}"
+    touch "${fallback_unset_dir}/st.cmd"
+    chmod +x "${fallback_unset_dir}/st.cmd"
+    (cd "${fallback_unset_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${fallback_unset_dir}"
+        env -u XDG_STATE_HOME -u IOC_RUNNER_LOG_DIR -u IOC_RUNNER_LOCAL_LOG_DIR \
+            HOME="${fallback_unset_home}" \
+            IOC_RUNNER_LOCAL_CONF_DIR="${fallback_unset_conf}" \
+            IOC_RUNNER_LOCAL_SYSTEMD_DIR="${fallback_unset_systemd}" \
+            IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || fallback_unset_rc=$?
+    if [[ ${fallback_unset_rc} -eq 0 && -f "${fallback_unset_unit}" ]]; then
+        fallback_unset_baked_log=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${fallback_unset_unit}" | head -n1)
+    fi
+    verify_state "${fallback_unset_log}" "${fallback_unset_baked_log}" \
+        "XDG_STATE_HOME unset reaches the installed unit logfile fallback"
+
+    mkdir -p "${fallback_xdg_dir}" "${fallback_xdg_conf}" \
+        "${fallback_xdg_systemd}" "${fallback_xdg_home}" \
+        "${fallback_xdg_state}"
+    touch "${fallback_xdg_dir}/st.cmd"
+    chmod +x "${fallback_xdg_dir}/st.cmd"
+    (cd "${fallback_xdg_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${fallback_xdg_dir}"
+        env -u IOC_RUNNER_LOG_DIR -u IOC_RUNNER_LOCAL_LOG_DIR \
+            HOME="${fallback_xdg_home}" \
+            XDG_STATE_HOME="${fallback_xdg_state}" \
+            IOC_RUNNER_LOCAL_CONF_DIR="${fallback_xdg_conf}" \
+            IOC_RUNNER_LOCAL_SYSTEMD_DIR="${fallback_xdg_systemd}" \
+            IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || fallback_xdg_rc=$?
+    if [[ ${fallback_xdg_rc} -eq 0 && -f "${fallback_xdg_unit}" ]]; then
+        fallback_xdg_baked_log=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${fallback_xdg_unit}" | head -n1)
+    fi
+    verify_state "${fallback_xdg_log}" "${fallback_xdg_baked_log}" \
+        "XDG_STATE_HOME reaches the installed unit logfile path"
 }
 
 function run_all_tests {
