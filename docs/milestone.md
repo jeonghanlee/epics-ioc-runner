@@ -6,11 +6,13 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M9 step 2 implementation authorization. Step 1 is
-complete: all 36 S07 through S14 assertions and all eight validity prerequisites
-have one accepted D13 disposition in `tests/SOURCE_REGRESSION_INVENTORY.md`.
-After authorization, add the accepted `source-regression` suite and exclusive
-selection, then complete M9. Next implement the M8 catalog, recording path,
+Next session entry point: M9 step 5 two-OS verification. Steps 1 through 4 are
+complete in the working tree. The dedicated suite contains all 36 accepted
+destination checks, system infrastructure contains only S01 through S06, and
+the complete source-regression entry point passed 36 of 36 on the dev host
+after the step 3 review findings were corrected. Suite documentation, category
+ownership, and dispatcher collection now describe the separated structure.
+Step 5 remains unauthorized. After M9, implement the M8 catalog, recording path,
 ledger, human summary, and machine-readable records. M6 follows as the consumer
 of those records and does not scan body prose. After M6, one golden-VM run
 drives M7's T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7
@@ -1303,6 +1305,15 @@ skipped lifecycle check run.
   prerequisite through D13 rather than preserving the current count. M9
   records destination metadata but leaves ledger and output implementation to
   M8 under D14.
+- Owner decision, 2026-08-06: combine the former suite-scaffold step and check
+  move into one atomic step 2. A P00-only suite can print source-regression
+  success while the accepted S07 through S14 inventory still runs elsewhere,
+  so that intermediate state is not a completed implementation. New step 3
+  re-reviews the complete suite and its output before step 4 begins.
+- Owner decision, 2026-08-06: S07 isolates Git context resolution by comparing
+  the deployed stamp's hash after removing an optional `-dirty` suffix with the
+  checkout's short `HEAD`. S10 remains the independent owner of clean and dirty
+  suffix behavior.
 - M9 step 1 completed 2026-08-05: the accepted inventory maps all 36 current
   assertions and all eight validity prerequisites to 29 `retain`, seven
   `replace`, and eight `remove` dispositions with no duplicate source or
@@ -1314,10 +1325,14 @@ skipped lifecycle check run.
 
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-04, amended after conceptual-integrity review
-to one source-regression suite and no test-harness suite
-Implementation Authorization: owner, 2026-08-05, plan step 1 only, by assent
-to begin the S07 through S14 assertion and prerequisite inventory after #138
-was recorded
+to one source-regression suite and no test-harness suite; amended 2026-08-06 to
+make suite creation and check movement one atomic step 2 and add the step 3
+review gate
+Implementation Authorization: owner, 2026-08-05, step 1 and the former suite
+scaffold; expanded by the owner's 2026-08-06 instruction to proceed with the
+complete amended step 2, including the S07 through S14 move, and then by the
+owner's instructions to proceed with the amended step 3 review and step 4
+documentation update. Step 5 remains unauthorized.
 Superseded Plan Artifacts: none
 
 1. Inventory every assertion and prerequisite in S07 through S14. Record its
@@ -1327,13 +1342,43 @@ Superseded Plan Artifacts: none
    kind, test method, and reason. For `remove`, record the owner-approved reason.
    Do not close this step until every row has one accepted disposition.
    Completed 2026-08-05 in `tests/SOURCE_REGRESSION_INVENTORY.md`.
-2. Add `tests/test-source-regression.bash` with suite ID `source-regression`,
-   the exclusive `run-all-tests.bash --source-regression` selection, and the
-   accepted root-to-`SUDO_USER` execution boundary.
-3. Move the source-regression checks without rewriting their product path;
-   retain S01 through S06 as the system-infrastructure suite.
+2. In one atomic implementation, add `tests/test-source-regression.bash` with
+   suite ID `source-regression`, the exclusive
+   `run-all-tests.bash --source-regression` selection, and the accepted
+   root-to-`SUDO_USER` execution boundary; move every accepted
+   source-regression check without rewriting its product path; and retain S01
+   through S06 as the system-infrastructure suite. Do not record, commit, or
+   present the P00-only intermediate state as a completed suite.
+   Completed 2026-08-06. The implementation has 36 unique accepted destination
+   IDs, no removed destination, and passed the complete dev-host source run at
+   36 of 36 with zero failures and zero script errors. Syntax, ShellCheck, diff
+   format, non-root rejection, and all four forbidden selector combinations
+   also passed their checks.
+3. Re-review the complete source-regression suite against the accepted
+   inventory and observed output. Confirm that every retained or replacement
+   destination is present once, every removal is absent, system infrastructure
+   contains only S01 through S06, and no success result can omit the accepted
+   source-regression checks. Step 4 does not begin until this review is accepted.
+   Completed 2026-08-06. The review reconciled all 36 destination IDs, confirmed
+   all eight removals absent, and confirmed that system infrastructure contains
+   only S01 through S06. It found and corrected three result-sensitivity defects:
+   real-command exit status was discarded in several checks, the S11 no-change
+   path counted the installed basename instead of its isolated target basename,
+   and the S09 fixture inherited the invoking user's Git hook template. Syntax,
+   ShellCheck, diff format, and non-root rejection passed after correction. The
+   complete orchestrated real-path run then passed 36 of 36 with zero failures
+   and zero script errors and emitted the final selected-suite success result.
 4. Update suite documentation, catalog ownership, and orchestrator collection
    for the accepted invocation.
+   Completed 2026-08-06. `tests/README.md` now declares the source-regression
+   selector and direct invocation, maps all five suites to their canonical
+   categories, assigns moved behavior to source regression and installed state
+   to system infrastructure, and separates lifecycle NFS behavior from the
+   root-to-`SUDO_USER` source boundary. The existing `REPORTING_CONTRACT.md`
+   suite matrix already matched that ownership. `gate/RUNBOOK.md` collects the
+   new suite through its exclusive dispatcher selection and requires six suite
+   blocks per host. Dispatcher help, document links, code fences, ASCII
+   additions, and diff format passed their checks.
 5. Verify both resulting suites through the real shipped paths on Debian 13
    and Rocky 8, then review the assertion inventory for omissions.
 

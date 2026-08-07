@@ -524,13 +524,22 @@ belongs to the writing, not to the running.
 
 Execute everything else.
 
-### 2. The four suites, both modes, both goldens
+### 2. The five suites, lifecycle modes, both goldens
 
 The standalone static and behavioral suite needs no privileges and no EPICS
 environment:
 
 ```bash
 ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && bash tests/test-error-handling.bash'
+```
+
+The source-regression suite also needs no EPICS environment. Its exclusive
+dispatcher selection starts the suite through `sudo` and does not enter the
+lifecycle credential preflight. Require non-interactive sudo before invoking
+it so a host that needs a password fails instead of waiting for a prompt:
+
+```bash
+ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && sudo -n true && bash tests/run-all-tests.bash --source-regression'
 ```
 
 The local lifecycle runs as the invoking user, once against the source tree and
@@ -564,7 +573,7 @@ wrong mode rather than an error.
 **`<log>` in this step is a path on the HOST, not on the control host.** Every
 command here that writes it or reads it sits inside the `ssh` quotes, so the
 file never leaves the machine that produced it. One log per host, named
-`/tmp/gate.log` below, carrying all five runs of that host. Step 3's `<log>` is
+`/tmp/gate.log` below, carrying all six runs of that host. Step 3's `<log>` is
 the other side and the other shape; it is described there and the two do not
 share a name.
 
@@ -573,13 +582,13 @@ ssh vmadmin@<host> "cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -A1 'Runner 
 ssh vmadmin@<host> 'IOC_RUNNER_TEST_MODE=installed sudo -nE printenv IOC_RUNNER_TEST_MODE'
 ```
 
-Only the three lifecycle blocks print that line — the standalone suite and the
-system infrastructure suite resolve no binary, so expect three matches from a
-five-block log, not five. Anchor on the phrase, not on a first match: a loose
-pattern over a concatenated log returns an assertion line from an unrelated
-block.
+Only the three lifecycle blocks print that line: the standalone suite, source
+regression, and system infrastructure resolve no lifecycle binary, so expect
+three matches from a six-block log, not six. Anchor on the phrase, not on a
+first match: a loose pattern over a concatenated log returns an assertion line
+from an unrelated block.
 
-Capture all five runs of a host into ONE log on that host, appending after the
+Capture all six runs of a host into ONE log on that host, appending after the
 first — the verdict command below reads that single file, and keeping it beside
 the run keeps the counts with the machine that produced them:
 
@@ -589,7 +598,7 @@ bash tests/<next-suite>.bash >> /tmp/gate.log 2>&1
 ```
 
 Truncating instead of appending leaves one block behind, and the verdict then
-prints `SUITES OK (1 blocks)` — a green for four suites that were thrown away.
+prints `SUITES OK (1 blocks)`: a green for five runs that were thrown away.
 The block count is what catches it, which is why it is part of the verdict.
 
 Keep each suite's whole summary block, not its last few lines. The counts the
@@ -613,7 +622,8 @@ Drive the system suites directly, not through `tests/run-all-tests.bash`, when
 there is no terminal. The orchestrator caches credentials with `sudo -v` before
 the system phases, and a host carrying both a password rule and NOPASSWD
 entries prompts there even though every individual command would pass. The
-orchestrator's local path has no such preflight and is safe to use.
+orchestrator's local path and exclusive source-regression path have no such
+preflight and are safe to use.
 
 **How long these take is not recorded, so do not read elapsed time as a
 verdict.** No per-suite duration has been measured on either golden; the only

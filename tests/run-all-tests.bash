@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Master script to execute all EPICS IOC runner tests.
-# Supports selective execution via arguments (--local or --system).
+# Supports lifecycle-axis selection and exclusive source-regression execution.
 
 set -e
 
@@ -17,6 +17,9 @@ SC_TOP="${SC_RPATH%/*}"
 
 declare -g RUN_LOCAL=1
 declare -g RUN_SYSTEM=1
+declare -g RUN_SOURCE_REGRESSION=0
+declare -g SEEN_PERMISSION_SELECTOR=0
+declare -g SEEN_RUNNER_SELECTOR=0
 declare -g TEST_MODE="source"
 
 function print_divider {
@@ -40,27 +43,39 @@ function _run_test {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --local|local)
+            SEEN_PERMISSION_SELECTOR=1
             RUN_LOCAL=1
             RUN_SYSTEM=0
             shift
             ;;
         --system|system)
+            SEEN_PERMISSION_SELECTOR=1
             RUN_LOCAL=0
             RUN_SYSTEM=1
             shift
             ;;
         --source)
+            SEEN_RUNNER_SELECTOR=1
             TEST_MODE="source"
             shift
             ;;
         --installed)
+            SEEN_RUNNER_SELECTOR=1
             TEST_MODE="installed"
+            shift
+            ;;
+        --source-regression)
+            RUN_SOURCE_REGRESSION=1
+            RUN_LOCAL=0
+            RUN_SYSTEM=0
             shift
             ;;
         -h|--help)
             printf "Usage: bash %s [--local | --system] [--source | --installed]\n" "$(basename "$0")"
+            printf "       bash %s --source-regression\n" "$(basename "$0")"
             printf "  --local / --system   select permission mode (default: both)\n"
             printf "  --source / --installed   select runner binary origin (default: source)\n"
+            printf "  --source-regression   run only source-tree regression checks\n"
             printf "  The error-handling suite is static and runs on its own:\n"
             printf "    bash %s/test-error-handling.bash\n" "$(dirname "$0")"
             exit 0
@@ -72,8 +87,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ ${RUN_SOURCE_REGRESSION} -eq 1 ]] &&
+   [[ ${SEEN_PERMISSION_SELECTOR} -eq 1 || ${SEEN_RUNNER_SELECTOR} -eq 1 ]]; then
+    printf "${RED}%s${NC}\n" \
+        "Error: --source-regression cannot be combined with lifecycle selectors." >&2
+    exit 1
+fi
+
+if [[ ${RUN_SOURCE_REGRESSION} -eq 1 ]]; then
+    _run_test "Source Regression" sudo bash "${SC_TOP}/test-source-regression.bash"
+    print_divider
+    printf "${GREEN}%s${NC}\n" "ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY."
+    print_divider
+    exit 0
+fi
+
 # Pre-flight environment check
-if [[ -z "${EPICS_BASE}" ]]; then
+if [[ -z "${EPICS_BASE:-}" ]]; then
     printf "${RED}%s${NC}\n" "ERROR: EPICS_BASE environment variable is not set." >&2
     exit 1
 fi

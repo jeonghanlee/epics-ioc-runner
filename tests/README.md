@@ -1,6 +1,15 @@
 # EPICS IOC Runner - Automated Tests
 
-This directory contains automated integration and error handling tests to verify both local user-level and system-wide systemd management architectures.
+## Scope
+
+This directory contains source regression, installed conformance, lifecycle,
+and error-contract tests for the EPICS IOC runner. This document defines their
+classification, ownership, selection, invocation, workspace behavior, and
+verified targets.
+
+**Out of scope:** Release-grade multi-host execution is defined in
+[`gate/RUNBOOK.md`](../gate/RUNBOOK.md). Current implementation and verification
+status is tracked in [`docs/milestone.md`](../docs/milestone.md).
 
 ## Test Classification
 
@@ -49,7 +58,8 @@ any other span of the product path under test.
 
 ## Test Organization
 
-Test invocation varies along two selection axes, plus one standalone suite.
+Lifecycle invocation varies along two selection axes. Source regression uses
+one exclusive dispatcher selection, and error handling remains standalone.
 
 **Permission mode** (set by `run-all-tests.bash --local` / `--system`):
 - `--local`: the local lifecycle, as the current user. No `sudo`, no `ioc` group.
@@ -62,18 +72,28 @@ Test invocation varies along two selection axes, plus one standalone suite.
 - `--installed`: `/usr/local/bin/ioc-runner` — the deployed binary, for
   validating a finished build or a production install.
 
-**Standalone source-fixed suite** (run on its own, not through the dispatcher):
+**Exclusive source-regression suite**:
+
+- `--source-regression`: runs `test-source-regression.bash` by itself. It
+  cannot be combined with a permission or runner selector.
+- The suite starts through `sudo bash`. Setup runs as root with only its outer
+  write targets redirected to an isolated temporary directory; source and Git
+  operations run as the invoking identity from `SUDO_USER`.
+
+**Standalone source-fixed suite** (not collected by the dispatcher):
+
 - `test-error-handling.bash`: a source-fixed behavioral and parse suite —
   it parses the `ioc-runner` source for contract guards AND executes the
   source-tree binary against dummy inputs for the validation and error
   paths. It needs no EPICS environment or root privileges.
 
-| Script | Axis | Binary | Invocation |
+| Script | Category | Binary | Invocation |
 | :--- | :--- | :--- | :--- |
-| `test-error-handling.bash` | standalone, source-fixed | source only | `bash tests/test-error-handling.bash` |
-| `test-local-lifecycle.bash` | local lifecycle | source or installed | via `run-all-tests.bash --local` |
-| `test-system-infra.bash` | system infra | n/a | via `run-all-tests.bash --system` |
-| `test-system-lifecycle.bash` | system lifecycle | source or installed | via `run-all-tests.bash --system` |
+| `test-error-handling.bash` | `error-contract` | source only | `bash tests/test-error-handling.bash` |
+| `test-local-lifecycle.bash` | `lifecycle-behavior` | source or installed | via `run-all-tests.bash --local` |
+| `test-source-regression.bash` | `source-regression` | source only | via `run-all-tests.bash --source-regression` |
+| `test-system-infra.bash` | `installed-conformance` | n/a | via `run-all-tests.bash --system` |
+| `test-system-lifecycle.bash` | `lifecycle-behavior` | source or installed | via `run-all-tests.bash --system` |
 
 The system lifecycle runs under root for system-wide systemd control and
 cross-user anonymous-peer mapping (`inspect` via Kernel Netlink); `sudo -E`
@@ -146,12 +166,16 @@ bash tests/run-all-tests.bash --local --installed
 
 # System lifecycle against the installed binary.
 bash tests/run-all-tests.bash --system --installed
+
+# Source-tree setup, metadata, Git, and path regression checks only.
+bash tests/run-all-tests.bash --source-regression
 ```
 
 The development-to-production flow maps directly onto these commands:
 develop and iterate with `--source`, validate a finished install with
 `--installed` around the install step (`setup-system-infra.bash` /
-`make install`), and run the error suite once per code change.
+`make install`), run `--source-regression` for source-tree setup and metadata
+changes, and run the error suite once per code change.
 
 ### 2. Run Individual Test Suites
 To isolate one suite manually:
@@ -159,6 +183,9 @@ To isolate one suite manually:
 ```bash
 # Standalone static error suite (always source).
 bash tests/test-error-handling.bash
+
+# Source regression directly. The dispatcher form above is preferred.
+sudo bash tests/test-source-regression.bash
 
 # One lifecycle suite directly; IOC_RUNNER_TEST_MODE selects the binary.
 IOC_RUNNER_TEST_MODE=source    bash tests/test-local-lifecycle.bash
@@ -168,18 +195,20 @@ sudo -E IOC_RUNNER_TEST_MODE=installed bash tests/test-system-lifecycle.bash
 sudo bash tests/test-system-infra.bash
 ```
 
-### 3. System Suite on an NFS Home with `root_squash`
-Both suites run in place from an NFS home, including one exported with
-`root_squash`. `--local` runs as the invoking user. `--system` with
+### 3. System Tests on an NFS Home with `root_squash`
+
+The lifecycle suites run in place from an NFS home, including one exported
+with `root_squash`. `--local` runs as the invoking user. `--system` with
 `IOC_RUNNER_TEST_MODE=installed` runs the runner from `/usr/local/bin` and its
 test workspace in `/dev/shm`, so `sudo` touches the NFS tree only to read the
-suite scripts (relative path, world-readable). Verified at the full suite total on `alsucl-psrv3`
-(Rocky 8) and both VM gates (75/75-class with the journal-gated
-monitor-isolation control, 74/74-class where the journal step skips).
+suite scripts (relative path, world-readable).
 
-`source` mode would `execve` the runner from its NFS source path, which
+Lifecycle `source` mode would `execve` the runner from its NFS source path, which
 `root_squash` blocks — but running the source binary under `sudo` is out of
-scope (production never does it). See `docs/INSTALL.md` for the mechanism.
+scope for lifecycle verification. The source-regression suite has a different
+boundary: root owns suite startup and real setup execution, while every source
+and Git operation runs as `SUDO_USER`. See `docs/INSTALL.md` for the deployment
+mechanism.
 
 ---
 ## Verified Behaviors
@@ -209,9 +238,24 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
 * **Diff Engine**: Evaluates ANSI-colored diff output prompting and force-overwrite (`-f`) bypass mechanisms.
 
-### 4. Infrastructure State (`test-system-infra.bash`)
+### 4. Source Regression (`test-source-regression.bash`)
+
+* **Setup Invocation**: Executes the shipped setup path from the repository
+  root, its `bin/` directory, and an unrelated current directory.
+* **Version Identity**: Verifies real checkout and unrelated-checkout stamps,
+  commit and install dates, and live version lookup.
+* **Relocated Checkout**: Drives setup, live version, and injection through
+  clean, modified, and unwritable-index checkout fixtures.
+* **Deployment Backup**: Distinguishes stamp-only redeployment from a real
+  runner source change.
+* **Source Boundary**: Verifies the root-to-invoking-user Git boundary and test
+  path-safety contracts.
+
+### 5. Infrastructure State (`test-system-infra.bash`)
+
 * **Accounts & Permissions**: Confirms `ioc-srv` user, `ioc` group, and `2770` SetGID collaborative directories.
 * **Security Policies**: Validates `/etc/sudoers.d/10-epics-ioc` syntax natively using `visudo`.
 * **Policy Ordering**: Confirms the `includedir` directive is the final active line in `/etc/sudoers`, ensuring drop-in NOPASSWD policies are not overridden by trailing user-specific rules.
-* **Version Metadata Injection**: Verifies that `git -C` resolves the source repository's HEAD hash regardless of the caller's working directory, ensuring the `RUNNER_GIT_HASH` injection reflects the source repository.
-* **Setup Script Path Resolution**: Confirms `SC_DIR` in `setup-system-infra.bash` resolves to the script's directory across plausible invocation forms (from the repository root, from `bin/`, or via absolute path) without depending on absolute-path canonicalization.
+* **Installed Files**: Confirms installed runner, completion, systemd,
+  logrotate, configuration, and log paths with their required ownership and
+  permissions.
