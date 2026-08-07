@@ -14,14 +14,14 @@ runner=source. Its primary category is error-contract.
 ## Inventory Basis
 
 The source pipeline contains S01 through S36. Its full non-root branch contains
-203 current assertion calls. Source review adds seven result-producing
+194 current assertion calls. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 210 identities. S01 and S12 are
+The fixed catalog therefore contains 201 identities. S01, S12, and S13 are
 setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
@@ -45,15 +45,32 @@ local-lifecycle S35, and the LOG_DIR check executes the real install path and
 reads the emitted unit rather than reconstructing the runner's internal
 function.
 
-S13 contains nine lifecycle-behavior checks, including two LOG_DIR checks that
-reconstruct an internal function. S14, S15, S16, S20, and S22 directly inspect
-source contracts. S18 reconstructs internal LOG_DIR resolution. In S33, sixteen
-pipeline checks are hand-built reproductions and six checks directly inspect
-the extracted source constants. In S34, four pipeline checks are hand-built
-reproductions and three checks directly inspect the extracted source constants.
+S13's accepted disposition moves eight checks to local-lifecycle S35 and
+removes one check duplicated by the existing namespaced LOG_DIR artifact
+check. S14, S15, S16, S20, and S22 directly inspect source contracts. S18
+reconstructs internal LOG_DIR resolution. In S33, sixteen pipeline checks are
+hand-built reproductions and six checks directly inspect the extracted source
+constants. In S34, four pipeline checks are hand-built reproductions and three
+checks directly inspect the extracted source constants.
 
-These nine unresolved STEPs contain 64 rows. Each row needs an accepted
+These eight unresolved STEPs contain 55 rows. Each row needs an accepted
 disposition before it can enter the runtime catalog.
+
+## Accepted S13 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S13.install-succeeds-with-full-precedence-matrix` | `move` | `local-lifecycle.S35.precedence-install-succeeds` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The selected runner completes a local install while unified path variables override namespaced variables. |
+| `error-handling.S13.conf-dir-unified-var-wins` | `move` | `local-lifecycle.S35.unified-conf-path-used` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The real install emits configuration under the unified path. |
+| `error-handling.S13.conf-dir-namespaced-var-ignored` | `move` | `local-lifecycle.S35.namespaced-conf-path-unused` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The real install does not emit configuration under the namespaced fallback path. |
+| `error-handling.S13.run-dir-unified-var-wins-in-ioc-port` | `move` | `local-lifecycle.S35.unified-run-path-baked-into-ioc-port` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The emitted configuration records the unified runtime path in `IOC_PORT`. |
+| `error-handling.S13.run-dir-namespaced-var-ignored-in-ioc-port` | `move` | `local-lifecycle.S35.namespaced-run-path-unused` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The emitted `IOC_PORT` does not record the namespaced fallback runtime path. |
+| `error-handling.S13.systemd-dir-unified-var-wins` | `move` | `local-lifecycle.S35.unified-systemd-path-used` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The real install emits the unit under the unified systemd path. |
+| `error-handling.S13.systemd-dir-namespaced-var-ignored` | `move` | `local-lifecycle.S35.namespaced-systemd-path-unused` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The real install does not emit the unit under the namespaced fallback path. |
+| `error-handling.S13.log-dir-unified-var-wins` | `replace-and-move` | `local-lifecycle.S35.unified-log-path-baked-into-unit` | `lifecycle-behavior` | `BEHAVIOR` | `real-path` | The emitted unit replaces the former internal-function reconstruction as LOG_DIR evidence. |
+| `error-handling.S13.log-dir-namespaced-var-honored-when-no-unified` | `remove` | - | - | - | - | Existing `local-lifecycle.S35.namespaced-log-path-baked-into-unit` verifies the same contract through the real emitted unit. |
+
+Owner accepted all S13 dispositions on 2026-08-06.
 
 ## Stable Identity Mapping
 
@@ -120,15 +137,6 @@ disposition before it can enter the runtime catalog.
 | S10 | `error-handling.S10.view-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | view on a never-installed name exits 1 |
 | S10 | `error-handling.S10.gate-message-names-the-missing-configuration` | `BEHAVIOR` | `real-path` | gate message names the missing configuration |
 | S11 | `error-handling.S11.exactly-one-ioc-port-replacement-warning` | `BEHAVIOR` | `real-path` | exactly one IOC_PORT replacement warning |
-| S13 | `error-handling.S13.install-succeeds-with-full-precedence-matrix` | `BEHAVIOR` | `real-path` | Install succeeds with full precedence matrix |
-| S13 | `error-handling.S13.conf-dir-unified-var-wins` | `BEHAVIOR` | `real-path` | CONF_DIR: unified var wins |
-| S13 | `error-handling.S13.conf-dir-namespaced-var-ignored` | `BEHAVIOR` | `real-path` | CONF_DIR: namespaced var ignored |
-| S13 | `error-handling.S13.run-dir-unified-var-wins-in-ioc-port` | `BEHAVIOR` | `real-path` | RUN_DIR: unified var wins in IOC_PORT |
-| S13 | `error-handling.S13.run-dir-namespaced-var-ignored-in-ioc-port` | `BEHAVIOR` | `real-path` | RUN_DIR: namespaced var ignored in IOC_PORT |
-| S13 | `error-handling.S13.systemd-dir-unified-var-wins` | `BEHAVIOR` | `real-path` | SYSTEMD_DIR: unified var wins |
-| S13 | `error-handling.S13.systemd-dir-namespaced-var-ignored` | `BEHAVIOR` | `real-path` | SYSTEMD_DIR: namespaced var ignored |
-| S13 | `error-handling.S13.log-dir-unified-var-wins` | `BEHAVIOR` | `hand-built-reproduction` | LOG_DIR: unified var wins |
-| S13 | `error-handling.S13.log-dir-namespaced-var-honored-when-no-unified` | `BEHAVIOR` | `hand-built-reproduction` | LOG_DIR: namespaced var honored when no unified |
 | S14 | `error-handling.S14.runner-user-identity-resolves-the-ioc-runner-system-user-override` | `BEHAVIOR` | `direct-inspection` | Runner user identity resolves the IOC_RUNNER_SYSTEM_USER override |
 | S14 | `error-handling.S14.setup-user-identity-resolves-the-same-override-variable` | `BEHAVIOR` | `direct-inspection` | Setup user identity resolves the same override variable |
 | S14 | `error-handling.S14.runner-user-default-pinned-to-ioc-srv` | `BEHAVIOR` | `direct-inspection` | Runner user default pinned to ioc-srv |
@@ -274,12 +282,12 @@ disposition before it can enter the runtime catalog.
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 203 |
+| Current non-root assertion calls | 194 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 210 |
+| Fixed catalog total | 201 |
 
-The mapping is complete only while all 203 current assertion descriptions map
+The mapping is complete only while all 194 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,
 and the source pipeline remains S01 through S36.

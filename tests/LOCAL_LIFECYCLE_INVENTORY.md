@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 115
+Fixed Total: 123
 
 ## Runner Policy
 
@@ -14,12 +14,12 @@ rejected before reporter initialization and is not part of this catalog.
 
 ## Inventory Basis
 
-The current maximum branch contains 101 assertions. The fixed catalog adds
+The current maximum branch contains 109 assertions. The fixed catalog adds
 three P00 checks and eleven prerequisite or applicability checks for
 logrotate, socat, camonitor, journal, softIoc, truncate, and the non-root
 history boundary. S28 currently emits the camonitor availability assertion
 only on failure; the fixed catalog separates it from the dependent Channel
-Access behavior check. The resulting catalog contains 115 identities.
+Access behavior check. The resulting catalog contains 123 identities.
 
 ## Test Method Assignment
 
@@ -256,15 +256,23 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S34.shared-timer-survives-ioc-remove` | `BEHAVIOR` | Per-IOC remove preserves the shared timer.
 - `local-lifecycle.S34.manual-teardown-removes-timer` | `BEHAVIOR` | Manual teardown removes the shared timer.
 
-### S35 - Namespaced Local Install Paths (3)
+### S35 - Local Install Path Resolution (11)
 
 - `local-lifecycle.S35.namespaced-install-succeeds` | `BEHAVIOR` | Namespaced CONF_DIR, SYSTEMD_DIR, and LOG_DIR permit installation through the selected runner.
 - `local-lifecycle.S35.namespaced-conf-path-used` | `BEHAVIOR` | The installed configuration is emitted under `IOC_RUNNER_LOCAL_CONF_DIR`.
 - `local-lifecycle.S35.namespaced-log-path-baked-into-unit` | `BEHAVIOR` | The installed unit's `--logfile` uses `IOC_RUNNER_LOCAL_LOG_DIR`.
+- `local-lifecycle.S35.precedence-install-succeeds` | `BEHAVIOR` | Unified path variables take precedence during local installation.
+- `local-lifecycle.S35.unified-conf-path-used` | `BEHAVIOR` | The installed configuration is emitted under `IOC_RUNNER_CONF_DIR`.
+- `local-lifecycle.S35.namespaced-conf-path-unused` | `BEHAVIOR` | No configuration is emitted under `IOC_RUNNER_LOCAL_CONF_DIR` when the unified variable is set.
+- `local-lifecycle.S35.unified-run-path-baked-into-ioc-port` | `BEHAVIOR` | The installed `IOC_PORT` uses `IOC_RUNNER_RUN_DIR`.
+- `local-lifecycle.S35.namespaced-run-path-unused` | `BEHAVIOR` | The installed `IOC_PORT` does not use `IOC_RUNNER_LOCAL_RUN_DIR` when the unified variable is set.
+- `local-lifecycle.S35.unified-systemd-path-used` | `BEHAVIOR` | The unit is emitted under `IOC_RUNNER_SYSTEMD_DIR`.
+- `local-lifecycle.S35.namespaced-systemd-path-unused` | `BEHAVIOR` | No unit is emitted under `IOC_RUNNER_LOCAL_SYSTEMD_DIR` when the unified variable is set.
+- `local-lifecycle.S35.unified-log-path-baked-into-unit` | `BEHAVIOR` | The installed unit's `--logfile` uses `IOC_RUNNER_LOG_DIR`.
 
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 115 identities in this
+Every source and installed invocation declares these 123 identities in this
 order. Runner origin changes the selected binary and the SUITE `runner` field,
 not the identity set. Missing prerequisites and non-applicable permission
 branches close their declared dependent checks without changing `Total`.

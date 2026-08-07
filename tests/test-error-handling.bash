@@ -814,78 +814,6 @@ function no_error_contract_checks {
     :
 }
 
-# Validates that unified legacy IOC_RUNNER_*_DIR vars consistently
-# override their namespaced IOC_RUNNER_{LOCAL,SYSTEM}_*_DIR counterparts
-# for CONF_DIR, SYSTEMD_DIR, and RUN_DIR (via IOC_PORT path resolution).
-function test_env_var_precedence {
-    local step="$1"
-    local exit_code
-    local test_dir="${TEST_TMPDIR}/prec_ioc"
-    local unified_conf="${TEST_TMPDIR}/prec_unified_conf"
-    local unified_sysd="${TEST_TMPDIR}/prec_unified_sysd"
-    local unified_run="${TEST_TMPDIR}/prec_unified_run"
-    local ns_conf="${TEST_TMPDIR}/prec_ns_conf"
-    local ns_sysd="${TEST_TMPDIR}/prec_ns_sysd"
-    local ns_run="${TEST_TMPDIR}/prec_ns_run"
-
-    print_divider
-    _log "INFO" "STEP ${step}: Env Var Precedence (unified > namespaced)"
-    print_sub_divider
-
-    mkdir -p "${test_dir}" "${unified_conf}" "${unified_sysd}" "${unified_run}" \
-             "${ns_conf}" "${ns_sysd}" "${ns_run}"
-    touch "${test_dir}/st.cmd"
-    chmod +x "${test_dir}/st.cmd"
-
-    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
-
-    # Install with contradicting unified + namespaced vars across all three pairs.
-    exit_code=$(cd "${test_dir}" && \
-                IOC_RUNNER_CONF_DIR="${unified_conf}" \
-                IOC_RUNNER_SYSTEMD_DIR="${unified_sysd}" \
-                IOC_RUNNER_RUN_DIR="${unified_run}" \
-                IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf}" \
-                IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd}" \
-                IOC_RUNNER_LOCAL_RUN_DIR="${ns_run}" \
-                _run bash "${RUNNER_SCRIPT}" --local -f install .)
-    verify_exit_code "0" "${exit_code}" "Install succeeds with full precedence matrix"
-
-    # CONF_DIR precedence: conf file lands in unified, not namespaced.
-    local conf_in_unified="false" conf_in_ns="false"
-    [[ -f "${unified_conf}/prec_ioc.conf" ]] && conf_in_unified="true"
-    [[ -f "${ns_conf}/prec_ioc.conf" ]] && conf_in_ns="true"
-    verify_state "true"  "${conf_in_unified}" "CONF_DIR: unified var wins"
-    verify_state "false" "${conf_in_ns}"      "CONF_DIR: namespaced var ignored"
-
-    # RUN_DIR precedence: installed conf's IOC_PORT path points into unified_run,
-    # not ns_run (process_ioc_port composes the path from RUN_DIR).
-    local port_line="" port_in_unified="false" port_in_ns="false"
-    port_line=$(grep '^IOC_PORT=' "${unified_conf}/prec_ioc.conf" 2>/dev/null || true)
-    [[ "${port_line}" == *"${unified_run}/prec_ioc/control"* ]] && port_in_unified="true"
-    [[ "${port_line}" == *"${ns_run}/prec_ioc/control"* ]] && port_in_ns="true"
-    verify_state "true"  "${port_in_unified}" "RUN_DIR: unified var wins in IOC_PORT"
-    verify_state "false" "${port_in_ns}"      "RUN_DIR: namespaced var ignored in IOC_PORT"
-
-    # SYSTEMD_DIR precedence: local template landed in unified, not namespaced.
-    local tpl_in_unified="false" tpl_in_ns="false"
-    [[ -f "${unified_sysd}/epics-@.service" ]] && tpl_in_unified="true"
-    [[ -f "${ns_sysd}/epics-@.service" ]] && tpl_in_ns="true"
-    verify_state "true"  "${tpl_in_unified}" "SYSTEMD_DIR: unified var wins"
-    verify_state "false" "${tpl_in_ns}"      "SYSTEMD_DIR: namespaced var ignored"
-
-    # LOG_DIR precedence: unified IOC_RUNNER_LOG_DIR wins over namespaced
-    # IOC_RUNNER_LOCAL_LOG_DIR in --local mode; namespaced honored when no unified.
-    local unified_log="${TEST_TMPDIR}/prec_unified_log"
-    local ns_log="${TEST_TMPDIR}/prec_ns_log"
-    local actual_log_dir
-    actual_log_dir=$(_probe_log_dir "local" \
-                       "IOC_RUNNER_LOG_DIR=${unified_log}" \
-                       "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
-    verify_state "${unified_log}" "${actual_log_dir}" "LOG_DIR: unified var wins"
-    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
-    verify_state "${ns_log}" "${actual_log_dir}" "LOG_DIR: namespaced var honored when no unified"
-}
-
 # Validates the system-mode foot-gun warning for IOC_RUNNER_LOG_DIR:
 # warning fires when IOC_RUNNER_LOG_DIR diverges from SYSTEM_LOG_DIR in
 # system mode; suppressed when they match; suppressed in --local mode.
@@ -2086,7 +2014,7 @@ function run_all_tests {
         "test_unknown_name_verb_gate"
         "test_local_ioc_port_replacement_warns"
         "no_error_contract_checks"
-        "test_env_var_precedence"
+        "no_error_contract_checks"
         "test_system_identity_guard"
         "test_template_contract_guard"
         "test_metadata_contract_guard"

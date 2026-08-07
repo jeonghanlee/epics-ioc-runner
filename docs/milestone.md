@@ -6,11 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: complete M8's pre-step-2 row-by-row disposition
-review, starting at error-handling S13. Step 1's static inventory is complete.
-Nine STEPs and 64 rows remain unresolved after the former S12 checks moved to
-local-lifecycle S35. The five-suite inventory contains 490 unique stable
-identities.
+Next session entry point: continue M8's pre-step-2 row-by-row disposition
+review at error-handling S14. Step 1's static inventory is complete. Eight
+STEPs and 55 rows remain unresolved after eight S13 checks moved to
+local-lifecycle S35 and one duplicate S13 check was removed. The five-suite
+inventory contains 489 unique stable identities.
 M8 step 2 implements the catalog, recording path, ledger, human summary, and
 machine-readable records. M6 follows as the consumer of those records and does
 not scan body prose. After M6, one golden-VM run drives M7's T1 (debian13, both
@@ -1579,15 +1579,18 @@ consumer requirements.
   checks, and replace the internal LOG_DIR reconstruction with inspection of
   the unit emitted by the real local install path.
 - Step 1 completion establishes the static identity and branch mapping only.
-  Before step 2 begins, S13, S14, S15, S16, S18, S20, S22, S33, and S34 must
-  receive accepted method, category, and evidence-path dispositions for their
-  64 rows. This is a pre-step-2 review, not unfinished step 1 work.
+  The owner accepted the S13 disposition on 2026-08-06: move seven real-path
+  checks and one replacement real-path LOG_DIR check to local-lifecycle S35,
+  and remove the namespaced LOG_DIR check duplicated by the existing S35
+  artifact check. Before step 2 begins, S14, S15, S16, S18, S20, S22, S33,
+  and S34 must receive accepted method, category, and evidence-path
+  dispositions for their 55 rows.
 
 #### Implementation Plan
 
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-06, after the reconciled #137 plan was shown and M8 step 1 was selected as the next work
-Implementation Authorization: owner, 2026-08-06, for step 1 inventory and the accepted S12 disposition
+Implementation Authorization: owner, 2026-08-06, for step 1 inventory and the accepted S12 and S13 dispositions
 Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 1. Inventory all scripts under `tests/`, map every assertion and every
@@ -1611,8 +1614,8 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Step | Status | Evidence |
 | --- | --- | --- |
-| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 210 error-handling, 115 local-lifecycle, 36 source-regression, 36 system-infra, and 93 system-lifecycle identities; the suite inventories map conditional branches and dependencies. The accepted S12 destination is local-lifecycle S35. |
-| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 64 rows in S13, S14, S15, S16, S18, S20, S22, S33, and S34. |
+| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 201 error-handling, 123 local-lifecycle, 36 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12 and S13 path-resolution checks; one duplicate S13 identity is removed. |
+| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 55 rows in S14, S15, S16, S18, S20, S22, S33, and S34. |
 | 3 | Not started | Depends on step 2. |
 | 4 | Not started | Depends on step 3. |
 | 5 | Not started | Depends on steps 2 through 4. |
@@ -1633,7 +1636,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-08-06T21:53:07-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 490 unique IDs: error-handling 210, local-lifecycle 115, source-regression 36, system-infra 36, and system-lifecycle 93. The real error suite executed and counted all 203 current assertions, with 190 PASS and 13 FAIL results outside the moved S12 checks. The real source local-lifecycle run passed 99 of 99, and installed runner 1.2.1 passed all three S35 checks while the full run finished 93 of 99 because six S31 expectations differed from that installed binary. Syntax, local-lifecycle ShellCheck, inventory uniqueness, and `git diff --check` passed. |
+| T1 | 2026-08-06T22:54:49-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 489 unique IDs: error-handling 201, local-lifecycle 123, source-regression 36, system-infra 36, and system-lifecycle 93. The real error suite executed all 194 current assertions with 184 PASS, 10 FAIL outside removed S13, and zero script errors. The real source local-lifecycle run passed 107 of 107, including all eleven S35 path-resolution checks. Syntax, local-lifecycle ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
 | T2 | — | — | pending | |
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
@@ -1654,7 +1657,7 @@ Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Observed Updated At: 2026-08-07T05:28:40Z
-Observed Body: matches the canonical projection through the pre-step-2 review boundary
+Observed Body: stale after the accepted S13 disposition; projection update pending
 Last Compared: 2026-08-06T22:28:40-07:00
 
 ### M10 - Release record reconciliation

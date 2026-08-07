@@ -1400,55 +1400,140 @@ function test_logrotate_teardown {
     verify_state "true" "${gone}" "M19: manual teardown removes the timer"
 }
 
-# Verifies that local namespaced path settings reach the artifacts emitted by
-# the real install command. The procServ executable is an outer boundary: the
-# install path records it in the unit but does not execute it.
-function test_namespaced_install_paths {
+# Verifies namespaced local path settings and unified-variable precedence
+# through artifacts emitted by the real install command. The procServ
+# executable is an outer boundary: install records it but does not execute it.
+function test_local_install_path_resolution {
     local step="$1"
-    local test_dir="${WORKSPACE}/namespaced_ioc"
-    local conf_dir="${WORKSPACE}/namespaced-conf"
-    local systemd_dir="${WORKSPACE}/namespaced-systemd"
-    local log_dir="${WORKSPACE}/namespaced-log"
-    local installed_conf="${conf_dir}/namespaced_ioc.conf"
-    local installed_unit="${systemd_dir}/epics-@.service"
-    local install_rc=0
-    local conf_exists="false"
-    local baked_log_dir=""
+    local namespaced_dir="${WORKSPACE}/namespaced_ioc"
+    local namespaced_conf="${WORKSPACE}/namespaced-conf"
+    local namespaced_systemd="${WORKSPACE}/namespaced-systemd"
+    local namespaced_log="${WORKSPACE}/namespaced-log"
+    local namespaced_installed_conf="${namespaced_conf}/namespaced_ioc.conf"
+    local namespaced_installed_unit="${namespaced_systemd}/epics-@.service"
+    local namespaced_install_rc=0
+    local namespaced_conf_exists="false"
+    local namespaced_baked_log=""
+    local precedence_dir="${WORKSPACE}/precedence_ioc"
+    local unified_conf="${WORKSPACE}/precedence-unified-conf"
+    local unified_systemd="${WORKSPACE}/precedence-unified-systemd"
+    local unified_run="${WORKSPACE}/precedence-unified-run"
+    local unified_log="${WORKSPACE}/precedence-unified-log"
+    local namespaced_fallback_conf="${WORKSPACE}/precedence-namespaced-conf"
+    local namespaced_fallback_systemd="${WORKSPACE}/precedence-namespaced-systemd"
+    local namespaced_fallback_run="${WORKSPACE}/precedence-namespaced-run"
+    local namespaced_fallback_log="${WORKSPACE}/precedence-namespaced-log"
+    local precedence_installed_conf="${unified_conf}/precedence_ioc.conf"
+    local precedence_installed_unit="${unified_systemd}/epics-@.service"
+    local precedence_install_rc=0
+    local conf_in_unified="false"
+    local conf_in_namespaced="false"
+    local port_line=""
+    local port_in_unified="false"
+    local port_in_namespaced="false"
+    local unit_in_unified="false"
+    local unit_in_namespaced="false"
+    local precedence_baked_log=""
 
     print_divider
-    _log "INFO" "STEP ${step}: Namespaced Local Install Paths"
+    _log "INFO" "STEP ${step}: Local Install Path Resolution"
     print_sub_divider
 
-    mkdir -p "${test_dir}" "${conf_dir}" "${systemd_dir}" "${log_dir}"
-    touch "${test_dir}/st.cmd"
-    chmod +x "${test_dir}/st.cmd"
+    mkdir -p "${namespaced_dir}" "${namespaced_conf}" \
+        "${namespaced_systemd}" "${namespaced_log}"
+    touch "${namespaced_dir}/st.cmd"
+    chmod +x "${namespaced_dir}/st.cmd"
 
-    (cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+    (cd "${namespaced_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
 
     (
-        cd "${test_dir}"
-        IOC_RUNNER_LOCAL_CONF_DIR="${conf_dir}" \
-        IOC_RUNNER_LOCAL_SYSTEMD_DIR="${systemd_dir}" \
-        IOC_RUNNER_LOCAL_LOG_DIR="${log_dir}" \
+        cd "${namespaced_dir}"
+        IOC_RUNNER_LOCAL_CONF_DIR="${namespaced_conf}" \
+        IOC_RUNNER_LOCAL_SYSTEMD_DIR="${namespaced_systemd}" \
+        IOC_RUNNER_LOCAL_LOG_DIR="${namespaced_log}" \
         IOC_RUNNER_PROCSERV_TOOL=/bin/true \
             bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
-    ) || install_rc=$?
-    verify_state "0" "${install_rc}" \
+    ) || namespaced_install_rc=$?
+    verify_state "0" "${namespaced_install_rc}" \
         "Namespaced CONF_DIR, SYSTEMD_DIR, and LOG_DIR route --local install"
 
-    if [[ -f "${installed_conf}" ]]; then
-        conf_exists="true"
+    if [[ -f "${namespaced_installed_conf}" ]]; then
+        namespaced_conf_exists="true"
     fi
-    verify_state "true" "${conf_exists}" \
+    verify_state "true" "${namespaced_conf_exists}" \
         "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
 
-    if [[ -f "${installed_unit}" ]]; then
-        baked_log_dir=$(sed -n \
+    if [[ -f "${namespaced_installed_unit}" ]]; then
+        namespaced_baked_log=$(sed -n \
             's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
-            "${installed_unit}" | head -n1)
+            "${namespaced_installed_unit}" | head -n1)
     fi
-    verify_state "${log_dir}" "${baked_log_dir}" \
+    verify_state "${namespaced_log}" "${namespaced_baked_log}" \
         "IOC_RUNNER_LOCAL_LOG_DIR reaches the installed unit logfile path"
+
+    mkdir -p "${precedence_dir}" "${unified_conf}" "${unified_systemd}" \
+        "${unified_run}" "${unified_log}" "${namespaced_fallback_conf}" \
+        "${namespaced_fallback_systemd}" "${namespaced_fallback_run}" \
+        "${namespaced_fallback_log}"
+    touch "${precedence_dir}/st.cmd"
+    chmod +x "${precedence_dir}/st.cmd"
+
+    (cd "${precedence_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${precedence_dir}"
+        IOC_RUNNER_CONF_DIR="${unified_conf}" \
+        IOC_RUNNER_SYSTEMD_DIR="${unified_systemd}" \
+        IOC_RUNNER_RUN_DIR="${unified_run}" \
+        IOC_RUNNER_LOG_DIR="${unified_log}" \
+        IOC_RUNNER_LOCAL_CONF_DIR="${namespaced_fallback_conf}" \
+        IOC_RUNNER_LOCAL_SYSTEMD_DIR="${namespaced_fallback_systemd}" \
+        IOC_RUNNER_LOCAL_RUN_DIR="${namespaced_fallback_run}" \
+        IOC_RUNNER_LOCAL_LOG_DIR="${namespaced_fallback_log}" \
+        IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || precedence_install_rc=$?
+    verify_state "0" "${precedence_install_rc}" \
+        "Unified path variables take precedence during --local install"
+
+    if [[ -f "${precedence_installed_conf}" ]]; then
+        conf_in_unified="true"
+        port_line=$(grep '^IOC_PORT=' "${precedence_installed_conf}" 2>/dev/null || true)
+    fi
+    if [[ -f "${namespaced_fallback_conf}/precedence_ioc.conf" ]]; then
+        conf_in_namespaced="true"
+    fi
+    verify_state "true" "${conf_in_unified}" \
+        "IOC_RUNNER_CONF_DIR overrides IOC_RUNNER_LOCAL_CONF_DIR"
+    verify_state "false" "${conf_in_namespaced}" \
+        "IOC_RUNNER_LOCAL_CONF_DIR is unused when IOC_RUNNER_CONF_DIR is set"
+
+    if [[ "${port_line}" == *"${unified_run}/precedence_ioc/control"* ]]; then
+        port_in_unified="true"
+    fi
+    if [[ "${port_line}" == *"${namespaced_fallback_run}/precedence_ioc/control"* ]]; then
+        port_in_namespaced="true"
+    fi
+    verify_state "true" "${port_in_unified}" \
+        "IOC_RUNNER_RUN_DIR reaches the installed IOC_PORT"
+    verify_state "false" "${port_in_namespaced}" \
+        "IOC_RUNNER_LOCAL_RUN_DIR is unused when IOC_RUNNER_RUN_DIR is set"
+
+    if [[ -f "${precedence_installed_unit}" ]]; then
+        unit_in_unified="true"
+        precedence_baked_log=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${precedence_installed_unit}" | head -n1)
+    fi
+    if [[ -f "${namespaced_fallback_systemd}/epics-@.service" ]]; then
+        unit_in_namespaced="true"
+    fi
+    verify_state "true" "${unit_in_unified}" \
+        "IOC_RUNNER_SYSTEMD_DIR receives the installed unit"
+    verify_state "false" "${unit_in_namespaced}" \
+        "IOC_RUNNER_LOCAL_SYSTEMD_DIR is unused when IOC_RUNNER_SYSTEMD_DIR is set"
+    verify_state "${unified_log}" "${precedence_baked_log}" \
+        "IOC_RUNNER_LOG_DIR reaches the installed unit logfile path"
 }
 
 function run_all_tests {
@@ -1487,7 +1572,7 @@ function run_all_tests {
         "test_persistence"
         "test_remove"
         "test_logrotate_teardown"
-        "test_namespaced_install_paths"
+        "test_local_install_path_resolution"
     )
 
     # Record which ioc-runner binary this run exercises, so captured
