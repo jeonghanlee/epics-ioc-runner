@@ -6,10 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: continue M8 step 1's row-by-row disposition review at
-error-handling S13. Nine STEPs and 64 rows remain unresolved after the former
-S12 checks moved to local-lifecycle S35. The five-suite inventory contains 490
-unique stable identities.
+Next session entry point: complete M8's pre-step-2 row-by-row disposition
+review, starting at error-handling S13. Step 1's static inventory is complete.
+Nine STEPs and 64 rows remain unresolved after the former S12 checks moved to
+local-lifecycle S35. The five-suite inventory contains 490 unique stable
+identities.
 M8 step 2 implements the catalog, recording path, ledger, human summary, and
 machine-readable records. M6 follows as the consumer of those records and does
 not scan body prose. After M6, one golden-VM run drives M7's T1 (debian13, both
@@ -1577,6 +1578,10 @@ consumer requirements.
   to local-lifecycle S35. Retain the real install and configuration-artifact
   checks, and replace the internal LOG_DIR reconstruction with inspection of
   the unit emitted by the real local install path.
+- Step 1 completion establishes the static identity and branch mapping only.
+  Before step 2 begins, S13, S14, S15, S16, S18, S20, S22, S33, and S34 must
+  receive accepted method, category, and evidence-path dispositions for their
+  64 rows. This is a pre-step-2 review, not unfinished step 1 work.
 
 #### Implementation Plan
 
@@ -1607,7 +1612,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 | Step | Status | Evidence |
 | --- | --- | --- |
 | 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 210 error-handling, 115 local-lifecycle, 36 source-regression, 36 system-infra, and 93 system-lifecycle identities; the suite inventories map conditional branches and dependencies. The accepted S12 destination is local-lifecycle S35. |
-| 2 | Not started | Requires owner authorization after the error-handling method-and-category finding is resolved. |
+| 2 | Not started | Requires owner authorization after the pre-step-2 method, category, and evidence-path review resolves the 64 rows in S13, S14, S15, S16, S18, S20, S22, S33, and S34. |
 | 3 | Not started | Depends on step 2. |
 | 4 | Not started | Depends on step 3. |
 | 5 | Not started | Depends on steps 2 through 4. |
@@ -1648,9 +1653,9 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-07T05:14:02Z
-Observed Body: matches the canonical projection through M8 step 1 and T1
-Last Compared: 2026-08-06T22:14:02-07:00
+Observed Updated At: 2026-08-07T05:28:40Z
+Observed Body: matches the canonical projection through the pre-step-2 review boundary
+Last Compared: 2026-08-06T22:28:40-07:00
 
 ### M10 - Release record reconciliation
 
