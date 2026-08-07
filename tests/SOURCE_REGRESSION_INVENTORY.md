@@ -8,7 +8,7 @@ This document preserves the pre-move inventory for S07 through S14 in `tests/tes
 
 ## Suite Boundary
 
-The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S18 without renumbering them.
+The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S19 without renumbering them.
 
 The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Only their outer write destinations are redirected to an invoking-user-owned temporary workspace.
 
@@ -28,6 +28,7 @@ The suite runs through `sudo bash`. Source and Git operations run as the invokin
 | S16 | `test_unit_template_contract` | Shared procServ unit-template rows and required directives | `bin/ioc-runner`, `bin/setup-system-infra.bash` | None |
 | S17 | `test_metadata_injection_contract` | Shared metadata injection targets and runner declaration anchors | `bin/ioc-runner`, `bin/setup-system-infra.bash`, `configure/inject-runner-version.bash` | None |
 | S18 | `test_pipefail_help_probe_contract` | Forbidden helper help-output pipeline form | `bin/ioc-runner` | None |
+| S19 | `test_ioc_name_source_contract` | Runner and regex-form sudoers IOC-name source agreement | `bin/ioc-runner`, `bin/setup-system-infra.bash` | None |
 
 ## Current Assertion Mapping
 
@@ -192,7 +193,18 @@ S18 adds one REQUIRED direct-inspection identity accepted by the owner on 2026-0
 | --- | --- | --- | --- |
 | `source-regression.S18.pipefail-help-probe-pattern.absent` | `REQUIRED` | `direct-inspection` | The runner contains no helper `-h` output pipeline directly connected to `grep -q`. |
 
-The fixed source-regression catalog contains 56 identities: the 36 accepted M9 identities plus twenty M8 identities.
+## Accepted M8 S19 Addition
+
+S19 adds four REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. Both source files are read through the invoking-user boundary established by P00.
+
+| Check ID | Kind | Test Method | Source Contract |
+| --- | --- | --- | --- |
+| `source-regression.S19.sudoers-regex.count-six` | `REQUIRED` | `direct-inspection` | Setup contains one regex-form IOC unit rule for each of the six permitted systemctl verbs. |
+| `source-regression.S19.sudoers-regex.identical` | `REQUIRED` | `direct-inspection` | All six setup rules use one identical IOC-name expression. |
+| `source-regression.S19.runner-name.max-length-64` | `REQUIRED` | `direct-inspection` | The runner IOC-name source contract retains the maximum length of 64. |
+| `source-regression.S19.runner-sudoers-name-contracts.agree` | `REQUIRED` | `direct-inspection` | After normalizing equivalent ASCII letter-range order, the setup expression exactly matches the runner character classes and derived remaining-character limit. |
+
+The fixed source-regression catalog contains 60 identities: the 36 accepted M9 identities plus twenty-four M8 identities.
 
 ## Move Invariants
 
@@ -209,4 +221,4 @@ The fixed source-regression catalog contains 56 identities: the 36 accepted M9 i
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the twenty accepted S15 through S18 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the twenty-four accepted S15 through S19 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.

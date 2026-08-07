@@ -985,6 +985,72 @@ function test_pipefail_help_probe_contract {
         "${SUITE_ID}.S18.pipefail-help-probe-pattern.absent"
 }
 
+# Verifies that the runner IOC-name source contract and the regex-form sudoers
+# source contract use the same character classes and maximum length. The glob
+# fallback for sudo versions older than 1.9.10 is intentionally outside this
+# parity contract.
+function test_ioc_name_source_contract {
+    local step="$1"
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local setup_script="${REPO_TOP}/bin/setup-system-infra.bash"
+    local eres=""
+    local ere_count=0
+    local unique_ere=""
+    local unique_count=0
+    local runner_regex=""
+    local runner_length=""
+    local first_class=""
+    local remaining_class=""
+    local expected_ere=""
+    local normalized_expected_ere=""
+    local normalized_unique_ere=""
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify IOC-Name Source Contract"
+    print_sub_divider
+
+    eres=$(run_as_invoker grep -oE \
+        'epics-@\[[^]]*\]\[[^]]*\]\{[0-9]+,[0-9]+\}[\\]+\.service[\\]\$' \
+        "${setup_script}" || true)
+    ere_count=$(printf '%s\n' "${eres}" | grep -c . || true)
+    verify_state "6" "${ere_count}" \
+        "${SUITE_ID}.S19.sudoers-regex.count-six"
+
+    unique_ere=$(printf '%s\n' "${eres}" | sort -u)
+    unique_count=$(printf '%s\n' "${unique_ere}" | grep -c . || true)
+    verify_state "1" "${unique_count}" \
+        "${SUITE_ID}.S19.sudoers-regex.identical"
+
+    runner_regex=$(run_as_invoker grep -oE \
+        '\^\[[^]]*\]\[[^]]*\]\*\$' "${runner_script}" \
+        | head -n1 || true)
+    # The sed expression must preserve the literal ${#name} source text.
+    # shellcheck disable=SC2016
+    runner_length=$(run_as_invoker sed -n \
+        's/.*"\${#name}" -le \([0-9]\+\).*/\1/p' \
+        "${runner_script}" | head -n1 || true)
+    verify_state "64" "${runner_length}" \
+        "${SUITE_ID}.S19.runner-name.max-length-64"
+
+    first_class=$(printf '%s\n' "${runner_regex}" \
+        | sed -n 's/^\^\(\[[^]]*\]\)\(\[[^]]*\]\)\*\$/\1/p')
+    remaining_class=$(printf '%s\n' "${runner_regex}" \
+        | sed -n 's/^\^\(\[[^]]*\]\)\(\[[^]]*\]\)\*\$/\2/p')
+    if [[ -n "${first_class}" && -n "${remaining_class}" \
+          && "${runner_length}" =~ ^[0-9]+$ \
+          && ${runner_length} -gt 0 ]]; then
+        printf -v expected_ere 'epics-@%s%s{0,%d}\\\\.service\\$' \
+            "${first_class}" "${remaining_class}" \
+            "$((runner_length - 1))"
+    fi
+    # POSIX ERE character-class order is not semantic. Normalize only the
+    # equivalent ASCII letter-range order before comparing every other byte.
+    normalized_expected_ere="${expected_ere//a-zA-Z/A-Za-z}"
+    normalized_unique_ere="${unique_ere//a-zA-Z/A-Za-z}"
+    verify_state "${normalized_expected_ere}" "${normalized_unique_ere}" \
+        "${SUITE_ID}.S19.runner-sudoers-name-contracts.agree"
+}
+
 function run_all_tests {
     if ! test_preflight; then
         return
@@ -1001,6 +1067,7 @@ function run_all_tests {
     test_unit_template_contract "S16"
     test_metadata_injection_contract "S17"
     test_pipefail_help_probe_contract "S18"
+    test_ioc_name_source_contract "S19"
 }
 
 run_all_tests

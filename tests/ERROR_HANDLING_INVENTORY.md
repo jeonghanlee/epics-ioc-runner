@@ -14,15 +14,15 @@ runner=source. Its primary category is error-contract.
 ## Inventory Basis
 
 The source pipeline contains S01 through S36. Its full non-root branch contains
-172 current assertion calls. Source review adds seven result-producing
+168 current assertion calls. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 179 identities. S01, S12, S13, S14, S15,
-S16, S18, and S20 are setup-only and own no check. Each loop case has its own semantic key. The 30
+The fixed catalog therefore contains 175 identities. S01, S12, S13, S14, S15,
+S16, S18, S20, and S22 are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
 
@@ -55,12 +55,14 @@ metadata-injection source contracts to source-regression S17 as REQUIRED direct
 inspections. S18's accepted disposition replaces two internal LOG_DIR
 reproductions with real local installs in local-lifecycle S35. S20's accepted
 disposition moves one source contract to source-regression S18 as a REQUIRED
-direct inspection. S22 directly inspects source contracts. In S33, sixteen pipeline checks are hand-built reproductions and
+direct inspection. S22's accepted disposition moves three source contracts and
+one normalized exact source-contract replacement to source-regression S19 as REQUIRED
+direct inspections. In S33, sixteen pipeline checks are hand-built reproductions and
 six checks directly inspect the extracted source constants. In S34, four
 pipeline checks are hand-built reproductions and three checks directly inspect
 the extracted source constants.
 
-These three unresolved STEPs contain 33 rows. Each row needs an accepted
+These two unresolved STEPs contain 29 rows. Each row needs an accepted
 disposition before it can enter the runtime catalog.
 
 ## Accepted S13 Disposition
@@ -135,6 +137,17 @@ Owner accepted both S18 dispositions on 2026-08-07.
 | `error-handling.S20.no-h-2-1-grep-q-pipeline-probes-remain-in-bin-ioc-runner-110` | `move` | `source-regression.S18.pipefail-help-probe-pattern.absent` | `source-regression` | `REQUIRED` | `direct-inspection` | The check enforces a runner source rule and does not execute helper capability behavior. |
 
 Owner accepted the S20 disposition on 2026-08-07.
+
+## Accepted S22 Disposition
+
+| Source Check ID | Disposition | Destination Check ID | Category | Kind | Method | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| `error-handling.S22.six-regex-form-cmnd-eres-found-in-setup` | `move` | `source-regression.S19.sudoers-regex.count-six` | `source-regression` | `REQUIRED` | `direct-inspection` | The check pins the six regex-form command source entries and makes no deployed-policy behavior claim. |
+| `error-handling.S22.all-six-cmnd-eres-are-identical` | `move` | `source-regression.S19.sudoers-regex.identical` | `source-regression` | `REQUIRED` | `direct-inspection` | The check prevents one-sided IOC-name expression drift among the six source entries. |
+| `error-handling.S22.runner-length-rule-extracted-64` | `move` | `source-regression.S19.runner-name.max-length-64` | `source-regression` | `REQUIRED` | `direct-inspection` | The check pins the runner source maximum and makes no IOC-name acceptance behavior claim. |
+| `error-handling.S22.runner-and-sudoers-charsets-agree-across-21-candidates` | `replace-and-move` | `source-regression.S19.runner-sudoers-name-contracts.agree` | `source-regression` | `REQUIRED` | `direct-inspection` | Normalized exact comparison of the extracted source contracts replaces the finite candidate reproduction while permitting only equivalent ASCII letter-range order. |
+
+Owner accepted all S22 dispositions on 2026-08-07.
 
 ## Stable Identity Mapping
 
@@ -211,10 +224,6 @@ Owner accepted the S20 disposition on 2026-08-07.
 | S19 | `error-handling.S19.absolute-conf-dir-passes-the-guard` | `BEHAVIOR` | `real-path` | absolute CONF_DIR passes the guard |
 | S21 | `error-handling.S21.install-proceeds-when-the-rotation-cfg-dir-is-uncreatable-110` | `BEHAVIOR` | `real-path` | install proceeds when the rotation cfg_dir is uncreatable (#110) |
 | S21 | `error-handling.S21.uncreatable-cfg-dir-warns-and-skips-rotation-110` | `BEHAVIOR` | `real-path` | uncreatable cfg_dir warns and skips rotation (#110) |
-| S22 | `error-handling.S22.six-regex-form-cmnd-eres-found-in-setup` | `BEHAVIOR` | `direct-inspection` | six regex-form Cmnd EREs found in setup |
-| S22 | `error-handling.S22.all-six-cmnd-eres-are-identical` | `BEHAVIOR` | `direct-inspection` | all six Cmnd EREs are identical |
-| S22 | `error-handling.S22.runner-length-rule-extracted-64` | `BEHAVIOR` | `direct-inspection` | runner length rule extracted (<=64) |
-| S22 | `error-handling.S22.runner-and-sudoers-charsets-agree-across-21-candidates` | `BEHAVIOR` | `direct-inspection` | runner and sudoers charsets agree across 21 candidates |
 | S23 | `error-handling.S23.completion-script-available` | `REQUIRED` | `direct-inspection` | The shipped completion script exists before its eight behavior checks run. |
 | S23 | `error-handling.S23.bare-invocation-offers-generate-install-list` | `BEHAVIOR` | `real-path` | Bare invocation offers generate/install/list |
 | S23 | `error-handling.S23.dash-prefix-offers-global-options` | `BEHAVIOR` | `real-path` | Dash prefix offers global options |
@@ -324,12 +333,12 @@ Owner accepted the S20 disposition on 2026-08-07.
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 172 |
+| Current non-root assertion calls | 168 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 179 |
+| Fixed catalog total | 175 |
 
-The mapping is complete only while all 172 current assertion descriptions map
+The mapping is complete only while all 168 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,
 and the source pipeline remains S01 through S36.
