@@ -6,9 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: M8 step 1, inventory every assertion and conditional
-result branch across the five suites and assign stable check and STEP identities.
-M8 then implements the catalog, recording path, ledger, human summary, and
+Next session entry point: continue M8 step 1's row-by-row disposition review at
+error-handling S13. Nine STEPs and 64 rows remain unresolved after the former
+S12 checks moved to local-lifecycle S35. The five-suite inventory contains 490
+unique stable identities.
+M8 step 2 implements the catalog, recording path, ledger, human summary, and
 machine-readable records. M6 follows as the consumer of those records and does
 not scan body prose. After M6, one golden-VM run drives M7's T1 (debian13, both
 modes) and T2 (rocky8) under the new verdict. M7 stays In progress meanwhile:
@@ -52,7 +54,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Blocked | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
-| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Not started | Yes | M9, D14 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
+| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | In progress | No | M9, D14 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | Internal status fields agree, every linked issue matches its canonical projection or records an owner-approved exception, and all observed GitHub metadata is current; [detail](#m10---release-record-reconciliation) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
@@ -1442,7 +1444,7 @@ Origin: M6's step 1 findings of 2026-08-03 in this register, opened at the
 owner's direction the same day
 Identity History: none
 GitHub Issue: 137, https://github.com/jeonghanlee/epics-ioc-runner/issues/137
-Status: Not started
+Status: In progress
 
 #### Summary
 
@@ -1571,12 +1573,16 @@ consumer requirements.
 - M8 gates the 1.2.3 release — owner decision 2026-08-03, accepting that
   the release moves by the cost of a tests-wide reporting change plus a
   two-golden re-run. M3's dependency row carries M8.
+- Owner decision, 2026-08-06: move the three former error-handling S12 checks
+  to local-lifecycle S35. Retain the real install and configuration-artifact
+  checks, and replace the internal LOG_DIR reconstruction with inspection of
+  the unit emitted by the real local install path.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner, 2026-08-06, after the reconciled #137 plan was shown and M8 step 1 was selected as the next work
+Implementation Authorization: owner, 2026-08-06, for step 1 inventory and the accepted S12 disposition
 Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 1. Inventory all scripts under `tests/`, map every assertion and every
@@ -1596,6 +1602,17 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 6. Run the current reporting method on both golden OS families and compare
    identity sets, totals, and state vectors across supported modes.
 
+#### Implementation Progress
+
+| Step | Status | Evidence |
+| --- | --- | --- |
+| 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 210 error-handling, 115 local-lifecycle, 36 source-regression, 36 system-infra, and 93 system-lifecycle identities; the suite inventories map conditional branches and dependencies. The accepted S12 destination is local-lifecycle S35. |
+| 2 | Not started | Requires owner authorization after the error-handling method-and-category finding is resolved. |
+| 3 | Not started | Depends on step 2. |
+| 4 | Not started | Depends on step 3. |
+| 5 | Not started | Depends on steps 2 through 4. |
+| 6 | Not started | Depends on reviewer acceptance. |
+
 #### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
@@ -1611,7 +1628,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | — | — | pending | |
+| T1 | 2026-08-06T21:53:07-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 490 unique IDs: error-handling 210, local-lifecycle 115, source-regression 36, system-infra 36, and system-lifecycle 93. The real error suite executed and counted all 203 current assertions, with 190 PASS and 13 FAIL results outside the moved S12 checks. The real source local-lifecycle run passed 99 of 99, and installed runner 1.2.1 passed all three S35 checks while the full run finished 93 of 99 because six S31 expectations differed from that installed binary. Syntax, local-lifecycle ShellCheck, inventory uniqueness, and `git diff --check` passed. |
 | T2 | — | — | pending | |
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |

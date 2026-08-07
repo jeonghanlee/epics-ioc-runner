@@ -808,46 +808,10 @@ CONF
     verify_exit_code "1" "${count}" "exactly one IOC_PORT replacement warning"
 }
 
-# Validates that the new namespaced env vars (IOC_RUNNER_LOCAL_*) route install
-# targets independently of the legacy unified IOC_RUNNER_*_DIR overrides.
-function test_env_var_namespacing {
-    local step="$1"
-    local exit_code
-    local test_dir="${TEST_TMPDIR}/ns_ioc"
-    local ns_conf_dir="${TEST_TMPDIR}/ns_conf"
-    local ns_sysd_dir="${TEST_TMPDIR}/ns_sysd"
-    local ns_log_dir="${TEST_TMPDIR}/ns_log"
-    local legacy_conf_dir="${TEST_TMPDIR}/legacy_conf"
-    local legacy_sysd_dir="${TEST_TMPDIR}/legacy_sysd"
-
-    print_divider
-    _log "INFO" "STEP ${step}: Env Var Namespacing and Precedence"
-    print_sub_divider
-
-    mkdir -p "${test_dir}" "${ns_conf_dir}" "${ns_sysd_dir}" "${ns_log_dir}" \
-             "${legacy_conf_dir}" "${legacy_sysd_dir}"
-    touch "${test_dir}/st.cmd"
-    chmod +x "${test_dir}/st.cmd"
-
-    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
-
-    # Case 1: Namespaced IOC_RUNNER_LOCAL_* variables route install to ns dirs.
-    exit_code=$(cd "${test_dir}" && \
-                IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf_dir}" \
-                IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd_dir}" \
-                _run bash "${RUNNER_SCRIPT}" --local -f install .)
-    verify_exit_code "0" "${exit_code}" "IOC_RUNNER_LOCAL_* routes --local install"
-
-    local ns_installed="${ns_conf_dir}/ns_ioc.conf"
-    local ns_exists="false"
-    [[ -f "${ns_installed}" ]] && ns_exists="true"
-    verify_state "true" "${ns_exists}" "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
-
-    # Case 2: Namespaced IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local mode.
-    local actual_log_dir
-    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log_dir}")
-    verify_state "${ns_log_dir}" "${actual_log_dir}" "IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local"
-
+# Preserves the stable error-contract STEP sequence when this position owns no
+# rejection or safe-failure check.
+function no_error_contract_checks {
+    :
 }
 
 # Validates that unified legacy IOC_RUNNER_*_DIR vars consistently
@@ -2121,7 +2085,7 @@ function run_all_tests {
         "test_list_ss_vv_contract"
         "test_unknown_name_verb_gate"
         "test_local_ioc_port_replacement_warns"
-        "test_env_var_namespacing"
+        "no_error_contract_checks"
         "test_env_var_precedence"
         "test_system_identity_guard"
         "test_template_contract_guard"

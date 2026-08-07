@@ -1400,6 +1400,57 @@ function test_logrotate_teardown {
     verify_state "true" "${gone}" "M19: manual teardown removes the timer"
 }
 
+# Verifies that local namespaced path settings reach the artifacts emitted by
+# the real install command. The procServ executable is an outer boundary: the
+# install path records it in the unit but does not execute it.
+function test_namespaced_install_paths {
+    local step="$1"
+    local test_dir="${WORKSPACE}/namespaced_ioc"
+    local conf_dir="${WORKSPACE}/namespaced-conf"
+    local systemd_dir="${WORKSPACE}/namespaced-systemd"
+    local log_dir="${WORKSPACE}/namespaced-log"
+    local installed_conf="${conf_dir}/namespaced_ioc.conf"
+    local installed_unit="${systemd_dir}/epics-@.service"
+    local install_rc=0
+    local conf_exists="false"
+    local baked_log_dir=""
+
+    print_divider
+    _log "INFO" "STEP ${step}: Namespaced Local Install Paths"
+    print_sub_divider
+
+    mkdir -p "${test_dir}" "${conf_dir}" "${systemd_dir}" "${log_dir}"
+    touch "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    (cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${test_dir}"
+        IOC_RUNNER_LOCAL_CONF_DIR="${conf_dir}" \
+        IOC_RUNNER_LOCAL_SYSTEMD_DIR="${systemd_dir}" \
+        IOC_RUNNER_LOCAL_LOG_DIR="${log_dir}" \
+        IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || install_rc=$?
+    verify_state "0" "${install_rc}" \
+        "Namespaced CONF_DIR, SYSTEMD_DIR, and LOG_DIR route --local install"
+
+    if [[ -f "${installed_conf}" ]]; then
+        conf_exists="true"
+    fi
+    verify_state "true" "${conf_exists}" \
+        "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
+
+    if [[ -f "${installed_unit}" ]]; then
+        baked_log_dir=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${installed_unit}" | head -n1)
+    fi
+    verify_state "${log_dir}" "${baked_log_dir}" \
+        "IOC_RUNNER_LOCAL_LOG_DIR reaches the installed unit logfile path"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -1436,6 +1487,7 @@ function run_all_tests {
         "test_persistence"
         "test_remove"
         "test_logrotate_teardown"
+        "test_namespaced_install_paths"
     )
 
     # Record which ioc-runner binary this run exercises, so captured

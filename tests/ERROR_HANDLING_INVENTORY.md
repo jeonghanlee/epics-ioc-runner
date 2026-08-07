@@ -1,0 +1,285 @@
+# Error Handling Reporting Inventory
+
+## Scope
+
+This document is the M8 step 1 inventory for tests/test-error-handling.bash.
+It assigns one stable identity to every current assertion and every
+result-producing conditional branch. It does not claim that the current suite
+passes, and it does not accept a hand-built reproduction as verification
+evidence.
+
+The suite identity is error-handling, with scope=none, os=host, and
+runner=source. Its primary category is error-contract.
+
+## Inventory Basis
+
+The source pipeline contains S01 through S36. Its full non-root branch contains
+203 current assertion calls. Source review adds seven result-producing
+conditions that currently disappear from the counters:
+
+- one P00 required runner-source check;
+- one S23 required completion-script check;
+- one applicability check in each of S27, S29, S30, S31, and S32.
+
+The fixed catalog therefore contains 210 identities. S01 and S12 are
+setup-only and own no check. Each loop case has its own semantic key. The 30
+interruption trials inside S06 remain evidence for two aggregate checks and
+are not separate catalog identities.
+
+## Dependency Policy
+
+- error-handling.P00.runner-source-readable governs all numbered STEPs.
+- error-handling.S23.completion-script-available governs the eight S23 behavior
+  checks. If the file is absent, the required check is FAIL and the dependent
+  checks are SKIP.
+- Each nonroot-permission-probes-applicable check governs only the permission
+  branch in its own STEP. Under effective UID 0, that applicability check and
+  its dependent behavior checks are NA.
+- An unexpected abort preserves closed states and closes every remaining open
+  identity as SCRIPT_ERROR.
+
+## Current Method and Category Findings
+
+The former S12 checks have an accepted disposition: they move to
+local-lifecycle S35, and the LOG_DIR check executes the real install path and
+reads the emitted unit rather than reconstructing the runner's internal
+function.
+
+S13 contains nine lifecycle-behavior checks, including two LOG_DIR checks that
+reconstruct an internal function. S14, S15, S16, S20, and S22 directly inspect
+source contracts. S18 reconstructs internal LOG_DIR resolution. In S33, sixteen
+pipeline checks are hand-built reproductions and six checks directly inspect
+the extracted source constants. In S34, four pipeline checks are hand-built
+reproductions and three checks directly inspect the extracted source constants.
+
+These nine unresolved STEPs contain 64 rows. Each row needs an accepted
+disposition before it can enter the runtime catalog.
+
+## Stable Identity Mapping
+
+| STEP | Check ID | Kind | Current Method | Current Assertion or Condition |
+| --- | --- | --- | --- | --- |
+| P00 | `error-handling.P00.runner-source-readable` | `REQUIRED` | `direct-inspection` | The shipped runner source is readable before pattern extraction. |
+| S02 | `error-handling.S02.help-exits-0` | `BEHAVIOR` | `real-path` | --help exits 0 |
+| S02 | `error-handling.S02.h-exits-0` | `BEHAVIOR` | `real-path` | -h exits 0 |
+| S02 | `error-handling.S02.no-arguments-exits-0` | `BEHAVIOR` | `real-path` | no arguments exits 0 |
+| S02 | `error-handling.S02.unknown-command-exits-1` | `BEHAVIOR` | `real-path` | unknown command exits 1 |
+| S02 | `error-handling.S02.v-exits-0-from-unrelated-cwd` | `BEHAVIOR` | `real-path` | '-V' exits 0 from unrelated CWD |
+| S02 | `error-handling.S02.v-produces-valid-version-output-from-unrelated-cwd` | `BEHAVIOR` | `real-path` | '-V' produces valid version output from unrelated CWD |
+| S02 | `error-handling.S02.v-start-exits-1-verbose-restricted-to-list` | `BEHAVIOR` | `real-path` | '-v start' exits 1 (verbose restricted to list) |
+| S02 | `error-handling.S02.vv-status-exits-1-verbose-restricted-to-list` | `BEHAVIOR` | `real-path` | '-vv status' exits 1 (verbose restricted to list) |
+| S02 | `error-handling.S02.local-v-list-exits-0-verbose-valid-for-list` | `BEHAVIOR` | `real-path` | '--local -v list' exits 0 (verbose valid for list) |
+| S03 | `error-handling.S03.start-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'start' without target exits 1 |
+| S03 | `error-handling.S03.stop-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'stop' without target exits 1 |
+| S03 | `error-handling.S03.restart-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'restart' without target exits 1 |
+| S03 | `error-handling.S03.status-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'status' without target exits 1 |
+| S03 | `error-handling.S03.enable-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'enable' without target exits 1 |
+| S03 | `error-handling.S03.disable-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'disable' without target exits 1 |
+| S03 | `error-handling.S03.remove-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'remove' without target exits 1 |
+| S03 | `error-handling.S03.attach-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'attach' without target exits 1 |
+| S03 | `error-handling.S03.view-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'view' without target exits 1 |
+| S04 | `error-handling.S04.generate-native-dot-path-resolves-successfully` | `BEHAVIOR` | `real-path` | Generate native dot path resolves successfully |
+| S04 | `error-handling.S04.configuration-artifact-created-dynamically` | `BEHAVIOR` | `real-path` | Configuration artifact created dynamically |
+| S04 | `error-handling.S04.identical-artifact-natively-bypasses-overwrite-and-exits-0` | `BEHAVIOR` | `real-path` | Identical artifact natively bypasses overwrite and exits 0 |
+| S04 | `error-handling.S04.identical-re-generate-takes-the-skip-path` | `BEHAVIOR` | `real-path` | Identical re-generate takes the skip path |
+| S04 | `error-handling.S04.identical-skip-reasserts-conf-mode-0600-123` | `BEHAVIOR` | `real-path` | Identical-skip reasserts conf mode 0600 (#123) |
+| S04 | `error-handling.S04.differential-artifact-prompt-exits-1-on-eof` | `BEHAVIOR` | `real-path` | Differential artifact prompt exits 1 on EOF |
+| S04 | `error-handling.S04.differential-artifact-prompt-exits-1-on-user-decline` | `BEHAVIOR` | `real-path` | Differential artifact prompt exits 1 on user decline |
+| S04 | `error-handling.S04.forced-overwrite-ignores-diff-constraint-and-exits-0` | `BEHAVIOR` | `real-path` | Forced overwrite ignores diff constraint and exits 0 |
+| S05 | `error-handling.S05.directory-based-installation-resolves-artifact-correctly` | `BEHAVIOR` | `real-path` | Directory-based installation resolves artifact correctly |
+| S05 | `error-handling.S05.artifact-successfully-routed-to-configuration-directory` | `BEHAVIOR` | `real-path` | Artifact successfully routed to configuration directory |
+| S05 | `error-handling.S05.install-overwrite-prompt-exits-1-on-eof` | `BEHAVIOR` | `real-path` | Install overwrite prompt exits 1 on EOF |
+| S05 | `error-handling.S05.install-eof-abort-preserves-existing-conf-marker-retained` | `BEHAVIOR` | `real-path` | Install EOF abort preserves existing conf (marker retained) |
+| S05 | `error-handling.S05.install-overwrite-prompt-exits-1-on-user-decline` | `BEHAVIOR` | `real-path` | Install overwrite prompt exits 1 on user decline |
+| S05 | `error-handling.S05.install-decline-abort-preserves-existing-conf-marker-retained` | `BEHAVIOR` | `real-path` | Install decline abort preserves existing conf (marker retained) |
+| S06 | `error-handling.S06.atomic-install-no-partial-conf-across-120-interrupted-installs` | `BEHAVIOR` | `real-path` | Atomic install: no partial conf across 120 interrupted installs |
+| S06 | `error-handling.S06.atomic-install-install-exits-only-0-or-124-under-interruption` | `BEHAVIOR` | `real-path` | Atomic install: install exits only 0 or 124 under interruption |
+| S07 | `error-handling.S07.generate-with-invalid-directory-name-exits-1` | `BEHAVIOR` | `real-path` | Generate with invalid directory name exits 1 |
+| S07 | `error-handling.S07.generate-with-no-executable-scripts-exits-1` | `BEHAVIOR` | `real-path` | Generate with no executable scripts exits 1 |
+| S07 | `error-handling.S07.generate-with-multiple-candidates-aborts-interactively` | `BEHAVIOR` | `real-path` | Generate with multiple candidates aborts interactively |
+| S07 | `error-handling.S07.generate-with-force-flag-resolves-multiple-candidates-and-exits-0` | `BEHAVIOR` | `real-path` | Generate with force flag resolves multiple candidates and exits 0 |
+| S07 | `error-handling.S07.multiple-cmd-candidates-without-input-exits-1-no-default` | `BEHAVIOR` | `real-path` | Multiple cmd candidates without input exits 1 (no default) |
+| S07 | `error-handling.S07.generate-overwrite-prompt-exits-1-on-eof` | `BEHAVIOR` | `real-path` | Generate overwrite prompt exits 1 on EOF |
+| S07 | `error-handling.S07.generate-eof-abort-preserves-existing-conf-unchanged` | `BEHAVIOR` | `real-path` | Generate EOF abort preserves existing conf unchanged |
+| S07 | `error-handling.S07.generate-abort-leaves-no-staged-tmp-in-the-target-dir-107` | `BEHAVIOR` | `real-path` | Generate abort leaves no staged tmp in the target dir (#107) |
+| S07 | `error-handling.S07.generate-succeeds-with-a-poisoned-tmpdir-107-same-dir-staging` | `BEHAVIOR` | `real-path` | Generate succeeds with a poisoned TMPDIR (#107 same-dir staging) |
+| S07 | `error-handling.S07.local-generate-writes-the-conf-0600-107` | `BEHAVIOR` | `real-path` | Local generate writes the conf 0600 (#107) |
+| S07 | `error-handling.S07.system-mode-generate-succeeds-with-a-poisoned-tmpdir-107` | `BEHAVIOR` | `real-path` | System-mode generate succeeds with a poisoned TMPDIR (#107) |
+| S07 | `error-handling.S07.system-mode-generate-writes-the-conf-0660-107` | `BEHAVIOR` | `real-path` | System-mode generate writes the conf 0660 (#107) |
+| S08 | `error-handling.S08.install-with-missing-conf-file-exits-1` | `BEHAVIOR` | `real-path` | 'install' with missing conf file exits 1 |
+| S08 | `error-handling.S08.install-with-missing-system-template-exits-1` | `BEHAVIOR` | `real-path` | 'install' with missing system template exits 1 |
+| S08 | `error-handling.S08.install-directory-with-mismatched-conf-name-exits-1` | `BEHAVIOR` | `real-path` | Install directory with mismatched conf name exits 1 |
+| S08 | `error-handling.S08.install-file-direct-with-invalid-ioc-name-exits-1` | `BEHAVIOR` | `real-path` | Install file-direct with invalid IOC name exits 1 |
+| S09 | `error-handling.S09.plain-list-succeeds-with-broken-ss-no-vv-dependency` | `BEHAVIOR` | `real-path` | plain list succeeds with broken ss (no -vv dependency) |
+| S09 | `error-handling.S09.list-vv-with-broken-ss-exits-1` | `BEHAVIOR` | `real-path` | list -vv with broken ss exits 1 |
+| S09 | `error-handling.S09.list-vv-failure-names-ss-in-the-error` | `BEHAVIOR` | `real-path` | list -vv failure names ss in the error |
+| S10 | `error-handling.S10.stop-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | stop on a never-installed name exits 1 |
+| S10 | `error-handling.S10.enable-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | enable on a never-installed name exits 1 |
+| S10 | `error-handling.S10.disable-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | disable on a never-installed name exits 1 |
+| S10 | `error-handling.S10.remove-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | remove on a never-installed name exits 1 |
+| S10 | `error-handling.S10.view-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | view on a never-installed name exits 1 |
+| S10 | `error-handling.S10.gate-message-names-the-missing-configuration` | `BEHAVIOR` | `real-path` | gate message names the missing configuration |
+| S11 | `error-handling.S11.exactly-one-ioc-port-replacement-warning` | `BEHAVIOR` | `real-path` | exactly one IOC_PORT replacement warning |
+| S13 | `error-handling.S13.install-succeeds-with-full-precedence-matrix` | `BEHAVIOR` | `real-path` | Install succeeds with full precedence matrix |
+| S13 | `error-handling.S13.conf-dir-unified-var-wins` | `BEHAVIOR` | `real-path` | CONF_DIR: unified var wins |
+| S13 | `error-handling.S13.conf-dir-namespaced-var-ignored` | `BEHAVIOR` | `real-path` | CONF_DIR: namespaced var ignored |
+| S13 | `error-handling.S13.run-dir-unified-var-wins-in-ioc-port` | `BEHAVIOR` | `real-path` | RUN_DIR: unified var wins in IOC_PORT |
+| S13 | `error-handling.S13.run-dir-namespaced-var-ignored-in-ioc-port` | `BEHAVIOR` | `real-path` | RUN_DIR: namespaced var ignored in IOC_PORT |
+| S13 | `error-handling.S13.systemd-dir-unified-var-wins` | `BEHAVIOR` | `real-path` | SYSTEMD_DIR: unified var wins |
+| S13 | `error-handling.S13.systemd-dir-namespaced-var-ignored` | `BEHAVIOR` | `real-path` | SYSTEMD_DIR: namespaced var ignored |
+| S13 | `error-handling.S13.log-dir-unified-var-wins` | `BEHAVIOR` | `hand-built-reproduction` | LOG_DIR: unified var wins |
+| S13 | `error-handling.S13.log-dir-namespaced-var-honored-when-no-unified` | `BEHAVIOR` | `hand-built-reproduction` | LOG_DIR: namespaced var honored when no unified |
+| S14 | `error-handling.S14.runner-user-identity-resolves-the-ioc-runner-system-user-override` | `BEHAVIOR` | `direct-inspection` | Runner user identity resolves the IOC_RUNNER_SYSTEM_USER override |
+| S14 | `error-handling.S14.setup-user-identity-resolves-the-same-override-variable` | `BEHAVIOR` | `direct-inspection` | Setup user identity resolves the same override variable |
+| S14 | `error-handling.S14.runner-user-default-pinned-to-ioc-srv` | `BEHAVIOR` | `direct-inspection` | Runner user default pinned to ioc-srv |
+| S14 | `error-handling.S14.user-defaults-agree-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | User defaults agree across both scripts |
+| S14 | `error-handling.S14.runner-group-identity-resolves-the-ioc-runner-system-group-override` | `BEHAVIOR` | `direct-inspection` | Runner group identity resolves the IOC_RUNNER_SYSTEM_GROUP override |
+| S14 | `error-handling.S14.setup-group-identity-resolves-the-same-override-variable` | `BEHAVIOR` | `direct-inspection` | Setup group identity resolves the same override variable |
+| S14 | `error-handling.S14.runner-group-default-pinned-to-ioc` | `BEHAVIOR` | `direct-inspection` | Runner group default pinned to ioc |
+| S14 | `error-handling.S14.group-defaults-agree-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | Group defaults agree across both scripts |
+| S14 | `error-handling.S14.runner-log-dir-resolves-the-ioc-runner-system-log-dir-override` | `BEHAVIOR` | `direct-inspection` | Runner log dir resolves the IOC_RUNNER_SYSTEM_LOG_DIR override |
+| S14 | `error-handling.S14.setup-log-dir-resolves-the-same-override-variable` | `BEHAVIOR` | `direct-inspection` | Setup log dir resolves the same override variable |
+| S14 | `error-handling.S14.runner-log-dir-default-pinned-to-var-log-procserv` | `BEHAVIOR` | `direct-inspection` | Runner log dir default pinned to /var/log/procserv |
+| S14 | `error-handling.S14.log-dir-defaults-agree-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | Log dir defaults agree across both scripts |
+| S15 | `error-handling.S15.both-unit-templates-extracted-from-source` | `BEHAVIOR` | `direct-inspection` | Both unit templates extracted from source |
+| S15 | `error-handling.S15.unit-template-must-agree-rows-identical-across-both-scripts` | `BEHAVIOR` | `direct-inspection` | Unit template must-agree rows identical across both scripts |
+| S15 | `error-handling.S15.m10-restart-directives-present-in-the-unit-must-agree-block` | `BEHAVIOR` | `direct-inspection` | M10 restart directives present in the unit must-agree block |
+| S15 | `error-handling.S15.runtimedirectorypreserve-restart-present-in-both-unit-templates-m5-108` | `BEHAVIOR` | `direct-inspection` | RuntimeDirectoryPreserve=restart present in both unit templates (M5/#108) |
+| S16 | `error-handling.S16.metadata-sed-targets-extracted-from-both-injectors` | `BEHAVIOR` | `direct-inspection` | Metadata sed targets extracted from both injectors |
+| S16 | `error-handling.S16.both-injectors-target-the-same-runner-metadata-set` | `BEHAVIOR` | `direct-inspection` | Both injectors target the same RUNNER_* metadata set |
+| S16 | `error-handling.S16.every-injected-runner-has-a-declaration-anchor-in-the-runner` | `BEHAVIOR` | `direct-inspection` | Every injected RUNNER_* has a declaration anchor in the runner |
+| S17 | `error-handling.S17.system-differing-ioc-runner-log-dir-triggers-warning` | `BEHAVIOR` | `real-path` | system + differing IOC_RUNNER_LOG_DIR triggers warning |
+| S17 | `error-handling.S17.system-matching-ioc-runner-log-dir-suppresses-warning` | `BEHAVIOR` | `real-path` | system + matching IOC_RUNNER_LOG_DIR suppresses warning |
+| S17 | `error-handling.S17.local-mode-suppresses-log-dir-guard` | `BEHAVIOR` | `real-path` | --local mode suppresses LOG_DIR guard |
+| S18 | `error-handling.S18.xdg-state-home-unset-local-log-dir-falls-back-to-home-local-state-procserv` | `BEHAVIOR` | `hand-built-reproduction` | XDG_STATE_HOME unset: LOCAL_LOG_DIR falls back to $HOME/.local/state/procserv |
+| S18 | `error-handling.S18.xdg-state-home-set-local-log-dir-uses-xdg-state-home-procserv` | `BEHAVIOR` | `hand-built-reproduction` | XDG_STATE_HOME set: LOCAL_LOG_DIR uses <XDG_STATE_HOME>/procserv |
+| S19 | `error-handling.S19.relative-ioc-runner-conf-dir-exits-1-on-list` | `BEHAVIOR` | `real-path` | relative IOC_RUNNER_CONF_DIR exits 1 on list |
+| S19 | `error-handling.S19.relative-conf-dir-error-names-the-resolved-directory` | `BEHAVIOR` | `real-path` | relative CONF_DIR error names the resolved directory |
+| S19 | `error-handling.S19.whitespace-conf-dir-exits-1-on-status` | `BEHAVIOR` | `real-path` | whitespace CONF_DIR exits 1 on status |
+| S19 | `error-handling.S19.whitespace-conf-dir-error-names-the-resolved-directory` | `BEHAVIOR` | `real-path` | whitespace CONF_DIR error names the resolved directory |
+| S19 | `error-handling.S19.absolute-conf-dir-passes-the-guard` | `BEHAVIOR` | `real-path` | absolute CONF_DIR passes the guard |
+| S20 | `error-handling.S20.no-h-2-1-grep-q-pipeline-probes-remain-in-bin-ioc-runner-110` | `BEHAVIOR` | `direct-inspection` | no '-h 2>&1 \| grep -q' pipeline probes remain in bin/ioc-runner (#110) |
+| S21 | `error-handling.S21.install-proceeds-when-the-rotation-cfg-dir-is-uncreatable-110` | `BEHAVIOR` | `real-path` | install proceeds when the rotation cfg_dir is uncreatable (#110) |
+| S21 | `error-handling.S21.uncreatable-cfg-dir-warns-and-skips-rotation-110` | `BEHAVIOR` | `real-path` | uncreatable cfg_dir warns and skips rotation (#110) |
+| S22 | `error-handling.S22.six-regex-form-cmnd-eres-found-in-setup` | `BEHAVIOR` | `direct-inspection` | six regex-form Cmnd EREs found in setup |
+| S22 | `error-handling.S22.all-six-cmnd-eres-are-identical` | `BEHAVIOR` | `direct-inspection` | all six Cmnd EREs are identical |
+| S22 | `error-handling.S22.runner-length-rule-extracted-64` | `BEHAVIOR` | `direct-inspection` | runner length rule extracted (<=64) |
+| S22 | `error-handling.S22.runner-and-sudoers-charsets-agree-across-21-candidates` | `BEHAVIOR` | `direct-inspection` | runner and sudoers charsets agree across 21 candidates |
+| S23 | `error-handling.S23.completion-script-available` | `REQUIRED` | `direct-inspection` | The shipped completion script exists before its eight behavior checks run. |
+| S23 | `error-handling.S23.bare-invocation-offers-generate-install-list` | `BEHAVIOR` | `real-path` | Bare invocation offers generate/install/list |
+| S23 | `error-handling.S23.dash-prefix-offers-global-options` | `BEHAVIOR` | `real-path` | Dash prefix offers global options |
+| S23 | `error-handling.S23.system-mode-reads-ioc-runner-system-conf-dir` | `BEHAVIOR` | `real-path` | System mode reads IOC_RUNNER_SYSTEM_CONF_DIR |
+| S23 | `error-handling.S23.local-mode-reads-ioc-runner-local-conf-dir` | `BEHAVIOR` | `real-path` | --local mode reads IOC_RUNNER_LOCAL_CONF_DIR |
+| S23 | `error-handling.S23.ioc-runner-conf-dir-overrides-local-var-in-completion` | `BEHAVIOR` | `real-path` | IOC_RUNNER_CONF_DIR overrides LOCAL var in completion |
+| S23 | `error-handling.S23.list-command-suggests-v-and-vv` | `BEHAVIOR` | `real-path` | 'list' command suggests -v and -vv |
+| S23 | `error-handling.S23.st-prefix-narrows-to-start-stop-status` | `BEHAVIOR` | `real-path` | 'st' prefix narrows to start/stop/status |
+| S23 | `error-handling.S23.missing-conf-dir-yields-empty-compreply` | `BEHAVIOR` | `real-path` | Missing conf_dir yields empty COMPREPLY |
+| S24 | `error-handling.S24.view-bad-name-whitespace-exits-1-via-name-validation` | `BEHAVIOR` | `real-path` | view 'bad name' (whitespace) exits 1 via name validation |
+| S24 | `error-handling.S24.view-bad-name-special-char-exits-1-via-name-validation` | `BEHAVIOR` | `real-path` | view 'bad@name' (special char) exits 1 via name validation |
+| S24 | `error-handling.S24.view-bad-name-period-exits-1-via-name-validation` | `BEHAVIOR` | `real-path` | view 'bad.name' (period) exits 1 via name validation |
+| S24 | `error-handling.S24.view-bad-name-produces-invalid-ioc-name-error-message` | `BEHAVIOR` | `real-path` | view 'bad@name' produces 'Invalid IOC name' error message |
+| S25 | `error-handling.S25.install-with-illegal-characters-in-cmd-exits-1` | `BEHAVIOR` | `real-path` | Install with illegal characters in CMD exits 1 |
+| S25 | `error-handling.S25.install-with-wrong-local-user-exits-1` | `BEHAVIOR` | `real-path` | Install with wrong local user exits 1 |
+| S25 | `error-handling.S25.install-without-directory-execute-permission-exits-1` | `BEHAVIOR` | `real-path` | Install without directory execute permission exits 1 |
+| S25 | `error-handling.S25.install-with-missing-required-key-ioc-cmd-exits-1` | `BEHAVIOR` | `real-path` | Install with missing required key (IOC_CMD) exits 1 |
+| S25 | `error-handling.S25.install-with-in-system-ioc-chdir-exits-1` | `BEHAVIOR` | `real-path` | Install with '..' in system IOC_CHDIR exits 1 |
+| S25 | `error-handling.S25.rejection-error-references-the-component` | `BEHAVIOR` | `real-path` | '..' rejection error references the '..' component |
+| S25 | `error-handling.S25.install-with-bare-ioc-chdir-exits-1` | `BEHAVIOR` | `real-path` | Install with bare '..' IOC_CHDIR exits 1 |
+| S25 | `error-handling.S25.bare-rejected-by-the-absolute-path-requirement-m6-109` | `BEHAVIOR` | `real-path` | bare '..' rejected by the absolute-path requirement (M6/#109) |
+| S25 | `error-handling.S25.install-with-relative-ioc-chdir-exits-1` | `BEHAVIOR` | `real-path` | Install with relative IOC_CHDIR exits 1 |
+| S25 | `error-handling.S25.relative-ioc-chdir-error-names-the-absolute-path-requirement` | `BEHAVIOR` | `real-path` | relative IOC_CHDIR error names the absolute-path requirement |
+| S25 | `error-handling.S25.install-with-multi-word-ioc-cmd-exits-1` | `BEHAVIOR` | `real-path` | Install with multi-word IOC_CMD exits 1 |
+| S25 | `error-handling.S25.multi-word-ioc-cmd-error-names-the-single-word-contract` | `BEHAVIOR` | `real-path` | multi-word IOC_CMD error names the single-word contract |
+| S26 | `error-handling.S26.attach-with-missing-conf-exits-1` | `BEHAVIOR` | `real-path` | 'attach' with missing conf exits 1 |
+| S26 | `error-handling.S26.attach-with-missing-ioc-port-key-exits-1` | `BEHAVIOR` | `real-path` | 'attach' with missing IOC_PORT key exits 1 |
+| S26 | `error-handling.S26.attach-error-references-missing-ioc-port-key` | `BEHAVIOR` | `real-path` | 'attach' error references missing IOC_PORT key |
+| S27 | `error-handling.S27.nonroot-permission-probes-applicable` | `APPLICABILITY` | `direct-inspection` | The non-traversable socket-directory probes apply to the effective user. |
+| S27 | `error-handling.S27.list-with-no-active-sockets-exits-0` | `BEHAVIOR` | `real-path` | 'list' with no active sockets exits 0 |
+| S27 | `error-handling.S27.genuinely-empty-list-carries-no-permission-hint` | `BEHAVIOR` | `real-path` | Genuinely empty list carries no permission hint |
+| S27 | `error-handling.S27.list-with-a-non-traversable-socket-dir-exits-0` | `BEHAVIOR` | `real-path` | 'list' with a non-traversable socket dir exits 0 |
+| S27 | `error-handling.S27.non-traversable-socket-dir-appends-the-permission-hint` | `BEHAVIOR` | `real-path` | Non-traversable socket dir appends the permission hint |
+| S28 | `error-handling.S28.inspect-without-root-privileges-exits-1` | `BEHAVIOR` | `real-path` | 'inspect' without root privileges exits 1 |
+| S29 | `error-handling.S29.nonroot-permission-probes-applicable` | `APPLICABILITY` | `direct-inspection` | The generate staging-permission probes apply to the effective user. |
+| S29 | `error-handling.S29.generate-into-a-non-writable-directory-exits-1` | `BEHAVIOR` | `real-path` | Generate into a non-writable directory exits 1 |
+| S29 | `error-handling.S29.generate-staging-failure-names-directory-writability` | `BEHAVIOR` | `real-path` | Generate staging failure names directory writability |
+| S29 | `error-handling.S29.generate-staging-failure-hides-the-raw-mktemp-error` | `BEHAVIOR` | `real-path` | Generate staging failure hides the raw mktemp error |
+| S30 | `error-handling.S30.nonroot-permission-probes-applicable` | `APPLICABILITY` | `direct-inspection` | The view access-barrier probes apply to the effective user. |
+| S30 | `error-handling.S30.view-of-an-absent-conf-exits-1` | `BEHAVIOR` | `real-path` | View of an absent conf exits 1 |
+| S30 | `error-handling.S30.view-missing-conf-error-rides-stderr` | `BEHAVIOR` | `real-path` | View missing-conf error rides stderr |
+| S30 | `error-handling.S30.view-missing-conf-closing-divider-joins-the-error-on-stderr` | `BEHAVIOR` | `real-path` | View missing-conf closing divider joins the error on stderr |
+| S30 | `error-handling.S30.view-missing-conf-stdout-keeps-only-the-header-divider` | `BEHAVIOR` | `real-path` | View missing-conf stdout keeps only the header divider |
+| S30 | `error-handling.S30.view-of-an-unreadable-conf-dir-exits-1` | `BEHAVIOR` | `real-path` | View of an unreadable CONF_DIR exits 1 |
+| S30 | `error-handling.S30.view-names-the-access-barrier-for-an-unreadable-conf-dir` | `BEHAVIOR` | `real-path` | View names the access barrier for an unreadable CONF_DIR |
+| S30 | `error-handling.S30.view-does-not-misreport-an-unreadable-conf-dir-as-not-found` | `BEHAVIOR` | `real-path` | View does not misreport an unreadable CONF_DIR as not found |
+| S31 | `error-handling.S31.nonroot-permission-probes-applicable` | `APPLICABILITY` | `direct-inspection` | The attach access-barrier probes apply to the effective user. |
+| S31 | `error-handling.S31.attach-to-an-unreadable-conf-dir-exits-1` | `BEHAVIOR` | `real-path` | Attach to an unreadable CONF_DIR exits 1 |
+| S31 | `error-handling.S31.attach-names-the-access-barrier-for-an-unreadable-conf-dir` | `BEHAVIOR` | `real-path` | Attach names the access barrier for an unreadable CONF_DIR |
+| S31 | `error-handling.S31.attach-does-not-misreport-an-unreadable-conf-dir-as-not-found` | `BEHAVIOR` | `real-path` | Attach does not misreport an unreadable CONF_DIR as not found |
+| S32 | `error-handling.S32.nonroot-permission-probes-applicable` | `APPLICABILITY` | `direct-inspection` | The local-install permission probes apply to the effective user. |
+| S32 | `error-handling.S32.local-install-into-a-non-writable-conf-dir-exits-1` | `BEHAVIOR` | `real-path` | Local install into a non-writable CONF_DIR exits 1 |
+| S32 | `error-handling.S32.local-install-names-the-non-writable-conf-dir-branch-reached` | `BEHAVIOR` | `real-path` | Local install names the non-writable CONF_DIR (branch reached) |
+| S32 | `error-handling.S32.local-install-drops-the-ioc-group-question` | `BEHAVIOR` | `real-path` | Local install drops the ioc group question |
+| S33 | `error-handling.S33.pattern-unbalanced-quote` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: Unbalanced quote |
+| S33 | `error-handling.S33.pattern-invalid-directory-path` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: Invalid directory path |
+| S33 | `error-handling.S33.pattern-can-t-open` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: Can't open |
+| S33 | `error-handling.S33.pattern-cannot-open` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: cannot open |
+| S33 | `error-handling.S33.pattern-undefined-symbol` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: undefined symbol |
+| S33 | `error-handling.S33.pattern-no-such-file-or-directory` | `BEHAVIOR` | `hand-built-reproduction` | Pattern: No such file or directory |
+| S33 | `error-handling.S33.case-insensitive-error-upper` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: ERROR (upper) |
+| S33 | `error-handling.S33.case-insensitive-error-title` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: Error (title) |
+| S33 | `error-handling.S33.case-insensitive-error-lower` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: error (lower) |
+| S33 | `error-handling.S33.case-insensitive-fatal-upper` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: FATAL (upper) |
+| S33 | `error-handling.S33.case-insensitive-fatal-lower` | `BEHAVIOR` | `hand-built-reproduction` | Case-insensitive: fatal (lower) |
+| S33 | `error-handling.S33.regression-segmentation-fault` | `BEHAVIOR` | `hand-built-reproduction` | Regression: Segmentation fault |
+| S33 | `error-handling.S33.negative-procserv-child-start-line` | `BEHAVIOR` | `hand-built-reproduction` | Negative: procServ child start line |
+| S33 | `error-handling.S33.negative-iocinit-complete-line` | `BEHAVIOR` | `hand-built-reproduction` | Negative: iocInit complete line |
+| S33 | `error-handling.S33.negative-epics-banner` | `BEHAVIOR` | `hand-built-reproduction` | Negative: EPICS banner |
+| S33 | `error-handling.S33.negative-startup-banner` | `BEHAVIOR` | `hand-built-reproduction` | Negative: startup banner |
+| S33 | `error-handling.S33.dry-base-crash-log-patterns-fatal-ambiguous-subsets` | `BEHAVIOR` | `direct-inspection` | DRY-base CRASH_LOG_PATTERNS == fatal\|ambiguous subsets |
+| S33 | `error-handling.S33.subset-fatal-is-fatal` | `BEHAVIOR` | `direct-inspection` | Subset: FATAL is fatal |
+| S33 | `error-handling.S33.subset-undefined-symbol-is-fatal` | `BEHAVIOR` | `direct-inspection` | Subset: undefined symbol is fatal |
+| S33 | `error-handling.S33.subset-can-t-open-is-ambiguous` | `BEHAVIOR` | `direct-inspection` | Subset: Can't open is ambiguous |
+| S33 | `error-handling.S33.subset-error-is-ambiguous` | `BEHAVIOR` | `direct-inspection` | Subset: ERROR is ambiguous |
+| S33 | `error-handling.S33.subset-invalid-directory-path-is-ambiguous-benign-epics-warning` | `BEHAVIOR` | `direct-inspection` | Subset: Invalid directory path is ambiguous (benign EPICS warning) |
+| S34 | `error-handling.S34.exclusion-constant-extracted-non-empty-from-runner-script` | `BEHAVIOR` | `direct-inspection` | Exclusion: constant extracted non-empty from runner script |
+| S34 | `error-handling.S34.exclusion-constant-compiles-under-grep-e` | `BEHAVIOR` | `direct-inspection` | Exclusion: constant compiles under grep -E |
+| S34 | `error-handling.S34.exclusion-pin-history-load-line-matches-patterns-without-filter` | `BEHAVIOR` | `direct-inspection` | Exclusion pin: history-load line matches patterns without filter |
+| S34 | `error-handling.S34.exclusion-history-load-line-cleared-through-pipeline` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: history-load line cleared through pipeline |
+| S34 | `error-handling.S34.exclusion-history-write-variant-cleared-through-pipeline` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: history-write variant cleared through pipeline |
+| S34 | `error-handling.S34.exclusion-fatal-on-another-line-in-the-window-still-matches` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: FATAL on another line in the window still matches |
+| S34 | `error-handling.S34.exclusion-same-line-collision-excluded-documented-residual` | `BEHAVIOR` | `hand-built-reproduction` | Exclusion: same-line collision excluded (documented residual) |
+| S35 | `error-handling.S35.valid-crash-log-patterns-extra-accepted-at-install` | `BEHAVIOR` | `real-path` | Valid CRASH_LOG_PATTERNS_EXTRA accepted at install |
+| S35 | `error-handling.S35.illegal-characters-in-crash-log-patterns-extra-rejected-at-install` | `BEHAVIOR` | `real-path` | Illegal characters in CRASH_LOG_PATTERNS_EXTRA rejected at install |
+| S35 | `error-handling.S35.invalid-regex-in-crash-log-patterns-extra-rejected-at-install` | `BEHAVIOR` | `real-path` | Invalid regex in CRASH_LOG_PATTERNS_EXTRA rejected at install |
+| S35 | `error-handling.S35.extra.dot-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA '.' rejected at install (#106) |
+| S35 | `error-handling.S35.extra.internal-empty-alternation-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA 'a\|\|b' rejected at install (#106) |
+| S35 | `error-handling.S35.extra.leading-empty-alternation-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA '\|a' rejected at install (#106) |
+| S35 | `error-handling.S35.extra.trailing-empty-alternation-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA 'a\|' rejected at install (#106) |
+| S35 | `error-handling.S35.extra.grouped-leading-empty-alternation-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA '(\|a)' rejected at install (#106) |
+| S35 | `error-handling.S35.extra.grouped-trailing-empty-alternation-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA '(a\|)' rejected at install (#106) |
+| S35 | `error-handling.S35.extra.ordinary-lowercase-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA 'healthy log line' rejected at install (#106) |
+| S35 | `error-handling.S35.extra.ordinary-uppercase-rejected` | `BEHAVIOR` | `real-path` | Degenerate/empty-alternation _EXTRA 'ORDINARY HEALTHY' rejected at install (#106) |
+| S35 | `error-handling.S35.legitimate-multi-alternation-extra-accepted-at-install-106` | `BEHAVIOR` | `real-path` | Legitimate multi-alternation _EXTRA accepted at install (#106) |
+| S36 | `error-handling.S36.non-executable-ioc-runner-procserv-tool-exits-1` | `BEHAVIOR` | `real-path` | Non-executable IOC_RUNNER_PROCSERV_TOOL exits 1 |
+| S36 | `error-handling.S36.non-executable-override-error-names-the-variable` | `BEHAVIOR` | `real-path` | Non-executable override error names the variable |
+| S36 | `error-handling.S36.executable-directory-ioc-runner-procserv-tool-exits-1` | `BEHAVIOR` | `real-path` | Executable-directory IOC_RUNNER_PROCSERV_TOOL exits 1 |
+| S36 | `error-handling.S36.executable-directory-override-error-names-the-variable` | `BEHAVIOR` | `real-path` | Executable-directory override error names the variable |
+| S36 | `error-handling.S36.executable-ioc-runner-procserv-tool-accepted` | `BEHAVIOR` | `real-path` | Executable IOC_RUNNER_PROCSERV_TOOL accepted |
+| S36 | `error-handling.S36.template-execstart-references-the-override-binary` | `BEHAVIOR` | `real-path` | Template ExecStart references the override binary |
+| S36 | `error-handling.S36.home-bin-procserv-resolves-without-an-override` | `BEHAVIOR` | `real-path` | Home-bin procServ resolves without an override |
+| S36 | `error-handling.S36.template-execstart-references-the-home-bin-binary` | `BEHAVIOR` | `real-path` | Template ExecStart references the home-bin binary |
+| S36 | `error-handling.S36.con-search-path-prepends-home-bin-when-home-is-trusted` | `BEHAVIOR` | `real-path` | con search path prepends home-bin when HOME is trusted |
+
+## Completeness Cross-check
+
+| Source Shape | Count |
+| --- | ---: |
+| Current non-root assertion calls | 203 |
+| P00 required condition | 1 |
+| S23 required condition | 1 |
+| Per-STEP applicability conditions | 5 |
+| Fixed catalog total | 210 |
+
+The mapping is complete only while all 203 current assertion descriptions map
+once, the seven added conditions map once, no STEP-local key is duplicated,
+and the source pipeline remains S01 through S36.
