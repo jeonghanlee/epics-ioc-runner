@@ -11,16 +11,9 @@ unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE
 
 declare -gr RED='\033[0;31m'
 declare -gr GREEN='\033[0;32m'
-declare -gr MAGENTA='\033[0;35m'
 declare -gr BLUE='\033[0;34m'
 declare -gr YELLOW='\033[0;33m'
 declare -gr NC='\033[0m'
-
-declare -g TEST_TOTAL=0
-declare -g TEST_PASSED=0
-declare -g TEST_FAILED=0
-declare -g SCRIPT_ERROR=0
-declare -g -a FAILED_DETAILS=()
 
 declare -g SC_TOP
 declare -g REPO_TOP
@@ -29,56 +22,125 @@ declare -g INVOKING_USER="${SUDO_USER:-}"
 declare -gr SUITE_ID="source-regression"
 declare -gr SUITE_SCOPE="system"
 declare -gr SUITE_RUNNER="source"
+declare -gr SUITE_CATEGORY="source-regression"
+declare -g REPORT_DIR=""
+declare -g REPORT_READY=0
+declare -g -a SOURCE_CHECK_IDS=(
+    "${SUITE_ID}.P00.root-invocation"
+    "${SUITE_ID}.P00.invoking-user"
+    "${SUITE_ID}.P00.privilege-drop"
+    "${SUITE_ID}.P00.git-command"
+    "${SUITE_ID}.P00.source-layout"
+    "${SUITE_ID}.P00.workspace"
+    "${SUITE_ID}.S07.git-context.unrelated-cwd-hash"
+    "${SUITE_ID}.S08.sudo-tests.no-canonicalization"
+    "${SUITE_ID}.S08.setup-script.repo-root-invocation"
+    "${SUITE_ID}.S08.setup-script.bin-dir-invocation"
+    "${SUITE_ID}.S08.setup-script.absolute-invocation"
+    "${SUITE_ID}.S09.layout.real-checkout-hash"
+    "${SUITE_ID}.S09.fixture.unrelated-checkout-built"
+    "${SUITE_ID}.S09.layout.unrelated-checkout-unknown"
+    "${SUITE_ID}.S09.layout.unrelated-checkout-warning"
+    "${SUITE_ID}.S10.fixture.clone-copy-built"
+    "${SUITE_ID}.S10.clean.setup-bare"
+    "${SUITE_ID}.S10.clean.live-version-bare"
+    "${SUITE_ID}.S10.clean.injector-bare"
+    "${SUITE_ID}.S10.modified.setup-dirty"
+    "${SUITE_ID}.S10.modified.live-version-dirty"
+    "${SUITE_ID}.S10.modified.injector-dirty"
+    "${SUITE_ID}.S10.locked-index.setup-bare"
+    "${SUITE_ID}.S10.locked-index.live-version-bare"
+    "${SUITE_ID}.S10.locked-index.injector-bare"
+    "${SUITE_ID}.S11.fixture.source-copy-built"
+    "${SUITE_ID}.S11.backup.no-change-none"
+    "${SUITE_ID}.S11.backup.source-change-one"
+    "${SUITE_ID}.S12.injection.sudo-user-reference"
+    "${SUITE_ID}.S12.injection.sudo-user-drop"
+    "${SUITE_ID}.S13.runner.commit-date-declaration"
+    "${SUITE_ID}.S13.runner.install-date-declaration"
+    "${SUITE_ID}.S13.metadata.legacy-build-date-absent"
+    "${SUITE_ID}.S13.setup.commit-date-injection"
+    "${SUITE_ID}.S13.setup.install-date-injection"
+    "${SUITE_ID}.S14.live-version.readlink-failure-hash"
+    "${SUITE_ID}.S15.runner-user-override-declaration"
+    "${SUITE_ID}.S15.setup-user-override-declaration"
+    "${SUITE_ID}.S15.runner-user-default-ioc-srv"
+    "${SUITE_ID}.S15.user-defaults-agree"
+    "${SUITE_ID}.S15.runner-group-override-declaration"
+    "${SUITE_ID}.S15.setup-group-override-declaration"
+    "${SUITE_ID}.S15.runner-group-default-ioc"
+    "${SUITE_ID}.S15.group-defaults-agree"
+    "${SUITE_ID}.S15.runner-log-dir-override-declaration"
+    "${SUITE_ID}.S15.setup-log-dir-override-declaration"
+    "${SUITE_ID}.S15.runner-log-dir-default"
+    "${SUITE_ID}.S15.log-dir-defaults-agree"
+    "${SUITE_ID}.S16.templates.extracted"
+    "${SUITE_ID}.S16.templates.must-agree"
+    "${SUITE_ID}.S16.restart-directives.present"
+    "${SUITE_ID}.S16.runtime-directory-preserve.present"
+    "${SUITE_ID}.S17.metadata.targets-extracted"
+    "${SUITE_ID}.S17.metadata.injectors-agree"
+    "${SUITE_ID}.S17.metadata.declaration-anchors-present"
+    "${SUITE_ID}.S18.pipefail-help-probe-pattern.absent"
+    "${SUITE_ID}.S19.sudoers-regex.count-six"
+    "${SUITE_ID}.S19.sudoers-regex.identical"
+    "${SUITE_ID}.S19.runner-name.max-length-64"
+    "${SUITE_ID}.S19.runner-sudoers-name-contracts.agree"
+    "${SUITE_ID}.S20.pattern-unbalanced-quote"
+    "${SUITE_ID}.S20.pattern-invalid-directory-path"
+    "${SUITE_ID}.S20.pattern-can-t-open"
+    "${SUITE_ID}.S20.pattern-cannot-open"
+    "${SUITE_ID}.S20.pattern-undefined-symbol"
+    "${SUITE_ID}.S20.pattern-no-such-file-or-directory"
+    "${SUITE_ID}.S20.case-insensitive-error-upper"
+    "${SUITE_ID}.S20.case-insensitive-error-title"
+    "${SUITE_ID}.S20.case-insensitive-error-lower"
+    "${SUITE_ID}.S20.case-insensitive-fatal-upper"
+    "${SUITE_ID}.S20.case-insensitive-fatal-lower"
+    "${SUITE_ID}.S20.regression-segmentation-fault"
+    "${SUITE_ID}.S20.negative-procserv-child-start-line"
+    "${SUITE_ID}.S20.negative-iocinit-complete-line"
+    "${SUITE_ID}.S20.negative-epics-banner"
+    "${SUITE_ID}.S20.negative-startup-banner"
+    "${SUITE_ID}.S20.base-patterns.equal-subset-union"
+    "${SUITE_ID}.S20.subset-fatal-is-fatal"
+    "${SUITE_ID}.S20.subset-undefined-symbol-is-fatal"
+    "${SUITE_ID}.S20.subset-can-t-open-is-ambiguous"
+    "${SUITE_ID}.S20.subset-error-is-ambiguous"
+    "${SUITE_ID}.S20.subset-invalid-directory-path-is-ambiguous"
+    "${SUITE_ID}.S21.exclude-pattern.nonempty"
+    "${SUITE_ID}.S21.exclude-pattern.compiles"
+    "${SUITE_ID}.S21.history-load.matches-base-patterns"
+    "${SUITE_ID}.S21.history-write.matches-exclude-pattern"
+    "${SUITE_ID}.S21.line-filter.precedes-crash-scans"
+)
 SC_PATH="${BASH_SOURCE[0]}"
 if [[ "${SC_PATH}" != /* ]]; then
     SC_PATH="${PWD}/${SC_PATH}"
 fi
 SC_TOP="${SC_PATH%/*}"
 REPO_TOP="${SC_TOP}/.."
+# shellcheck source=lib/test-reporting.bash
+source "${SC_TOP}/lib/test-reporting.bash"
 
 function print_divider {
     printf "%b%s%b\n" "${BLUE}" \
         "====================================================================================================" "${NC}"
 }
 
-function print_summary {
-    printf "\n"
-    print_divider
-    printf "%b%s%b\n" "${BLUE}" \
-        "                              SOURCE REGRESSION TEST SUMMARY                                      " "${NC}"
-    print_divider
-    printf "  %-20s : %s\n" "Suite" "${SUITE_ID}"
-    printf "  %-20s : %s\n" "Scope" "${SUITE_SCOPE}"
-    printf "  %-20s : %s\n" "Runner" "${SUITE_RUNNER}"
-    printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
-    printf "%b  %-20s : %d%b\n" "${GREEN}" "Passed" "${TEST_PASSED}" "${NC}"
-    printf "%b  %-20s : %d%b\n" "${RED}" "Failed" "${TEST_FAILED}" "${NC}"
-    printf "%b  %-20s : %d%b\n" "${MAGENTA}" "Script Errors" "${SCRIPT_ERROR}" "${NC}"
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "\n%b%s%b\n" "${RED}" "--- [ FAILED ASSERTIONS ] ---" "${NC}"
-        local detail
-        for detail in "${FAILED_DETAILS[@]}"; do
-            printf "%b  * %s%b\n" "${RED}" "${detail}" "${NC}"
-        done
-    elif [[ ${SCRIPT_ERROR} -eq 0 ]]; then
-        printf "\n%b%s%b\n" "${GREEN}" "[SUCCESS] All source regression checks passed." "${NC}"
-    fi
-    print_divider
-}
-
 function _handle_exit {
     local exit_code=$?
-    if [[ ${exit_code} -ne 0 && ${TEST_FAILED} -eq 0 ]]; then
-        SCRIPT_ERROR=1
-        printf "\n%b[ABORT]%b Script exited with code %d before all checks ran.\n" \
-            "${RED}" "${NC}" "${exit_code}" >&2
+    local final_status="${exit_code}"
+
+    trap - EXIT
+    if (( REPORT_READY )); then
+        report_finalize "${exit_code}" || final_status=1
     fi
-    print_summary
-    if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 ]]; then
-        exit 1
+    if [[ -n "${REPORT_DIR}" && "${REPORT_DIR}" == /tmp/ioc-runner-source-report.* &&
+          -d "${REPORT_DIR}" && ! -L "${REPORT_DIR}" ]]; then
+        "${REPORT_RM_BIN:-/bin/rm}" -rf -- "${REPORT_DIR}" || final_status=1
     fi
-    exit 0
+    exit "${final_status}"
 }
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
@@ -88,18 +150,119 @@ function verify_state {
     local actual="$2"
     local check_id="$3"
 
-    TEST_TOTAL=$((TEST_TOTAL + 1))
     if [[ "${expected}" == "${actual}" ]]; then
         printf "%b[ PASS ]%b %s\n" "${GREEN}" "${NC}" "${check_id}"
-        TEST_PASSED=$((TEST_PASSED + 1))
+        report_record "${check_id}" PASS
         return
     fi
 
     printf "%b[ FAIL ]%b %s\n" "${RED}" "${NC}" "${check_id}" >&2
     printf "  %bExpected : %s%b\n" "${YELLOW}" "${expected}" "${NC}" >&2
     printf "  %bActual   : %s%b\n" "${YELLOW}" "${actual}" "${NC}" >&2
-    TEST_FAILED=$((TEST_FAILED + 1))
-    FAILED_DETAILS+=("${check_id} (expected ${expected}, actual ${actual})")
+    report_record "${check_id}" FAIL "expected ${expected}, actual ${actual}"
+}
+
+function source_check_metadata {
+    local check_id="$1"
+    local kind_name="$2"
+    local method_name="$3"
+    local required_direct="false"
+
+    case "${check_id}" in
+        "${SUITE_ID}.P00."*|\
+        "${SUITE_ID}.S08.sudo-tests.no-canonicalization"|\
+        "${SUITE_ID}.S09.fixture.unrelated-checkout-built"|\
+        "${SUITE_ID}.S10.fixture.clone-copy-built"|\
+        "${SUITE_ID}.S11.fixture.source-copy-built"|\
+        "${SUITE_ID}.S12."*|\
+        "${SUITE_ID}.S13.runner."*|\
+        "${SUITE_ID}.S13.metadata."*|\
+        "${SUITE_ID}.S15."*|\
+        "${SUITE_ID}.S16."*|\
+        "${SUITE_ID}.S17."*|\
+        "${SUITE_ID}.S18."*|\
+        "${SUITE_ID}.S19."*|\
+        "${SUITE_ID}.S20."*|\
+        "${SUITE_ID}.S21."*) required_direct="true" ;;
+    esac
+    if [[ "${required_direct}" == "true" ]]; then
+        printf -v "${kind_name}" '%s' REQUIRED
+        printf -v "${method_name}" '%s' direct-inspection
+    else
+        printf -v "${kind_name}" '%s' BEHAVIOR
+        printf -v "${method_name}" '%s' real-path
+    fi
+}
+
+function register_reporting_catalog {
+    local check_id=""
+    local description=""
+    local kind=""
+    local method=""
+    local remainder=""
+    local step_id=""
+    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21)
+
+    for step_id in "${step_ids[@]}"; do
+        report_register_step "${step_id}" "Source regression ${step_id}"
+    done
+    for check_id in "${SOURCE_CHECK_IDS[@]}"; do
+        remainder="${check_id#${SUITE_ID}.}"
+        step_id="${remainder%%.*}"
+        description="${remainder#*.}"
+        source_check_metadata "${check_id}" kind method
+        report_register_check "${check_id}" "${step_id}" "${SUITE_CATEGORY}" \
+            "${kind}" "${method}" "${description}"
+    done
+    report_close_catalog
+}
+
+function read_os_release_value {
+    local wanted="$1"
+    local key=""
+    local value=""
+
+    while IFS='=' read -r key value || [[ -n "${key:-}" ]]; do
+        if [[ "${key}" == "${wanted}" ]]; then
+            value="${value#\"}"
+            value="${value%\"}"
+            printf '%s' "${value}"
+            return 0
+        fi
+    done < /etc/os-release
+    return 1
+}
+
+function initialize_reporting {
+    local os_name="unknown"
+    local os_version="0"
+    local os_id=""
+    local arch_id="${EPICS_HOST_ARCH:-unknown}"
+    local run_id="${SUITE_ID}.$$.${BASHPID}"
+
+    if [[ -r /etc/os-release ]]; then
+        os_name=$(read_os_release_value ID || true)
+        os_version=$(read_os_release_value VERSION_ID || true)
+    fi
+    os_name="${os_name:-unknown}"
+    os_version="${os_version%%.*}"
+    os_version="${os_version:-0}"
+    os_id="${os_name}-${os_version}"
+    REPORT_DIR=$(mktemp -d /tmp/ioc-runner-source-report.XXXXXX)
+    report_init "${SUITE_ID}" "${run_id}" "${SUITE_SCOPE}" "${SUITE_RUNNER}" \
+        "${os_id}" "${arch_id}" "${REPORT_DIR}"
+    REPORT_READY=1
+    register_reporting_catalog
+}
+
+function skip_catalog_from {
+    local start_index="$1"
+    local failed_check="$2"
+    local check_id=""
+
+    for check_id in "${SOURCE_CHECK_IDS[@]:${start_index}}"; do
+        report_record "${check_id}" SKIP "requires ${failed_check}"
+    done
 }
 
 function run_as_invoker {
@@ -173,6 +336,7 @@ function test_preflight {
     [[ ${EUID} -eq 0 ]] && root_invocation="true"
     verify_state "true" "${root_invocation}" "${SUITE_ID}.P00.root-invocation"
     if [[ "${root_invocation}" != "true" ]]; then
+        skip_catalog_from 1 "${SUITE_ID}.P00.root-invocation"
         return 1
     fi
 
@@ -183,6 +347,7 @@ function test_preflight {
     fi
     verify_state "true" "${invoking_user}" "${SUITE_ID}.P00.invoking-user"
     if [[ "${invoking_user}" != "true" ]]; then
+        skip_catalog_from 2 "${SUITE_ID}.P00.invoking-user"
         return 1
     fi
 
@@ -192,6 +357,7 @@ function test_preflight {
     fi
     verify_state "true" "${privilege_drop}" "${SUITE_ID}.P00.privilege-drop"
     if [[ "${privilege_drop}" != "true" ]]; then
+        skip_catalog_from 3 "${SUITE_ID}.P00.privilege-drop"
         return 1
     fi
 
@@ -201,6 +367,7 @@ function test_preflight {
     fi
     verify_state "true" "${git_command}" "${SUITE_ID}.P00.git-command"
     if [[ "${git_command}" != "true" ]]; then
+        skip_catalog_from 4 "${SUITE_ID}.P00.git-command"
         return 1
     fi
 
@@ -220,6 +387,7 @@ function test_preflight {
     fi
     verify_state "true" "${source_layout}" "${SUITE_ID}.P00.source-layout"
     if [[ "${source_layout}" != "true" ]]; then
+        skip_catalog_from 5 "${SUITE_ID}.P00.source-layout"
         return 1
     fi
 
@@ -232,6 +400,7 @@ function test_preflight {
     fi
     verify_state "true" "${workspace_ready}" "${SUITE_ID}.P00.workspace"
     if [[ "${workspace_ready}" != "true" ]]; then
+        skip_catalog_from 6 "${SUITE_ID}.P00.workspace"
         return 1
     fi
 }
@@ -364,6 +533,10 @@ function test_setup_stamp_layout_guard {
     verify_state "true" "${fixture_built}" \
         "${SUITE_ID}.S09.fixture.unrelated-checkout-built"
     if [[ "${fixture_built}" != "true" ]]; then
+        report_record "${SUITE_ID}.S09.layout.unrelated-checkout-unknown" SKIP \
+            "requires ${SUITE_ID}.S09.fixture.unrelated-checkout-built"
+        report_record "${SUITE_ID}.S09.layout.unrelated-checkout-warning" SKIP \
+            "requires ${SUITE_ID}.S09.fixture.unrelated-checkout-built"
         rm -rf "${work}"
         return
     fi
@@ -418,6 +591,18 @@ function test_stamp_relocated_clean_checkout {
     # index-refresh approach.
     local work
     local fixture_rc=0
+    local dependent_id=""
+    local -a dependent_ids=(
+        "${SUITE_ID}.S10.clean.setup-bare"
+        "${SUITE_ID}.S10.clean.live-version-bare"
+        "${SUITE_ID}.S10.clean.injector-bare"
+        "${SUITE_ID}.S10.modified.setup-dirty"
+        "${SUITE_ID}.S10.modified.live-version-dirty"
+        "${SUITE_ID}.S10.modified.injector-dirty"
+        "${SUITE_ID}.S10.locked-index.setup-bare"
+        "${SUITE_ID}.S10.locked-index.live-version-bare"
+        "${SUITE_ID}.S10.locked-index.injector-bare"
+    )
     work=$("${as_invoker[@]}" 'mktemp -d')
     "${as_invoker[@]}" "git clone -q '${repo_top}' '${work}/clone' \
         && cp -a '${work}/clone' '${work}/fix' \
@@ -433,6 +618,10 @@ function test_stamp_relocated_clean_checkout {
     fi
     verify_state "true" "${built}" "${SUITE_ID}.S10.fixture.clone-copy-built"
     if [[ "${built}" != "true" ]]; then
+        for dependent_id in "${dependent_ids[@]}"; do
+            report_record "${dependent_id}" SKIP \
+                "requires ${SUITE_ID}.S10.fixture.clone-copy-built"
+        done
         "${as_invoker[@]}" "chmod -R u+w '${work}'" >/dev/null 2>&1 || true
         rm -rf "${work}" 2>/dev/null || true
         return
@@ -578,6 +767,10 @@ function test_setup_runner_backup_filter {
     verify_state "true" "${fixture_built}" \
         "${SUITE_ID}.S11.fixture.source-copy-built"
     if [[ "${fixture_built}" != "true" ]]; then
+        report_record "${SUITE_ID}.S11.backup.no-change-none" SKIP \
+            "requires ${SUITE_ID}.S11.fixture.source-copy-built"
+        report_record "${SUITE_ID}.S11.backup.source-change-one" SKIP \
+            "requires ${SUITE_ID}.S11.fixture.source-copy-built"
         rm -rf "${work}"
         return
     fi
@@ -1265,6 +1458,7 @@ function test_crash_exclusion_source_contract {
 }
 
 function run_all_tests {
+    initialize_reporting
     if ! test_preflight; then
         return
     fi

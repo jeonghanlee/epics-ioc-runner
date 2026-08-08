@@ -6,14 +6,17 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: request owner authorization for M8 step 2. The
-pre-step-2 review is complete after five S34 source contracts moved to
-source-regression S21 and two duplicate S34 behavior checks were removed. The
-five-suite inventory contains 487 unique stable identities.
-M8 step 2 implements the catalog, recording path, ledger, human summary, and
-machine-readable records. M6 follows as the consumer of those records and does
-not scan body prose. After M6, one golden-VM run drives M7's T1 (debian13, both
-modes) and T2 (rocky8) under the new verdict. M7 stays In progress meanwhile:
+Next session entry point: finish M8 step 3/P003 by integrating the shared
+reporter into `test-error-handling.bash`, the remaining producer suite. The
+other four producer scripts use the shared reporter. The real source-mode
+system-lifecycle run passed 93/93 on Debian 13, and a mount-namespace fault
+injection confirmed that workspace cleanup failure still emits the complete
+`TEST`, `STEP`, and `SUITE` record set before returning status 1. The equivalent
+local-lifecycle run passed 125/125 and preserved the same final record contract
+under an injected cleanup failure. M6 follows as the consumer of the completed
+M8 records and does not scan body prose. After M6, one golden-VM run drives M7's
+T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7 stays In
+progress meanwhile:
 its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
 passed 96 of 96 with all fourteen M19 assertions running (evidence in the M7
 detail). M5
@@ -1448,11 +1451,12 @@ Status: In progress
 
 #### Summary
 
-The suites currently derive their apparent result from assertion counters and
-human-readable body text. Conditional branches, warnings, skips, and early
-returns can therefore remove checks from the denominator without producing a
-terminal state. Counting skips exactly requires the test code to define the
-state of every check before a reporter aggregates it.
+Before M8, the suites derived their apparent result from assertion counters
+and human-readable body text. Conditional branches, warnings, skips, and early
+returns could therefore remove checks from the denominator without producing
+a terminal state. M8 requires the test code to define the state of every check
+before the shared reporter aggregates it; four of the five producer suites now
+use that path.
 
 #### Scope
 
@@ -1472,9 +1476,10 @@ state of every check before a reporter aggregates it.
 - The whole suite set is re-verified on both goldens after the state-first
   implementation, with OS differences recorded as explicit test-owned states.
 
-Out of scope: the verdict command, which is M6 and reads whatever the
-suites print; making any other individual skipped check run (the M7
-class); the drivers under `gate/`, whose verdict convention D8 fixed.
+Out of scope: the verdict command, which is M6 and consumes only M8's
+accepted machine-readable records; making any other individual skipped check
+run (the M7 class); the drivers under `gate/`, whose verdict convention D8
+fixed.
 
 #### Reporting model (draft, 2026-08-03 — revised by owner direction)
 
@@ -1493,15 +1498,15 @@ output layers follow from that one ledger:
    the count of checks it owns, independent of what a particular run
    executed.
 2. **A step outcome line per STEP.** Each numbered STEP closes with one
-   line carrying the step's identity and its assert tally (pass, fail,
-   skip, na). The difference between goldens becomes an enumerable list of
-   test-owned states, not a subtraction from a total.
+   line carrying the step's identity and its complete assert tally (pass,
+   fail, skip, na, script error). The difference between goldens becomes an
+   enumerable list of test-owned states, not a subtraction from a total.
 3. **A human summary that carries the full vector.** Generated from the ledger,
    it reports `Total`, `Passed`,
    `Failed`, `Skipped`, `Not applicable`, `Script Errors` — zero printed,
-   never omitted — followed by one line per SKIP and NA repeating the
-   check identity and reason, so a reader gets the exceptions without
-   scanning the body.
+   never omitted — followed by one line per non-PASS check repeating the
+   check identity, check kind, test method, state, and reason, so a reader gets
+   the exceptions without scanning the body.
 4. **Machine-readable records from the same ledger.** Fixed-form check, STEP,
    and suite records carry the catalog metadata, observed states, and complete
    vector. They are produced only after state completeness is validated and
@@ -1619,13 +1624,18 @@ consumer requirements.
   source-regression S21 as REQUIRED direct inspections. Remove two hand-built
   behavior checks already covered by real softIoc paths in local lifecycle S30.
   The pre-step-2 disposition review is complete.
+- Owner decision, 2026-08-07: use both command-path protections. Step 2 makes
+  the reporter resolve its own helper commands through a fixed system search
+  path without changing the caller's `PATH`. Step 3 makes every root-run
+  producer suite establish a fixed `PATH` for all suite commands.
 
 #### Implementation Plan
 
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-06, after the reconciled #137 plan was shown and M8 step 1 was selected as the next work
-Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16, S18, S20, S22, S33, and S34 dispositions
-Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
+Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16, S18, S20, S22, S33, and S34 dispositions; owner, 2026-08-07, for step 2/P002 under `auth20260807_163739`; owner, 2026-08-07, for step 3/P003 under `auth20260807_171756`
+Authoritative Plan Artifact: `plan20260807_163739_codex_gpt5_supersedes_plan20260803_133000.md`
+Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`; proposed `plan20260803_235000_codex_gpt5.md` was never authoritative
 
 1. Inventory all scripts under `tests/`, map every assertion and every
    conditional result branch, and assign stable test and STEP identities.
@@ -1649,8 +1659,8 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 | Step | Status | Evidence |
 | --- | --- | --- |
 | 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 146 error-handling, 125 local-lifecycle, 87 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S21 own the accepted S14 through S16, S20, S22, S33, and S34 source contracts. |
-| 2 | Not started | The pre-step-2 review is complete and owner implementation authorization is pending. |
-| 3 | Not started | Depends on step 2. |
+| 2 | Complete | `tests/lib/test-reporting.bash` implements the catalog, single recording path, private file-backed ledger, and ledger-derived human and machine projections. Its real shipped-library self-test passed 67/67 on Debian 13; syntax, warning-level and full ShellCheck, and `git diff --check` also passed. |
+| 3 | In progress | Reporter integration is present in local-lifecycle, source-regression, system-infra, and system-lifecycle; error-handling remains. Real source-mode runs passed 125/125 for local lifecycle and 93/93 for system lifecycle on Debian 13. Real workspace cleanup failures induced through isolated mount namespaces preserved every PASS record and the final `SUITE` record, emitted the cleanup error, and returned status 1 in both suites. |
 | 4 | Not started | Depends on step 3. |
 | 5 | Not started | Depends on steps 2 through 4. |
 | 6 | Not started | Depends on reviewer acceptance. |
@@ -1671,7 +1681,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | 2026-08-07T12:01:42-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 487 unique IDs: error-handling 146, local-lifecycle 125, source-regression 87, system-infra 36, and system-lifecycle 93. The real error suite executed all 139 current assertions with 129 PASS, the same 10 FAIL outside moved S34, and zero script errors. The real source-regression suite passed 87 of 87, including all five S21 crash-exclusion source contracts. The prior real source local-lifecycle suite passed 109 of 109, including both S35 XDG fallback installs and the S30 real softIoc history-noise paths. The existing installed runner 1.2.1 passed both new S35 checks and finished 103 of 109; its six `_EXTRA` gate differences are outside S18 and are compatibility evidence, not current release installation verification. Syntax, source-regression ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
-| T2 | — | — | pending | |
+| T2 | 2026-08-08T01:19:38-07:00 | Working tree, Debian 13 x86_64 | Pass | `bash tests/lib/test-reporting-self-test.bash` executed the shipped shared library and passed 67/67. It covered all five states, independent catalog axes, complete human/machine agreement, final `SUITE` ordering, missing and duplicate states, missing reason, unknown and malformed identity, malformed and late catalog registration, invalid exit status, subshell persistence, `0600` ledger mode, unsafe directory rejection, caller-controlled `PATH`, and a concurrent duplicate race. `bash -n`, warning-level ShellCheck, and `git diff --check` passed for the current four-suite integration and both library files. |
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
 | T5 | — | — | pending | |
@@ -1690,9 +1700,9 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-07T19:41:45Z
-Observed Body: matches the accepted S34 disposition, 487-identity inventory, T1 evidence, and step 2 entry point
-Last Compared: 2026-08-07T12:44:28-07:00
+Observed Updated At: 2026-08-08T08:25:26Z
+Observed Body: matches the completed reporter contract and four-suite P003 checkpoint
+Last Compared: 2026-08-08T01:25:32-07:00
 
 ### M10 - Release record reconciliation
 

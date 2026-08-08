@@ -115,6 +115,11 @@ Classification". `hand-built-reproduction` may describe a migration finding,
 but it is invalid verification evidence and cannot be registered in an
 accepted runtime catalog.
 
+`check_kind` and `test_method` are independent catalog dimensions. The method
+limits the evidence claim: a `BEHAVIOR` row using `direct-inspection` reports
+only the directly observed state or contract and does not claim runtime
+behavior verification.
+
 Check IDs use this form:
 
 ```text
@@ -246,6 +251,46 @@ Records are emitted in this order:
 
 No reporter record may follow `SUITE`.
 
+## Shared Reporter Interface
+
+The producer suites use `lib/test-reporting.bash` through this ordered
+interface:
+
+```text
+report_init suite run scope runner os arch ledger_dir
+report_register_step step_id description
+report_register_check check_id step_id category check_kind test_method description
+report_close_catalog
+report_record check_id state [reason]
+report_finalize original_exit_status
+```
+
+`report_register_step` permits a declared setup-only STEP with zero checks.
+Every check references a previously declared STEP. `report_close_catalog`
+ends registration before any result event. `report_record` is the only path
+for a test-owned terminal state; `PASS` carries no reason and every other
+state requires one non-empty, single-line reason.
+
+The caller supplies a real directory for the private file-backed ledger and
+owns that directory's eventual cleanup. The directory must be owned by the
+current effective user, must not be a symbolic link, and must not be writable
+by group or other users. The reporter creates the ledger with an unpredictable
+name, verifies its ownership and `0600` mode, and leaves it available through
+finalization. This preserves events from subshell execution without allowing
+the reporter to infer a state from human output or independent counters.
+
+The reporter resolves its required helper commands through a fixed system
+search path without changing the caller's `PATH`. Each root-run producer suite
+also establishes its own fixed `PATH`; that suite boundary is applied during
+producer integration rather than by the shared library.
+
+`report_finalize` preserves completed states, turns every unclosed declared
+check into `SCRIPT_ERROR`, validates the ledger, calculates one complete
+vector, and emits both projections. A recoverable event defect tied to a known
+check resolves that check to `SCRIPT_ERROR`. An unknown identity or invalid
+catalog prevents a valid projection, exits nonzero, and emits no `SUITE`
+record for a consumer to mistake as complete.
+
 ## Invariants
 
 Every completed suite result satisfies:
@@ -274,10 +319,18 @@ ledger. Neither projection maintains independent counters or infers a state
 that is absent from the ledger.
 
 The human summary carries the complete state vector and names every non-PASS
-check with its identity, check kind, test method, state, and reason. The
-machine-readable records carry the same metadata and state in the fixed grammar
-above. Both projections must reconcile with the ledger before `SUITE` is
-emitted.
+check with its identity, check kind, test method, state, and reason. Category
+and description remain catalog context and are not repeated in the human
+exception list.
+
+The machine-readable `TEST` record carries suite, run, STEP, check identity,
+category, check kind, test method, state, and encoded reason in the fixed
+grammar above. `STEP` and `SUITE` carry the corresponding complete vectors.
+
+Projection agreement compares the complete vector and the common check fields:
+identity, check kind, test method, state, and reason. Machine-only routing
+fields and catalog context are validated against the ledger separately. Both
+projections must reconcile with the ledger before `SUITE` is emitted.
 
 ## Producer and Consumer Boundary
 

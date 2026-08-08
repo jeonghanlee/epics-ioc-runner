@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 123
+Fixed Total: 125
 
 ## Runner Policy
 
@@ -15,11 +15,11 @@ rejected before reporter initialization and is not part of this catalog.
 ## Inventory Basis
 
 The current maximum branch contains 109 assertions. The fixed catalog adds
-three P00 checks and eleven prerequisite or applicability checks for
-logrotate, socat, camonitor, journal, softIoc, truncate, and the non-root
-history boundary. S28 currently emits the camonitor availability assertion
-only on failure; the fixed catalog separates it from the dependent Channel
-Access behavior check. The resulting catalog contains 123 identities.
+three P00 checks and ten prerequisite or applicability checks for logrotate,
+socat, journal, softIoc, truncate, and the non-root history boundary. It also
+declares three REQUIRED checks that the current script emits only on failure:
+camonitor availability and the S15 and S16 configuration requirements. The
+resulting catalog contains 125 identities.
 
 ## Test Method Assignment
 
