@@ -6,15 +6,18 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: finish M8 step 3/P003 by integrating the shared
-reporter into `test-error-handling.bash`, the remaining producer suite. The
-other four producer scripts use the shared reporter. The real source-mode
-system-lifecycle run passed 93/93 on Debian 13, and a mount-namespace fault
-injection confirmed that workspace cleanup failure still emits the complete
-`TEST`, `STEP`, and `SUITE` record set before returning status 1. The equivalent
-local-lifecycle run passed 125/125 and preserved the same final record contract
-under an injected cleanup failure. M6 follows as the consumer of the completed
-M8 records and does not scan body prose. After M6, one golden-VM run drives M7's
+Next session entry point: project the completed M8 step 3/P003 record into
+GitHub issue #137, prepare the P003 commit, and request authorization for M8
+step 4/P004. All five producer scripts now use the shared reporter. Their
+catalogs contain 487 fixed identities, and the recorded Debian 13 runs closed
+every identity exactly once. The real lifecycle suites passed 125/125 and
+93/93; source regression passed 87/87; system infrastructure passed 36/36.
+Error handling closed all 146 identities in both non-root and root runs while
+retaining its known behavior failures for later work. Isolated cleanup-failure
+probes for both lifecycle suites preserved the final `SUITE` record and
+returned status 1. M6 follows the completed M8 producer and collector work as
+the consumer of these records and does not scan body prose. After M6, one
+golden-VM run drives M7's
 T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7 stays In
 progress meanwhile:
 its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
@@ -1455,8 +1458,8 @@ Before M8, the suites derived their apparent result from assertion counters
 and human-readable body text. Conditional branches, warnings, skips, and early
 returns could therefore remove checks from the denominator without producing
 a terminal state. M8 requires the test code to define the state of every check
-before the shared reporter aggregates it; four of the five producer suites now
-use that path.
+before the shared reporter aggregates it; all five producer suites now use
+that path.
 
 #### Scope
 
@@ -1660,8 +1663,8 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`; proposed `plan20
 | --- | --- | --- |
 | 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 146 error-handling, 125 local-lifecycle, 87 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S21 own the accepted S14 through S16, S20, S22, S33, and S34 source contracts. |
 | 2 | Complete | `tests/lib/test-reporting.bash` implements the catalog, single recording path, private file-backed ledger, and ledger-derived human and machine projections. Its real shipped-library self-test passed 67/67 on Debian 13; syntax, warning-level and full ShellCheck, and `git diff --check` also passed. |
-| 3 | In progress | Reporter integration is present in local-lifecycle, source-regression, system-infra, and system-lifecycle; error-handling remains. Real source-mode runs passed 125/125 for local lifecycle and 93/93 for system lifecycle on Debian 13. Real workspace cleanup failures induced through isolated mount namespaces preserved every PASS record and the final `SUITE` record, emitted the cleanup error, and returned status 1 in both suites. |
-| 4 | Not started | Depends on step 3. |
+| 3 | Complete | All five producer suites use fixed catalogs and the shared reporter. Debian 13 runs closed all 487 identities: error handling closed 146 in non-root and root runs, local lifecycle passed 125/125, source regression passed 87/87, system infrastructure passed 36/36, and system lifecycle passed 93/93. The error-handling preflight probe closed one failure and 145 skips without entering setup. Real cleanup failures induced through isolated mount namespaces preserved the final `SUITE` record, emitted the cleanup error, and returned status 1 in both lifecycle suites. Formal findings F-codex_gpt5-001 and F-codex_gpt5-002 are resolved and accepted; `hand20260808_141524_codex_gpt5_supersedes_hand20260807_170938.md` records the final P003 handoff. |
+| 4 | Not started | P003 is complete; P004 requires separate implementation authorization. |
 | 5 | Not started | Depends on steps 2 through 4. |
 | 6 | Not started | Depends on reviewer acceptance. |
 
@@ -1675,6 +1678,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`; proposed `plan20
 | T4 | State-first suite execution | Run a suite with a known environment exception and one without it | Both goldens | The test code emits explicit states, fixed identity sets remain equal, and totals reconcile |
 | T5 | Reviewer gate | Three reviewers inspect the implementation and the state mapping | Review session | No blocking finding remains on inventory, terminal states, or statistics |
 | T6 | Full re-verification | Run the whole suite set on both goldens under the new reporting | Both goldens | Every check has one state, every trailer is valid, and statistics derive from test-owned states |
+| T7 | P003 producer integration | Run all five shipped producer suites, the error-handling preflight probe, and both lifecycle cleanup-failure probes through the real paths | Debian 13, source and installed-conformance paths, root and non-root where applicable | All 487 producer identities close exactly once, both projections reconcile, and cleanup failure preserves reporter finalization while returning failure |
 
 #### Verification Results
 
@@ -1686,6 +1690,7 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`; proposed `plan20
 | T4 | — | — | pending | |
 | T5 | — | — | pending | |
 | T6 | — | — | pending | |
+| T7 | 2026-08-08 | Debian 13 x86_64, source and installed-conformance paths | Pass | All five shipped producers ran through their real paths. Error handling closed 146 identities in both runs: non-root recorded 136 PASS and 10 known behavior FAIL; root recorded 117 PASS, 7 known behavior FAIL, and 22 NA. Its unreadable-source preflight recorded 1 FAIL and 145 SKIP without entering setup. Local lifecycle passed 125/125, source regression passed 87/87, system infrastructure passed 36/36, and system lifecycle passed 93/93. Both isolated mount-namespace cleanup-failure probes emitted the cleanup error, retained the final `SUITE` record, and returned status 1. Formal follow-ups accepted both P003 findings after their real-path verification. |
 
 #### Closure Evidence
 
@@ -1700,9 +1705,9 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-08T08:25:26Z
-Observed Body: matches the completed reporter contract and four-suite P003 checkpoint
-Last Compared: 2026-08-08T01:25:32-07:00
+Observed Updated At: 2026-08-09T01:16:12Z
+Observed Body: matches the canonical P003 completion record and T7 evidence
+Last Compared: 2026-08-08T18:17:03-07:00
 
 ### M10 - Release record reconciliation
 
