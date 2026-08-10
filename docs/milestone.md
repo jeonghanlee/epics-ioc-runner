@@ -6,17 +6,22 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: project the completed M8 step 3/P003 record into
-GitHub issue #137, prepare the P003 commit, and request authorization for M8
-step 4/P004. All five producer scripts now use the shared reporter. Their
-catalogs contain 487 fixed identities, and the recorded Debian 13 runs closed
-every identity exactly once. The real lifecycle suites passed 125/125 and
-93/93; source regression passed 87/87; system infrastructure passed 36/36.
-Error handling closed all 146 identities in both non-root and root runs while
-retaining its known behavior failures for later work. Isolated cleanup-failure
-probes for both lifecycle suites preserved the final `SUITE` record and
-returned status 1. M6 follows the completed M8 producer and collector work as
-the consumer of these records and does not scan body prose. After M6, one
+Next session entry point: prepare M8 closure. `plan20260810_125403` repaired
+P006/V006 authority, `auth20260810_125505` recorded the User's no-rerun
+evidence-adoption approval, and Reviewer 1 `fup20260810_125825` resolved
+`F-reviewer1_state_coherence-003` with no blocking finding. The three P005 review lanes accepted the
+complete remediation with no blocking finding in `fup20260810_115015`,
+`rev20260810_120802`, and `rev20260810_120522`. P007 through P010 are complete,
+and P010's
+real Debian 13 paths passed: reporter 88/88, collector 10/10, source regression
+87/87, local lifecycle 125/125, system infrastructure 36/36, and system
+lifecycle 93/93. Both isolated cleanup failures returned 1 and emitted final
+`SUITE state=FAIL` while retaining their all-PASS check vectors. P005 is
+complete after all three review lanes reported no blocking finding. P006 is
+complete at Check grade on both goldens, with its existing evidence adopted
+without rerun. M8 remains In progress until closure. M6 follows the completed M8
+producer and collector work as the consumer of these records and does not scan
+body prose. After M6, one
 golden-VM run drives M7's
 T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7 stays In
 progress meanwhile:
@@ -60,7 +65,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Blocked | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
-| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | In progress | No | M9, D14 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
+| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | In progress | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | Internal status fields agree, every linked issue matches its canonical projection or records an owner-approved exception, and all observed GitHub metadata is current; [detail](#m10---release-record-reconciliation) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
@@ -82,6 +87,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | D12 | Every check is classified on three independent axes: test category, check kind, and test method. `tests/REPORTING_CONTRACT.md` is authoritative for category and check kind; `tests/README.md` "Test Classification" is authoritative for test method. Only real-path execution can support a behavior-verification claim. Direct state inspection can support only the state or contract directly observed, and a hand-built reproduction is invalid as verification evidence. Test method alone does not create a suite or selector. | Owner decision, 2026-08-05 |
 | D13 | M9 does not preserve the current assertion count as an end in itself. Its migration inventory accounts for every current assertion and prerequisite and assigns exactly one reviewed disposition: `retain` keeps the valid check, `replace` preserves a needed verification target through valid evidence, and `remove` retires a redundant or invalid target with an owner-approved reason. No row disappears silently, and M9 step 1 remains open until every row has an accepted disposition. | Owner decision, 2026-08-05, after the second conceptual-integrity review |
 | D14 | One canonical check catalog carries category, check kind, and test method. A single recording path combines that metadata with each observed terminal state in one ledger; the human summary and machine-readable records are two projections of that ledger and never separate calculations. M9 defines destination metadata and valid evidence without implementing reporting. M8 implements the record path, ledger, and both projections across the resulting suite set. M6 consumes only M8's machine-readable records and does not infer states from human-readable prose. The execution order is M9, then M8 producer, then M6 consumer. | Owner decision, 2026-08-05 |
+| D15 | M8 preserves the fixed 487-check identity set and adds `state=<PASS\|FAIL>` to the final `SUITE` machine record. Cleanup and finalization failures are suite execution results, not additional checks. `PASS` requires zero final suite status with no failed checks, script errors, reporter integrity failure, or cleanup failure; every other final result is `FAIL`. M6 consumes this field later without scanning human-readable prose. | Owner decision, 2026-08-10 |
 
 ## ID Migration
 
@@ -1459,7 +1465,9 @@ and human-readable body text. Conditional branches, warnings, skips, and early
 returns could therefore remove checks from the denominator without producing
 a terminal state. M8 requires the test code to define the state of every check
 before the shared reporter aggregates it; all five producer suites now use
-that path.
+that path. The fixed catalog remains 487 checks; P005 now also requires one
+suite execution state that accounts for cleanup and finalization after the
+check vector closes.
 
 #### Scope
 
@@ -1472,6 +1480,8 @@ that path.
 - One shared recording path combines catalog metadata with the test-owned
   terminal state in one ledger. The human summary and machine-readable records
   are generated from that ledger, never counted independently.
+- The final human summary and `SUITE` machine record carry the same suite
+  execution state after all failure-producing cleanup has completed.
 - Every existing `SKIP`, `WARN`, does-not-apply branch, prerequisite branch,
   and early return is classified and closed explicitly.
 - The reporter validates and aggregates test-owned states; it never converts
@@ -1510,11 +1520,11 @@ output layers follow from that one ledger:
    never omitted — followed by one line per non-PASS check repeating the
    check identity, check kind, test method, state, and reason, so a reader gets
    the exceptions without scanning the body.
-4. **Machine-readable records from the same ledger.** Fixed-form check, STEP,
-   and suite records carry the catalog metadata, observed states, and complete
-   vector. They are produced only after state completeness is validated and
-   are the sole input for the separate M6 consumer; M8 does not implement that
-   consumer.
+4. **Machine-readable records from the same ledger.** Fixed-form check and STEP
+   records carry the catalog metadata, observed states, and complete vector.
+   The final suite record also carries `state=<PASS|FAIL>` after cleanup and
+   finalization. These records are the sole input for the separate M6 consumer;
+   M8 does not implement that consumer.
 
 This makes the producer state exact: the suite record describes the declared
 inventory and every terminal state, so a total never means merely "of what
@@ -1555,6 +1565,8 @@ consumer requirements.
    `SCRIPT_ERROR`; the reporter never fabricates `NA`.
 6. `Total = PASS + FAIL + SKIP + NA + SCRIPT_ERROR` and the identity set is
    invariant across supported OS and execution modes.
+7. The final `SUITE state` equals the process result after cleanup and
+   finalization without creating another check identity.
 
 #### Completion Criteria
 
@@ -1567,6 +1579,8 @@ consumer requirements.
   and early return has a named policy and explicit terminal state.
 - Every suite run generates its human summary and machine-readable records from
   the same validated ledger after state completeness is verified.
+- Every suite run reports one final suite execution state after cleanup and
+  returns the same result as its final `SUITE` record.
 - The identity set and total remain invariant across supported OS and modes.
 - The state policy, report grammar, and implementation order are documented
   beside the suites.
@@ -1631,14 +1645,17 @@ consumer requirements.
   the reporter resolve its own helper commands through a fixed system search
   path without changing the caller's `PATH`. Step 3 makes every root-run
   producer suite establish a fixed `PATH` for all suite commands.
+- Owner decision, 2026-08-10 (D15): preserve all 487 check identities and add
+  final `SUITE state=<PASS|FAIL>`. Cleanup failure is a suite execution result,
+  and M6 consumes the field in its separate implementation.
 
 #### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: owner, 2026-08-06, after the reconciled #137 plan was shown and M8 step 1 was selected as the next work
-Implementation Authorization: owner, 2026-08-07, for step 1 inventory and the accepted S12 through S16, S18, S20, S22, S33, and S34 dispositions; owner, 2026-08-07, for step 2/P002 under `auth20260807_163739`; owner, 2026-08-07, for step 3/P003 under `auth20260807_171756`
-Authoritative Plan Artifact: `plan20260807_163739_codex_gpt5_supersedes_plan20260803_133000.md`
-Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`; proposed `plan20260803_235000_codex_gpt5.md` was never authoritative
+Plan Acceptance: owner, 2026-08-10, for `plan20260810_125403`
+Implementation Authorization: owner, 2026-08-10, for P007 through P010 and the P006/V006 authority repair; recorded by `auth20260810_094716_codex_gpt5.md` and `auth20260810_125505_codex_gpt5.md`
+Authoritative Plan Artifact: `plan20260810_125403_codex_gpt5_supersedes_plan20260810_021936.md`
+Superseded Plan Artifacts: `plan20260810_021936_codex_gpt5_supersedes_plan20260807_163739.md`; `plan20260807_163739_codex_gpt5_supersedes_plan20260803_133000.md`; `plan20260803_133000_codex_gpt5.md`; proposed `plan20260803_235000_codex_gpt5.md` was never authoritative
 
 1. Inventory all scripts under `tests/`, map every assertion and every
    conditional result branch, and assign stable test and STEP identities.
@@ -1656,17 +1673,28 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`; proposed `plan20
    require no blocking findings before statistics are accepted.
 6. Run the current reporting method on both golden OS families and compare
    identity sets, totals, and state vectors across supported modes.
+7. Reconcile the maintained check-kind and test-method definitions without
+   changing catalog identities.
+8. Finalize suite execution state after cleanup in the reporter and all five
+   producer exit handlers.
+9. Require and validate final suite state in `run-all-tests.bash`.
+10. Verify both real lifecycle cleanup-failure paths, then repeat Reviewer 1
+    before starting Reviewer 2 and Reviewer 3.
 
 #### Implementation Progress
 
 | Step | Status | Evidence |
 | --- | --- | --- |
 | 1 | Complete | `tests/REPORTING_INVENTORY.md` indexes 146 error-handling, 125 local-lifecycle, 87 source-regression, 36 system-infra, and 93 system-lifecycle identities. Local-lifecycle S35 owns the accepted S12, S13, and S18 real-path checks; source-regression S15 through S21 own the accepted S14 through S16, S20, S22, S33, and S34 source contracts. |
-| 2 | Complete | `tests/lib/test-reporting.bash` implements the catalog, single recording path, private file-backed ledger, and ledger-derived human and machine projections. Its real shipped-library self-test passed 67/67 on Debian 13; syntax, warning-level and full ShellCheck, and `git diff --check` also passed. |
+| 2 | Complete | `tests/lib/test-reporting.bash` implements the catalog, single recording path, private file-backed ledger, and ledger-derived human and machine projections. Its real shipped-library self-test passed 78/78 on Debian 13, including the accepted suite-dimension matrix and rejected check-ID-to-STEP mutations; syntax, warning-level ShellCheck, and `git diff --check` also passed. |
 | 3 | Complete | All five producer suites use fixed catalogs and the shared reporter. Debian 13 runs closed all 487 identities: error handling closed 146 in non-root and root runs, local lifecycle passed 125/125, source regression passed 87/87, system infrastructure passed 36/36, and system lifecycle passed 93/93. The error-handling preflight probe closed one failure and 145 skips without entering setup. Real cleanup failures induced through isolated mount namespaces preserved the final `SUITE` record, emitted the cleanup error, and returned status 1 in both lifecycle suites. Formal findings F-codex_gpt5-001 and F-codex_gpt5-002 are resolved and accepted; `hand20260808_141524_codex_gpt5_supersedes_hand20260807_170938.md` records the final P003 handoff. |
-| 4 | Not started | P003 is complete; P004 requires separate implementation authorization. |
-| 5 | Not started | Depends on steps 2 through 4. |
-| 6 | Not started | Depends on reviewer acceptance. |
+| 4 | Complete | `tests/run-all-tests.bash` validates one final `SUITE` record per selected producer, checks suite identity, scope, runner, run-ID uniqueness, vector reconciliation, suite state against producer status, and selected-set completeness. The updated collector mutation probe passed 10/10, and the real source-regression dispatcher path passed 87/87 with `state=PASS` and the collector success banner. |
+| 5 | Complete | Reviewer 0 follow-up `fup20260808_233240` accepts F-codex_gpt5-003 through F-codex_gpt5-005. Reviewer 1 follow-up `fup20260810_115015` accepts F009 and F010 after remediation. Reviewer 2 report `rev20260810_120802` and Reviewer 3 report `rev20260810_120522` each report no blocking or nonblocking finding. All three independent review lanes are closed. |
+| 6 | Complete | `plan20260810_125403` places P006/V006 in scope and defines the two-host twelve-command matrix, four evidence paths, exact pass criteria, and Check-grade boundary. `auth20260810_125505` adopts the existing evidence without rerun. Each host emitted 612 TEST records, 165 STEP records, and six final `SUITE state=PASS` records; the normalized execution identities matched and the fixed catalog remained 487. Reviewer 1 `fup20260810_125825` resolved `F-reviewer1_state_coherence-003` with no blocking finding. |
+| 7 | Complete | `tests/README.md` and `tests/REPORTING_CONTRACT.md` define check kind and test method as independent axes while limiting direct inspection to the observed state or contract. The catalog remains 487 identities and retains 24 `BEHAVIOR/direct-inspection` rows. |
+| 8 | Complete | The shared reporter resolves suite state after requested status, check vector, integrity, workspace cleanup, and reporter-workspace cleanup. Its self-test passed 88/88, including clean `PASS`, requested-exit `FAIL`, and real reporter-workspace cleanup-failure paths. All five producers leave final status resolution to `report_finalize`. |
+| 9 | Complete | The collector requires `state=PASS|FAIL`, reconciles it with producer status and the failure vector, and rejects missing, malformed, or inconsistent state. The preflighted outer-producer probe passed all 10 vectors and the real source-regression dispatcher passed 87/87. |
+| 10 | Complete | Normal Debian 13 source paths emitted `state=PASS` for source regression 87/87, local lifecycle 125/125, system infrastructure 36/36, and system lifecycle 93/93. The error-handling producer closed all 146 identities with its known behavior failures and `state=FAIL`. Isolated local and system cleanup failures returned 1 and emitted final `state=FAIL` with 125/125 and 93/93 checks still PASS. `hand20260810_114052` records the complete execution evidence and returns the remediation to Reviewer 1. |
 
 #### Test Plan
 
@@ -1679,18 +1707,39 @@ Superseded Plan Artifacts: `plan20260803_133000_codex_gpt5.md`; proposed `plan20
 | T5 | Reviewer gate | Three reviewers inspect the implementation and the state mapping | Review session | No blocking finding remains on inventory, terminal states, or statistics |
 | T6 | Full re-verification | Run the whole suite set on both goldens under the new reporting | Both goldens | Every check has one state, every trailer is valid, and statistics derive from test-owned states |
 | T7 | P003 producer integration | Run all five shipped producer suites, the error-handling preflight probe, and both lifecycle cleanup-failure probes through the real paths | Debian 13, source and installed-conformance paths, root and non-root where applicable | All 487 producer identities close exactly once, both projections reconcile, and cleanup failure preserves reporter finalization while returning failure |
+| T8 | P005 suite execution state remediation | Run the shipped reporter, collector, and both real lifecycle cleanup-failure paths | Debian 13, source paths, root and non-root where applicable | Normal runs emit final `SUITE state=PASS`; cleanup failures return nonzero and emit final `SUITE state=FAIL` without changing the 487-check identity set |
 
 #### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | 2026-08-07T12:01:42-07:00 | Working tree, Debian 13 | Pass | Five suite inventories contain 487 unique IDs: error-handling 146, local-lifecycle 125, source-regression 87, system-infra 36, and system-lifecycle 93. The real error suite executed all 139 current assertions with 129 PASS, the same 10 FAIL outside moved S34, and zero script errors. The real source-regression suite passed 87 of 87, including all five S21 crash-exclusion source contracts. The prior real source local-lifecycle suite passed 109 of 109, including both S35 XDG fallback installs and the S30 real softIoc history-noise paths. The existing installed runner 1.2.1 passed both new S35 checks and finished 103 of 109; its six `_EXTRA` gate differences are outside S18 and are compatibility evidence, not current release installation verification. Syntax, source-regression ShellCheck, accepted-catalog counts and uniqueness, and `git diff --check` passed. Error-handling ShellCheck retained its pre-existing SC1090, SC2016, SC2030, SC2031, and SC2059 findings and was not a clean gate. |
-| T2 | 2026-08-08T01:19:38-07:00 | Working tree, Debian 13 x86_64 | Pass | `bash tests/lib/test-reporting-self-test.bash` executed the shipped shared library and passed 67/67. It covered all five states, independent catalog axes, complete human/machine agreement, final `SUITE` ordering, missing and duplicate states, missing reason, unknown and malformed identity, malformed and late catalog registration, invalid exit status, subshell persistence, `0600` ledger mode, unsafe directory rejection, caller-controlled `PATH`, and a concurrent duplicate race. `bash -n`, warning-level ShellCheck, and `git diff --check` passed for the current four-suite integration and both library files. |
-| T3 | — | — | pending | |
-| T4 | — | — | pending | |
-| T5 | — | — | pending | |
-| T6 | — | — | pending | |
+| T2 | 2026-08-10T11:34:55-07:00 | Working tree, Debian 13 x86_64 | Pass | `bash tests/lib/test-reporting-self-test.bash` executed the shipped shared library and passed 88/88. It covered all accepted suite dimensions; kind/method independence; clean, check-failure, requested-exit, integrity, and reporter-workspace cleanup-failure states; final record ordering; ledger cleanup; and fixed command resolution. `bash -n`, warning-level ShellCheck, and `git diff --check` passed for the maintained implementation. |
+| T3 | 2026-08-10T11:34:55-07:00 | Working tree and Debian 13 x86_64 | Pass | `sudo /bin/bash -p work/run-all-collector-probe.bash` drove the shipped collector through 10 preflighted outer-producer vectors; valid state passed and missing, invalid, duplicate, malformed, nonfinal, unexpected, and status-mismatch records failed as specified. `bash tests/run-all-tests.bash --source-regression` then ran the real producer through the collector, passed 87/87 with `state=PASS`, and printed `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` |
+| T4 | 2026-08-10T12:24:48-07:00 | Reused Debian 13 and Rocky 8 consumers, Check grade | Pass | Both hosts emitted the same 612 normalized execution identities across the six runbook blocks, representing the unchanged 487-check catalog with local lifecycle exercised in source and installed modes. Debian recorded all checks PASS. Rocky explicitly recorded three user-journal checks as SKIP in each local mode and four regex-policy checks as NA under its sudo glob policy; these ten state differences were the only cross-host differences. Every block vector reconciled. |
+| T5 | 2026-08-10T12:09:55-07:00 | Review session `rs20260803_130456` | Pass | Reviewer 1 `fup20260810_115015` accepts F009 and F010 with no blocking finding. Reviewer 2 `rev20260810_120802` accepts P007-P010 with no blocking or nonblocking finding after real reporter and local collector execution. Reviewer 3 `rev20260810_120522` accepts the M9/M8/M6 boundary and evidence scope with no blocking or nonblocking finding. |
+| T6 | 2026-08-10T12:24:48-07:00 | Reused Debian 13 and Rocky 8 consumers, Check grade | Pass | The shipped tree was copied with `gate/drivers/push.bash`; source and pushed `git status --porcelain` matched on both hosts. Full installation passed 9/9 on Debian and 10/10 on Rocky. All twelve real suite invocations returned 0. Each host emitted 612 TEST, 165 STEP, and six SUITE records; grammar, per-run uniqueness, terminal states, vectors, STEP ownership, final-record order, and `state=PASS` were validated with zero errors. Human summaries matched the machine vectors. Source and installed runner lines resolved to the intended binaries at commit `1893c6e-dirty`. Reused consumers make this P006 Check evidence only, not release Gate evidence. |
 | T7 | 2026-08-08 | Debian 13 x86_64, source and installed-conformance paths | Pass | All five shipped producers ran through their real paths. Error handling closed 146 identities in both runs: non-root recorded 136 PASS and 10 known behavior FAIL; root recorded 117 PASS, 7 known behavior FAIL, and 22 NA. Its unreadable-source preflight recorded 1 FAIL and 145 SKIP without entering setup. Local lifecycle passed 125/125, source regression passed 87/87, system infrastructure passed 36/36, and system lifecycle passed 93/93. Both isolated mount-namespace cleanup-failure probes emitted the cleanup error, retained the final `SUITE` record, and returned status 1. Formal follow-ups accepted both P003 findings after their real-path verification. |
+| T8 | 2026-08-10T11:34:55-07:00 | Debian 13 x86_64, source paths | Pass | The shipped reporter self-test passed 88/88 and the collector probe passed 10/10. Real normal paths emitted final `state=PASS`: source regression run `source-regression.3551812.3551812` passed 87/87; local lifecycle run `local-lifecycle.3621332.3621332` passed 125/125; system infrastructure run `system-infra.3633677.3633677` passed 36/36; system lifecycle run `system-lifecycle.3633798.3633798` passed 93/93. The error-handling producer closed its fixed 146 identities and emitted `state=FAIL` for known behavior failures. Mount-isolated cleanup failures returned 1 while preserving all-PASS check vectors: local run `local-lifecycle.3669370.3669370` emitted 125/125 with `state=FAIL`, and system run `system-lifecycle.3687355.3687355` emitted 93/93 with `state=FAIL`. The five catalog totals remain 146 + 125 + 87 + 36 + 93 = 487. |
+
+#### 2026-08-10 Durable Activity Record
+
+This tracked section preserves the M8 work performed on 2026-08-10 because
+`docs/review_sessions/` is excluded from Git by `.gitignore`. The referenced
+session artifact IDs provide local provenance; the facts required to resume
+the work are recorded here independently of those ignored files.
+
+| Area | Durable record |
+| --- | --- |
+| Owner decision | Preserve the fixed 487-check catalog and add final `SUITE state=<PASS\|FAIL>`. Cleanup and finalization failures are suite execution results rather than additional checks. The User later selected adoption of the existing P006 Check-grade evidence without rerunning the suites and explicitly authorized the authority repair. |
+| Implementation | P007-P010 completed kind/method reconciliation, post-cleanup suite-state finalization, collector state validation, and both real lifecycle cleanup-failure paths. The reporter result, human summary, final SUITE state, and process status now derive from the same finalized execution state. |
+| Debian verification | The shipped reporter self-test passed 88/88; the shipped collector probe passed 10/10; source regression passed 87/87; local lifecycle passed 125/125; system infrastructure passed 36/36; and system lifecycle passed 93/93. Mount-isolated cleanup failures returned 1 while preserving all-PASS check vectors and emitting final `SUITE state=FAIL` for local 125/125 and system 93/93. |
+| P006 matrix | Reused Debian 13 (`192.168.122.50`) and Rocky 8 (`192.168.122.150`) consumers each ran error handling, source regression, local lifecycle in source and installed modes, system infrastructure installed, and system lifecycle installed. All twelve process statuses were zero. Each host emitted 612 TEST, 165 STEP, and six final `SUITE state=PASS` records. The normalized execution identities matched exactly and represented the unchanged 487-check catalog. |
+| Cross-host states | Debian recorded all 612 execution identities as PASS. Rocky recorded 602 PASS, six SKIP from the three local S29 user-journal checks in both runner modes, and four NA from the system-infra S06 sudoers-policy branch. Those ten records were the only cross-host state differences. |
+| Evidence identity | The normalized execution-identity SHA-256 was `0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3` on both hosts. Debian `/tmp/m8-p006.log` and `.status` SHA-256 values were `9f1db70b9034f43e4b4346cb37b2b7b7a8ccbaa947acf6cbe0e26fc471bcd8ee` and `2c7199ce7ed8f91005630df7502c6292da5a62e0b24c4a9f56ca48163ca1c738`; Rocky values were `944374e563128a16fedac4721c70a746a118273a0bf957c2c4b8728161c682df` and `93f68f6800f77f0610b2e20d96dd2f5bc9965f1278ab984a08dd63eeafde6b0b`. |
+| Authority conflict | `plan20260810_021936` listed P006 as out of scope and prohibited beginning it while `auth20260810_121447` and `hand20260810_122448` claimed P006 authorization and completion. Reviewer 1 accepted the real evidence but opened blocking finding `F-reviewer1_state_coherence-003` against that inconsistent authority chain. |
+| Authority repair | `plan20260810_125403` superseded the conflicting plan and placed P006/V006 in scope with both hosts, the twelve-command matrix, four evidence paths, exact pass criteria, and the reused-consumer Check-grade boundary. `auth20260810_125505` recorded User approval; `hand20260810_125527` adopted the unchanged evidence without rerun; Reviewer 1 `fup20260810_125825` resolved F-003 with no blocking finding. Reviewer 2 `rev20260810_123926` and Reviewer 3 `rev20260810_123537` also accepted the execution and boundary evidence with no finding. |
+| Final boundary | P006 is Complete and T4/T6 are Pass at Check grade only. No fresh bake or release Gate claim was made, no suite was rerun for the authority repair, and no file under `gate/` changed. M8 remains In progress pending closure. |
 
 #### Closure Evidence
 

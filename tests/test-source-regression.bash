@@ -136,10 +136,6 @@ function _handle_exit {
     if (( REPORT_READY )); then
         report_finalize "${exit_code}" || final_status=1
     fi
-    if [[ -n "${REPORT_DIR}" && "${REPORT_DIR}" == /tmp/ioc-runner-source-report.* &&
-          -d "${REPORT_DIR}" && ! -L "${REPORT_DIR}" ]]; then
-        "${REPORT_RM_BIN:-/bin/rm}" -rf -- "${REPORT_DIR}" || final_status=1
-    fi
     exit "${final_status}"
 }
 trap _handle_exit EXIT

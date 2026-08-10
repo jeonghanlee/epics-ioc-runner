@@ -402,10 +402,6 @@ function _handle_exit {
     if (( REPORT_READY )); then
         report_finalize "${final_status}" || final_status=1
     fi
-    if [[ -n "${REPORT_DIR}" && "${REPORT_DIR}" == /tmp/ioc-runner-system-lifecycle-report.* &&
-          -d "${REPORT_DIR}" && ! -L "${REPORT_DIR}" ]]; then
-        "${REPORT_RM_BIN:-/bin/rm}" -rf -- "${REPORT_DIR}" || final_status=1
-    fi
     exit "${final_status}"
 }
 

@@ -50,11 +50,12 @@ The method identifies how a check obtains its evidence.
 The three axes remain independent: one suite may contain multiple test methods
 when all checks share one category and execution boundary. Different methods
 are recorded as separate checks or STEPs; they do not create a new suite or
-selector by themselves. A `BEHAVIOR` result requires real-path execution.
-Direct state inspection cannot establish behavior, and a hand-built
-reproduction cannot establish any verification result. Tests may redirect or
-mock only the outermost boundary; they must not replace an internal function or
-any other span of the product path under test.
+selector by themselves. A `BEHAVIOR` check may use either accepted method, but
+the method limits its claim. Real-path execution may establish runtime
+behavior; direct state inspection establishes only the state or contract it
+observes. A hand-built reproduction cannot establish any verification result.
+Tests may redirect or mock only the outermost boundary; they must not replace
+an internal function or any other span of the product path under test.
 
 ## Test Organization
 
@@ -148,6 +149,11 @@ ran.
 ### 1. Run Tests (Master Script - Recommended)
 The master script composes the two axes. Both flags are optional; the default is
 all permission modes against the source binary.
+
+Invoke the master script as the current non-root user. It invokes `sudo`
+internally for source-regression and system phases. Do not prefix the master
+command with `sudo`: a nested `sudo` invocation sets `SUDO_USER` to `root` and
+violates the source-regression invoking-user boundary.
 
 ```bash
 # Default: both modes, source binary.

@@ -144,6 +144,18 @@ function scenario_clean {
     report_finalize 0
 }
 
+function scenario_requested_exit_after_pass {
+    local workspace="$1"
+
+    # shellcheck source=tests/lib/test-reporting.bash
+    source "${REPORTER}"
+    report_init source-regression requested-exit system source debian-13 linux-x86_64 "${workspace}"
+    register_step_and_check source-regression.P00.requested-exit INTEGRITY direct-inspection \
+        "Completed check before suite execution failure"
+    report_record source-regression.P00.requested-exit PASS
+    report_finalize 7
+}
+
 function scenario_vector {
     local workspace="$1"
 
@@ -173,9 +185,72 @@ function scenario_independent_axes {
     report_init system-infra independent-axes system none debian-13 linux-x86_64 "${workspace}"
     report_register_step S01 "Independent catalog dimensions"
     report_register_check system-infra.S01.direct-state S01 installed-conformance \
-        BEHAVIOR direct-inspection "Directly observed installed state"
+        BEHAVIOR direct-inspection "Directly observed installed state only"
     report_close_catalog
     report_record system-infra.S01.direct-state PASS
+    report_finalize 0
+}
+
+function scenario_suite_dimension_matrix {
+    local workspace="$1"
+    local suite=""
+    local scope=""
+    local runner=""
+    local category=""
+    local specification=""
+    local scenario_workspace=""
+    local check_id=""
+    local index=0
+    local -a dimensions=(
+        "error-handling none source error-contract"
+        "local-lifecycle local source lifecycle-behavior"
+        "local-lifecycle local installed lifecycle-behavior"
+        "source-regression system source source-regression"
+        "system-infra system none installed-conformance"
+        "system-lifecycle system source lifecycle-behavior"
+        "system-lifecycle system installed lifecycle-behavior"
+    )
+
+    # shellcheck source=tests/lib/test-reporting.bash
+    source "${REPORTER}"
+    for specification in "${dimensions[@]}"; do
+        read -r suite scope runner category <<< "${specification}"
+        scenario_workspace="${workspace}/accepted-${index}"
+        check_id="${suite}.P00.dimension-${index}"
+        mkdir -m 0700 -- "${scenario_workspace}"
+        report_init "${suite}" "dimension-${index}" "${scope}" "${runner}" host unknown "${scenario_workspace}"
+        report_register_step P00 "Suite dimension matrix"
+        report_register_check "${check_id}" P00 "${category}" REQUIRED direct-inspection "Accepted suite dimensions"
+        report_close_catalog
+        report_record "${check_id}" PASS
+        report_finalize 0
+        index=$((index + 1))
+    done
+
+    if report_init error-handling invalid-error-dimensions system installed host unknown "${workspace}"; then
+        return 1
+    fi
+    if report_init system-infra invalid-infra-dimensions system source host unknown "${workspace}"; then
+        return 1
+    fi
+}
+
+function scenario_check_identity_step {
+    local workspace="$1"
+
+    # shellcheck source=tests/lib/test-reporting.bash
+    source "${REPORTER}"
+    report_init source-regression check-identity system source debian-13 linux-x86_64 "${workspace}"
+    report_register_step P00 "Check identity STEP"
+    report_register_check source-regression.S99.mismatch P00 source-regression REQUIRED direct-inspection \
+        "Mismatched STEP segment" || true
+    report_register_check source-regression.missing-step P00 source-regression REQUIRED direct-inspection \
+        "Missing STEP segment" || true
+    report_register_check source-regression.S0A.malformed P00 source-regression REQUIRED direct-inspection \
+        "Malformed STEP segment" || true
+    report_register_check source-regression.P00. P00 source-regression REQUIRED direct-inspection \
+        "Empty check key" || true
+    report_close_catalog || true
     report_finalize 0
 }
 
@@ -248,34 +323,53 @@ function scenario_malformed_catalog {
 
 function scenario_subshell_ledger {
     local workspace="$1"
+    local ledger_file=""
     local ledger_mode=""
 
     # shellcheck source=tests/lib/test-reporting.bash
     source "${REPORTER}"
     report_init source-regression subshell system source debian-13 linux-x86_64 "${workspace}"
     register_step_and_check source-regression.P00.subshell INTEGRITY direct-inspection "Subshell ledger state"
+    ledger_file="${REPORT_LEDGER_FILE}"
     ledger_mode=$(stat -c '%a' -- "${REPORT_LEDGER_FILE}")
     printf 'LEDGER_MODE=%s\n' "${ledger_mode}"
     (report_record source-regression.P00.subshell PASS)
     report_finalize 0
-    if [[ -f "${REPORT_LEDGER_FILE}" ]]; then
-        printf '%s\n' "LEDGER_PERSISTED=true"
+    if [[ ! -e "${ledger_file}" && ! -e "${workspace}" ]]; then
+        printf '%s\n' "REPORTER_WORKSPACE_REMOVED=true"
     else
         return 1
     fi
+}
+
+function scenario_reporter_cleanup_failure {
+    local workspace="$1"
+    local cleanup_blocker="${workspace}/cleanup-blocker"
+
+    # shellcheck source=tests/lib/test-reporting.bash
+    source "${REPORTER}"
+    report_init source-regression cleanup-failure system source debian-13 linux-x86_64 "${workspace}"
+    register_step_and_check source-regression.P00.cleanup-failure INTEGRITY direct-inspection \
+        "Completed check before reporter workspace cleanup"
+    report_record source-regression.P00.cleanup-failure PASS
+    printf '%s\n' "outer filesystem cleanup blocker" > "${cleanup_blocker}"
+    report_finalize 0
 }
 
 function scenario_fixed_command_path {
     local workspace="$1"
     local original_path="${PATH}"
     local empty_path="${workspace}/empty-path"
+    local report_workspace="${workspace}/report"
     local actual_status=0
 
     mkdir -p -- "${empty_path}"
+    mkdir -m 0700 -- "${report_workspace}"
     # shellcheck source=tests/lib/test-reporting.bash
     source "${REPORTER}"
     PATH="${empty_path}"
-    report_init source-regression fixed-path system source debian-13 linux-x86_64 "${workspace}" || actual_status=$?
+    report_init source-regression fixed-path system source debian-13 linux-x86_64 \
+        "${report_workspace}" || actual_status=$?
     if (( actual_status == 0 )); then
         register_step_and_check source-regression.P00.fixed-path INTEGRITY direct-inspection "Fixed command path"
         report_record source-regression.P00.fixed-path FAIL "encoded through fixed path"
@@ -382,8 +476,11 @@ function run_scenario {
     mkdir -m 0700 -- "${scenario_workspace}"
     case "${name}" in
         clean) scenario_clean "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
+        requested-exit) scenario_requested_exit_after_pass "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         vector) scenario_vector "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         independent-axes) scenario_independent_axes "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
+        dimension-matrix) scenario_suite_dimension_matrix "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
+        check-identity) scenario_check_identity_step "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         missing) scenario_missing_state "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         abort) scenario_abort "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         duplicate) scenario_duplicate_state "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
@@ -391,6 +488,7 @@ function run_scenario {
         reason) scenario_missing_reason "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         malformed) scenario_malformed_catalog "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         subshell) scenario_subshell_ledger "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
+        cleanup-failure) scenario_reporter_cleanup_failure "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         fixed-path) scenario_fixed_command_path "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         invalid-exit) scenario_invalid_exit "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
         duplicate-catalog) scenario_duplicate_catalog "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
@@ -432,10 +530,16 @@ SELF_TEST_WORKSPACE=$(mktemp -d "${SELF_TEST_PARENT}/ioc-runner-report-self-test
 
 run_scenario clean 0
 expect_contains "${SELF_TEST_WORKSPACE}/clean.out" "Total Assertions     : 1" "clean: human total"
+expect_contains "${SELF_TEST_WORKSPACE}/clean.out" "Suite State          : PASS" "clean: human suite state"
 expect_contains "${SELF_TEST_WORKSPACE}/clean.out" "STEP suite=source-regression run=clean step=S01 pass=0 fail=0 skip=0 na=0 err=0" "clean: zero-check STEP"
-expect_contains "${SELF_TEST_WORKSPACE}/clean.out" "SUITE suite=source-regression run=clean scope=system runner=source os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0" "clean: final suite vector"
+expect_contains "${SELF_TEST_WORKSPACE}/clean.out" "SUITE suite=source-regression run=clean scope=system runner=source os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0 state=PASS" "clean: final suite vector"
 expect_count "${SELF_TEST_WORKSPACE}/clean.out" '^SUITE ' 1 "clean: one SUITE record"
-expect_last_line "${SELF_TEST_WORKSPACE}/clean.out" "SUITE suite=source-regression run=clean scope=system runner=source os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0" "clean: SUITE is the final reporter record"
+expect_last_line "${SELF_TEST_WORKSPACE}/clean.out" "SUITE suite=source-regression run=clean scope=system runner=source os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0 state=PASS" "clean: SUITE is the final reporter record"
+
+run_scenario requested-exit 1
+expect_contains "${SELF_TEST_WORKSPACE}/requested-exit.out" "Passed               : 1" "requested-exit: check vector remains PASS"
+expect_contains "${SELF_TEST_WORKSPACE}/requested-exit.out" "Suite State          : FAIL" "requested-exit: human suite state is FAIL"
+expect_last_line "${SELF_TEST_WORKSPACE}/requested-exit.out" "SUITE suite=source-regression run=requested-exit scope=system runner=source os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0 state=FAIL" "requested-exit: final state matches return status"
 
 run_scenario vector 1
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "Total Assertions     : 5" "vector: human total"
@@ -444,6 +548,7 @@ expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "Failed               : 1" "
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "Skipped              : 1" "vector: human skip count"
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "Not applicable       : 1" "vector: human NA count"
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "Script Errors        : 1" "vector: human script-error count"
+expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "Suite State          : FAIL" "vector: human suite state"
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "source-regression.P00.skip [PREREQUISITE/direct-inspection] SKIP: missing tool" "vector: human projection fields"
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "category=source-regression kind=PREREQUISITE method=direct-inspection state=SKIP reason_b64=bWlzc2luZyB0b29s" "vector: machine projection fields"
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "source-regression.P00.fail [REQUIRED/direct-inspection] FAIL: expected failure" "vector: FAIL human projection"
@@ -452,11 +557,34 @@ expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "source-regression.P00.na [A
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "kind=APPLICABILITY method=direct-inspection state=NA reason_b64=bm90IGFwcGxpY2FibGU" "vector: NA machine projection"
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "source-regression.P00.error [INTEGRITY/direct-inspection] SCRIPT_ERROR: explicit script error" "vector: SCRIPT_ERROR human projection"
 expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "kind=INTEGRITY method=direct-inspection state=SCRIPT_ERROR reason_b64=ZXhwbGljaXQgc2NyaXB0IGVycm9y" "vector: SCRIPT_ERROR machine projection"
-expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "SUITE suite=source-regression run=vector scope=system runner=source os=rocky-8 arch=linux-x86_64 total=5 pass=1 fail=1 skip=1 na=1 err=1" "vector: projections share complete vector"
+expect_contains "${SELF_TEST_WORKSPACE}/vector.out" "SUITE suite=source-regression run=vector scope=system runner=source os=rocky-8 arch=linux-x86_64 total=5 pass=1 fail=1 skip=1 na=1 err=1 state=FAIL" "vector: projections share complete vector"
 
 run_scenario independent-axes 0
-expect_contains "${SELF_TEST_WORKSPACE}/independent-axes.out" "kind=BEHAVIOR method=direct-inspection state=PASS" "independent-axes: accepted catalog combination"
-expect_contains "${SELF_TEST_WORKSPACE}/independent-axes.out" "SUITE suite=system-infra run=independent-axes scope=system runner=none os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0" "independent-axes: complete suite vector"
+expect_contains "${SELF_TEST_WORKSPACE}/independent-axes.out" "kind=BEHAVIOR method=direct-inspection state=PASS" "independent-axes: state-only BEHAVIOR claim accepted"
+expect_contains "${SELF_TEST_WORKSPACE}/independent-axes.out" "SUITE suite=system-infra run=independent-axes scope=system runner=none os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0 state=PASS" "independent-axes: complete suite vector"
+
+run_scenario dimension-matrix 0
+expect_count "${SELF_TEST_WORKSPACE}/dimension-matrix.out" '^SUITE ' 7 "dimension-matrix: all accepted combinations finalize"
+expect_contains "${SELF_TEST_WORKSPACE}/dimension-matrix.out" \
+    "unsupported scope/runner combination for error-handling: scope=system runner=installed" \
+    "dimension-matrix: invalid error-handling combination rejected"
+expect_contains "${SELF_TEST_WORKSPACE}/dimension-matrix.out" \
+    "unsupported scope/runner combination for system-infra: scope=system runner=source" \
+    "dimension-matrix: invalid system-infra combination rejected"
+
+run_scenario check-identity 1
+expect_count "${SELF_TEST_WORKSPACE}/check-identity.out" 'invalid check identity:' 4 \
+    "check-identity: every malformed identity rejected"
+expect_contains "${SELF_TEST_WORKSPACE}/check-identity.out" "source-regression.S99.mismatch" \
+    "check-identity: mismatched STEP segment rejected"
+expect_contains "${SELF_TEST_WORKSPACE}/check-identity.out" "source-regression.missing-step" \
+    "check-identity: missing STEP segment rejected"
+expect_contains "${SELF_TEST_WORKSPACE}/check-identity.out" "source-regression.S0A.malformed" \
+    "check-identity: malformed STEP segment rejected"
+expect_contains "${SELF_TEST_WORKSPACE}/check-identity.out" "source-regression.P00." \
+    "check-identity: empty check key rejected"
+expect_not_contains "${SELF_TEST_WORKSPACE}/check-identity.out" "SUITE suite=" \
+    "check-identity: invalid catalog has no SUITE record"
 
 run_scenario missing 1
 expect_contains "${SELF_TEST_WORKSPACE}/missing.out" "state=SCRIPT_ERROR" "missing: unclosed check becomes SCRIPT_ERROR"
@@ -484,7 +612,12 @@ expect_not_contains "${SELF_TEST_WORKSPACE}/malformed.out" "SUITE suite=" "catal
 run_scenario subshell 0
 expect_contains "${SELF_TEST_WORKSPACE}/subshell.out" "LEDGER_MODE=600" "subshell: ledger has owner-only permissions"
 expect_contains "${SELF_TEST_WORKSPACE}/subshell.out" "state=PASS" "subshell: child event reaches parent finalizer"
-expect_contains "${SELF_TEST_WORKSPACE}/subshell.out" "LEDGER_PERSISTED=true" "subshell: ledger persists through finalization"
+expect_contains "${SELF_TEST_WORKSPACE}/subshell.out" "REPORTER_WORKSPACE_REMOVED=true" "subshell: reporter workspace removed before return"
+
+run_scenario cleanup-failure 1
+expect_contains "${SELF_TEST_WORKSPACE}/cleanup-failure.out" "failed to remove reporter workspace" "cleanup-failure: cleanup error reported"
+expect_contains "${SELF_TEST_WORKSPACE}/cleanup-failure.out" "Suite State          : FAIL" "cleanup-failure: human suite state is FAIL"
+expect_last_line "${SELF_TEST_WORKSPACE}/cleanup-failure.out" "SUITE suite=source-regression run=cleanup-failure scope=system runner=source os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0 state=FAIL" "cleanup-failure: final state matches return status"
 
 run_scenario fixed-path 1
 expect_contains "${SELF_TEST_WORKSPACE}/fixed-path.out" "encoded through fixed path" "fixed-path: reporter ignores caller PATH for helpers"

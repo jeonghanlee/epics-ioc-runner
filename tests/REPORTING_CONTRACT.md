@@ -92,8 +92,9 @@ Each suite follows one ordered lifecycle:
 2. Evaluate declared applicability and prerequisite checks.
 3. Execute each permitted check through the real shipped path.
 4. Close every declared check exactly once in catalog order.
-5. Emit and reconcile every STEP record.
-6. Emit exactly one final SUITE record and exit with the resulting status.
+5. Complete every producer cleanup action that can change suite status.
+6. Resolve the ledger, clean the reporter workspace, emit the projections,
+   and exit with the status represented by the final SUITE record.
 
 No check is created after execution begins. A missing prerequisite or an
 inapplicable boundary closes only already-declared checks according to the
@@ -149,10 +150,13 @@ added.
 | `REQUIRED` | A condition required for a supported run or a required shipped artifact | `PASS`, `FAIL` |
 | `PREREQUISITE` | A facility needed by a check group but allowed to be unavailable | `PASS`, `SKIP` |
 | `APPLICABILITY` | A declared OS, permission, policy, or runner boundary | `PASS`, `NA` |
-| `BEHAVIOR` | A functional assertion against the real shipped path | `PASS`, `FAIL`, `SKIP`, `NA` |
+| `BEHAVIOR` | An expected product condition whose evidence claim is bounded by `test_method` | `PASS`, `FAIL`, `SKIP`, `NA` |
 | `INTEGRITY` | Reporter, ledger, and execution-completeness validation | `PASS`, `FAIL`, `SCRIPT_ERROR` |
 
-`check_kind` is catalog metadata. It does not add another result state.
+`check_kind` is catalog metadata. It does not add another result state or
+override the evidence limit imposed by `test_method`. A
+`BEHAVIOR/direct-inspection` row can establish a directly observed product
+state or contract, but it cannot establish runtime behavior.
 
 The normal terminal states assume that governing applicability and prerequisite
 checks permit the check group to run. If a governing applicability check closes
@@ -234,7 +238,7 @@ Record type and field order are fixed:
 ```text
 TEST suite=<suite> run=<run_id> step=<step_id> id=<check_id> category=<category> kind=<check_kind> method=<test_method> state=<PASS|FAIL|SKIP|NA|SCRIPT_ERROR> reason_b64=<reason>
 STEP suite=<suite> run=<run_id> step=<step_id> pass=<n> fail=<n> skip=<n> na=<n> err=<n>
-SUITE suite=<suite> run=<run_id> scope=<scope> runner=<runner> os=<os_id> arch=<arch_id> total=<n> pass=<n> fail=<n> skip=<n> na=<n> err=<n>
+SUITE suite=<suite> run=<run_id> scope=<scope> runner=<runner> os=<os_id> arch=<arch_id> total=<n> pass=<n> fail=<n> skip=<n> na=<n> err=<n> state=<PASS|FAIL>
 ```
 
 Identifier and scalar values contain no spaces and match
@@ -271,13 +275,16 @@ ends registration before any result event. `report_record` is the only path
 for a test-owned terminal state; `PASS` carries no reason and every other
 state requires one non-empty, single-line reason.
 
-The caller supplies a real directory for the private file-backed ledger and
-owns that directory's eventual cleanup. The directory must be owned by the
-current effective user, must not be a symbolic link, and must not be writable
-by group or other users. The reporter creates the ledger with an unpredictable
-name, verifies its ownership and `0600` mode, and leaves it available through
-finalization. This preserves events from subshell execution without allowing
-the reporter to infer a state from human output or independent counters.
+The caller supplies a dedicated real directory for the private file-backed
+ledger. The directory must be owned by the current effective user, must not be
+a symbolic link, must not be writable by group or other users, and must remain
+otherwise empty. The reporter creates the ledger with an unpredictable name,
+verifies its ownership and `0600` mode, retains it while checks execute, then
+removes the ledger and its empty directory during finalization. A cleanup
+failure produces suite state `FAIL`; the reporter does not recursively remove
+unexpected directory contents. This preserves events from subshell execution
+without allowing the reporter to infer a state from human output or
+independent counters.
 
 The reporter resolves its required helper commands through a fixed system
 search path without changing the caller's `PATH`. Each root-run producer suite
@@ -286,10 +293,11 @@ producer integration rather than by the shared library.
 
 `report_finalize` preserves completed states, turns every unclosed declared
 check into `SCRIPT_ERROR`, validates the ledger, calculates one complete
-vector, and emits both projections. A recoverable event defect tied to a known
-check resolves that check to `SCRIPT_ERROR`. An unknown identity or invalid
-catalog prevents a valid projection, exits nonzero, and emits no `SUITE`
-record for a consumer to mistake as complete.
+vector, cleans the reporter workspace, derives the final suite state, and
+emits both projections. A recoverable event defect tied to a known check
+resolves that check to `SCRIPT_ERROR`. An unknown identity or invalid catalog
+prevents a valid projection, exits nonzero, and emits no `SUITE` record for a
+consumer to mistake as complete.
 
 ## Invariants
 
@@ -298,6 +306,12 @@ Every completed suite result satisfies:
 ```text
 Total = PASS + FAIL + SKIP + NA + SCRIPT_ERROR
 ```
+
+The final suite state is `PASS` only when the requested exit status is zero,
+the check vector contains no `FAIL` or `SCRIPT_ERROR`, reporter integrity is
+valid, and producer and reporter workspace cleanup succeeded. Every other
+completed projection uses suite state `FAIL`, and `report_finalize` returns
+nonzero.
 
 The following conditions invalidate a result and produce a nonzero suite exit:
 
@@ -308,6 +322,7 @@ The following conditions invalidate a result and produce a nonzero suite exit:
 - duplicate or missing STEP record;
 - STEP vectors that do not reconcile with the suite vector;
 - duplicate, missing, or non-final SUITE record;
+- SUITE state that disagrees with the process status or check vector;
 - different catalog identity sets across supported environments.
 
 ## Human And Machine Projections
@@ -318,14 +333,15 @@ machine-readable `TEST`, `STEP`, and `SUITE` records are generated from that
 ledger. Neither projection maintains independent counters or infers a state
 that is absent from the ledger.
 
-The human summary carries the complete state vector and names every non-PASS
-check with its identity, check kind, test method, state, and reason. Category
-and description remain catalog context and are not repeated in the human
-exception list.
+The human summary carries the complete state vector and final suite state, and
+names every non-PASS check with its identity, check kind, test method, state,
+and reason. Category and description remain catalog context and are not
+repeated in the human exception list.
 
 The machine-readable `TEST` record carries suite, run, STEP, check identity,
 category, check kind, test method, state, and encoded reason in the fixed
-grammar above. `STEP` and `SUITE` carry the corresponding complete vectors.
+grammar above. `STEP` and `SUITE` carry the corresponding complete vectors,
+and `SUITE` also carries the final suite execution state.
 
 Projection agreement compares the complete vector and the common check fields:
 identity, check kind, test method, state, and reason. Machine-only routing
@@ -338,3 +354,10 @@ The test suites and shared reporter own the catalog, recording path, ledger,
 and both output projections. Gate consumption is separate and reads only the
 machine-readable records after M8 implements this producer contract; it does
 not infer states from human-readable prose.
+
+`run-all-tests.bash` collects the final record together with the producer exit
+status. It accepts `state=PASS` only with producer status zero and no `FAIL` or
+`SCRIPT_ERROR` count. It accepts `state=FAIL` only with a nonzero producer
+status. An all-PASS check vector may therefore carry suite state `FAIL` when
+producer or reporter cleanup failed, while the fixed check identities remain
+unchanged.

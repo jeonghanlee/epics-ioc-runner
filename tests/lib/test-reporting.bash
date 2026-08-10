@@ -15,9 +15,11 @@ declare -g REPORT_RUNNER=""
 declare -g REPORT_OS=""
 declare -g REPORT_ARCH=""
 declare -g REPORT_LEDGER_FILE=""
+declare -g REPORT_LEDGER_DIR=""
 declare -g REPORT_BASE64_BIN=""
 declare -g REPORT_MKTEMP_BIN=""
 declare -g REPORT_RM_BIN=""
+declare -g REPORT_RMDIR_BIN=""
 declare -g REPORT_STAT_BIN=""
 declare -g REPORT_FINAL_STATUS=1
 declare -g -a REPORT_STEP_IDS=()
@@ -120,6 +122,23 @@ function _report_expected_category {
     esac
 }
 
+function _report_suite_dimensions_are_valid {
+    local suite="$1"
+    local scope="$2"
+    local runner="$3"
+
+    case "${suite}:${scope}:${runner}" in
+        error-handling:none:source) return 0 ;;
+        local-lifecycle:local:source) return 0 ;;
+        local-lifecycle:local:installed) return 0 ;;
+        source-regression:system:source) return 0 ;;
+        system-infra:system:none) return 0 ;;
+        system-lifecycle:system:source) return 0 ;;
+        system-lifecycle:system:installed) return 0 ;;
+    esac
+    return 1
+}
+
 function report_init {
     local suite="$1"
     local run_id="$2"
@@ -145,6 +164,7 @@ function report_init {
     REPORT_CATALOG_VALID=1
     REPORT_FINAL_STATUS=1
     REPORT_LEDGER_FILE=""
+    REPORT_LEDGER_DIR=""
     REPORT_STEP_IDS=()
     REPORT_CHECK_IDS=()
     REPORT_STEP_SEEN=()
@@ -159,6 +179,7 @@ function report_init {
     REPORT_BASE64_BIN=$(PATH="${system_path}" command -v base64 || true)
     REPORT_MKTEMP_BIN=$(PATH="${system_path}" command -v mktemp || true)
     REPORT_RM_BIN=$(PATH="${system_path}" command -v rm || true)
+    REPORT_RMDIR_BIN=$(PATH="${system_path}" command -v rmdir || true)
     REPORT_STAT_BIN=$(PATH="${system_path}" command -v stat || true)
     if [[ -z "${REPORT_BASE64_BIN}" || ! -x "${REPORT_BASE64_BIN}" ]]; then
         printf '%s\n' "REPORTING ERROR: base64 is unavailable or not executable" >&2
@@ -170,6 +191,10 @@ function report_init {
     fi
     if [[ -z "${REPORT_RM_BIN}" || ! -x "${REPORT_RM_BIN}" ]]; then
         printf '%s\n' "REPORTING ERROR: rm is unavailable or not executable" >&2
+        return 1
+    fi
+    if [[ -z "${REPORT_RMDIR_BIN}" || ! -x "${REPORT_RMDIR_BIN}" ]]; then
+        printf '%s\n' "REPORTING ERROR: rmdir is unavailable or not executable" >&2
         return 1
     fi
     if [[ -z "${REPORT_STAT_BIN}" || ! -x "${REPORT_STAT_BIN}" ]]; then
@@ -192,6 +217,11 @@ function report_init {
         source|installed|none) ;;
         *) printf 'REPORTING ERROR: unsupported runner: %s\n' "${runner}" >&2; return 1 ;;
     esac
+    if ! _report_suite_dimensions_are_valid "${suite}" "${scope}" "${runner}"; then
+        printf 'REPORTING ERROR: unsupported scope/runner combination for %s: scope=%s runner=%s\n' \
+            "${suite}" "${scope}" "${runner}" >&2
+        return 1
+    fi
     if [[ ! -d "${ledger_dir}" || -L "${ledger_dir}" ]]; then
         printf 'REPORTING ERROR: ledger directory is unavailable or symbolic: %s\n' "${ledger_dir}" >&2
         return 1
@@ -230,6 +260,7 @@ function report_init {
     REPORT_RUNNER="${runner}"
     REPORT_OS="${os_id}"
     REPORT_ARCH="${arch_id}"
+    REPORT_LEDGER_DIR="${ledger_dir}"
     REPORT_INITIALIZED=1
     : "${expected_category}"
 }
@@ -268,6 +299,7 @@ function report_register_check {
     local check_kind="$4"
     local test_method="$5"
     local description="$6"
+    local check_id_prefix=""
     local expected_category=""
 
     _report_require_lifetime "report_register_check" || return 1
@@ -279,7 +311,8 @@ function report_register_check {
         _report_append_error "catalog-unknown-step" "${check_id}" "check uses undeclared STEP ${step_id}: ${check_id}"
         return 1
     fi
-    if ! _report_scalar_is_valid "${check_id}" || [[ "${check_id}" != "${REPORT_SUITE}."* ]]; then
+    check_id_prefix="${REPORT_SUITE}.${step_id}."
+    if ! _report_scalar_is_valid "${check_id}" || [[ "${check_id}" != "${check_id_prefix}"?* ]]; then
         _report_append_error "catalog-check-id" "${check_id:-'-'}" "invalid check identity: ${check_id:-<empty>}"
         return 1
     fi
@@ -383,6 +416,31 @@ function report_record {
     printf 'STATE\t%s\t%s\t%s\n' "${check_id}" "${state}" "${reason_b64}" >> "${REPORT_LEDGER_FILE}"
 }
 
+function _report_cleanup_workspace {
+    local cleanup_status=0
+    local ledger_dir="${REPORT_LEDGER_DIR}"
+    local ledger_file="${REPORT_LEDGER_FILE}"
+
+    if [[ -z "${ledger_dir}" || -z "${ledger_file}" ||
+          ! -d "${ledger_dir}" || -L "${ledger_dir}" ]]; then
+        printf 'REPORTING ERROR: reporter workspace is unavailable or symbolic: %s\n' \
+            "${ledger_dir:-<empty>}" >&2
+        cleanup_status=1
+    elif ! "${REPORT_RM_BIN}" -f -- "${ledger_file}" 2>/dev/null ||
+         [[ -e "${ledger_file}" || -L "${ledger_file}" ]]; then
+        printf 'REPORTING ERROR: failed to remove reporter ledger: %s\n' "${ledger_file}" >&2
+        cleanup_status=1
+    elif ! "${REPORT_RMDIR_BIN}" -- "${ledger_dir}" 2>/dev/null ||
+         [[ -e "${ledger_dir}" || -L "${ledger_dir}" ]]; then
+        printf 'REPORTING ERROR: failed to remove reporter workspace: %s\n' "${ledger_dir}" >&2
+        cleanup_status=1
+    fi
+
+    REPORT_LEDGER_FILE=""
+    REPORT_LEDGER_DIR=""
+    return "${cleanup_status}"
+}
+
 function report_finalize {
     local requested_exit="${1:-0}"
     local record_type=""
@@ -405,6 +463,8 @@ function report_finalize {
     local error_count=0
     local integrity_error=0
     local invalid_projection=0
+    local cleanup_error=0
+    local suite_state="FAIL"
     local -a integrity_details=()
     local -A resolved_state=()
     local -A resolved_reason=()
@@ -427,6 +487,7 @@ function report_finalize {
         REPORT_FINALIZED=1
         REPORT_FINAL_STATUS=1
         printf 'REPORTING ERROR: invalid suite exit status: %s\n' "${requested_exit}" >&2
+        _report_cleanup_workspace || true
         return 1
     fi
     requested_exit=$((10#${requested_exit}))
@@ -550,6 +611,10 @@ function report_finalize {
         esac
     done < "${REPORT_LEDGER_FILE}"
 
+    if ! _report_cleanup_workspace; then
+        cleanup_error=1
+    fi
+
     for check_id in "${REPORT_CHECK_IDS[@]}"; do
         if [[ "${resolved_state[${check_id}]}" == "OPEN" ]]; then
             resolved_state["${check_id}"]="SCRIPT_ERROR"
@@ -593,6 +658,14 @@ function report_finalize {
         return 1
     fi
 
+    REPORT_FINAL_STATUS=0
+    if (( requested_exit != 0 || fail_count > 0 || error_count > 0 || integrity_error || cleanup_error )); then
+        REPORT_FINAL_STATUS=1
+    fi
+    if (( REPORT_FINAL_STATUS == 0 )); then
+        suite_state="PASS"
+    fi
+
     printf '%s\n' "===================================================================================================="
     printf '%s\n' "${REPORT_SUITE} TEST SUMMARY"
     printf '%s\n' "===================================================================================================="
@@ -602,6 +675,7 @@ function report_finalize {
     printf '  %-20s : %d\n' "Skipped" "${skip_count}"
     printf '  %-20s : %d\n' "Not applicable" "${na_count}"
     printf '  %-20s : %d\n' "Script Errors" "${error_count}"
+    printf '  %-20s : %s\n' "Suite State" "${suite_state}"
     if (( fail_count + skip_count + na_count + error_count > 0 )); then
         printf '%s\n' ""
         printf '%s\n' "--- [ NON-PASS CHECKS ] ---"
@@ -642,7 +716,7 @@ function report_finalize {
             "${step_na[${step_id}]}" \
             "${step_error[${step_id}]}"
     done
-    printf 'SUITE suite=%s run=%s scope=%s runner=%s os=%s arch=%s total=%d pass=%d fail=%d skip=%d na=%d err=%d\n' \
+    printf 'SUITE suite=%s run=%s scope=%s runner=%s os=%s arch=%s total=%d pass=%d fail=%d skip=%d na=%d err=%d state=%s\n' \
         "${REPORT_SUITE}" \
         "${REPORT_RUN_ID}" \
         "${REPORT_SCOPE}" \
@@ -654,11 +728,8 @@ function report_finalize {
         "${fail_count}" \
         "${skip_count}" \
         "${na_count}" \
-        "${error_count}"
+        "${error_count}" \
+        "${suite_state}"
 
-    REPORT_FINAL_STATUS=0
-    if (( requested_exit != 0 || fail_count > 0 || error_count > 0 || integrity_error )); then
-        REPORT_FINAL_STATUS=1
-    fi
     return "${REPORT_FINAL_STATUS}"
 }
