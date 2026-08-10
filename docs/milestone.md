@@ -6,8 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: run M7's T1 (debian13, both modes) and T2 (rocky8)
-in one golden-VM pass under the skip-aware verdict. M7 stays In
+Next session entry point: implement M5 step 7a's shipped suite driver, then run
+M7's T1 (debian13, both modes) and T2 (rocky8) through it in one golden-VM
+pass under the skip-aware verdict. M7 stays In
 progress meanwhile:
 its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
 passed 96 of 96 with all fourteen M19 assertions running (evidence in the M7
@@ -45,7 +46,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | No | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
-| M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
+| M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The scenario drivers fix the identities and verdicts, the suite driver owns the exact six-run capture and verdict path required by finding 7, and an independent operator drives both surfaces on both goldens from the runbook and shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Complete | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
@@ -616,6 +617,11 @@ are the evidence for the whole scope below.
 - The runbook's scenario section reduces to the invocations, the verdicts, and
   the traps. The fragments it currently carries are removed as the drivers
   absorb them.
+- Finding 7's suite path becomes one shipped control-side driver. It owns the
+  exact six invocations, remote log truncation and append order, per-run elapsed
+  records, machine-record verdict, and normalized two-host comparison. The
+  runbook keeps only its inputs, invocation, expected output, and evidence
+  schema.
 - The nineteen findings the two blind runs returned are all resolved here.
   Seven are resolved by the drivers existing at all; twelve are text corrections
   that stand on their own. The split was first written as six and thirteen, from
@@ -659,6 +665,9 @@ cycle and which therefore does not move into `gate/`.
   the same command on the control host, with nothing removed by hand.
 - All nineteen findings above are resolved, each traceable to the driver or the
   text edit that resolves it.
+- The suite driver emits exactly six run-status records per host, preserves all
+  six machine-record blocks in one host log, applies the canonical verdict, and
+  enumerates the normalized cross-host state differences.
 - An independent operator, given the runbook and the shipped drivers and
   nothing else, drives all fourteen scenarios on both goldens.
 
@@ -674,6 +683,9 @@ cycle and which therefore does not move into `gate/`.
   the EPICS environment path, the `script` closing message and whether it ends
   with a newline, the timeout exit code, and whether the login shell prints a
   banner and locale warnings.
+- Owner decision, 2026-08-10: resolve finding 7 with the shipped suite-driver
+  form selected after the standalone second-person runbook review. This is the
+  existing finding's missing implementation step, not a new gate surface.
 
 #### Implementation Plan
 
@@ -791,6 +803,15 @@ Superseded Plan Artifacts: none
    logrotate is present on both goldens and the user PATH differs, which is the
    root M7 now owns. The three places the document read "one golden" anonymously
    are named from the same measurements.
+7a. Implement finding 7 as one shipped control-side suite driver. The driver
+   takes both host and resolved EPICS environment pairs as inputs; runs error
+   handling, source regression, local lifecycle source, local lifecycle
+   installed, system infrastructure, and system lifecycle installed in that
+   order on each host; writes one remote log per host by truncating once and
+   appending five times; records six elapsed results per host; applies the
+   canonical machine-record verdict to each host; and emits the normalized
+   two-host comparison. Reduce the runbook's suite section to the driver's
+   inputs, invocation, expected output, and evidence schema. Pending.
 8. Restore the goldens' ownership, bake both, create fresh consumers, and
    record the golden acceptance before anything touches them. Both blind runs
    of 2026-08-01 failed the acceptance on a consumer a prior run had already
@@ -830,6 +851,7 @@ re-drive is the condition this milestone exists to end.
 | T3 | Finding traceability | Walk the nineteen findings against the landed drivers and text | Working tree | Each finding names the driver line or the text edit that resolves it; none is closed by assertion |
 | T4 | Blind execution | Hand an independent agent the runbook and the shipped drivers, with no access to this conversation, and have it run the scenario step on both goldens | Both goldens | The operator completes all fourteen scenarios on each golden without writing a driver of its own |
 | T5 | Push-driver agreement | Push the tree with the push driver, then run `git status --porcelain` on the pushed tree and on the control host and compare, and compare the driver's exclusion set against `git ls-files --others --ignored --exclude-standard --directory` at the source | One golden, then both at the step 9 gate | The two `git status --porcelain` outputs are identical, the exclusion sets match, and finding 1's one-sided `?? .claude/` does not reappear |
+| T6 | Suite-driver execution | Run the shipped suite driver on both goldens and compare its host logs, run-status records, verdicts, and normalized cross-host output with the six direct shipped-suite paths | Both goldens | Each host records six successful suite invocations, 612 TEST and 165 STEP records, six final PASS SUITE records, the canonical verdict for its state vector, and the complete normalized cross-host difference set |
 
 #### Verification Results
 
@@ -840,6 +862,7 @@ re-drive is the condition this milestone exists to end.
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
 | T5 | — | — | pending | |
+| T6 | — | — | pending | |
 
 #### Closure Evidence
 
@@ -855,6 +878,7 @@ Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-06
+Observed Body: stale after the 2026-08-10 finding 7 plan amendment; projection requires separate issue authority
 
 ### M6 - The suite verdict cannot see a skip
 
