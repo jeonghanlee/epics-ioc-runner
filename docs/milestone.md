@@ -6,13 +6,8 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: continue M6 (#135) at T1. The machine-record verdict
-is implemented in both `gate/RUNBOOK.md` locations and the copies pass T2's
-exact-text check. Run the real suite commands named by the runbook on debian13
-and rocky8, capture fresh logs, apply the verdict to both logs, and run the
-normalized TEST/STEP comparison. After
-M6, one golden-VM run drives M7's T1 (debian13, both modes) and T2 (rocky8)
-under the new verdict. M7 stays In
+Next session entry point: run M7's T1 (debian13, both modes) and T2 (rocky8)
+in one golden-VM pass under the skip-aware verdict. M7 stays In
 progress meanwhile:
 its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
 passed 96 of 96 with all fourteen M19 assertions running (evidence in the M7
@@ -22,11 +17,11 @@ drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
 and then on rocky8 at its first run with no edit, D8 is final, and the twelve
 text findings are applied. What remains of M5 is expensive rather than uncertain:
 step 8 restores the goldens' ownership, rebakes both, and creates fresh
-consumers, and step 9 is the only run whose scenario verdicts carry Gate grade. M6 and M7 opened 2026-08-02
-from a conceptual-integrity sweep and both gate the release: M6 makes a skip
-visible to the verdict, M7 removes the one skip that should not be happening.
-Until M6 lands, what the suites did and did not verify cannot be enumerated, so
-they come before M5's step 9 rather than after it.
+consumers, and step 9 is the only run whose scenario verdicts carry Gate grade.
+M6 and M7 opened 2026-08-02 from a conceptual-integrity sweep and both gate the
+release. M6 is complete and makes a skip visible to the verdict; M7 removes the
+one skip that should not be happening. M7 comes before M5's step 9 so that run
+carries the full declared check set.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -51,7 +46,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
-| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | In progress | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
+| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Complete | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
@@ -867,7 +862,7 @@ Origin: the conceptual-integrity sweep of 2026-08-02, run against the gate after
 M5's step 6
 Identity History: none
 GitHub Issue: 135, https://github.com/jeonghanlee/epics-ioc-runner/issues/135
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -942,15 +937,16 @@ Superseded Plan Artifacts: none
    `SKIP`, `FAIL`, or `SCRIPT_ERROR` state without scanning body prose.
    Implemented 2026-08-10 in `gate/RUNBOOK.md`. The canonical M8
    execution-identity SHA-256 now rejects a missing or substituted identity
-   before the vector verdict can print `SUITES OK`; T1 execution remains
-   pending.
+   before the vector verdict can print `SUITES OK`; T1 executed on both
+   goldens on 2026-08-10.
 3. Apply one command to both `gate/RUNBOOK.md` locations: the suite gate under
    `Required to continue` and the copy under `Driver forms`.
    Implemented 2026-08-10; T2 confirms that both compound-command copies are
    exact.
-4. Enumerate every cross-host identity and terminal-state difference. The
-   normalized TEST/STEP comparison command is implemented; the observed
-   enumeration remains pending T1's fresh two-host logs.
+4. Enumerate every cross-host identity and terminal-state difference. Done
+   2026-08-10: the corrected normalized TEST/STEP comparison enumerated the
+   two local-lifecycle S29 STEP vectors and six TEST states, plus the
+   system-infra S06 STEP vector and four TEST states.
 
 Development evidence re-observed 2026-08-10T14:24:19-07:00 through SSH with
 `stat`, `sha256sum`, and machine-record counts:
@@ -1034,25 +1030,27 @@ local lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | — | — | pending | |
+| T1 | 2026-08-10T15:51:51-07:00 | debian13 and rocky8 goldens, source and installed runner identity `61eea12` | Pass, after correction | The shipped runbook commands produced fresh six-suite logs under run `m6-t1-20260810T223432Z`; all twelve suite invocations exited 0 and each host emitted 612 TEST, 165 STEP, and six final PASS SUITE records. Debian emitted 612 PASS, returned `SUITES OK (6 blocks, 612 checks, na=0)` with exit 0, and its log/status SHA-256 values are `11a38a5e9c8a0e0f2f4f5850763415cfc95b2f47528d3cb6472c7711514521b2` and `9b0c96233c4d8bf3d90825522a8e51fd1358b221b18fb7199fa4d684295488e8`. Rocky emitted 602 PASS, six SKIP, and four NA, printed all ten non-PASS TEST records, and returned `SUITES FAIL blocks=6 checks=612 steps=165 skip=6 fail=0 na=4 err=0 invalid=0` with exit 1; its log/status SHA-256 values are `dc2b55cfaa28c3aed1b701e13492d6f7aecddc710c08a7687bd2ffd78d7192fb` and `69c3a7d6fb97a08774cc1af432c0964f7c3e2623e66303c2af8a1a2cb1029428`. The first normalized comparison exposed an AWK lexical ambiguity: `SUBSEP ++n[r]` incremented `SUBSEP`, both producers emitted zero rows, and `diff` returned 0. Splitting it into `n[r]++; rec[r SUBSEP n[r]]=...` in all four producer branches passed extracted `bash -n`; the shipped command then returned 1 with a 56-line enumeration of the two S29 STEP and six TEST PASS-to-SKIP differences and the S06 STEP and four TEST PASS-to-NA differences. Local raw evidence is retained under `work/m6-t1-20260810T223432Z/`; the normalized diff SHA-256 is `330cbd50f120623429135829007003c9ed32e20c3518dbd4388e1d4e95f3bf16`. |
 | T2 | 2026-08-10T15:22:29-07:00 | Working tree | Pass | The suite-gate and Driver forms compound-command blocks are byte-identical. The canonical identity precheck uses the M8 normalization and SHA-256; the extracted command passes `bash -n`; the vector AWK rejects empty input with exit 1 and `SUITES FAIL blocks=0 checks=0 steps=0 skip=0 fail=0 na=0 err=0 invalid=6`; the normalized cross-host comparison passes `bash -n`; stale body-prose verdict forms are absent; `git diff --check` passes. The retained real-log and external-input mutation observations are recorded above as Check-grade repair evidence and do not replace T1. |
 
 #### Closure Evidence
 
-Pending.
+Implementation in commit `61eea12` and T1/T2 verification are complete. GitHub
+issue #135 was observed closed with all four completion criteria checked at
+2026-08-10T22:58:28Z. No external condition remains; M6 is Complete.
 
 #### GitHub Projection
 
 Title: The suite verdict cannot see a skip
 Labels: docs, tests, P2-medium
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-07T03:15:32Z
-Observed Body: stale; still reports M6 blocked by #137 and does not require fresh T1 logs through the shipped suite commands
-Last Compared: 2026-08-10T14:24:19-07:00
+Observed Updated At: 2026-08-10T22:58:28Z
+Observed Body: current; all four completion criteria are checked, #137 is recorded closed, T1/T2 results match the canonical detail, and closure cites commit `61eea12`
+Last Compared: 2026-08-10T15:58:28-07:00
 
 ### M7 - The suite tool probe disagrees with the runner
 
