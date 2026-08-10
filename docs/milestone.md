@@ -6,12 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: continue M6 (#135) at implementation step 2 in
-`gate/RUNBOOK.md`. Replace both body-summary verdict copies — the suite gate
-command under `Required to continue` and the `Driver forms` command under
-`a verdict that cannot score an empty log as a pass` — with one consumer of
-M8 machine-readable records. T1 generates fresh logs through the shipped suite
-commands on debian13 and rocky8, then applies the verdict to both logs. After
+Next session entry point: continue M6 (#135) at T1. The machine-record verdict
+is implemented in both `gate/RUNBOOK.md` locations and the copies pass T2's
+exact-text check. Run the real suite commands named by the runbook on debian13
+and rocky8, capture fresh logs, apply the verdict to both logs, and run the
+normalized TEST/STEP comparison. After
 M6, one golden-VM run drives M7's T1 (debian13, both modes) and T2 (rocky8)
 under the new verdict. M7 stays In
 progress meanwhile:
@@ -872,20 +871,19 @@ Status: In progress
 
 #### Summary
 
-`gate/RUNBOOK.md` says `A skip is not a pass.` in those words. Six lines above
-that sentence, the command that decides a suite run counts `Failed` and
-`Script Errors` and nothing else, so a skipped step is invisible to it. A run
-that dropped four checks scores identically to one that ran them.
+Before M6, `gate/RUNBOOK.md` said `A skip is not a pass.` while its suite
+verdict counted `Failed` and `Script Errors` and nothing else. A skipped step
+was invisible, so a run that dropped four checks scored identically to one
+that ran them.
 
 This is not a new class. The same document already records the same defect on a
-different axis: a truncated log once printed `SUITES OK (1 blocks)`, which it
-calls "a green for four suites that were thrown away", and the repair was to
-count the blocks. The skip axis got prose instead of a count, and the prose can
-be walked past.
+different axis: a truncated log once printed `SUITES OK (1 blocks)`, and the
+repair was to count the blocks. The skip axis received prose instead of a
+count, and that prose could be missed.
 
 Measured: debian13's local lifecycle reports 82/82 with M19.T1, M19.T2, M19.T3
-and the M19 teardown absent, in both source and installed mode. rocky8 reports
-94/94 with them present. The verdict says `SUITES OK` for both.
+and the M19 teardown absent, in both source and installed mode. rocky8 reported
+94/94 with them present. The former verdict said `SUITES OK` for both.
 
 #### Scope
 
@@ -942,9 +940,17 @@ Superseded Plan Artifacts: none
 2. After M8 emits the accepted machine-readable records, extend the verdict to
    validate the declared suite and check identities and reject any nonzero
    `SKIP`, `FAIL`, or `SCRIPT_ERROR` state without scanning body prose.
+   Implemented 2026-08-10 in `gate/RUNBOOK.md`. The canonical M8
+   execution-identity SHA-256 now rejects a missing or substituted identity
+   before the vector verdict can print `SUITES OK`; T1 execution remains
+   pending.
 3. Apply one command to both `gate/RUNBOOK.md` locations: the suite gate under
    `Required to continue` and the copy under `Driver forms`.
-4. Enumerate every cross-host identity and terminal-state difference.
+   Implemented 2026-08-10; T2 confirms that both compound-command copies are
+   exact.
+4. Enumerate every cross-host identity and terminal-state difference. The
+   normalized TEST/STEP comparison command is implemented; the observed
+   enumeration remains pending T1's fresh two-host logs.
 
 Development evidence re-observed 2026-08-10T14:24:19-07:00 through SSH with
 `stat`, `sha256sum`, and machine-record counts:
@@ -962,6 +968,19 @@ Development evidence re-observed 2026-08-10T14:24:19-07:00 through SSH with
 - These hashes identify Check-grade historical evidence only. They are not T1
   inputs and do not replace the fresh logs produced through the shipped suite
   commands during T1.
+- F1 repair evidence, re-observed 2026-08-10T15:22:29-07:00: the current
+  compound command read the retained real M8 logs without modifying either
+  host. Debian matched the canonical execution-identity SHA-256 and returned
+  `SUITES OK (6 blocks, 612 checks, na=0)` with exit 0. Rocky matched the same
+  identity SHA-256, printed its six `SKIP` and four `NA` TEST records, and
+  returned `SUITES FAIL blocks=6 checks=612 steps=165 skip=6 fail=0 na=4 err=0
+  invalid=0` with exit 1. Changing one TEST identity only at the verdict's
+  external input boundary produced a different SHA-256, printed
+  `SUITES FAIL identity_sha256=... expected=...`, returned 1, and printed no
+  `SUITES OK`. The third-person follow-up found F1 resolved with no new blocking
+  finding, and the second-person reader pass found the replacement values,
+  command sequence, failure output, and next action unambiguous. This is
+  Check-grade repair evidence and does not replace T1.
 
 Step 1 execution context, observed 2026-08-03 from top over SSH:
 
@@ -1016,7 +1035,7 @@ local lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | — | — | pending | |
-| T2 | — | — | pending | |
+| T2 | 2026-08-10T15:22:29-07:00 | Working tree | Pass | The suite-gate and Driver forms compound-command blocks are byte-identical. The canonical identity precheck uses the M8 normalization and SHA-256; the extracted command passes `bash -n`; the vector AWK rejects empty input with exit 1 and `SUITES FAIL blocks=0 checks=0 steps=0 skip=0 fail=0 na=0 err=0 invalid=6`; the normalized cross-host comparison passes `bash -n`; stale body-prose verdict forms are absent; `git diff --check` passes. The retained real-log and external-input mutation observations are recorded above as Check-grade repair evidence and do not replace T1. |
 
 #### Closure Evidence
 

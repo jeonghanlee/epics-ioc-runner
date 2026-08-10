@@ -597,9 +597,9 @@ bash tests/<first-suite>.bash > /tmp/gate.log 2>&1
 bash tests/<next-suite>.bash >> /tmp/gate.log 2>&1
 ```
 
-Truncating instead of appending leaves one block behind, and the verdict then
-prints `SUITES OK (1 blocks)`: a green for five runs that were thrown away.
-The block count is what catches it, which is why it is part of the verdict.
+Truncating instead of appending leaves one suite record behind. The fixed
+matrix verdict reports `SUITES FAIL blocks=1` and exits nonzero rather than
+scoring the truncated log as a pass.
 
 Keep each suite's whole summary block, not its last few lines. The counts the
 evidence table asks for sit above the closing banner, so a driver that tails a
@@ -608,14 +608,14 @@ without its count cannot be compared against the next run. Pull the numbers out
 of a captured log with:
 
 ```bash
-cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -E 'Total|Passed|Failed|Script Errors'
+cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -E 'Total|Passed|Failed|Skipped|Not applicable|Script Errors|Suite State'
 ```
 
-Skips do not appear in the summary block — the suites report them as prose
-warnings in the body, so they need their own read:
+The human summary names every non-PASS check for the operator. It is not gate
+input. Read only the machine records when deciding whether the run continues:
 
 ```bash
-cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -iE 'SKIP|WARN'
+grep -E '^(TEST|STEP|SUITE) ' <log>
 ```
 
 Drive the system suites directly, not through `tests/run-all-tests.bash`, when
@@ -647,70 +647,39 @@ Fill the gap while you are here: wrap each invocation the step already gives in
 five numbers per host beside the counts. Two cycles of that retire this
 paragraph.
 
-Required to continue: every suite run on every host reports zero failures and
-zero script errors, and the resolved binary line matches the mode intended.
-Assert it from the captured log, with the guard that refuses to call an empty
-log a pass:
+Required to continue: every suite run on every host reports zero `SKIP`,
+`FAIL`, and `SCRIPT_ERROR` states, every final suite state is `PASS`, and the
+resolved binary line matches the mode intended. `NA` remains nonfatal because
+it records an examined applicability boundary, but the verdict prints every
+non-PASS `TEST` record and includes the `NA` count in its final line.
+
+Assert the fixed six-run matrix from the machine records. The command validates
+the expected suite/scope/runner set, the exact 612-entry execution-identity
+set, 165 STEP records, each TEST-to-STEP vector, each suite vector, and final
+suite state. The identity precheck normalizes suite, scope, runner, STEP, check
+ID, category, kind, and method with `|` separators under `LC_ALL=C`, then
+requires the canonical SHA-256 recorded by M8. A missing, substituted,
+duplicate, malformed, truncated, or unexpected record makes the compound
+command exit nonzero before it can print `SUITES OK`:
 
 ```bash
-ssh vmadmin@<host> "cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | awk '/Passed/{p++} /Failed/{f+=\$NF} /Script Errors/{e+=\$NF} END{ if (p==0) print \"NO SUMMARY FOUND\"; else print (f==0 && e==0) ? \"SUITES OK (\" p \" blocks)\" : \"SUITES FAIL f=\" f \" e=\" e }'"
+ssh vmadmin@<host> "expected=0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3; actual=\$(awk 'BEGIN{OFS=\"|\"} \$1==\"TEST\"{r=substr(\$3,5);n++;run[n]=r;suite[n]=substr(\$2,7);step[n]=substr(\$4,6);id[n]=substr(\$5,4);cat[n]=substr(\$6,10);kind[n]=substr(\$7,6);method[n]=substr(\$8,8)} \$1==\"SUITE\"{r=substr(\$3,5);scope[r]=substr(\$4,7);runner[r]=substr(\$5,8)} END{for(i=1;i<=n;i++)print suite[i],scope[run[i]],runner[run[i]],step[i],id[i],cat[i],kind[i],method[i]}' <log> | LC_ALL=C sort | sha256sum | awk '{print \$1}'); if [ \"\${actual}\" != \"\${expected}\" ]; then printf 'SUITES FAIL identity_sha256=%s expected=%s\n' \"\${actual}\" \"\${expected}\"; exit 1; fi" &&
+ssh vmadmin@<host> "awk 'function val(n,p){if(index(\$n,p)!=1||length(\$n)==length(p)){bad++;return \"\"}return substr(\$n,length(p)+1)} function scalar(v){return v~/^[-A-Za-z0-9._:\/+]+\$/} function own(r,s){if(run_suite[r]!=\"\"&&run_suite[r]!=s)bad++;run_suite[r]=s} BEGIN{want[\"error-handling/none/source\"]=146;want_step[\"error-handling/none/source\"]=37;want[\"source-regression/system/source\"]=87;want_step[\"source-regression/system/source\"]=16;want[\"local-lifecycle/local/source\"]=125;want_step[\"local-lifecycle/local/source\"]=36;want[\"local-lifecycle/local/installed\"]=125;want_step[\"local-lifecycle/local/installed\"]=36;want[\"system-infra/system/none\"]=36;want_step[\"system-infra/system/none\"]=7;want[\"system-lifecycle/system/installed\"]=93;want_step[\"system-lifecycle/system/installed\"]=33} \$1==\"TEST\"{raw=\$0;if(NF!=10){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");id=val(5,\"id=\");cat=val(6,\"category=\");kind=val(7,\"kind=\");method=val(8,\"method=\");st=val(9,\"state=\");reason=val(10,\"reason_b64=\");if(!scalar(s)||!scalar(r)||!scalar(q)||!scalar(id)||index(id,s \".\")!=1||cat!~/^(error-contract|source-regression|installed-conformance|lifecycle-behavior)\$/||kind!~/^(REQUIRED|PREREQUISITE|APPLICABILITY|BEHAVIOR|INTEGRITY)\$/||method!~/^(real-path|direct-inspection)\$/||st!~/^(PASS|FAIL|SKIP|NA|SCRIPT_ERROR)\$/||(st==\"PASS\")!=(reason==\"-\")||(reason!=\"-\"&&reason!~/^[A-Za-z0-9_-]+\$/))bad++;own(r,s);k=r SUBSEP id;if(test_seen[k]++)bad++;test_count[r]++;test_vector[r SUBSEP st]++;ts=r SUBSEP q;test_step_seen[ts]=1;test_step_vector[ts SUBSEP st]++;if(st!=\"PASS\"){exception_run[++exceptions]=r;exception_line[exceptions]=raw}if(suite_seen[r])bad++;next} \$1==\"STEP\"{if(NF!=9){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");p=val(5,\"pass=\");f=val(6,\"fail=\");sk=val(7,\"skip=\");na=val(8,\"na=\");e=val(9,\"err=\");if(!scalar(s)||!scalar(r)||!scalar(q)||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/)bad++;own(r,s);k=r SUBSEP q;if(step_seen[k]++)bad++;step_count[r]++;step_vector[k SUBSEP \"PASS\"]=p+0;step_vector[k SUBSEP \"FAIL\"]=f+0;step_vector[k SUBSEP \"SKIP\"]=sk+0;step_vector[k SUBSEP \"NA\"]=na+0;step_vector[k SUBSEP \"SCRIPT_ERROR\"]=e+0;if(suite_seen[r])bad++;next} \$1==\"SUITE\"{if(NF!=14){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");scope=val(4,\"scope=\");runner=val(5,\"runner=\");os=val(6,\"os=\");arch=val(7,\"arch=\");t=val(8,\"total=\");p=val(9,\"pass=\");f=val(10,\"fail=\");sk=val(11,\"skip=\");na=val(12,\"na=\");e=val(13,\"err=\");state=val(14,\"state=\");wk=s \"/\" scope \"/\" runner;if(!scalar(s)||!scalar(r)||!scalar(scope)||!scalar(runner)||!scalar(os)||!scalar(arch)||t!~/^[0-9]+\$/||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/||state!~/^(PASS|FAIL)\$/||!(wk in want))bad++;own(r,s);if(suite_seen[r]++||want_seen[wk]++)bad++;run_key[r]=wk;run_runner[r]=runner;suite_total[r]=t+0;suite_vector[r SUBSEP \"PASS\"]=p+0;suite_vector[r SUBSEP \"FAIL\"]=f+0;suite_vector[r SUBSEP \"SKIP\"]=sk+0;suite_vector[r SUBSEP \"NA\"]=na+0;suite_vector[r SUBSEP \"SCRIPT_ERROR\"]=e+0;suite_exec[r]=state;blocks++;next} END{for(k in test_step_seen)if(!step_seen[k])bad++;for(k in step_seen){for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(step_vector[k SUBSEP st]!=test_step_vector[k SUBSEP st])bad++}}for(r in run_suite)if(!suite_seen[r])bad++;for(wk in want)if(want_seen[wk]!=1)bad++;for(r in suite_seen){wk=run_key[r];checks+=test_count[r];steps+=step_count[r];if(test_count[r]!=want[wk]||step_count[r]!=want_step[wk]||suite_total[r]!=test_count[r]||suite_exec[r]!=\"PASS\")bad++;for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(suite_vector[r SUBSEP st]!=test_vector[r SUBSEP st])bad++}skip+=test_vector[r SUBSEP \"SKIP\"];fail+=test_vector[r SUBSEP \"FAIL\"];na_total+=test_vector[r SUBSEP \"NA\"];err+=test_vector[r SUBSEP \"SCRIPT_ERROR\"]}for(i=1;i<=exceptions;i++)print exception_line[i] \" runner=\" run_runner[exception_run[i]];if(blocks==6&&checks==612&&steps==165&&skip==0&&fail==0&&err==0&&bad==0){print \"SUITES OK (6 blocks, 612 checks, na=\" na_total \")\";exit 0}print \"SUITES FAIL blocks=\" (blocks+0) \" checks=\" (checks+0) \" steps=\" (steps+0) \" skip=\" (skip+0) \" fail=\" (fail+0) \" na=\" (na_total+0) \" err=\" (err+0) \" invalid=\" (bad+0);exit 1}' <log>"
 ```
 
-Count the blocks against the number of suite runs you launched. A verdict that
-reports fewer blocks than you ran is a truncated log, not a pass.
+A skip is not a pass. Carry every printed `SKIP` record into "When a check
+cannot be induced". `NA` is different: it records a tested applicability
+boundary and does not stop the run, but it remains visible in both the emitted
+record and the verdict total.
 
-A skip is not a pass. The local lifecycle skips steps when an optional tool is
-absent, so the same suite legitimately reports two different totals and a
-shorter green is not comparable with a longer one. Record the skips beside the
-counts, and carry each one into "When a check cannot be induced" rather than
-letting a total stand in for coverage.
-
-The skip actually observed is `WARN: logrotate not found; U003/M19 rotation
-steps will be skipped.`, and it takes four steps with it — M19.T1, M19.T2,
-M19.T3, and the M19 teardown checks — in both local lifecycle blocks, source
-mode and installed mode alike. The suite does also carry a monitor-isolation
-skip for a host with no persistent user journal, which this paragraph once named
-as the example; it did not occur in the recorded runs on either golden, so do
-not go looking for it as the expected shape.
-
-Beside it sits a pair that reads as a contradiction and is not. The deploy in
-"The tree on each host" prints that it deployed the logrotate policy to
-`/etc/logrotate.d/procserv`, and minutes later the suite reports logrotate not
-found. Both are true at once: the policy file is one thing and the `logrotate`
-binary the suite probes for is another. The suite probes with a PATH lookup made
-under the invoking user; the runner resolves the same binary by absolute path,
-and the deploy runs under `sudo`, whose PATH is not the invoking user's — so a
-deploy that printed that line did find one.
-
-Measured on both goldens, 2026-08-02: the binary is present on each, at
-`/usr/sbin/logrotate`, 3.22.0 on Debian 13 and 3.14.0 on Rocky 8. **Nothing is
-missing.** What differs is the invoking user's PATH: Debian keeps `sbin` off it
-by convention, Rocky puts `/usr/local/sbin:/usr/sbin` on the end, so
-`command -v logrotate` fails on the Debian golden and succeeds on the Rocky one.
-That, and not an absent package, is why the skip appears on one golden only.
+Compare the two hosts by normalized TEST and STEP records. This command removes
+run IDs and adds the suite runner, so repeated local source and installed
+checks remain distinct. `diff` exits 1 when differences exist; its output is
+the required enumeration, not a separate pass/fail verdict:
 
 ```bash
-ssh vmadmin@<host> 'echo "$PATH"; command -v logrotate; ls -l /usr/sbin/logrotate /etc/logrotate.d/procserv'
+diff -u <(ssh vmadmin@<debian-host> "awk '\$1==\"TEST\"{r=substr(\$3,5);rec[r SUBSEP ++n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"STEP\"{r=substr(\$3,5);rec[r SUBSEP ++n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"SUITE\"{r=substr(\$3,5);runner[r]=\$5} END{for(r in n)for(i=1;i<=n[r];i++)print rec[r SUBSEP i],runner[r]}' <debian-log>" | sort) <(ssh vmadmin@<rocky-host> "awk '\$1==\"TEST\"{r=substr(\$3,5);rec[r SUBSEP ++n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"STEP\"{r=substr(\$3,5);rec[r SUBSEP ++n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"SUITE\"{r=substr(\$3,5);runner[r]=\$5} END{for(r in n)for(i=1;i<=n[r];i++)print rec[r SUBSEP i],runner[r]}' <rocky-log>" | sort)
 ```
-
-The suite and the runner therefore disagree about how to find the tool, and the
-suite skips four steps for a feature the runner can use on that host. That is a
-harness gap rather than a product one, and it is recorded rather than repaired
-here.
-
-The system infrastructure suite differs across the goldens the same way, for a
-reason of its own: the sudoers branch a host's sudo version selects decides
-which policy assertions apply, so the glob-branch host skips the regex-deny
-probe and records that skip as an assertion in its own right. Its two totals are
-as legitimate as the lifecycle's. Expect a per-host total from both suites and
-compare a host against itself, never one golden's total against the other's.
-
-The standalone suite prints its count in a shape of its own,
-`Total Assertions : N (executed: N)`. The first number is the total the evidence
-table's Passed / total column wants; the parenthetical is an integrity counter
-for assertions that ran, and the two are meant to agree. When they disagree the
-suite has already scored itself a failure for the mismatch, so the row to record
-is still the first number and the verdict command still catches it.
 
 ### 3. The root_squash deployment path
 
@@ -915,10 +884,11 @@ set +u; if [ -z "${EPICS_BASE:-}" ]; then . <epics-env>; fi; set -u
 
 # capture a suite whole, then read the counts out of it
 bash tests/<suite>.bash > <log> 2>&1
-cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -E 'Total|Passed|Failed|Skipped|Script Errors'
+cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -E 'Total|Passed|Failed|Skipped|Not applicable|Script Errors|Suite State'
 
-# a verdict that cannot score an empty log as a pass
-cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | awk '/Passed/{p++} /Failed/{f+=$NF} /Script Errors/{e+=$NF} END{ if (p==0) print "NO SUMMARY FOUND"; else print (f==0 && e==0) ? "SUITES OK (" p " blocks)" : "SUITES FAIL f=" f " e=" e }'
+# validate the canonical identity set and fixed six-run machine-record matrix
+ssh vmadmin@<host> "expected=0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3; actual=\$(awk 'BEGIN{OFS=\"|\"} \$1==\"TEST\"{r=substr(\$3,5);n++;run[n]=r;suite[n]=substr(\$2,7);step[n]=substr(\$4,6);id[n]=substr(\$5,4);cat[n]=substr(\$6,10);kind[n]=substr(\$7,6);method[n]=substr(\$8,8)} \$1==\"SUITE\"{r=substr(\$3,5);scope[r]=substr(\$4,7);runner[r]=substr(\$5,8)} END{for(i=1;i<=n;i++)print suite[i],scope[run[i]],runner[run[i]],step[i],id[i],cat[i],kind[i],method[i]}' <log> | LC_ALL=C sort | sha256sum | awk '{print \$1}'); if [ \"\${actual}\" != \"\${expected}\" ]; then printf 'SUITES FAIL identity_sha256=%s expected=%s\n' \"\${actual}\" \"\${expected}\"; exit 1; fi" &&
+ssh vmadmin@<host> "awk 'function val(n,p){if(index(\$n,p)!=1||length(\$n)==length(p)){bad++;return \"\"}return substr(\$n,length(p)+1)} function scalar(v){return v~/^[-A-Za-z0-9._:\/+]+\$/} function own(r,s){if(run_suite[r]!=\"\"&&run_suite[r]!=s)bad++;run_suite[r]=s} BEGIN{want[\"error-handling/none/source\"]=146;want_step[\"error-handling/none/source\"]=37;want[\"source-regression/system/source\"]=87;want_step[\"source-regression/system/source\"]=16;want[\"local-lifecycle/local/source\"]=125;want_step[\"local-lifecycle/local/source\"]=36;want[\"local-lifecycle/local/installed\"]=125;want_step[\"local-lifecycle/local/installed\"]=36;want[\"system-infra/system/none\"]=36;want_step[\"system-infra/system/none\"]=7;want[\"system-lifecycle/system/installed\"]=93;want_step[\"system-lifecycle/system/installed\"]=33} \$1==\"TEST\"{raw=\$0;if(NF!=10){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");id=val(5,\"id=\");cat=val(6,\"category=\");kind=val(7,\"kind=\");method=val(8,\"method=\");st=val(9,\"state=\");reason=val(10,\"reason_b64=\");if(!scalar(s)||!scalar(r)||!scalar(q)||!scalar(id)||index(id,s \".\")!=1||cat!~/^(error-contract|source-regression|installed-conformance|lifecycle-behavior)\$/||kind!~/^(REQUIRED|PREREQUISITE|APPLICABILITY|BEHAVIOR|INTEGRITY)\$/||method!~/^(real-path|direct-inspection)\$/||st!~/^(PASS|FAIL|SKIP|NA|SCRIPT_ERROR)\$/||(st==\"PASS\")!=(reason==\"-\")||(reason!=\"-\"&&reason!~/^[A-Za-z0-9_-]+\$/))bad++;own(r,s);k=r SUBSEP id;if(test_seen[k]++)bad++;test_count[r]++;test_vector[r SUBSEP st]++;ts=r SUBSEP q;test_step_seen[ts]=1;test_step_vector[ts SUBSEP st]++;if(st!=\"PASS\"){exception_run[++exceptions]=r;exception_line[exceptions]=raw}if(suite_seen[r])bad++;next} \$1==\"STEP\"{if(NF!=9){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");p=val(5,\"pass=\");f=val(6,\"fail=\");sk=val(7,\"skip=\");na=val(8,\"na=\");e=val(9,\"err=\");if(!scalar(s)||!scalar(r)||!scalar(q)||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/)bad++;own(r,s);k=r SUBSEP q;if(step_seen[k]++)bad++;step_count[r]++;step_vector[k SUBSEP \"PASS\"]=p+0;step_vector[k SUBSEP \"FAIL\"]=f+0;step_vector[k SUBSEP \"SKIP\"]=sk+0;step_vector[k SUBSEP \"NA\"]=na+0;step_vector[k SUBSEP \"SCRIPT_ERROR\"]=e+0;if(suite_seen[r])bad++;next} \$1==\"SUITE\"{if(NF!=14){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");scope=val(4,\"scope=\");runner=val(5,\"runner=\");os=val(6,\"os=\");arch=val(7,\"arch=\");t=val(8,\"total=\");p=val(9,\"pass=\");f=val(10,\"fail=\");sk=val(11,\"skip=\");na=val(12,\"na=\");e=val(13,\"err=\");state=val(14,\"state=\");wk=s \"/\" scope \"/\" runner;if(!scalar(s)||!scalar(r)||!scalar(scope)||!scalar(runner)||!scalar(os)||!scalar(arch)||t!~/^[0-9]+\$/||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/||state!~/^(PASS|FAIL)\$/||!(wk in want))bad++;own(r,s);if(suite_seen[r]++||want_seen[wk]++)bad++;run_key[r]=wk;run_runner[r]=runner;suite_total[r]=t+0;suite_vector[r SUBSEP \"PASS\"]=p+0;suite_vector[r SUBSEP \"FAIL\"]=f+0;suite_vector[r SUBSEP \"SKIP\"]=sk+0;suite_vector[r SUBSEP \"NA\"]=na+0;suite_vector[r SUBSEP \"SCRIPT_ERROR\"]=e+0;suite_exec[r]=state;blocks++;next} END{for(k in test_step_seen)if(!step_seen[k])bad++;for(k in step_seen){for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(step_vector[k SUBSEP st]!=test_step_vector[k SUBSEP st])bad++}}for(r in run_suite)if(!suite_seen[r])bad++;for(wk in want)if(want_seen[wk]!=1)bad++;for(r in suite_seen){wk=run_key[r];checks+=test_count[r];steps+=step_count[r];if(test_count[r]!=want[wk]||step_count[r]!=want_step[wk]||suite_total[r]!=test_count[r]||suite_exec[r]!=\"PASS\")bad++;for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(suite_vector[r SUBSEP st]!=test_vector[r SUBSEP st])bad++}skip+=test_vector[r SUBSEP \"SKIP\"];fail+=test_vector[r SUBSEP \"FAIL\"];na_total+=test_vector[r SUBSEP \"NA\"];err+=test_vector[r SUBSEP \"SCRIPT_ERROR\"]}for(i=1;i<=exceptions;i++)print exception_line[i] \" runner=\" run_runner[exception_run[i]];if(blocks==6&&checks==612&&steps==165&&skip==0&&fail==0&&err==0&&bad==0){print \"SUITES OK (6 blocks, 612 checks, na=\" na_total \")\";exit 0}print \"SUITES FAIL blocks=\" (blocks+0) \" checks=\" (checks+0) \" steps=\" (steps+0) \" skip=\" (skip+0) \" fail=\" (fail+0) \" na=\" (na_total+0) \" err=\" (err+0) \" invalid=\" (bad+0);exit 1}' <log>"
 
 # read a make variable, then set it - reading does not set it, and the value
 # printed is make syntax: expand $(HOME) yourself before exporting
