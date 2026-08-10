@@ -24,6 +24,7 @@ document only when the owner assigns it to a release line.
 | M9 | (#127) Container execution mode without systemd | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m9---container-execution-mode) |
 | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m10---conf-value-normalization) |
 | M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Open | No | D3 | Owner assigns it to a release line and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
+| M12 | Separate human-readable test output from machine-readable records | Milestone | Open | No | | Owner assigns it to a release line and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
 
 ## Decisions
 
@@ -410,3 +411,90 @@ Labels: docs, P3-low
 GitHub Milestone: Backlog
 Observed State: open
 Last Compared: 2026-07-30
+
+### M12 - Human and machine output separation
+
+Origin: Backlog / M12
+Identity History: none
+GitHub Issue: none
+Status: Open
+
+#### Summary
+
+The test suites currently print the human summary and the machine-readable
+`TEST`, `STEP`, and `SUITE` records in one terminal output. The complete
+machine record sequence obscures the result intended for an operator.
+
+#### Scope
+
+Define and implement separate output surfaces for the human report and the
+machine-readable record sequence. Both outputs continue to derive from the
+same validated ledger, and the collector consumes only the machine-readable
+surface.
+
+Out of scope: changing the fixed check identities, terminal states, suite-state
+semantics, or the accepted M8 count vectors. This work is not part of the
+1.2.3 M8 remediation.
+
+#### Completion Criteria
+
+- A normal operator invocation displays the human report without the full
+  `TEST`, `STEP`, and `SUITE` sequence.
+- A documented machine-readable surface preserves the complete accepted record
+  grammar and final suite state.
+- The collector reads only the machine-readable surface and rejects missing,
+  malformed, duplicate, or inconsistent records.
+- Real producer and dispatcher runs prove that both outputs describe the same
+  ledger and process result.
+
+#### Dependencies And Decisions
+
+- Owner direction, 2026-08-10: record human and machine output separation as
+  later milestone work rather than extending the active M8 remediation.
+- The implementation must preserve the M8 reporting contract and the fixed
+  487-check identity set.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Choose the output boundary and document direct-suite and dispatcher
+   behavior.
+2. Route the human report and machine records through their selected surfaces
+   without introducing a second calculation path.
+3. Update the collector to consume only the machine-readable surface.
+4. Verify all producer and dispatcher paths and update maintained test
+   documentation.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Reporter contract | Run the shipped reporter self-test through its public API | Working tree | Human and machine outputs reconcile to one ledger while using separate surfaces |
+| T2 | Collector integration | Run the shipped collector probe and a real source-regression dispatcher path | Debian 13 | The operator output stays concise and the collector validates the complete machine record sequence |
+| T3 | Producer integration | Run all five shipped producer paths | Both golden OS families | Every fixed identity closes once and both output surfaces carry the same suite result |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Working tree | Pending | none |
+| T2 | Not run | Debian 13 | Pending | none |
+| T3 | Not run | Both golden OS families | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Separate human-readable test output from machine-readable records
+Labels: tests
+GitHub Milestone: Backlog
+Observed State: none
+Observed Labels: none
+Observed Milestone: none
+Last Compared: never
