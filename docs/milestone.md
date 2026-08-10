@@ -6,22 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: prepare M8 closure. `plan20260810_125403` repaired
-P006/V006 authority, `auth20260810_125505` recorded the User's no-rerun
-evidence-adoption approval, and Reviewer 1 `fup20260810_125825` resolved
-`F-reviewer1_state_coherence-003` with no blocking finding. The three P005 review lanes accepted the
-complete remediation with no blocking finding in `fup20260810_115015`,
-`rev20260810_120802`, and `rev20260810_120522`. P007 through P010 are complete,
-and P010's
-real Debian 13 paths passed: reporter 88/88, collector 10/10, source regression
-87/87, local lifecycle 125/125, system infrastructure 36/36, and system
-lifecycle 93/93. Both isolated cleanup failures returned 1 and emitted final
-`SUITE state=FAIL` while retaining their all-PASS check vectors. P005 is
-complete after all three review lanes reported no blocking finding. P006 is
-complete at Check grade on both goldens, with its existing evidence adopted
-without rerun. M8 remains In progress until closure. M6 follows the completed M8
-producer and collector work as the consumer of these records and does not scan
-body prose. After M6, one
+Next session entry point: continue M6 (#135) at implementation step 2. M8
+(#137) is Complete at `a60802b`; its final GitHub body matches the canonical
+scope, all completion checkboxes are checked, and the issue was observed
+closed on 2026-08-10. M6 now consumes the accepted M8 machine-readable records
+without scanning human-readable body prose. After M6, one
 golden-VM run drives M7's
 T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7 stays In
 progress meanwhile:
@@ -62,10 +51,10 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The drivers live in the repository and fix the scenario identities, the runbook cites them rather than describing them, and an independent operator drives all fourteen scenarios on both goldens from the runbook and the shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
-| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Blocked | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
+| M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | In progress | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
-| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | In progress | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
+| M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | Internal status fields agree, every linked issue matches its canonical projection or records an owner-approved exception, and all observed GitHub metadata is current; [detail](#m10---release-record-reconciliation) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
@@ -878,7 +867,7 @@ Origin: the conceptual-integrity sweep of 2026-08-02, run against the gate after
 M5's step 6
 Identity History: none
 GitHub Issue: 135, https://github.com/jeonghanlee/epics-ioc-runner/issues/135
-Status: Blocked
+Status: In progress
 
 #### Summary
 
@@ -926,8 +915,8 @@ reporting format and ledger, which M8 produces before this consumer runs.
   but it takes the formal route regardless.
 - D14 and M8 define the producer-consumer boundary. M6 retains its observed
   skip inventory as producer input, but its implementation follows M8 and
-  consumes only M8's machine-readable records. M6 is blocked until M8 produces
-  that accepted record grammar.
+  consumes only M8's machine-readable records. M8 completed and issue #137
+  closed on 2026-08-10, so M6 implementation step 2 is executable.
 - M7 is the other half. M6 makes a skip visible; M7 removes the one skip that
   should not be happening. Neither substitutes for the other.
 - Ordering, owner-approved 2026-08-03: M6 runs before M7's golden-VM
@@ -1456,7 +1445,7 @@ Origin: M6's step 1 findings of 2026-08-03 in this register, opened at the
 owner's direction the same day
 Identity History: none
 GitHub Issue: 137, https://github.com/jeonghanlee/epics-ioc-runner/issues/137
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -1739,24 +1728,32 @@ the work are recorded here independently of those ignored files.
 | Evidence identity | The normalized execution-identity SHA-256 was `0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3` on both hosts. Debian `/tmp/m8-p006.log` and `.status` SHA-256 values were `9f1db70b9034f43e4b4346cb37b2b7b7a8ccbaa947acf6cbe0e26fc471bcd8ee` and `2c7199ce7ed8f91005630df7502c6292da5a62e0b24c4a9f56ca48163ca1c738`; Rocky values were `944374e563128a16fedac4721c70a746a118273a0bf957c2c4b8728161c682df` and `93f68f6800f77f0610b2e20d96dd2f5bc9965f1278ab984a08dd63eeafde6b0b`. |
 | Authority conflict | `plan20260810_021936` listed P006 as out of scope and prohibited beginning it while `auth20260810_121447` and `hand20260810_122448` claimed P006 authorization and completion. Reviewer 1 accepted the real evidence but opened blocking finding `F-reviewer1_state_coherence-003` against that inconsistent authority chain. |
 | Authority repair | `plan20260810_125403` superseded the conflicting plan and placed P006/V006 in scope with both hosts, the twelve-command matrix, four evidence paths, exact pass criteria, and the reused-consumer Check-grade boundary. `auth20260810_125505` recorded User approval; `hand20260810_125527` adopted the unchanged evidence without rerun; Reviewer 1 `fup20260810_125825` resolved F-003 with no blocking finding. Reviewer 2 `rev20260810_123926` and Reviewer 3 `rev20260810_123537` also accepted the execution and boundary evidence with no finding. |
-| Final boundary | P006 is Complete and T4/T6 are Pass at Check grade only. No fresh bake or release Gate claim was made, no suite was rerun for the authority repair, and no file under `gate/` changed. M8 remains In progress pending closure. |
+| Final boundary | P006 is Complete and T4/T6 are Pass at Check grade only. No fresh bake or release Gate claim was made, no suite was rerun for the authority repair, and no file under `gate/` changed. M8 completed after its canonical record and GitHub issue body were reconciled and issue #137 was observed closed. |
 
 #### Closure Evidence
 
-Pending.
+Complete on 2026-08-10. Commit `a60802b` implements final suite-state
+reporting and carries the durable M8 activity record. The shipped reporter
+self-test passed 88/88, the collector probe passed 10/10, the fixed catalog
+remained 487 identities, the two-golden Check-grade matrix reconciled, both
+real cleanup-failure paths emitted final `state=FAIL`, and all three review
+lanes reported no blocking finding. GitHub issue #137 was reconciled with this
+record, all completion checkboxes were checked, and its `CLOSED` state was
+observed after the authorized close. M6 is unblocked as the consumer of these
+machine-readable records.
 
 #### GitHub Projection
 
 Title: Suite skip-reporting policy: make a skip countable from the summary
 Labels: tests, P2-medium
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-09T01:16:12Z
-Observed Body: matches the canonical P003 completion record and T7 evidence
-Last Compared: 2026-08-08T18:17:03-07:00
+Observed Updated At: 2026-08-10T20:50:28Z
+Observed Body: matches the canonical M8 closure record through T8
+Last Compared: 2026-08-10T20:50:28Z
 
 ### M10 - Release record reconciliation
 
