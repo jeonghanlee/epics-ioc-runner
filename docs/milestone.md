@@ -6,13 +6,14 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: continue M6 (#135) at implementation step 2. M8
-(#137) is Complete at `a60802b`; its final GitHub body matches the canonical
-scope, all completion checkboxes are checked, and the issue was observed
-closed on 2026-08-10. M6 now consumes the accepted M8 machine-readable records
-without scanning human-readable body prose. After M6, one
-golden-VM run drives M7's
-T1 (debian13, both modes) and T2 (rocky8) under the new verdict. M7 stays In
+Next session entry point: continue M6 (#135) at implementation step 2 in
+`gate/RUNBOOK.md`. Replace both body-summary verdict copies — the suite gate
+command under `Required to continue` and the `Driver forms` command under
+`a verdict that cannot score an empty log as a pass` — with one consumer of
+M8 machine-readable records. T1 generates fresh logs through the shipped suite
+commands on debian13 and rocky8, then applies the verdict to both logs. After
+M6, one golden-VM run drives M7's T1 (debian13, both modes) and T2 (rocky8)
+under the new verdict. M7 stays In
 progress meanwhile:
 its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
 passed 96 of 96 with all fourteen M19 assertions running (evidence in the M7
@@ -906,8 +907,8 @@ reporting format and ledger, which M8 produces before this consumer runs.
   machine-readable records and the verdict line derived from them.
 - The driver-forms copy of the command and the gate step's copy are the same
   command.
-- The twelve differing checks between the two goldens' local lifecycle totals
-  are enumerated from declared check and STEP records, not inferred from prose.
+- Every cross-host terminal-state difference is enumerated from declared check
+  and STEP records, not inferred from prose or summary-total subtraction.
 
 #### Dependencies And Decisions
 
@@ -929,10 +930,10 @@ reporting format and ledger, which M8 produces before this consumer runs.
 Plan Status: accepted
 Plan Acceptance: owner decision in session, 2026-08-03; amended by owner
 decision 2026-08-05 to consume M8 records rather than scan log prose
-Implementation Authorization: owner decision in session, 2026-08-03; reviewed
-with the owner directly, no agent review panel, as for M7. Step 2's verdict
-behavior on a nonzero skip count is decided with the owner before it is
-written, per the step's own wording.
+Implementation Authorization: owner decision in session, 2026-08-03; amended
+by owner decision 2026-08-05. Canonical commit `15d528ad` records the settled
+step 2 behavior: reject any nonzero `SKIP`, `FAIL`, or `SCRIPT_ERROR` state,
+while `NA` remains nonfatal, and do not scan human-readable body prose.
 Superseded Plan Artifacts: none
 
 1. Read a real suite log from each golden and record how a skip is actually
@@ -941,29 +942,43 @@ Superseded Plan Artifacts: none
 2. After M8 emits the accepted machine-readable records, extend the verdict to
    validate the declared suite and check identities and reject any nonzero
    `SKIP`, `FAIL`, or `SCRIPT_ERROR` state without scanning body prose.
-3. Apply it to both copies of the command.
-4. Enumerate the twelve-check difference between the goldens.
+3. Apply one command to both `gate/RUNBOOK.md` locations: the suite gate under
+   `Required to continue` and the copy under `Driver forms`.
+4. Enumerate every cross-host identity and terminal-state difference.
 
-Log inventory, observed 2026-08-03 from top over ssh (recheck with the
-commands in `gate/RUNBOOK.md`'s verdict step):
+Development evidence re-observed 2026-08-10T14:24:19-07:00 through SSH with
+`stat`, `sha256sum`, and machine-record counts:
+
+- debian13 log: SHA-256
+  `9f1db70b9034f43e4b4346cb37b2b7b7a8ccbaa947acf6cbe0e26fc471bcd8ee`;
+  612 TEST, 165 STEP, six SUITE records; all 612 TEST states are `PASS`.
+  The corresponding status has SHA-256
+  `2c7199ce7ed8f91005630df7502c6292da5a62e0b24c4a9f56ca48163ca1c738`.
+- rocky8 log: SHA-256
+  `944374e563128a16fedac4721c70a746a118273a0bf957c2c4b8728161c682df`;
+  612 TEST, 165 STEP, six SUITE records; 602 `PASS`, six `SKIP`, and four
+  `NA`. The corresponding status has SHA-256
+  `93f68f6800f77f0610b2e20d96dd2f5bc9965f1278ab984a08dd63eeafde6b0b`.
+- These hashes identify Check-grade historical evidence only. They are not T1
+  inputs and do not replace the fresh logs produced through the shipped suite
+  commands during T1.
+
+Step 1 execution context, observed 2026-08-03 from top over SSH:
 
 - Both iocrunner testbeds are running: `testbed-debian13-iocrunner-server`
   (192.168.122.50) and `testbed-rocky8-iocrunner-server` (192.168.122.150),
   both up since 2026-08-01.
-- rocky8 holds a real gate log: `/tmp/gate.log`, 121,654 bytes, 1,524
-  lines, mtime Aug 1 00:13 — the no-skip side of T1.
-- debian13 holds no log anywhere (`/tmp`, `/dev/shm`, home): the
-  skip-carrying side of T1 did not survive. Its tree is at `1ee17fa` with
-  step 2/3 driving edits in `gate/` — before the M7 fixes — so the testbed
-  as it stands can regenerate a real skip-carrying log by running its own
-  local lifecycle suite unmodified. rocky8's tree is at `57c2c3d`, also
-  pre-fix, which keeps its existing log representative.
-- Consequence for M7's T2: rocky8's pre-fix log doubles as the "totals
-  unchanged from before" baseline (local lifecycle 94 of 94).
+- The prior logs were transient development evidence. No current or future M6
+  step depends on their paths or availability; T1 captures fresh logs from the
+  shipped suite commands.
+- The trees were at `1ee17fa` on debian13 and `57c2c3d` on rocky8 before the
+  M7 fixes, which made their observed skip forms representative of step 1.
+- Consequence for M7's T2: the recorded rocky8 local-lifecycle total of 94 of
+  94 is the pre-fix comparison baseline.
 
-Step 1 findings, observed 2026-08-03, from both testbeds' `/tmp/gate.log`
-(debian13's regenerated that day on its pre-fix tree at `1ee17fa`: local
-lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
+Step 1 findings, observed 2026-08-03 from real suite logs on both testbeds
+(debian13 regenerated its log that day on the pre-fix tree at `1ee17fa`:
+local lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
 
 - The debian13 log carries exactly five skip lines, all M19: the probe's
   `WARN: logrotate not found; U003/M19 rotation steps will be skipped.` and
@@ -978,13 +993,13 @@ lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
   was measured false. rocky8's log carries a real skip, twice (once per
   lifecycle run): `The monitor-isolation step will be skipped.` followed by
   `[WARN   ] User-scope journal unavailable, skipping monitor isolation
-  test.` Its 94 of 94 green also meant "of what ran". The new verdict will
-  flag rocky8's current log, correctly.
+  test.` Its 94 of 94 green also meant "of what ran". A verdict applied to
+  that recorded terminal-state vector must reject it.
 - A third form exists: `[INFO   ] SKIP: deployed sudoers uses glob
   fallback; regex-deny probe does not apply.` followed by a `[ PASS ]`
-  line asserting the skip. This is a deliberate does-not-apply recorded as
-  a pass, not a dropped check; whether the verdict counts it is a step 2
-  decision for the owner.
+  line asserting the skip. Under the settled step 2 rule, the body text is not
+  scanned; only the corresponding machine-readable terminal state governs the
+  verdict, and `NA` remains visible and nonfatal.
 - Real skip forms observed so far: step-level `[WARN   ] ... skipping ...`
   (the load-bearing one), probe-level prose `... will be skipped.`, and
   the `[INFO   ] SKIP:` does-not-apply form.
@@ -993,7 +1008,7 @@ lifecycle, 82 of 82, suite exit 0, the finding's condition reproduced):
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Verdict execution | Run the verdict over real M8 records from a run known to carry a skip and one known not to | Both goldens' logs | The records and verdicts differ, and the skipped run cannot produce plain `SUITES OK` |
+| T1 | Verdict execution | Run the real suite commands named by `gate/RUNBOOK.md` on both goldens, capture fresh machine-readable logs, then apply the verdict to both logs | debian13 and rocky8 | An all-`PASS` vector can produce plain `SUITES OK`; a vector carrying `SKIP` cannot; `NA` remains nonfatal and visible |
 | T2 | Drift check | Compare the gate step's copy of the command against the driver-forms copy | Working tree | They are the same command |
 
 #### Verification Results
@@ -1016,7 +1031,9 @@ Observed State: open
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06
+Observed Updated At: 2026-08-07T03:15:32Z
+Observed Body: stale; still reports M6 blocked by #137 and does not require fresh T1 logs through the shipped suite commands
+Last Compared: 2026-08-10T14:24:19-07:00
 
 ### M7 - The suite tool probe disagrees with the runner
 
@@ -1725,7 +1742,7 @@ the work are recorded here independently of those ignored files.
 | Debian verification | The shipped reporter self-test passed 88/88; the shipped collector probe passed 10/10; source regression passed 87/87; local lifecycle passed 125/125; system infrastructure passed 36/36; and system lifecycle passed 93/93. Mount-isolated cleanup failures returned 1 while preserving all-PASS check vectors and emitting final `SUITE state=FAIL` for local 125/125 and system 93/93. |
 | P006 matrix | Reused Debian 13 (`192.168.122.50`) and Rocky 8 (`192.168.122.150`) consumers each ran error handling, source regression, local lifecycle in source and installed modes, system infrastructure installed, and system lifecycle installed. All twelve process statuses were zero. Each host emitted 612 TEST, 165 STEP, and six final `SUITE state=PASS` records. The normalized execution identities matched exactly and represented the unchanged 487-check catalog. |
 | Cross-host states | Debian recorded all 612 execution identities as PASS. Rocky recorded 602 PASS, six SKIP from the three local S29 user-journal checks in both runner modes, and four NA from the system-infra S06 sudoers-policy branch. Those ten records were the only cross-host state differences. |
-| Evidence identity | The normalized execution-identity SHA-256 was `0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3` on both hosts. Debian `/tmp/m8-p006.log` and `.status` SHA-256 values were `9f1db70b9034f43e4b4346cb37b2b7b7a8ccbaa947acf6cbe0e26fc471bcd8ee` and `2c7199ce7ed8f91005630df7502c6292da5a62e0b24c4a9f56ca48163ca1c738`; Rocky values were `944374e563128a16fedac4721c70a746a118273a0bf957c2c4b8728161c682df` and `93f68f6800f77f0610b2e20d96dd2f5bc9965f1278ab984a08dd63eeafde6b0b`. |
+| Evidence identity | The normalized execution-identity SHA-256 was `0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3` on both hosts. Debian captured-log and status SHA-256 values were `9f1db70b9034f43e4b4346cb37b2b7b7a8ccbaa947acf6cbe0e26fc471bcd8ee` and `2c7199ce7ed8f91005630df7502c6292da5a62e0b24c4a9f56ca48163ca1c738`; Rocky values were `944374e563128a16fedac4721c70a746a118273a0bf957c2c4b8728161c682df` and `93f68f6800f77f0610b2e20d96dd2f5bc9965f1278ab984a08dd63eeafde6b0b`. The files were transient Check-grade evidence and are not required for later verification. |
 | Authority conflict | `plan20260810_021936` listed P006 as out of scope and prohibited beginning it while `auth20260810_121447` and `hand20260810_122448` claimed P006 authorization and completion. Reviewer 1 accepted the real evidence but opened blocking finding `F-reviewer1_state_coherence-003` against that inconsistent authority chain. |
 | Authority repair | `plan20260810_125403` superseded the conflicting plan and placed P006/V006 in scope with both hosts, the twelve-command matrix, four evidence paths, exact pass criteria, and the reused-consumer Check-grade boundary. `auth20260810_125505` recorded User approval; `hand20260810_125527` adopted the unchanged evidence without rerun; Reviewer 1 `fup20260810_125825` resolved F-003 with no blocking finding. Reviewer 2 `rev20260810_123926` and Reviewer 3 `rev20260810_123537` also accepted the execution and boundary evidence with no finding. |
 | Final boundary | P006 is Complete and T4/T6 are Pass at Check grade only. No fresh bake or release Gate claim was made, no suite was rerun for the authority repair, and no file under `gate/` changed. M8 completed after its canonical record and GitHub issue body were reconciled and issue #137 was observed closed. |
