@@ -6,23 +6,15 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: implement M5 step 7a's shipped suite driver, then run
-M7's T1 (debian13, both modes) and T2 (rocky8) through it in one golden-VM
-pass under the skip-aware verdict. M7 stays In
-progress meanwhile:
-its step 2 is fully committed (`9f8d01c`, `9f6a3e9`) and the dev host top
-passed 96 of 96 with all fourteen M19 assertions running (evidence in the M7
-detail). M5
-steps 1 through 7 are done — the
-drivers are landed under `gate/`, they reached fourteen of fourteen on debian13
-and then on rocky8 at its first run with no edit, D8 is final, and the twelve
-text findings are applied. What remains of M5 is expensive rather than uncertain:
-step 8 restores the goldens' ownership, rebakes both, and creates fresh
-consumers, and step 9 is the only run whose scenario verdicts carry Gate grade.
-M6 and M7 opened 2026-08-02 from a conceptual-integrity sweep and both gate the
-release. M6 is complete and makes a skip visible to the verdict; M7 removes the
-one skip that should not be happening. M7 comes before M5's step 9 so that run
-carries the full declared check set.
+Next session entry point: commit the reviewed M5 step 7a driver and evidence
+schema, then complete M7 T3's probe-to-resolver pairing walk. The exact suite
+driver snapshot has run the real six-run suite path on both goldens at remote
+`61eea127`: Debian passed all 612 checks; Rocky executed every suite but the
+skip-aware verdict correctly stayed red on six unrelated S29 user-journal
+skips. M7 T1 and T2 now pass because S14, S15, S16, and S34 ran in both local
+lifecycle modes on both hosts. M7 remains In progress only for T3. After that,
+M5 step 8 restores the goldens' ownership, rebakes both, and creates fresh
+consumers; step 9 is the only scenario run whose verdicts carry Gate grade.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -811,7 +803,19 @@ Superseded Plan Artifacts: none
    appending five times; records six elapsed results per host; applies the
    canonical machine-record verdict to each host; and emits the normalized
    two-host comparison. Reduce the runbook's suite section to the driver's
-   inputs, invocation, expected output, and evidence schema. Pending.
+   inputs, invocation, expected output, and evidence schema. Implemented,
+   real-path verified, and third-person follow-up reviewed 2026-08-10; pending
+   commit. A
+   third-person review found that the first evidence predated the current
+   untracked driver and carried no driver hash. The owner accepted the finding.
+   The driver now stores `control.meta`, the complete control porcelain status,
+   and an exact driver snapshot, verifies the live and snapshot SHA-256 values
+   again at finalization, and fails if either changes. The corrected two-host
+   run at remote `61eea127` produced six process-success records, 612 TEST, 165
+   STEP, and six final PASS SUITE records per host. Debian's canonical verdict
+   passed; Rocky's canonical verdict correctly failed on six S29 SKIP and four
+   S06 NA records; and the normalized comparison enumerated all differences in
+   56 lines.
 8. Restore the goldens' ownership, bake both, create fresh consumers, and
    record the golden acceptance before anything touches them. Both blind runs
    of 2026-08-01 failed the acceptance on a consumer a prior run had already
@@ -862,7 +866,7 @@ re-drive is the condition this milestone exists to end.
 | T3 | — | — | pending | |
 | T4 | — | — | pending | |
 | T5 | — | — | pending | |
-| T6 | — | — | pending | |
+| T6 | 2026-08-10T17:28:29-07:00 | Debian 13 and Rocky 8 goldens at remote `61eea127`, source and installed runners; control `fa07acea` dirty with three recorded paths | Pass for driver provenance and execution; gate remains red on Rocky state | The exact executed driver and its evidence snapshot both have SHA-256 `86205ec1e80ddfcc3709856c15fa1dd41a650991a3f06b922a9c3b3639a6596d`; `control.status` has three paths and SHA-256 `699ec1de9889ee583f97564db4186574e34f7fe6931453df9e8591bc9eb4e3b8`. All twelve real suite invocations returned process status 0. Each host log contains 612 TEST, 165 STEP, and six final PASS SUITE records, with the three resolved runner paths matching source then two installed runs. Debian returned `SUITES OK (6 blocks, 612 checks, na=0)`; log SHA-256 `b4ca0baec43ce977959247d0c50049a632ba349ce3faacb40e16bedb37af5367`. Rocky returned the canonical state-vector failure with six S29 SKIP and four S06 NA records, zero FAIL and zero SCRIPT_ERROR; log SHA-256 `bf3e16a18d130492dac5e69042c9cfb179e43ff058e660b484f6a690eaf33fab`. `cross-host.diff` contains 56 lines and SHA-256 `6e35974e9c7c8670d3dba3bc4819505f12540dcddc0ce8553134f71dd4343652`. Control-side evidence: `work/gate-suites-20260811T002829Z-126907/`. |
 
 #### Closure Evidence
 
@@ -1128,7 +1132,7 @@ aborts rather than skips and is a different decision.
   visible does not make the check run.
 - Ordering, owner-approved 2026-08-03: T1 and T2 wait for M6's skip-aware
   verdict, so the one golden-VM run verifies both milestones. This milestone
-  stays In progress, not blocked — everything except T1 and T2 is done.
+  stays In progress, not blocked. T1 and T2 passed on 2026-08-10; T3 remains.
 
 #### Implementation Plan
 
@@ -1148,8 +1152,12 @@ Superseded Plan Artifacts: none
    owner later the same day and are committed as `9f6a3e9`; the decision
    paragraphs below record their shape.
 3. Drive the local lifecycle on debian13 in both modes and confirm the four
-   steps run.
-4. Drive it on rocky8 and confirm nothing changed there.
+   steps run. Done 2026-08-10 through the shipped suite driver; S14, S15, S16,
+   and S34 recorded 10, 4, 3, and 3 PASS checks in each mode.
+4. Drive it on rocky8 and confirm nothing changed there. Done 2026-08-10
+   through the same driver; the four steps recorded the same PASS counts in
+   each mode. The three S29 user-journal skips per mode are unrelated to this
+   milestone and remain visible in the host verdict.
 
 Step 2 result, 2026-08-03, committed as `9f8d01c`:
 `tests/test-local-lifecycle.bash` resolves one `LOGROTATE_BIN` at
@@ -1164,8 +1172,8 @@ verification observed 2026-08-03: `bash -n` clean and `shellcheck -S warning`
 clean on the edited file. The dev host top is itself the defect condition —
 `command -v logrotate` fails while `/usr/sbin/logrotate` is executable — and
 the new resolution order picks the first candidate there, so the probe no
-longer skips on the shape that produced the finding. T1 and T2 remain the
-real verification and need the golden VMs.
+longer skips on the shape that produced the finding. T1 and T2 later ran on
+the golden VMs and are recorded below.
 
 Before acting on this plan, re-verify it against the code. The session that
 wrote it ran under a tight token budget, so this document can lag the working
@@ -1238,10 +1246,9 @@ debian-13/7.0.10 environment: `bash tests/test-local-lifecycle.bash` passed
 96 of 96 with zero failures and zero script errors, the log carries no skip
 line, the fourteen M19 assertions all ran and passed (T1 nine, T2 two, T3
 one, teardown two), and the con check passed through the new absolute-list
-probe. Before the fix this host skipped every M19 step. This is the dev-host
-tier, not T1: T1 (debian13 golden, both modes) and T2 (rocky8 golden) remain,
-and the system suite has not yet run with the decision 3 edit — it runs on
-the golden VMs as part of those.
+probe. Before the fix this host skipped every M19 step. This was the dev-host
+tier, not T1. The later golden runs are recorded in T1 and T2 below and include
+the system suite carrying the decision 3 edit.
 
 #### Test Plan
 
@@ -1255,8 +1262,8 @@ the golden VMs as part of those.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | — | — | pending | |
-| T2 | — | — | pending | |
+| T1 | 2026-08-10T17:01:44-07:00 | Debian 13 golden at `61eea127`, local lifecycle source and installed | Pass | Both real local lifecycle runs reported 125 PASS of 125 with zero SKIP, FAIL, NA, or SCRIPT_ERROR. S14, S15, S16, and S34 executed in both modes with 10, 4, 3, and 3 PASS records per mode. Evidence: `work/gate-suites-20260811T000144Z-85203/vmadmin_192.168.122.50.log`. |
+| T2 | 2026-08-10T17:01:44-07:00 | Rocky 8 golden at `61eea127`, local lifecycle source and installed | Pass for M7; unrelated S29 skips remain | Both real local lifecycle runs executed all M19 replacement steps: S14, S15, S16, and S34 recorded 10, 4, 3, and 3 PASS records per mode. Each suite total was 125 with 122 PASS and three S29 user-journal SKIP records; none concerns tool resolution. Evidence: `work/gate-suites-20260811T000144Z-85203/vmadmin_192.168.122.150.log`. |
 | T3 | — | — | pending | |
 
 #### Closure Evidence

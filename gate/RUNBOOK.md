@@ -524,162 +524,78 @@ belongs to the writing, not to the running.
 
 Execute everything else.
 
-### 2. The five suites, lifecycle modes, both goldens
+### 2. The six suite runs, both lifecycle modes, both goldens
 
-The standalone static and behavioral suite needs no privileges and no EPICS
-environment:
-
-```bash
-ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && bash tests/test-error-handling.bash'
-```
-
-The source-regression suite also needs no EPICS environment. Its exclusive
-dispatcher selection starts the suite through `sudo` and does not enter the
-lifecycle credential preflight. Require non-interactive sudo before invoking
-it so a host that needs a password fails instead of waiting for a prompt:
+Run the shipped control-side driver from the repository root. It takes one host
+and one resolved absolute EPICS environment path for each golden. Resolve those
+paths during the precondition checks; do not pass a glob or a relative path.
 
 ```bash
-ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && sudo -n true && bash tests/run-all-tests.bash --source-regression'
+DEBIAN_HOST="vmadmin@<debian-host>"
+DEBIAN_EPICS_ENV="<absolute-debian-epics-env>"
+ROCKY_HOST="vmadmin@<rocky-host>"
+ROCKY_EPICS_ENV="<absolute-rocky-epics-env>"
+bash gate/drivers/control/suites.bash "$DEBIAN_HOST" "$DEBIAN_EPICS_ENV" "$ROCKY_HOST" "$ROCKY_EPICS_ENV"
 ```
 
-The local lifecycle runs as the invoking user, once against the source tree and
-once against the deployed binary. Both need the EPICS environment:
+The driver requires non-interactive SSH and sudo on both hosts, confirms that
+both remote repositories resolve to the same commit, and runs the following
+matrix in this order on each host:
 
-```bash
-ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && . <epics-env> && IOC_RUNNER_TEST_MODE=source bash tests/test-local-lifecycle.bash'
-ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && . <epics-env> && IOC_RUNNER_TEST_MODE=installed bash tests/test-local-lifecycle.bash'
+1. error handling, source;
+2. source regression, source;
+3. local lifecycle, source;
+4. local lifecycle, installed;
+5. system infrastructure, installed state;
+6. system lifecycle, installed.
+
+The two hosts run in parallel. Measured 2026-08-10 at `61eea127`, the six runs
+took 253 seconds on Debian and 236 seconds on Rocky; individual runs ranged
+from 0 to 85 seconds. Allow 10 minutes for the driver. If it has not printed a
+final verdict by then, treat the run as hung, retain the reported evidence
+directory, and inspect both `.drive` files. Each file's `HOST START` line names
+the remote log to inspect before stopping anything.
+
+Before either host preflight, the driver records the control repository's
+`HEAD` and complete `git status --porcelain`, copies the exact executing driver
+into the evidence directory, and records SHA-256 values for both the status and
+driver snapshot. It hashes the live driver and snapshot again before the final
+verdict; a change to either during the run makes the driver fail.
+
+Each host writes one remote log. The first suite truncates it and the remaining
+five append to it. The driver then copies the complete log into the control
+repository, compares the remote and local SHA-256 values, and validates:
+
+- exactly six successful process-status records;
+- exactly 612 TEST, 165 STEP, and six final PASS SUITE records;
+- the canonical execution-identity SHA-256;
+- the source runner under the remote repository and both installed runners at
+  `/usr/local/bin/ioc-runner`;
+- the canonical state-vector verdict; and
+- the complete normalized TEST and STEP difference between the two hosts.
+
+A successful run ends with:
+
+```
+GATE SUITES PASS hosts=2 evidence=<control-repository>/work/gate-suites-<run-id>
 ```
 
-The system lifecycle runs against the deployed binary. On a host where the
-privileged account cannot execute a user-owned binary out of a private home —
-an NFS `root_squash` home, among others — source mode cannot run at all, and
-the mode is not a preference but the only one the suite contract allows
-(`../tests/README.md`, "Runner Binary Selection"). The system infrastructure
-suite has no binary axis at all: it reads deployed components rather than
-running the runner, so the variable is inert there and is set only to keep one
-form for both commands:
+Any process failure, missing or malformed record, identity mismatch, resolved
+binary mismatch, `SKIP`, `FAIL`, or `SCRIPT_ERROR` makes the host verdict
+and the final driver result fail. `NA` remains visible but is nonfatal because
+it records an examined applicability boundary.
 
-```bash
-ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && . <epics-env> && IOC_RUNNER_TEST_MODE=installed sudo -nE bash tests/test-system-infra.bash'
-ssh vmadmin@<host> 'cd ~/gitsrc/epics-ioc-runner && . <epics-env> && IOC_RUNNER_TEST_MODE=installed sudo -nE bash tests/test-system-lifecycle.bash'
-```
+`CROSS_HOST rc=1` means the normalized host records differ and
+`cross-host.diff` contains the full enumeration. It is not a separate
+failure when both host verdicts pass. The final `GATE SUITES` line is the
+driver verdict.
 
-`sudo -nE` is what carries both the environment and the mode across the
-privilege boundary. Do not take that on trust: each lifecycle suite prints the
-binary it resolved, with its `-V`, before its first step. Read that line back —
-an unset mode silently defaults to the source tree, which is a green in the
-wrong mode rather than an error.
-
-**`<log>` in this step is a path on the HOST, not on the control host.** Every
-command here that writes it or reads it sits inside the `ssh` quotes, so the
-file never leaves the machine that produced it. One log per host, named
-`/tmp/gate.log` below, carrying all six runs of that host. Step 3's `<log>` is
-the other side and the other shape; it is described there and the two do not
-share a name.
-
-```bash
-ssh vmadmin@<host> "cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -A1 'Runner under test'"
-ssh vmadmin@<host> 'IOC_RUNNER_TEST_MODE=installed sudo -nE printenv IOC_RUNNER_TEST_MODE'
-```
-
-Only the three lifecycle blocks print that line: the standalone suite, source
-regression, and system infrastructure resolve no lifecycle binary, so expect
-three matches from a six-block log, not six. Anchor on the phrase, not on a
-first match: a loose pattern over a concatenated log returns an assertion line
-from an unrelated block.
-
-Capture all six runs of a host into ONE log on that host, appending after the
-first — the verdict command below reads that single file, and keeping it beside
-the run keeps the counts with the machine that produced them:
-
-```bash
-bash tests/<first-suite>.bash > /tmp/gate.log 2>&1
-bash tests/<next-suite>.bash >> /tmp/gate.log 2>&1
-```
-
-Truncating instead of appending leaves one suite record behind. The fixed
-matrix verdict reports `SUITES FAIL blocks=1` and exits nonzero rather than
-scoring the truncated log as a pass.
-
-Keep each suite's whole summary block, not its last few lines. The counts the
-evidence table asks for sit above the closing banner, so a driver that tails a
-fixed number of lines records a green with no numbers behind it — and a green
-without its count cannot be compared against the next run. Pull the numbers out
-of a captured log with:
-
-```bash
-cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -E 'Total|Passed|Failed|Skipped|Not applicable|Script Errors|Suite State'
-```
-
-The human summary names every non-PASS check for the operator. It is not gate
-input. Read only the machine records when deciding whether the run continues:
-
-```bash
-grep -E '^(TEST|STEP|SUITE) ' <log>
-```
-
-Drive the system suites directly, not through `tests/run-all-tests.bash`, when
-there is no terminal. The orchestrator caches credentials with `sudo -v` before
-the system phases, and a host carrying both a password rule and NOPASSWD
-entries prompts there even though every individual command would pass. The
-orchestrator's local path and exclusive source-regression path have no such
-preflight and are safe to use.
-
-**How long these take is not recorded, so do not read elapsed time as a
-verdict.** No per-suite duration has been measured on either golden; the only
-runtime this runbook can state is step 4's, where a full fourteen-scenario
-driver run took 81 to 84 seconds across five runs on 2026-08-02. That number
-bounds nothing here — the two lifecycle suites run for minutes — and borrowing
-it is how a working suite gets killed as hung. Until the durations exist, tell
-slow from hung by the log rather than by the clock, reading the same file twice
-with a minute between:
-
-```bash
-ssh vmadmin@<host> 'wc -c /tmp/gate.log'
-```
-
-A log that grew is a suite that is working. A log that did not grow is the case
-for the bounded-wait form under "Driver forms", which waits on a completion line
-and never on a process name.
-
-Fill the gap while you are here: wrap each invocation the step already gives in
-`t0=$(date +%s);` and `echo "elapsed=$(( $(date +%s) - t0 ))s"`, and record the
-five numbers per host beside the counts. Two cycles of that retire this
-paragraph.
-
-Required to continue: every suite run on every host reports zero `SKIP`,
-`FAIL`, and `SCRIPT_ERROR` states, every final suite state is `PASS`, and the
-resolved binary line matches the mode intended. `NA` remains nonfatal because
-it records an examined applicability boundary, but the verdict prints every
-non-PASS `TEST` record and includes the `NA` count in its final line.
-
-Assert the fixed six-run matrix from the machine records. The command validates
-the expected suite/scope/runner set, the exact 612-entry execution-identity
-set, 165 STEP records, each TEST-to-STEP vector, each suite vector, and final
-suite state. The identity precheck normalizes suite, scope, runner, STEP, check
-ID, category, kind, and method with `|` separators under `LC_ALL=C`, then
-requires the canonical SHA-256 recorded by M8. A missing, substituted,
-duplicate, malformed, truncated, or unexpected record makes the compound
-command exit nonzero before it can print `SUITES OK`:
-
-```bash
-ssh vmadmin@<host> "expected=0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3; actual=\$(awk 'BEGIN{OFS=\"|\"} \$1==\"TEST\"{r=substr(\$3,5);n++;run[n]=r;suite[n]=substr(\$2,7);step[n]=substr(\$4,6);id[n]=substr(\$5,4);cat[n]=substr(\$6,10);kind[n]=substr(\$7,6);method[n]=substr(\$8,8)} \$1==\"SUITE\"{r=substr(\$3,5);scope[r]=substr(\$4,7);runner[r]=substr(\$5,8)} END{for(i=1;i<=n;i++)print suite[i],scope[run[i]],runner[run[i]],step[i],id[i],cat[i],kind[i],method[i]}' <log> | LC_ALL=C sort | sha256sum | awk '{print \$1}'); if [ \"\${actual}\" != \"\${expected}\" ]; then printf 'SUITES FAIL identity_sha256=%s expected=%s\n' \"\${actual}\" \"\${expected}\"; exit 1; fi" &&
-ssh vmadmin@<host> "awk 'function val(n,p){if(index(\$n,p)!=1||length(\$n)==length(p)){bad++;return \"\"}return substr(\$n,length(p)+1)} function scalar(v){return v~/^[-A-Za-z0-9._:\/+]+\$/} function own(r,s){if(run_suite[r]!=\"\"&&run_suite[r]!=s)bad++;run_suite[r]=s} BEGIN{want[\"error-handling/none/source\"]=146;want_step[\"error-handling/none/source\"]=37;want[\"source-regression/system/source\"]=87;want_step[\"source-regression/system/source\"]=16;want[\"local-lifecycle/local/source\"]=125;want_step[\"local-lifecycle/local/source\"]=36;want[\"local-lifecycle/local/installed\"]=125;want_step[\"local-lifecycle/local/installed\"]=36;want[\"system-infra/system/none\"]=36;want_step[\"system-infra/system/none\"]=7;want[\"system-lifecycle/system/installed\"]=93;want_step[\"system-lifecycle/system/installed\"]=33} \$1==\"TEST\"{raw=\$0;if(NF!=10){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");id=val(5,\"id=\");cat=val(6,\"category=\");kind=val(7,\"kind=\");method=val(8,\"method=\");st=val(9,\"state=\");reason=val(10,\"reason_b64=\");if(!scalar(s)||!scalar(r)||!scalar(q)||!scalar(id)||index(id,s \".\")!=1||cat!~/^(error-contract|source-regression|installed-conformance|lifecycle-behavior)\$/||kind!~/^(REQUIRED|PREREQUISITE|APPLICABILITY|BEHAVIOR|INTEGRITY)\$/||method!~/^(real-path|direct-inspection)\$/||st!~/^(PASS|FAIL|SKIP|NA|SCRIPT_ERROR)\$/||(st==\"PASS\")!=(reason==\"-\")||(reason!=\"-\"&&reason!~/^[A-Za-z0-9_-]+\$/))bad++;own(r,s);k=r SUBSEP id;if(test_seen[k]++)bad++;test_count[r]++;test_vector[r SUBSEP st]++;ts=r SUBSEP q;test_step_seen[ts]=1;test_step_vector[ts SUBSEP st]++;if(st!=\"PASS\"){exception_run[++exceptions]=r;exception_line[exceptions]=raw}if(suite_seen[r])bad++;next} \$1==\"STEP\"{if(NF!=9){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");p=val(5,\"pass=\");f=val(6,\"fail=\");sk=val(7,\"skip=\");na=val(8,\"na=\");e=val(9,\"err=\");if(!scalar(s)||!scalar(r)||!scalar(q)||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/)bad++;own(r,s);k=r SUBSEP q;if(step_seen[k]++)bad++;step_count[r]++;step_vector[k SUBSEP \"PASS\"]=p+0;step_vector[k SUBSEP \"FAIL\"]=f+0;step_vector[k SUBSEP \"SKIP\"]=sk+0;step_vector[k SUBSEP \"NA\"]=na+0;step_vector[k SUBSEP \"SCRIPT_ERROR\"]=e+0;if(suite_seen[r])bad++;next} \$1==\"SUITE\"{if(NF!=14){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");scope=val(4,\"scope=\");runner=val(5,\"runner=\");os=val(6,\"os=\");arch=val(7,\"arch=\");t=val(8,\"total=\");p=val(9,\"pass=\");f=val(10,\"fail=\");sk=val(11,\"skip=\");na=val(12,\"na=\");e=val(13,\"err=\");state=val(14,\"state=\");wk=s \"/\" scope \"/\" runner;if(!scalar(s)||!scalar(r)||!scalar(scope)||!scalar(runner)||!scalar(os)||!scalar(arch)||t!~/^[0-9]+\$/||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/||state!~/^(PASS|FAIL)\$/||!(wk in want))bad++;own(r,s);if(suite_seen[r]++||want_seen[wk]++)bad++;run_key[r]=wk;run_runner[r]=runner;suite_total[r]=t+0;suite_vector[r SUBSEP \"PASS\"]=p+0;suite_vector[r SUBSEP \"FAIL\"]=f+0;suite_vector[r SUBSEP \"SKIP\"]=sk+0;suite_vector[r SUBSEP \"NA\"]=na+0;suite_vector[r SUBSEP \"SCRIPT_ERROR\"]=e+0;suite_exec[r]=state;blocks++;next} END{for(k in test_step_seen)if(!step_seen[k])bad++;for(k in step_seen){for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(step_vector[k SUBSEP st]!=test_step_vector[k SUBSEP st])bad++}}for(r in run_suite)if(!suite_seen[r])bad++;for(wk in want)if(want_seen[wk]!=1)bad++;for(r in suite_seen){wk=run_key[r];checks+=test_count[r];steps+=step_count[r];if(test_count[r]!=want[wk]||step_count[r]!=want_step[wk]||suite_total[r]!=test_count[r]||suite_exec[r]!=\"PASS\")bad++;for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(suite_vector[r SUBSEP st]!=test_vector[r SUBSEP st])bad++}skip+=test_vector[r SUBSEP \"SKIP\"];fail+=test_vector[r SUBSEP \"FAIL\"];na_total+=test_vector[r SUBSEP \"NA\"];err+=test_vector[r SUBSEP \"SCRIPT_ERROR\"]}for(i=1;i<=exceptions;i++)print exception_line[i] \" runner=\" run_runner[exception_run[i]];if(blocks==6&&checks==612&&steps==165&&skip==0&&fail==0&&err==0&&bad==0){print \"SUITES OK (6 blocks, 612 checks, na=\" na_total \")\";exit 0}print \"SUITES FAIL blocks=\" (blocks+0) \" checks=\" (checks+0) \" steps=\" (steps+0) \" skip=\" (skip+0) \" fail=\" (fail+0) \" na=\" (na_total+0) \" err=\" (err+0) \" invalid=\" (bad+0);exit 1}' <log>"
-```
-
-A skip is not a pass. Carry every printed `SKIP` record into "When a check
-cannot be induced". `NA` is different: it records a tested applicability
-boundary and does not stop the run, but it remains visible in both the emitted
-record and the verdict total.
-
-Compare the two hosts by normalized TEST and STEP records. This command removes
-run IDs and adds the suite runner, so repeated local source and installed
-checks remain distinct. `diff` exits 1 when differences exist; its output is
-the required enumeration, not a separate pass/fail verdict:
-
-```bash
-diff -u <(ssh vmadmin@<debian-host> "awk '\$1==\"TEST\"{r=substr(\$3,5);n[r]++;rec[r SUBSEP n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"STEP\"{r=substr(\$3,5);n[r]++;rec[r SUBSEP n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"SUITE\"{r=substr(\$3,5);runner[r]=\$5} END{for(r in n)for(i=1;i<=n[r];i++)print rec[r SUBSEP i],runner[r]}' <debian-log>" | sort) <(ssh vmadmin@<rocky-host> "awk '\$1==\"TEST\"{r=substr(\$3,5);n[r]++;rec[r SUBSEP n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"STEP\"{r=substr(\$3,5);n[r]++;rec[r SUBSEP n[r]]=\$1 \" \" \$2 \" \" \$4 \" \" \$5 \" \" \$6 \" \" \$7 \" \" \$8 \" \" \$9} \$1==\"SUITE\"{r=substr(\$3,5);runner[r]=\$5} END{for(r in n)for(i=1;i<=n[r];i++)print rec[r SUBSEP i],runner[r]}' <rocky-log>" | sort)
-```
+The evidence directory is on the control host under `work/`, not only in
+remote `/tmp`. It contains `control.meta`, `control.status`, and the exact
+`control-driver.bash` snapshot; per host, the complete `.log`, six-run
+`.status`, host `.meta`, canonical `.verdict`, and `.normalized` files; and one
+`cross-host.diff`. Keep the directory together when handing the gate to another
+control host.
 
 ### 3. The root_squash deployment path
 
@@ -827,26 +743,28 @@ ssh vmadmin@<host> '/usr/local/bin/ioc-runner -V'
 
 ## Evidence
 
-Record one row per suite per host. Measure the numbers; do not estimate them.
-A run whose counts were transcribed from a previous run is not evidence.
+Record the control-side evidence directory and one row per suite per host.
+Measure every value from that run's machine records and status files; do not
+copy counts from an earlier run.
 
-The verdict command reads one concatenated log per host and answers a single
-question — did anything fail. This table is the other half: it wants the rows
-back out of that log, in the order the suites were launched, which is the order
-the blocks appear. The Skipped column holds text, not a number: the suites
-report skips as prose in the body, so name what was skipped and why.
+| Host | Golden bake date | Baseline commit | Host verdict | Log SHA-256 |
+| --- | --- | --- | --- | --- |
+| | | | | |
 
-| Host | Golden bake date | Baseline in the manifest | Mode | Suite | Passed / total | Skipped |
-|---|---|---|---|---|---|---|
-| | | | | | | |
+| Host | Suite | Scope | Runner | PASS | FAIL | SKIP | NA | ERROR | State | Elapsed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| | | | | | | | | | | |
 
-Record alongside it: the four facts from "What is under test", the golden
-acceptance result, the denial precheck result, and the multi-user outcome per
-scenario.
+Record alongside the tables: the four facts from "What is under test", the
+golden acceptance result, the denial precheck result, the multi-user outcome
+per scenario, and the `cross-host.diff` path. The committed milestone records
+the observed totals and verdict. Raw `work/` evidence must be transferred
+explicitly when another control host continues the run.
 
 ## Driver forms
 
-Each line below replaces a form that produced a false result or a stall.
+Each line below replaces a form that produced a false result or a stall. Suite
+capture and verdict logic live only in `gate/drivers/control/suites.bash`.
 
 ```bash
 # background launch of anything that runs ansible or expects a terminal
@@ -855,15 +773,11 @@ setsid script -qec "<cmd>" /dev/null < /dev/null > <log> 2>&1 &
 # confirm it started, by output - a process search matches the searching shell
 [ -s <log> ] && tail -1 <log> || echo "NOT STARTED"
 
-# wait for a long step in the foreground, bounded - a wait handed to an event
-# that cannot wake the waiter is a silent stop, not a wait. Wait on the log,
-# never on a process name: a name search matches the polling shell itself and
-# the loop never exits.
+# wait for a long step in the foreground, bounded - wait on the log
 until [ "$(grep -c '<completion-line>' <log>)" -ge <expected> ]; do sleep 60; done
 tail -2 <log>
 
-# for the bake: the line is "Bake complete:" and a both-platform bake prints it
-# once per golden, so wait for two - waiting for one returns halfway through
+# for the bake: wait for both golden completion lines
 until [ "$(grep -c 'Bake complete:' <log>)" -ge 2 ]; do sleep 60; done
 
 # one invocation per line: a command chained behind a blocking one never runs
@@ -882,21 +796,11 @@ ssh vmadmin@<host> 'os="$(. /etc/os-release; echo "${ID}-${VERSION_ID}")"; ls -d
 # source it in the form that survives set -u
 set +u; if [ -z "${EPICS_BASE:-}" ]; then . <epics-env>; fi; set -u
 
-# capture a suite whole, then read the counts out of it
-bash tests/<suite>.bash > <log> 2>&1
-cat -v <log> | sed 's/\^\[\[[0-9;]*m//g' | grep -E 'Total|Passed|Failed|Skipped|Not applicable|Script Errors|Suite State'
-
-# validate the canonical identity set and fixed six-run machine-record matrix
-ssh vmadmin@<host> "expected=0737c14595c574808f9b77fdcb8dd2b4cc81b3f3901824675e72db8c7f795cf3; actual=\$(awk 'BEGIN{OFS=\"|\"} \$1==\"TEST\"{r=substr(\$3,5);n++;run[n]=r;suite[n]=substr(\$2,7);step[n]=substr(\$4,6);id[n]=substr(\$5,4);cat[n]=substr(\$6,10);kind[n]=substr(\$7,6);method[n]=substr(\$8,8)} \$1==\"SUITE\"{r=substr(\$3,5);scope[r]=substr(\$4,7);runner[r]=substr(\$5,8)} END{for(i=1;i<=n;i++)print suite[i],scope[run[i]],runner[run[i]],step[i],id[i],cat[i],kind[i],method[i]}' <log> | LC_ALL=C sort | sha256sum | awk '{print \$1}'); if [ \"\${actual}\" != \"\${expected}\" ]; then printf 'SUITES FAIL identity_sha256=%s expected=%s\n' \"\${actual}\" \"\${expected}\"; exit 1; fi" &&
-ssh vmadmin@<host> "awk 'function val(n,p){if(index(\$n,p)!=1||length(\$n)==length(p)){bad++;return \"\"}return substr(\$n,length(p)+1)} function scalar(v){return v~/^[-A-Za-z0-9._:\/+]+\$/} function own(r,s){if(run_suite[r]!=\"\"&&run_suite[r]!=s)bad++;run_suite[r]=s} BEGIN{want[\"error-handling/none/source\"]=146;want_step[\"error-handling/none/source\"]=37;want[\"source-regression/system/source\"]=87;want_step[\"source-regression/system/source\"]=16;want[\"local-lifecycle/local/source\"]=125;want_step[\"local-lifecycle/local/source\"]=36;want[\"local-lifecycle/local/installed\"]=125;want_step[\"local-lifecycle/local/installed\"]=36;want[\"system-infra/system/none\"]=36;want_step[\"system-infra/system/none\"]=7;want[\"system-lifecycle/system/installed\"]=93;want_step[\"system-lifecycle/system/installed\"]=33} \$1==\"TEST\"{raw=\$0;if(NF!=10){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");id=val(5,\"id=\");cat=val(6,\"category=\");kind=val(7,\"kind=\");method=val(8,\"method=\");st=val(9,\"state=\");reason=val(10,\"reason_b64=\");if(!scalar(s)||!scalar(r)||!scalar(q)||!scalar(id)||index(id,s \".\")!=1||cat!~/^(error-contract|source-regression|installed-conformance|lifecycle-behavior)\$/||kind!~/^(REQUIRED|PREREQUISITE|APPLICABILITY|BEHAVIOR|INTEGRITY)\$/||method!~/^(real-path|direct-inspection)\$/||st!~/^(PASS|FAIL|SKIP|NA|SCRIPT_ERROR)\$/||(st==\"PASS\")!=(reason==\"-\")||(reason!=\"-\"&&reason!~/^[A-Za-z0-9_-]+\$/))bad++;own(r,s);k=r SUBSEP id;if(test_seen[k]++)bad++;test_count[r]++;test_vector[r SUBSEP st]++;ts=r SUBSEP q;test_step_seen[ts]=1;test_step_vector[ts SUBSEP st]++;if(st!=\"PASS\"){exception_run[++exceptions]=r;exception_line[exceptions]=raw}if(suite_seen[r])bad++;next} \$1==\"STEP\"{if(NF!=9){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");q=val(4,\"step=\");p=val(5,\"pass=\");f=val(6,\"fail=\");sk=val(7,\"skip=\");na=val(8,\"na=\");e=val(9,\"err=\");if(!scalar(s)||!scalar(r)||!scalar(q)||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/)bad++;own(r,s);k=r SUBSEP q;if(step_seen[k]++)bad++;step_count[r]++;step_vector[k SUBSEP \"PASS\"]=p+0;step_vector[k SUBSEP \"FAIL\"]=f+0;step_vector[k SUBSEP \"SKIP\"]=sk+0;step_vector[k SUBSEP \"NA\"]=na+0;step_vector[k SUBSEP \"SCRIPT_ERROR\"]=e+0;if(suite_seen[r])bad++;next} \$1==\"SUITE\"{if(NF!=14){bad++;next}s=val(2,\"suite=\");r=val(3,\"run=\");scope=val(4,\"scope=\");runner=val(5,\"runner=\");os=val(6,\"os=\");arch=val(7,\"arch=\");t=val(8,\"total=\");p=val(9,\"pass=\");f=val(10,\"fail=\");sk=val(11,\"skip=\");na=val(12,\"na=\");e=val(13,\"err=\");state=val(14,\"state=\");wk=s \"/\" scope \"/\" runner;if(!scalar(s)||!scalar(r)||!scalar(scope)||!scalar(runner)||!scalar(os)||!scalar(arch)||t!~/^[0-9]+\$/||p!~/^[0-9]+\$/||f!~/^[0-9]+\$/||sk!~/^[0-9]+\$/||na!~/^[0-9]+\$/||e!~/^[0-9]+\$/||state!~/^(PASS|FAIL)\$/||!(wk in want))bad++;own(r,s);if(suite_seen[r]++||want_seen[wk]++)bad++;run_key[r]=wk;run_runner[r]=runner;suite_total[r]=t+0;suite_vector[r SUBSEP \"PASS\"]=p+0;suite_vector[r SUBSEP \"FAIL\"]=f+0;suite_vector[r SUBSEP \"SKIP\"]=sk+0;suite_vector[r SUBSEP \"NA\"]=na+0;suite_vector[r SUBSEP \"SCRIPT_ERROR\"]=e+0;suite_exec[r]=state;blocks++;next} END{for(k in test_step_seen)if(!step_seen[k])bad++;for(k in step_seen){for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(step_vector[k SUBSEP st]!=test_step_vector[k SUBSEP st])bad++}}for(r in run_suite)if(!suite_seen[r])bad++;for(wk in want)if(want_seen[wk]!=1)bad++;for(r in suite_seen){wk=run_key[r];checks+=test_count[r];steps+=step_count[r];if(test_count[r]!=want[wk]||step_count[r]!=want_step[wk]||suite_total[r]!=test_count[r]||suite_exec[r]!=\"PASS\")bad++;for(i=1;i<=5;i++){st=(i==1?\"PASS\":i==2?\"FAIL\":i==3?\"SKIP\":i==4?\"NA\":\"SCRIPT_ERROR\");if(suite_vector[r SUBSEP st]!=test_vector[r SUBSEP st])bad++}skip+=test_vector[r SUBSEP \"SKIP\"];fail+=test_vector[r SUBSEP \"FAIL\"];na_total+=test_vector[r SUBSEP \"NA\"];err+=test_vector[r SUBSEP \"SCRIPT_ERROR\"]}for(i=1;i<=exceptions;i++)print exception_line[i] \" runner=\" run_runner[exception_run[i]];if(blocks==6&&checks==612&&steps==165&&skip==0&&fail==0&&err==0&&bad==0){print \"SUITES OK (6 blocks, 612 checks, na=\" na_total \")\";exit 0}print \"SUITES FAIL blocks=\" (blocks+0) \" checks=\" (checks+0) \" steps=\" (steps+0) \" skip=\" (skip+0) \" fail=\" (fail+0) \" na=\" (na_total+0) \" err=\" (err+0) \" invalid=\" (bad+0);exit 1}' <log>"
-
-# read a make variable, then set it - reading does not set it, and the value
-# printed is make syntax: expand $(HOME) yourself before exporting
+# read a make variable, then set it - expand $(HOME) before exporting
 grep IMAGE_DIR <cloud-provision>/configure/CONFIG_SITE
-export IMAGE_DIR=<the printed value, with $(HOME) expanded>
+export IMAGE_DIR=<the-printed-value-with-HOME-expanded>
 
-# before the acceptance: prove nothing has touched the golden yet - both values
-# must carry the manifest's app_ioc_runner commit= hash, short against full
+# prove the golden still carries the manifest commit before acceptance
 ssh vmadmin@<host> 'git -C ~/gitsrc/epics-ioc-runner rev-parse --short HEAD; /usr/local/bin/ioc-runner -V'
 ```
 
