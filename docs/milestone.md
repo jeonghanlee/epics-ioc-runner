@@ -6,15 +6,14 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: commit the reviewed M5 step 7a driver and evidence
-schema, then complete M7 T3's probe-to-resolver pairing walk. The exact suite
-driver snapshot has run the real six-run suite path on both goldens at remote
-`61eea127`: Debian passed all 612 checks; Rocky executed every suite but the
-skip-aware verdict correctly stayed red on six unrelated S29 user-journal
-skips. M7 T1 and T2 now pass because S14, S15, S16, and S34 ran in both local
-lifecycle modes on both hosts. M7 remains In progress only for T3. After that,
-M5 step 8 restores the goldens' ownership, rebakes both, and creates fresh
-consumers; step 9 is the only scenario run whose verdicts carry Gate grade.
+Next session entry point: restore the goldens' ownership for M5 step 8, rebake
+both with the M2 baseline input, and create fresh consumers. M7 is complete:
+its implementation and T1 through T3 passed, the current-tree pairing walk
+found no disagreement between a skip-guarding probe and a runner resolver for
+the same tool, and #136 is closed with the synchronized results. The exact
+suite driver snapshot has run the real six-run suite path on both goldens at
+remote `61eea127`; step 9 is the only scenario run whose verdicts carry Gate
+grade.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -40,7 +39,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The scenario drivers fix the identities and verdicts, the suite driver owns the exact six-run capture and verdict path required by finding 7, and an independent operator drives both surfaces on both goldens from the runbook and shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Complete | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
-| M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | In progress | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
+| M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | Complete | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | Internal status fields agree, every linked issue matches its canonical projection or records an owner-approved exception, and all observed GitHub metadata is current; [detail](#m10---release-record-reconciliation) |
@@ -1085,7 +1084,7 @@ Last Compared: 2026-08-10T15:58:28-07:00
 Origin: the same sweep of 2026-08-02, measured on both goldens
 Identity History: none
 GitHub Issue: 136, https://github.com/jeonghanlee/epics-ioc-runner/issues/136
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -1131,8 +1130,9 @@ aborts rather than skips and is a different decision.
 - M6 is the other half and does not substitute for this one: making the skip
   visible does not make the check run.
 - Ordering, owner-approved 2026-08-03: T1 and T2 wait for M6's skip-aware
-  verdict, so the one golden-VM run verifies both milestones. This milestone
-  stays In progress, not blocked. T1 and T2 passed on 2026-08-10; T3 remains.
+  verdict, so the one golden-VM run verifies both milestones. T1 through T3
+  passed by 2026-08-10, and #136 closed after its body was synchronized with
+  those results.
 
 #### Implementation Plan
 
@@ -1264,22 +1264,26 @@ the system suite carrying the decision 3 edit.
 | --- | --- | --- | --- | --- |
 | T1 | 2026-08-10T17:01:44-07:00 | Debian 13 golden at `61eea127`, local lifecycle source and installed | Pass | Both real local lifecycle runs reported 125 PASS of 125 with zero SKIP, FAIL, NA, or SCRIPT_ERROR. S14, S15, S16, and S34 executed in both modes with 10, 4, 3, and 3 PASS records per mode. Evidence: `work/gate-suites-20260811T000144Z-85203/vmadmin_192.168.122.50.log`. |
 | T2 | 2026-08-10T17:01:44-07:00 | Rocky 8 golden at `61eea127`, local lifecycle source and installed | Pass for M7; unrelated S29 skips remain | Both real local lifecycle runs executed all M19 replacement steps: S14, S15, S16, and S34 recorded 10, 4, 3, and 3 PASS records per mode. Each suite total was 125 with 122 PASS and three S29 user-journal SKIP records; none concerns tool resolution. Evidence: `work/gate-suites-20260811T000144Z-85203/vmadmin_192.168.122.150.log`. |
-| T3 | — | — | pending | |
+| T3 | 2026-08-10T18:01:44-07:00 | Working tree at `0d9f78e` | Pass | Direct current-tree pairing walk found exactly three runner tool resolvers: `resolve_logrotate_tool`, `resolve_con_tool`, and `resolve_procserv_tool`. Both lifecycle logrotate probes use the runner's `/usr/sbin`, `/sbin`, `/usr/bin`, then PATH order and route every guarded invocation through the resolved path. The local and system `con` checks use the runner's applicable absolute lists and deliberately exclude its `socat` and `nc` fallbacks because they assert `con` itself. No suite has a procServ skip probe. All other tool-driven skips concern tools with no runner resolver. No relevant resolver or probe logic changed after `9f6a3e9`. |
 
 #### Closure Evidence
 
-Pending.
+- Implementation commits `9f8d01c` and `9f6a3e9` are landed, and T1 through
+  T3 pass. GitHub issue #136 was synchronized and observed closed at
+  2026-08-10T18:05:17-07:00.
 
 #### GitHub Projection
 
 Title: The suite tool probe disagrees with the runner's resolution
 Labels: bug, tests, P2-medium
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, bug, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06
+Observed Body: current; all four completion criteria are checked, T1 through T3 match the canonical detail, and closure cites `9f8d01c` and `9f6a3e9`
+Observed Updated At: 2026-08-11T01:05:17Z
+Last Compared: 2026-08-10T18:05:42-07:00
 
 ### M9 - Source regression suite separation
 
