@@ -6,14 +6,12 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: destroy the existing M5 consumers, bake both goldens
-with the declared M2 baseline `1.2.2`, and create fresh consumers. M7 is complete:
-its implementation and T1 through T3 passed, the current-tree pairing walk
-found no disagreement between a skip-guarding probe and a runner resolver for
-the same tool, and #136 is closed with the synchronized results. The exact
-suite driver snapshot has run the real six-run suite path on both goldens at
-remote `61eea127`; step 9 is the only scenario run whose verdicts carry Gate
-grade.
+Next session entry point: execute M5 step 9 on the fresh Rocky 8 and Debian 13
+consumers: run the honest-red check (T2), walk all nineteen findings (T3), and
+complete the blind Gate-grade execution (T1, T4, and T5). Step 8 completed on
+2026-08-10 with both goldens pinned to the declared M2 baseline `1.2.2`; the
+fresh-consumer acceptance and baked fixture checks passed before any deploy or
+tree push.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -299,7 +297,7 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | This register | Pending | none |
-| T2 | Not run | Both goldens | Pending | none |
+| T2 | 2026-08-10T18:49:18-07:00 | Fresh Rocky 8 and Debian 13 consumers | Pass | Both manifests recorded `requested=1.2.2`, `commit=fd14875df5fdbfcb362d194e81bf74c1de960daa`, `state=clean-tagged`, and `tag=1.2.2`; each retained checkout reported `fd14875`, each installed runner reported `epics-ioc-runner version 1.2.2 (fd14875)`, and each manifest dirty count was `0`. |
 
 #### Closure Evidence
 
@@ -831,6 +829,32 @@ Superseded Plan Artifacts: none
    defined and the archive entries remain owned by the baking account. Both
    blind runs of 2026-08-01 failed acceptance on a consumer a prior run had
    already deployed to; the fresh-consumer boundary remains mandatory.
+   Done, 2026-08-10. Before the bake, neither consumer domain nor either
+   consumer overlay existed, and the archive entries were owned by the baking
+   account. The supplier checkouts were clean at cloud-provision
+   `579a8f322c6ee3997c6e6ae2581b9a0477666ef0` and ansible-provision
+   `5c52419bf3be795780abdc64cec7732d424fede4`; `make check-bake` passed all
+   7 fresh-input and 77 provenance checks. The real shipped bake path completed
+   10/10 for each OS with `-r 1.2.2`, publishing archive entries
+   `iocrunner-rocky8-20260811T013023Z.qcow2` and
+   `iocrunner-debian13-20260811T013614Z.qcow2`. Fresh consumers reached `READY`
+   at `192.168.122.150` and `192.168.122.50`. Before any deploy or tree push,
+   both manifests were `root:root 644`; Rocky hash
+   `fe5ca375b6801479ff8386b9a79a9b9501cd3b07a06c01978ba41ea1009940d8` and
+   Debian hash
+   `647067c54fa273242b3ad20d54b8cd9fc3ad621c6a32794308779c2a1debaa5f`
+   each matched its working-copy sidecar; the shipped validator reported the
+   provenance valid on both; retained checkout and installed runner identities
+   both matched manifest commit `fd14875df5fdbfcb362d194e81bf74c1de960daa`;
+   dirty counts were `0`; each `app_ioc_runner` record carried
+   `requested=1.2.2 state=clean-tagged tag=1.2.2`; and the runbook fixture
+   assertion printed `FIXTURES OK` on both. Local supporting bake captures are
+   `work/bake-rocky8-20260811T012834Z.log` with SHA-256
+   `026e9a3801da9c83a780bbaac061169038a766e1d551f77a096ecca17cbdd83b` and
+   `work/bake-debian13-20260811T013351Z.log` with SHA-256
+   `f1a7b252b6cb34f0691fe6fc2b031adb4827cc11ae17ccc237b63ea28551b017`;
+   the milestone record above is the durable cross-machine evidence and does
+   not depend on those ignored local captures.
 9. Verify: the honest-red check (T2), the walk of all nineteen findings (T3),
    and blind execution on both goldens at Gate grade (T1, T4, T5). This is the
    only step whose scenario verdicts carry Gate grade, because it is the only
@@ -2037,7 +2061,7 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | Not run | Both goldens | Pending | none |
+| Release Verification 1 | 2026-08-10T18:49:18-07:00 | Fresh Rocky 8 and Debian 13 consumers | Pass | Before any deploy or tree push, both manifests were `root:root 644`; remote hashes matched the working-copy sidecars; the shipped provenance validator passed; retained checkout and installed `-V` identities matched `fd14875`; both baseline records were `requested=1.2.2 state=clean-tagged tag=1.2.2` with dirty count `0`. Full bake and acceptance evidence is recorded under M5 step 8 and M2/T2. |
 | Release Verification 2 | Not run | Both goldens | Pending | none |
 | Release Verification 3 | Not run | Both goldens | Pending | none |
 | Release Verification 4 | Not run | Both goldens | Pending | none |
