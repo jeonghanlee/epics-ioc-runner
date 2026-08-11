@@ -6,41 +6,41 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: execute M5 step 9 on the fresh Rocky 8 and Debian 13
-consumers: run the honest-red check (T2), walk all nineteen findings (T3), and
-complete the blind Gate-grade execution (T1, T4, and T5). Step 8 completed on
-2026-08-10 with both goldens pinned to the declared M2 baseline `1.2.2`; the
-fresh-consumer acceptance and baked fixture checks passed before any deploy or
-tree push.
+Next session entry point: complete the reopened M10 reconciliation for GitHub
+issues #130 and #134 after their canonical M2 and M5 details reached Complete.
+Publish the current projections under separate issue authority, re-read both
+issues, and restore M10 Complete only after its T4 result passes. M3 remains not
+Ready until then; the Rocky suite record also remains release red with six S29
+SKIP and four S06 NA records.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
 what was driven before the rewrite; it is ignored and untracked, and is no
 longer load-bearing now that the drivers are tracked under `gate/drivers/`.
 
-M2 (#130) is the other work item before the release: it declares which
-`ioc-runner` baseline a golden carries. Its supplying half is done and spans
-both suppliers — `cloud-provision` `8ad180a` gives the bake its `-r <ref>` flag
-and `ansible-provision` writes the `requested=` field — so nothing blocks M2;
-what it declares is settled after step 8 uses the flag for the first time. M4
-is complete at `cc9b02e` with T1 through T6 recorded. The owner replaced its
-older deferred-close record on 2026-08-06: #133 closes as a completed
-standalone milestone after separate issue authority. The guard question is
-settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed.
+M2 (#130) is complete. Both suppliers provide the declaration path —
+`cloud-provision` `8ad180a` gives the bake its `-r <ref>` flag and
+`ansible-provision` writes the `requested=` field — and the 1.2.3 Gate record
+now carries the chosen `1.2.2` baseline beside each golden's suite counts and
+canonical result. M4 is complete at `cc9b02e` with T1 through T6 recorded. The
+owner replaced its older deferred-close record on 2026-08-06: #133 closes as a
+completed standalone milestone after separate issue authority. The guard
+question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
+#131 is closed.
 
 ## Work
 
 | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | No | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
-| M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | In progress | No | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
+| M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Complete | No | M1 | Both accepted golden manifests and the Gate evidence rows name baseline `1.2.2` beside the observed suite counts and canonical host result; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | Complete | No | M1, D7, D8 | The shipped scenario and suite drivers passed their execution, honest-red, traceability, blind-operation, and push-agreement checks on both fresh goldens; the release gate remains red on Rocky's recorded state vector and is not waived by this milestone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Complete | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | Complete | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
-| M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | Internal status fields agree, every linked issue matches its canonical projection or records an owner-approved exception, and all observed GitHub metadata is current; [detail](#m10---release-record-reconciliation) |
+| M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | In progress | No | | #130 and #134 require projection and live-state reconciliation after M2 and M5 reached Complete; [detail](#m10---release-record-reconciliation) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
@@ -215,7 +215,7 @@ Last Compared: 2026-08-06
 Origin: #130, filed 2026-07-29 during the 1.2.2 gate
 Identity History: Backlog row (`docs/backlog.md`) moved to this register at the 1.2.3 open
 GitHub Issue: 130, https://github.com/jeonghanlee/epics-ioc-runner/issues/130
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -261,11 +261,10 @@ Out of scope: the provisioning implementation, which belongs to the
   and passes it on as `ioc_runner_version`, doing nothing else with it, and its
   validator only shape-checks the field; `ansible-provision` writes
   `requested=<ref>` onto the record, in
-  `roles/bake_provenance/files/record-iocrunner-source.bash`. No golden carries
-  the field yet — the flag landed after the current pair was baked, and their
-  records are the six-field form. Consequence for this
-  milestone now that it has landed: a gate can request a released tag, the
-  manifest records requested beside resolved, and the acceptance step can then require
+  `roles/bake_provenance/files/record-iocrunner-source.bash`. The pair that
+  existed when the flag landed still had the six-field form. The fresh pair
+  accepted on 2026-08-10 used the new path and records the requested ref beside
+  the resolved identity, allowing the acceptance step to require
   `state=clean-tagged` for a pinned bake instead of recording
   `clean-untagged tag=-` as a fact about the golden.
 - Owner decision, 2026-08-10: a release gate pins the last released tag that
@@ -282,8 +281,10 @@ Implementation Authorization: owner, 2026-08-10, same exchange
 Superseded Plan Artifacts: none
 
 1. Add the baseline selection rule to the runbook's preconditions and add the
-   requested ref plus resolved identity to its evidence format.
-2. Record the baseline in the 1.2.3 gate evidence rows.
+   requested ref plus resolved identity to its evidence format. Done in
+   `2eede46`; the accepted fresh-golden observation is recorded in `e659097`.
+2. Record the baseline in the 1.2.3 gate evidence rows. Done, 2026-08-10, in
+   the host rows below.
 
 #### Test Plan
 
@@ -292,16 +293,30 @@ Superseded Plan Artifacts: none
 | T1 | Gate record | Read the 1.2.3 gate evidence rows | This register | Each golden's `ioc-runner` baseline version appears beside its counts |
 | T2 | Image observation | Read the baked manifest and the deployed `-V` on each golden | Both goldens | The observed baseline matches the declared one |
 
+#### Gate Evidence
+
+| Golden | Baked Baseline | Manifest Identity | Suite Records | Canonical Host Result | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| Debian 13 | `1.2.2` | `requested=1.2.2 commit=fd14875df5fdbfcb362d194e81bf74c1de960daa state=clean-tagged tag=1.2.2` | 612 TEST, 165 STEP, six final PASS SUITE records | `SUITES OK (6 blocks, 612 checks, na=0)` | `work/gate-suites-20260811T020336Z-261435/vmadmin_192.168.122.50.log`, SHA-256 `74062b2a97d6f5b280a5001d93a7a6e17dd1918105457aa0cf9133a09146c219` |
+| Rocky 8 | `1.2.2` | `requested=1.2.2 commit=fd14875df5fdbfcb362d194e81bf74c1de960daa state=clean-tagged tag=1.2.2` | 612 TEST, 165 STEP, six final PASS SUITE records | `SUITES FAIL blocks=6 checks=612 steps=165 skip=6 fail=0 na=4 err=0 invalid=0` | `work/gate-suites-20260811T020336Z-261435/vmadmin_192.168.122.150.log`, SHA-256 `8e9c5e2b1a869f75f2610def2eaf7588402cab94716740f8847a6c9f93a6bc4d` |
+
 #### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | This register | Pending | none |
+| T1 | 2026-08-10T20:58:08-07:00 | This register, using the clean-control Gate run at `e659097` | Pass | Both Gate Evidence rows name baked baseline `1.2.2`, the complete 612 TEST / 165 STEP / six SUITE record counts, and the actual canonical host result. The Rocky aggregate remains FAIL and is not changed by this record check. |
 | T2 | 2026-08-10T18:49:18-07:00 | Fresh Rocky 8 and Debian 13 consumers | Pass | Both manifests recorded `requested=1.2.2`, `commit=fd14875df5fdbfcb362d194e81bf74c1de960daa`, `state=clean-tagged`, and `tag=1.2.2`; each retained checkout reported `fd14875`, each installed runner reported `epics-ioc-runner version 1.2.2 (fd14875)`, and each manifest dirty count was `0`. |
 
 #### Closure Evidence
 
-- none
+- Baseline selection and evidence format: `gate/RUNBOOK.md` lines 181-195 and
+  303-330, carried by commits `2eede46` and `e659097`.
+- Verification: T1 and T2 Pass. T1 reads both host rows from the actual clean
+  control Gate run; T2 reads the fresh baked manifests and installed runners
+  before deploy.
+- GitHub issue #130 remains open pending separate issue authority and projection
+  reconciliation; its open state does not change the completed repository
+  milestone result.
 
 #### GitHub Projection
 
@@ -1918,7 +1933,7 @@ Last Compared: 2026-08-10T20:50:28Z
 Origin: 1.2.3 / M10
 Identity History: none
 GitHub Issue: none
-Status: Complete
+Status: In progress
 
 #### Summary
 
@@ -1956,6 +1971,10 @@ accepted technical decisions; executing the final release.
 - Owner decision, 2026-08-06: apply the current standalone milestone-close
   workflow to completed M4 and close #133 after separate issue authority. This
   replaces the older deferred-close record.
+- Owner decision, 2026-08-10: reopen M10 after M2 and M5 reached Complete while
+  GitHub issues #130 and #134 remained open with their earlier projections.
+  M3 resumes as Not started and is not Ready until both projections are
+  published and re-read under M10.
 
 #### Reconciliation Inventory
 
@@ -1989,6 +2008,8 @@ Superseded Plan Artifacts: none
    authority before applying them.
 5. Re-read the live issues, update observed metadata in the canonical details,
    and verify that no difference remains.
+6. Reconcile the completed M2 and M5 projections with #130 and #134, then
+   re-run the live comparison before restoring M10 Complete.
 
 #### Test Plan
 
@@ -1997,6 +2018,7 @@ Superseded Plan Artifacts: none
 | T1 | Register consistency | Compare every work row with its detail, dependencies, Ready value, and next-session entry point | Working tree | No internal status, dependency, or entry-point contradiction remains |
 | T2 | GitHub reconciliation | Compare every linked issue field and projected body section with its canonical detail | GitHub and working tree | Every difference is classified and no genuine conflict remains unresolved |
 | T3 | Post-update verification | Re-read every changed issue and compare live metadata and projected content with the updated canonical detail | GitHub and working tree | Every issue matches its projection or carries an owner-approved exception, and observed metadata is current |
+| T4 | Post-closure reconciliation | Compare completed M2 and M5 with #130 and #134, publish the accepted projections, and re-read both issues | GitHub and working tree | Both issues match the completed canonical details and carry current observed metadata |
 
 #### Verification Results
 
@@ -2005,6 +2027,7 @@ Superseded Plan Artifacts: none
 | T1 | 2026-08-06T19:01:46-07:00 | Working tree | Pass | Work-row/detail status comparison, dependency and Ready audit, and `git diff --check` |
 | T2 | 2026-08-06T20:16:03-07:00 | GitHub and working tree | Pass | All eight linked issues classified; #133 owner conflict resolved; #133 through #137 canonical projection changes published |
 | T3 | 2026-08-06T20:16:03-07:00 | GitHub and working tree | Pass | #133 through #137 remote body hashes matched the reviewed local drafts; states, labels, milestone, and assignees matched; #133 observed closed |
+| T4 | 2026-08-10T21:03:56-07:00 | GitHub and working tree | Fail, reconciliation required | #130 and #134 were both OPEN and had not been updated since their earlier in-progress projections, while the canonical M2 and M5 details were Complete. Separate issue authority is required before publishing and re-reading them. |
 
 #### Closure Evidence
 
@@ -2013,6 +2036,9 @@ Superseded Plan Artifacts: none
   #137 assigned to `jeonghanlee`.
 - Post-update body hashes matched the reviewed local drafts for all five
   changed issues, and live metadata matched their canonical projections.
+- Reopened 2026-08-10: T4 found #130 and #134 behind their completed canonical
+  details. The earlier closure evidence remains historical; current closure is
+  pending T4 Pass.
 
 #### GitHub Projection
 
