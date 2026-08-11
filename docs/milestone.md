@@ -6,12 +6,12 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: complete the reopened M10 reconciliation for GitHub
-issues #130 and #134 after their canonical M2 and M5 details reached Complete.
-Publish the current projections under separate issue authority, re-read both
-issues, and restore M10 Complete only after its T4 result passes. M3 remains not
-Ready until then; the Rocky suite record also remains release red with six S29
-SKIP and four S06 NA records.
+Next session entry point: enter M3 by accepting its current release plan and
+resolving the pre-change Rocky suite aggregate red with six S29 SKIP and four
+S06 NA records. M10 is Complete after #130 and #134 received their completed
+canonical projections, closed, and passed the live body and metadata re-read.
+M3 is Ready to start; its plan and implementation remain unauthorized, and the
+release gate is not green.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -40,8 +40,8 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | Complete | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
-| M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | In progress | No | | #130 and #134 require projection and live-state reconciliation after M2 and M5 reached Complete; [detail](#m10---release-record-reconciliation) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | #130 and #134 carry the completed M2 and M5 projections, are closed, and passed the post-update body and metadata comparison; [detail](#m10---release-record-reconciliation) |
+| M3 | Final release 1.2.3 | Milestone | Not started | Yes | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -314,20 +314,22 @@ Superseded Plan Artifacts: none
 - Verification: T1 and T2 Pass. T1 reads both host rows from the actual clean
   control Gate run; T2 reads the fresh baked manifests and installed runners
   before deploy.
-- GitHub issue #130 remains open pending separate issue authority and projection
-  reconciliation; its open state does not change the completed repository
-  milestone result.
+- GitHub issue #130 received the completed projection and closed on 2026-08-10.
+  Its live body SHA-256 matched the reviewed draft at
+  `3ca402b4ac7f8eba47d5d196bf63ec5c76cbe6afdf6ad4e6a10682f6c71390b3`;
+  labels, milestone, and assignee matched the projection.
 
 #### GitHub Projection
 
 Title: Name the golden's ioc-runner baseline at bake time instead of inheriting the default branch
 Labels: P3-low, tests
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: P3-low, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06
+Observed Body SHA-256: 3ca402b4ac7f8eba47d5d196bf63ec5c76cbe6afdf6ad4e6a10682f6c71390b3
+Last Compared: 2026-08-10T21:54:27-07:00
 
 ### M4 - Stale index dirty stamp
 
@@ -971,21 +973,22 @@ re-drive is the condition this milestone exists to end.
 - Local evidence needed for replay is retained under the `work/` paths named in
   the verification table. The durable verdicts, hashes, and traceability map
   are recorded here so they remain available across machines.
-- GitHub issue #134 remains open pending separate issue authority and projection
-  reconciliation; its open state does not change the completed repository
-  milestone result.
+- GitHub issue #134 received the completed projection and closed on 2026-08-10.
+  Its live body SHA-256 matched the reviewed draft at
+  `cd82e7fdeac4bfdbc8ec352aff5d854e730d7d78d5e63ea79763f29c7392bc66`;
+  labels, milestone, and assignee matched the projection.
 
 #### GitHub Projection
 
 Title: Ship the gate's scenario drivers as repository assets
 Labels: tests, docs, P2-medium
 GitHub Milestone: 1.2.3
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06
-Observed Body: stale after the 2026-08-10 finding 7 plan amendment; projection requires separate issue authority
+Observed Body SHA-256: cd82e7fdeac4bfdbc8ec352aff5d854e730d7d78d5e63ea79763f29c7392bc66
+Last Compared: 2026-08-10T21:54:23-07:00
 
 ### M6 - The suite verdict cannot see a skip
 
@@ -1933,7 +1936,7 @@ Last Compared: 2026-08-10T20:50:28Z
 Origin: 1.2.3 / M10
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -1978,17 +1981,19 @@ accepted technical decisions; executing the final release.
 
 #### Reconciliation Inventory
 
-Observed 2026-08-06T19:03:22-07:00 from the live GitHub issues.
+Observed 2026-08-06T19:03:22-07:00 from the live GitHub issues; all eight
+linked issues were re-observed after the completed #130 and #134 projections
+on 2026-08-10.
 
 | Issue | Canonical Work | Difference Class | Result |
 | --- | --- | --- | --- |
-| #130 | M2 | Live metadata | Current open state, labels, milestone, assignee, and comparison date recorded; body aligned with the unfinished consuming half |
+| #130 | M2 | Canonical projection and live metadata | Completed projection published; live body hash matched; issue closed; labels, milestone, and assignee matched |
 | #131 | M1 | Live metadata | Current closed state, labels, milestone, assignee, and comparison date recorded |
 | #133 | M4 | Canonical projection and live metadata | Reconciled body published and issue closed; owner decision 2026-08-06 replaces the older deferred-close record |
-| #134 | M5 | Canonical projection | Current implementation progress, remaining verification, and closure state published |
-| #135 | M6 | Canonical projection | Accepted M8 machine-readable-record consumer boundary published; body-prose parser plan removed |
-| #136 | M7 | Canonical projection | Landed implementation and pending two-golden verification published |
-| #137 | M8 | Canonical projection and live metadata | Current five-suite catalog, ledger, and two-projection model published; canonical owner assigned |
+| #134 | M5 | Canonical projection and live metadata | Completed projection published; live body hash matched; issue closed; labels, milestone, and assignee matched |
+| #135 | M6 | Canonical projection and live metadata | Completed M6 projection published; all completion criteria checked; issue closed; labels, milestone, and assignee matched |
+| #136 | M7 | Canonical projection and live metadata | Completed M7 projection published; all completion criteria checked; issue closed; labels, milestone, and assignee matched |
+| #137 | M8 | Canonical projection and live metadata | Completed M8 projection through T8 published; completion criteria and plan steps checked; issue closed; labels, milestone, and assignee matched |
 | #138 | M9 | Live metadata | Current closed state and metadata recorded; projected implementation and verification content confirmed current |
 
 #### Implementation Plan
@@ -2027,7 +2032,7 @@ Superseded Plan Artifacts: none
 | T1 | 2026-08-06T19:01:46-07:00 | Working tree | Pass | Work-row/detail status comparison, dependency and Ready audit, and `git diff --check` |
 | T2 | 2026-08-06T20:16:03-07:00 | GitHub and working tree | Pass | All eight linked issues classified; #133 owner conflict resolved; #133 through #137 canonical projection changes published |
 | T3 | 2026-08-06T20:16:03-07:00 | GitHub and working tree | Pass | #133 through #137 remote body hashes matched the reviewed local drafts; states, labels, milestone, and assignees matched; #133 observed closed |
-| T4 | 2026-08-10T21:03:56-07:00 | GitHub and working tree | Fail, reconciliation required | #130 and #134 were both OPEN and had not been updated since their earlier in-progress projections, while the canonical M2 and M5 details were Complete. Separate issue authority is required before publishing and re-reading them. |
+| T4 | 2026-08-10T21:57:26-07:00 | GitHub and working tree | Pass | The earlier 21:03 failure triggered reconciliation. The completed #130 and #134 projections were then published and both issues closed. Their live JSON body bytes matched the reviewed drafts at SHA-256 `3ca402b4ac7f8eba47d5d196bf63ec5c76cbe6afdf6ad4e6a10682f6c71390b3` and `cd82e7fdeac4bfdbc8ec352aff5d854e730d7d78d5e63ea79763f29c7392bc66`; a fresh sweep of all eight linked issues found states, labels, milestone, and assignees matching their canonical details. |
 
 #### Closure Evidence
 
@@ -2036,9 +2041,10 @@ Superseded Plan Artifacts: none
   #137 assigned to `jeonghanlee`.
 - Post-update body hashes matched the reviewed local drafts for all five
   changed issues, and live metadata matched their canonical projections.
-- Reopened 2026-08-10: T4 found #130 and #134 behind their completed canonical
-  details. The earlier closure evidence remains historical; current closure is
-  pending T4 Pass.
+- Reopened 2026-08-10: T4 first found #130 and #134 behind their completed
+  canonical details. After owner acceptance and separate issue authority, both
+  completed projections were published and both issues closed. The live body
+  and metadata re-read passed, so M10 is Complete again.
 
 #### GitHub Projection
 
@@ -2046,7 +2052,7 @@ Title: none
 Labels: none
 GitHub Milestone: 1.2.3
 Observed State: none
-Last Compared: 2026-08-06
+Last Compared: 2026-08-10T21:57:26-07:00
 
 ### M3 - Final release
 
