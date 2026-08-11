@@ -154,91 +154,45 @@ refuses the read rather than answering.
 
 Required before the bake starts: neither consumer domain is listed.
 
-Then check that the previous goldens still belong to the account that will
-bake. Creating a consumer hands the whole backing chain to the hypervisor's
-account, and removing that consumer by force does not hand it back, so this is
-the normal state after any previous cycle:
+The bake publishes immutable golden pairs under the archive directory and then
+refreshes separate working copies under `IMAGE_DIR`. Set and inspect both
+locations:
 
 ```bash
-ls -l ${IMAGE_DIR}/iocrunner-*.qcow2
+export ARCHIVE_DIR="$(realpath -m "${IMAGE_DIR%/}/../archive")"
+ls -ld "$IMAGE_DIR" "$(dirname "$ARCHIVE_DIR")"
+if [ -d "$ARCHIVE_DIR" ]; then
+    ls -ld "$ARCHIVE_DIR"
+    find "$ARCHIVE_DIR" -maxdepth 1 -type f -name 'iocrunner-*.qcow2*' -ls
+else
+    printf 'archive will be created by the first bake: %s\n' "$ARCHIVE_DIR"
+fi
+ls -l "$IMAGE_DIR"/iocrunner-*.qcow2*
 ```
 
-Required before baking: both are owned by the baking account. Foreign ownership
-is not a warning — it stops the bake at its publish step, and the stop is
-silent. With the terminal the configuration step requires, the publish waits
-on an overwrite question nobody can answer; observed hanging there with no
-error until killed. Do not read a long-quiet Step 9 as slow work.
+Required before baking: `IMAGE_DIR` and the archive parent are writable by the
+baking account. If the archive already exists, it and its existing golden pairs
+belong to that account; otherwise the bake creates it. A working copy may retain
+the hypervisor's ownership after a consumer ran; that is expected and is not a
+repair condition. The refresh writes a new temporary copy and replaces the
+working path only after archive publication and validation succeed. Files named
+`*.prevowner*` are historical working copies and are not read by the bake.
 
-Two repairs, depending on what you have:
+Choose one baseline ref for the pair. A release gate uses the last released tag
+that precedes the candidate; a Check-grade run records another explicit ref if
+one is required. The Make targets do not take a ref, so a pinned pair uses the
+bake script directly:
 
 ```bash
-sudo chown "$(id -un):$(id -gn)" ${IMAGE_DIR}/iocrunner-rocky8.qcow2 ${IMAGE_DIR}/iocrunner-debian13.qcow2
+export BASELINE_REF=<released-tag>
+bin/bake_iocrunner_image.bash -o rocky8 -r "$BASELINE_REF"
+bin/bake_iocrunner_image.bash -o debian13 -r "$BASELINE_REF"
 ```
 
-```bash
-rm -f ${IMAGE_DIR}/iocrunner-rocky8.qcow2 ${IMAGE_DIR}/iocrunner-debian13.qcow2
-ls -l ${IMAGE_DIR}/iocrunner-*.qcow2*
-```
-
-The first is the direct repair and needs a privilege the bake does not have.
-
-The second needs no privilege at all. Removal is governed by write permission
-on the DIRECTORY, not on the file, and the image directory belongs to the
-baking account — so it can unlink a golden the hypervisor took ownership of,
-even though it cannot change that file's owner. Deleting the previous golden is
-safe here for the same reason the bake can be re-run at all: the bake is about
-to replace it, it publishes only after its own validation passes, and a golden
-that is still needed is one no bake should be starting over.
-
-Required after either repair: no `iocrunner-*.qcow2` is owned by another
-account. Check it — do not infer it from an exit code. `rm -f` and `mv -n` both
-report success when they did nothing. Read it with the trailing wildcard, which
-is why this listing is here rather than only inside the second repair: the
-precondition listing at the top of this section has no trailing wildcard, and
-the chown repair carries no listing of its own, so an operator who took the
-first repair has run nothing that could show what the next paragraph is about.
-
-```bash
-ls -l ${IMAGE_DIR}/iocrunner-*.qcow2*
-```
-
-The trailing wildcard in that listing also matches `iocrunner-*.qcow2.prevowner`
-and its dated variants. Those are whole previous goldens, renamed aside rather
-than removed by an earlier form of this same repair — foreign-owned and several
-gigabytes each, and nothing in the bake reads them. The bake writes the exact
-names `iocrunner-<os>.qcow2`, its temporary, and its sidecar, and its in-use
-scan globs `*.qcow2`, which no `.prevowner` name matches. So they neither
-satisfy this check nor stop it: read past them. Whether to reclaim the space is
-the operator's call and no part of the gate.
-
-**If the bake is already hung there**, it will not recover: the prompt is on a
-terminal that cannot be written to from outside. End it, clean up per the bake
-runbook's mid-way failure section, apply one of the two repairs, and start the
-bake again.
-
-This condition returns every cycle, because creating a consumer hands the
-golden to the hypervisor's account and destroying it by force does not hand it
-back. Until the supplying side separates the published archive from the images
-consumers back onto, this check is a permanent step, not a one-time repair.
-
-Then bake. These three are alternatives, not a sequence — the first does both
-goldens, the other two do one platform each:
-
-```bash
-make bake
-make bake.rocky8
-make bake.debian13
-```
-
-A bake driven from a script rather than typed at a terminal needs a terminal
-anyway. Backgrounded from an automated session it inherits channels that do not
-wait, and the configuration step refuses to start on them — the bake stops at
-its fourth step with a complaint about its input and output, having done
-nothing wrong. Give it one:
-
-```bash
-setsid script -qec "make bake" /dev/null < /dev/null > <log> 2>&1 &
-```
+Required after baking: both runs publish validated archive pairs, refresh the
+two working copies, and record the same `requested=$BASELINE_REF`. Read the
+supplier branch, commit, and dirty count again and confirm they match the values
+recorded before the bake.
 
 Bake failure handling, proxy handling, and slow-boot diagnosis belong to
 `cloud-provision/docs/RUNBOOK_BAKE.md`. Do not diagnose a bake from here. Two
@@ -372,11 +326,12 @@ the `app_ioc_runner commit=` hash. This precondition's only remedy is a rebuild
 from the golden; where that is out of reach, take the branch in "Two grades of
 result" rather than deciding it here.
 
-The `app_ioc_runner` record names the runner the golden already carries — the
-starting state every later step deploys over. Record its `commit`, `state`, and
-`tag` beside the suite results. A `state=clean-untagged` with `tag=-` means the
-bake took whatever the default branch happened to be, which is a fact about the
-golden, not about the tree under test.
+The `app_ioc_runner` record names the runner the golden already carries - the
+starting state every later step deploys over. Record its `requested`, `commit`,
+`state`, and `tag` beside the suite results. A release-gate record must match
+`BASELINE_REF`, use `state=clean-tagged`, and name that tag. An unpinned
+`state=clean-untagged tag=-` record can support a Check-grade observation but
+not this release gate.
 
 ### Fixture accounts
 
@@ -747,9 +702,9 @@ Record the control-side evidence directory and one row per suite per host.
 Measure every value from that run's machine records and status files; do not
 copy counts from an earlier run.
 
-| Host | Golden bake date | Baseline commit | Host verdict | Log SHA-256 |
-| --- | --- | --- | --- | --- |
-| | | | | |
+| Host | Golden bake date | Baseline ref | Baseline commit/state/tag | Host verdict | Log SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| | | | | | |
 
 | Host | Suite | Scope | Runner | PASS | FAIL | SKIP | NA | ERROR | State | Elapsed |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -6,8 +6,8 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: restore the goldens' ownership for M5 step 8, rebake
-both with the M2 baseline input, and create fresh consumers. M7 is complete:
+Next session entry point: destroy the existing M5 consumers, bake both goldens
+with the declared M2 baseline `1.2.2`, and create fresh consumers. M7 is complete:
 its implementation and T1 through T3 passed, the current-tree pairing walk
 found no disagreement between a skip-guarding probe and a runner resolver for
 the same tool, and #136 is closed with the synchronized results. The exact
@@ -35,7 +35,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | No | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
-| M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | Not started | Yes | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
+| M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | In progress | No | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
 | M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The scenario drivers fix the identities and verdicts, the suite driver owns the exact six-run capture and verdict path required by finding 7, and an independent operator drives both surfaces on both goldens from the runbook and shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Complete | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
@@ -217,7 +217,7 @@ Last Compared: 2026-08-06
 Origin: #130, filed 2026-07-29 during the 1.2.2 gate
 Identity History: Backlog row (`docs/backlog.md`) moved to this register at the 1.2.3 open
 GitHub Issue: 130, https://github.com/jeonghanlee/epics-ioc-runner/issues/130
-Status: Not started
+Status: In progress
 
 #### Summary
 
@@ -270,16 +270,21 @@ Out of scope: the provisioning implementation, which belongs to the
   manifest records requested beside resolved, and the acceptance step can then require
   `state=clean-tagged` for a pinned bake instead of recording
   `clean-untagged tag=-` as a fact about the golden.
+- Owner decision, 2026-08-10: a release gate pins the last released tag that
+  precedes the candidate. The 1.2.3 gate therefore uses `1.2.2` on both
+  goldens and requires `requested=1.2.2 state=clean-tagged tag=1.2.2` in each
+  accepted manifest record.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner, 2026-08-10, selecting the current archive/working-copy
+layout and the `1.2.2` baseline
+Implementation Authorization: owner, 2026-08-10, same exchange
 Superseded Plan Artifacts: none
 
-1. Add the baseline declaration to the runbook's preconditions and evidence
-   format under M1.
+1. Add the baseline selection rule to the runbook's preconditions and add the
+   requested ref plus resolved identity to its evidence format.
 2. Record the baseline in the 1.2.3 gate evidence rows.
 
 #### Test Plan
@@ -682,8 +687,10 @@ cycle and which therefore does not move into `gate/`.
 
 Plan Status: accepted
 Plan Acceptance: owner, 2026-08-01, on this plan as revised through the
-third-person review and its four repairs
-Implementation Authorization: owner, 2026-08-01, same exchange
+third-person review and its four repairs; amended by owner, 2026-08-10, for
+the current archive/working-copy layout and the `1.2.2` baseline
+Implementation Authorization: owner, 2026-08-01, same exchange; amendment
+authorized by owner, 2026-08-10
 Superseded Plan Artifacts: none
 
 1. Recover the 2026-08-01 debian13 drivers verbatim. Done: seventeen drivers,
@@ -815,11 +822,15 @@ Superseded Plan Artifacts: none
    passed; Rocky's canonical verdict correctly failed on six S29 SKIP and four
    S06 NA records; and the normalized comparison enumerated all differences in
    56 lines.
-8. Restore the goldens' ownership, bake both, create fresh consumers, and
-   record the golden acceptance before anything touches them. Both blind runs
-   of 2026-08-01 failed the acceptance on a consumer a prior run had already
-   deployed to, and the goldens are `libvirt-qemu`-owned, which stops a bake at
-   its publish step without saying so.
+8. Destroy both consumers, bake Rocky 8 and Debian 13 with `-r 1.2.2`, create
+   fresh consumers from the refreshed working copies, and record golden
+   acceptance before anything touches them. The supplying repository now
+   publishes immutable archive entries and refreshes separate working copies,
+   so hypervisor ownership of a running consumer's working copy is expected
+   and is not repaired. Required before the bake: no consumer domain is
+   defined and the archive entries remain owned by the baking account. Both
+   blind runs of 2026-08-01 failed acceptance on a consumer a prior run had
+   already deployed to; the fresh-consumer boundary remains mandatory.
 9. Verify: the honest-red check (T2), the walk of all nineteen findings (T3),
    and blind execution on both goldens at Gate grade (T1, T4, T5). This is the
    only step whose scenario verdicts carry Gate grade, because it is the only
