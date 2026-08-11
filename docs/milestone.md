@@ -35,7 +35,7 @@ settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and #131 is closed
 | M1 | (#131) Re-set the verification scenarios and write the standing release-cycle runbook | Milestone | Complete | No | | Runbook standing with drive commands and verdicts, both plan files retired, references repointed in both repositories, and a fresh operator completed the full procedure from the document alone (T6); [detail](#m1---release-cycle-runbook-and-scenario-re-set) |
 | M2 | (#130) Declare the `ioc-runner` baseline the goldens carry, in the gate procedure and in the gate record | Milestone | In progress | No | M1 | The runbook names how the baseline is chosen and a gate record carries it beside the suite counts; [detail](#m2---golden-baseline-declaration) |
 | M4 | (#133) Version stamp reports `-dirty` for a relocated clean checkout whose index is stale; not reachable on the production deployment path | Milestone | Complete | No | D5 | All three stamp sites — the system setup script, the live `-V` fallback, and the `install.user` injector — report a bare hash for a relocated clean checkout, a genuinely modified one still carries the suffix, and a regression test pins both from a fixture no git command has touched; [detail](#m4---stale-index-dirty-stamp) |
-| M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | In progress | No | M1, D7, D8 | The scenario drivers fix the identities and verdicts, the suite driver owns the exact six-run capture and verdict path required by finding 7, and an independent operator drives both surfaces on both goldens from the runbook and shipped drivers alone; [detail](#m5---shipped-scenario-drivers) |
+| M5 | (#134) Ship the gate's scenario drivers as repository assets, and reduce the runbook's scenario section to invocations and verdicts | Milestone | Complete | No | M1, D7, D8 | The shipped scenario and suite drivers passed their execution, honest-red, traceability, blind-operation, and push-agreement checks on both fresh goldens; the release gate remains red on Rocky's recorded state vector and is not waived by this milestone; [detail](#m5---shipped-scenario-drivers) |
 | M6 | (#135) The suite verdict cannot see a skip, so a run that dropped checks scores as a full green | Milestone | Complete | No | M1, M8 | The verdict consumes M8's machine-readable records, refuses a plain `SUITES OK` when any declared check is skipped or missing, and does not scan human-readable prose; [detail](#m6---the-suite-verdict-cannot-see-a-skip) |
 | M7 | (#136) The suites probe for a tool by PATH where the runner resolves it absolutely, so checks skip for a tool the product can use | Milestone | Complete | No | M1 | The probe answers what the runner answers, and the four M19 steps run on the golden where they are skipped today; [detail](#m7---the-suite-tool-probe-disagrees-with-the-runner) |
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
@@ -569,7 +569,7 @@ Origin: the two blind runbook executions of 2026-08-01 against `7d82f4f`, one
 per golden, each given the runbook alone
 Identity History: none
 GitHub Issue: 134, https://github.com/jeonghanlee/epics-ioc-runner/issues/134
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -859,6 +859,24 @@ Superseded Plan Artifacts: none
    and blind execution on both goldens at Gate grade (T1, T4, T5). This is the
    only step whose scenario verdicts carry Gate grade, because it is the only
    one whose consumers are fresh.
+   Done, 2026-08-10. The wrong-principal T2 probe ran the shipped S11 host
+   driver as `opa` while requiring `opb`; the driver returned 2 and printed
+   `VERDICT S11 FAIL wrong principal`, while the wrapper confirmed that the
+   expected red was observed. T3 traced all nineteen findings to the landed
+   driver or runbook resolution listed below. The independent T4 operator used
+   only the runbook and shipped drivers, created no replacement driver, and
+   completed all fourteen scenarios on each fresh golden: Debian exercised the
+   anchored S11 branch and Rocky exercised the glob branch, with both final
+   records reading `VERDICT RUN PASS 14 scenarios: pass=14 fail=0
+   missing=none`. Each retained blind-run directory contains 112 files under
+   `work/`. T5 then reported matching clean source and remote status on both
+   hosts and an exact five-entry exclusion-set match. T6 drove all twelve real
+   suite invocations from the clean control commit `e659097`; every invocation
+   returned 0 and emitted its complete records, while the canonical aggregate
+   remained red on Rocky's six S29 SKIP and four S06 NA records. That aggregate
+   red remains a release-gate result; completing M5 records that the shipped
+   drivers measured and reported it correctly, not that the release gate is
+   green.
 
 Where a red sends the run. Every red is taken through the runbook's own
 "When a red appears" order before anything is changed. In steps 2 and 6 the
@@ -895,16 +913,52 @@ re-drive is the condition this milestone exists to end.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | — | — | pending | |
-| T2 | — | — | pending | |
-| T3 | — | — | pending | |
-| T4 | — | — | pending | |
-| T5 | — | — | pending | |
-| T6 | 2026-08-10T17:28:29-07:00 | Debian 13 and Rocky 8 goldens at remote `61eea127`, source and installed runners; control `fa07acea` dirty with three recorded paths | Pass for driver provenance and execution; gate remains red on Rocky state | The exact executed driver and its evidence snapshot both have SHA-256 `86205ec1e80ddfcc3709856c15fa1dd41a650991a3f06b922a9c3b3639a6596d`; `control.status` has three paths and SHA-256 `699ec1de9889ee583f97564db4186574e34f7fe6931453df9e8591bc9eb4e3b8`. All twelve real suite invocations returned process status 0. Each host log contains 612 TEST, 165 STEP, and six final PASS SUITE records, with the three resolved runner paths matching source then two installed runs. Debian returned `SUITES OK (6 blocks, 612 checks, na=0)`; log SHA-256 `b4ca0baec43ce977959247d0c50049a632ba349ce3faacb40e16bedb37af5367`. Rocky returned the canonical state-vector failure with six S29 SKIP and four S06 NA records, zero FAIL and zero SCRIPT_ERROR; log SHA-256 `bf3e16a18d130492dac5e69042c9cfb179e43ff058e660b484f6a690eaf33fab`. `cross-host.diff` contains 56 lines and SHA-256 `6e35974e9c7c8670d3dba3bc4819505f12540dcddc0ce8553134f71dd4343652`. Control-side evidence: `work/gate-suites-20260811T002829Z-126907/`. |
+| T1 | 2026-08-10 | Fresh Debian 13 and Rocky 8 goldens, shipped host drivers at `e659097` | Pass | All L1-L3 and S1-S11 verdicts passed on both hosts. Debian used the anchored S11 branch; Rocky used the glob branch. Both final records report 14 passed, zero failed, and none missing. Retained evidence: `work/gate-run-20260811T021737Z/` and `work/gate-run-20260811T021547Z/`. |
+| T2 | 2026-08-10 | Debian 13 golden, shipped S11 host driver at `e659097` | Pass | The deliberate wrong-principal invocation returned 2 and printed the required S11 FAIL verdict; the assertion wrapper returned 0 only after observing both. Evidence: `work/m5-t2-20260811T015959Z/`. |
+| T3 | 2026-08-10 | Clean working tree at `e659097` | Pass, 19 of 19 traced | The trace below maps every finding to current shipped code, current runbook text, or the named text-resolution commit; no finding is closed by an unverified assertion. |
+| T4 | 2026-08-10 | Independent operator, fresh Debian 13 and Rocky 8 goldens | Pass | The operator received the runbook and shipped drivers without the prior answers, created or edited no driver or product file, and completed both fourteen-scenario runs. The retained `run-all.log` SHA-256 values are `aa6d639cb4581f301aef54fbba803e76fae1c4fb2a69e7d4b11ee72cdbb77dac` for Debian and `e1cc3e6a18aa08409830b7310ed84251a0925e51aa3059143d7e744cf6d482d3` for Rocky. |
+| T5 | 2026-08-10 | Clean control tree and both fresh goldens at `e659097` | Pass | On each host, source status, remote status, and their diff were empty. The shipped-driver and source exclusion lists each contained the same five entries and their diff was empty; no one-sided `?? .claude/` appeared. Evidence: `work/m5-t5-debian-20260811T020233Z/` and `work/m5-t5-rocky-20260811T020251Z/`. |
+| T6 | 2026-08-10 | Debian 13 and Rocky 8 goldens at remote and deployed `e659097`; clean control `e659097` | Pass for driver provenance and execution; release gate remains red on Rocky state | The executed driver and evidence snapshot both have SHA-256 `86205ec1e80ddfcc3709856c15fa1dd41a650991a3f06b922a9c3b3639a6596d`; `control.status` is empty. All twelve real suite invocations returned 0. Each host log contains 612 TEST, 165 STEP, and six final PASS SUITE records. Debian returned `SUITES OK (6 blocks, 612 checks, na=0)`; log SHA-256 `74062b2a97d6f5b280a5001d93a7a6e17dd1918105457aa0cf9133a09146c219`. Rocky returned the canonical state-vector failure with six S29 SKIP and four S06 NA records, zero FAIL and zero SCRIPT_ERROR; log SHA-256 `8e9c5e2b1a869f75f2610def2eaf7588402cab94716740f8847a6c9f93a6bc4d`. `cross-host.diff` contains 56 lines and SHA-256 `6e35974e9c7c8670d3dba3bc4819505f12540dcddc0ce8553134f71dd4343652`. Evidence: `work/gate-suites-20260811T020336Z-261435/`. |
+
+#### Finding Traceability
+
+| # | Current Resolution |
+| --- | --- |
+| 1 | `gate/drivers/push.bash` lines 22-44 derives the exclusion set from the source and emits source and remote status. T5 compared both outputs and passed on both goldens. |
+| 2 | `gate/RUNBOOK.md` lines 350 and 353-359 require the `obs` account and group presence. |
+| 3 | `gate/RUNBOOK.md` lines 101-112 sends a failed required precondition to the Check grade when its remedy is outside the current scope. |
+| 4 | Driver location fixes the calling side; `gate/RUNBOOK.md` lines 986-995 and `gate/drivers/control/lib.bash` lines 2-8 state the convention. |
+| 5 | `gate/drivers/identities.bash` lines 25-57 fixes the scenario identities and roles. |
+| 6 | `gate/RUNBOOK.md` lines 281-325 compares retained and installed identities with the manifest commit. |
+| 7 | `gate/drivers/control/suites.bash` lines 187-212 owns the fused six-run capture path; `gate/RUNBOOK.md` lines 484-530 specifies its invocation and evidence. T6 exercised the real path. |
+| 8 | `gate/RUNBOOK.md` lines 170 and 173-179 places `.prevowner` guidance on the listing that can display it. |
+| 9 | `gate/RUNBOOK.md` lines 520-522 names the remote log, and lines 631-639 name the control-host evidence path. |
+| 10 | `gate/drivers/control/s9.bash` lines 22-67 wraps the S9 root half with its host and principal changes. |
+| 11 | `gate/RUNBOOK.md` lines 1144-1176 names both payload locations; the shipped cleanup and leftovers drivers enforce the check. |
+| 12 | `gate/RUNBOOK.md` lines 128-155 gives the libvirt domain rule and commands. |
+| 13 | `gate/RUNBOOK.md` lines 909-920 distinguishes the literal `^@` pair from a rendered control byte. |
+| 14 | `gate/RUNBOOK.md` lines 922-935 limits the anchored measurement to the affected closing-message line. |
+| 15 | Commit `94223e2` corrected the observed skip and its cause; the later canonical form in `gate/RUNBOOK.md` lines 538-541 rejects any SKIP rather than preserving that example. |
+| 16 | `gate/RUNBOOK.md` lines 667-680 determines the S11 host branch before the deploy read that depends on it. |
+| 17 | `gate/RUNBOOK.md` lines 507-512 state the measured runtime and 10-minute operator bound; `gate/drivers/control/suites.bash` lines 195 and 207 record and validate each elapsed result. |
+| 18 | `gate/drivers/control/lib.bash` lines 88-112 and `gate/drivers/host/gate-lib.bash` lines 48-52 require absolute capture paths. |
+| 19 | `gate/drivers/push.bash` lines 19-20, `gate/drivers/control/lib.bash` lines 24-30, and `gate/drivers/control/suites.bash` line 30 apply the SSH hardening. |
 
 #### Closure Evidence
 
-Pending.
+- Driver and runbook implementation: commits `1ee17fa`, `368964f`, `bdebdca`,
+  `94223e2`, `61eea12`, `2d0288c`, and `ed94cc3`.
+- Fresh-golden baseline and acceptance: commits `2eede46` and `e659097`.
+- Verification: T1 through T5 passed on both fresh goldens where specified. T6
+  passed its driver provenance and execution contract while preserving the
+  Rocky canonical aggregate failure. The release gate therefore remains red;
+  M5 does not waive or reclassify it.
+- Local evidence needed for replay is retained under the `work/` paths named in
+  the verification table. The durable verdicts, hashes, and traceability map
+  are recorded here so they remain available across machines.
+- GitHub issue #134 remains open pending separate issue authority and projection
+  reconciliation; its open state does not change the completed repository
+  milestone result.
 
 #### GitHub Projection
 
