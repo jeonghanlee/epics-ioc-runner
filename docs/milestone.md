@@ -6,12 +6,11 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: enter M3 by accepting its current release plan and
-resolving the pre-change Rocky suite aggregate red with six S29 SKIP and four
-S06 NA records. M10 is Complete after #130 and #134 received their completed
-canonical projections, closed, and passed the live body and metadata re-read.
-M3 is Ready to start; its plan and implementation remain unauthorized, and the
-release gate is not green.
+Next session entry point: enter M11 by accepting its draft plan and creating
+its required GitHub issue before implementation. CI-32 closes the Rocky journal
+access question: S29 is not applicable under the ordinary-user policy and must
+report NA rather than SKIP. M3 depends on M11, so its plan and implementation
+remain unauthorized and the release gate is not green.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -41,7 +40,8 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | #130 and #134 carry the completed M2 and M5 projections, are closed, and passed the post-update body and metadata comparison; [detail](#m10---release-record-reconciliation) |
-| M3 | Final release 1.2.3 | Milestone | Not started | Yes | M1, M2, M4, M5, M6, M7, M8, M9, M10 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M11 | Classify Rocky local monitor-isolation checks as not applicable | Milestone | Not started | Yes | D16 | Both local lifecycle modes use one explicit applicability check, report the S29 group as NA on Rocky and PASS on Debian, and preserve journal least privilege; [detail](#m11---rocky-s29-applicability) |
+| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -62,6 +62,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | D13 | M9 does not preserve the current assertion count as an end in itself. Its migration inventory accounts for every current assertion and prerequisite and assigns exactly one reviewed disposition: `retain` keeps the valid check, `replace` preserves a needed verification target through valid evidence, and `remove` retires a redundant or invalid target with an owner-approved reason. No row disappears silently, and M9 step 1 remains open until every row has an accepted disposition. | Owner decision, 2026-08-05, after the second conceptual-integrity review |
 | D14 | One canonical check catalog carries category, check kind, and test method. A single recording path combines that metadata with each observed terminal state in one ledger; the human summary and machine-readable records are two projections of that ledger and never separate calculations. M9 defines destination metadata and valid evidence without implementing reporting. M8 implements the record path, ledger, and both projections across the resulting suite set. M6 consumes only M8's machine-readable records and does not infer states from human-readable prose. The execution order is M9, then M8 producer, then M6 consumer. | Owner decision, 2026-08-05 |
 | D15 | M8 preserves the fixed 487-check identity set and adds `state=<PASS\|FAIL>` to the final `SUITE` machine record. Cleanup and finalization failures are suite execution results, not additional checks. `PASS` requires zero final suite status with no failed checks, script errors, reporter integrity failure, or cleanup failure; every other final result is `FAIL`. M6 consumes this field later without scanning human-readable prose. | Owner decision, 2026-08-10 |
+| D16 | Under this project's Rocky ordinary-user policy, local lifecycle S29 cannot obtain its user-journal positive control and is not applicable. Do not grant `systemd-journal` membership or change host journal policy for the test. Add one governing applicability check, close it and the three existing S29 checks as NA on Rocky, and retain the applicable real path on Debian. The examined access question is closed as `CLOSED_DOORS.md` CI-32. | Owner decision, 2026-08-11, after re-reading #17, #50, #140, the reporting contract, and the 1.2.3 gate evidence |
 
 ## ID Migration
 
@@ -2054,6 +2055,103 @@ GitHub Milestone: 1.2.3
 Observed State: none
 Last Compared: 2026-08-10T21:57:26-07:00
 
+### M11 - Rocky S29 applicability
+
+Origin: 1.2.3 / M11, owner decision 2026-08-11
+Identity History: none
+GitHub Issue: none; required before implementation under D1
+Status: Not started
+
+#### Summary
+
+Local lifecycle S29 uses the caller's user-unit journal as the positive control
+for monitor input isolation. Under this project's Rocky ordinary-user policy,
+that journal channel is deliberately unavailable and S29 cannot verify its
+behavior. Classify the three checks as not applicable on Rocky instead of
+reporting a missing prerequisite as SKIP.
+
+#### Scope
+
+- Add one stable S29 `APPLICABILITY/direct-inspection` check to the catalog.
+- Close the applicability check and the three existing S29 checks as NA on
+  Rocky before the user-journal probe.
+- Preserve the current journal probe and real monitor-isolation path on Debian
+  and other applicable environments.
+- Keep the human summary, TEST records, STEP records, SUITE vector, and suite
+  process status derived from the existing reporting ledger.
+
+Out of scope: granting `systemd-journal` membership, changing journald storage
+or ACL policy, changing `ioc-runner` monitor behavior, or reopening the
+VM-versus-production journal matrix closed by CI-32.
+
+#### Completion Criteria
+
+- Rocky source and installed local lifecycle runs each record the governing
+  applicability check and the three existing S29 checks as NA, record no S29
+  SKIP, and finish with `state=PASS`.
+- Debian source and installed local lifecycle runs record the applicability
+  check as PASS, execute all three existing S29 checks through the real path,
+  and record PASS.
+- The shipped two-host suite driver accepts both complete state vectors without
+  hiding or converting an unexpected SKIP.
+- No user gains journal access and no host journal configuration changes.
+
+#### Dependencies And Decisions
+
+- D1: this test-code change needs its own issue before implementation.
+- D16 and `CLOSED_DOORS.md` CI-32: Rocky S29 is not applicable under the
+  ordinary-user policy; widening journal access is closed.
+- M3 depends on M11 because the current six Rocky SKIPs keep Release
+  Verification 2 red.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Add `local-lifecycle.S29.monitor-isolation-applicable` as an
+   `APPLICABILITY/direct-inspection` catalog row governed by the suite's
+   existing `/etc/os-release` reader.
+2. Close that row and its three dependent S29 checks as NA with the CI-32
+   policy reason on Rocky; record the applicability row as PASS and keep the
+   existing prerequisite probe and real behavior checks elsewhere.
+3. Advance the maintained current catalog count from 487 to 488 and the local
+   lifecycle count from 125 to 126 without rewriting historical 487-check or
+   125-check result rows.
+4. Update the maintained local lifecycle inventory and test instructions to
+   state the Rocky applicability boundary.
+5. Run both local lifecycle modes and the shipped suite driver on both goldens.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Rocky applicability | Run the shipped local lifecycle suite in source and installed modes as the ordinary golden user | Fresh Rocky 8 consumer | Four S29 NA per mode, zero S29 SKIP, both 126-check suites `state=PASS` |
+| T2 | Debian positive path | Run the same two shipped modes without replacing the journal boundary | Fresh Debian 13 consumer | The applicability check and all three existing S29 checks PASS in each 126-check suite |
+| T3 | Gate integration | Run `gate/drivers/control/suites.bash` against both consumers | Both goldens | Complete vectors are retained; both host verdicts PASS; no unexpected SKIP is accepted |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Rocky 8 golden | Pending | none |
+| T2 | Not run | Debian 13 golden | Pending | none |
+| T3 | Not run | Both goldens | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Classify Rocky local monitor-isolation checks as not applicable
+Labels: tests, ops
+GitHub Milestone: 1.2.3
+Observed State: none
+Last Compared: never
+
 ### M3 - Final release
 
 Origin: this cycle open, 2026-07-30
@@ -2080,7 +2178,7 @@ Out of scope: product behavior changes (D1).
 
 #### Dependencies And Decisions
 
-- M1, M2, M4, M5, M6, M7, M8, M9, M10
+- M1, M2, M4, M5, M6, M7, M8, M9, M10, M11
 - D1 and D5: the line is documents and scenarios apart from one named
   exception, so the suites verify unchanged behavior everywhere except the
   version stamp, where M4 changes the comparison and carries its own
@@ -2088,6 +2186,9 @@ Out of scope: product behavior changes (D1).
   same expectation as an unchanged-behavior cycle.
 - D6: the contract guard over the three stamp sites was examined and declined
   (`CLOSED_DOORS.md` CI-31), so no guard work gates this release.
+- D16: Rocky S29 is not applicable under the ordinary-user policy. M11 must
+  replace the six current SKIPs with explicit NA records without widening
+  journal access before Release Verification 2 can pass.
 
 #### Implementation Plan
 
@@ -2096,9 +2197,10 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Bake both goldens fresh and record the golden acceptance.
-2. Run the gate by following `gate/RUNBOOK.md`.
-3. Execute the release sequence under `git-workflow` authority.
+1. Complete M11 and its two-golden verification.
+2. Bake both goldens fresh and record the golden acceptance.
+3. Run the gate by following `gate/RUNBOOK.md`.
+4. Execute the release sequence under `git-workflow` authority.
 
 #### Integrated Verification
 
@@ -2106,6 +2208,7 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- | --- |
 | M1 / T2 | The runbook's multi-user text changed after the drive that corrected it | `docs/RELEASE_CYCLE_RUNBOOK.md` | M1 / T4 | Every scenario drives green from the corrected text, on freshly baked goldens | done, 2026-07-30 |
 | M2 / T1 | The runbook's evidence format changes after the gate record is written | `gate/RUNBOOK.md` | Release Verification 4 | The gate record still carries the declared baseline | pending |
+| M8 / T4 | M11 adds one S29 applicability identity and changes the Rocky S29 group from SKIP to NA | Test reporting ledger and suite collector | Release Verification 2 | Both hosts retain 614 complete execution identities; Rocky records eight S29 NA and zero SKIP; Debian records all four S29 checks PASS per mode; both host suite verdicts are green | pending |
 
 #### Production Environment Tests
 

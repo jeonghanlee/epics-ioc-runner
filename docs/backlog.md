@@ -25,7 +25,6 @@ document only when the owner assigns it to a release line.
 | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m10---conf-value-normalization) |
 | M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Open | No | D3 | Owner assigns it to a release line and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
 | M12 | Separate human-readable test output from machine-readable records | Milestone | Open | No | | Owner assigns it to a release line and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
-| M13 | (#140) Determine when the local monitor-isolation test can rely on a user journal | Milestone | Open | No | D4 | VM and production scenarios identify where S29 applies, how the prerequisite is provided, and how each scenario is verified; [detail](#m13---user-journal-applicability) |
 
 ## Decisions
 
@@ -34,7 +33,6 @@ document only when the owner assigns it to a release line.
 | D1 | #120 items 1 and 2 are examined-Keep and were retired; only item 3 (SELinux) remains, and it stays closed until the owner confirms a production SELinux-enforcing environment. | Owner decision, 2026-07-28; recorded in `CLOSED_DOORS.md` CI-29 |
 | D2 | #129 stays out of the 1.2.2 and 1.2.3 lines: it changes runtime parsing for every key, and #122 already closed the specific gap at its single call site. | Owner decision, 2026-07-29 |
 | D3 | The `docs/MILESTONE_PROCEDURE.md` draft stays in place and unchanged through 1.2.3; the release-cycle runbook references it rather than absorbing it, so the cycle stays a scenario re-set. | Owner decision, 2026-07-30 |
-| D4 | The Rocky user-journal prerequisite observed during the 1.2.3 gate is not changed in 1.2.3. After 1.2.3, examine VM and production environments separately, define the possible supported scenarios, and only then decide whether provisioning, test applicability, or both should change. A missing journal cannot verify monitor isolation and must not be treated as a pass. | Owner decision, 2026-08-10 |
 
 ## Assignment History
 
@@ -500,107 +498,3 @@ Observed State: none
 Observed Labels: none
 Observed Milestone: none
 Last Compared: never
-
-### M13 - User journal applicability
-
-Origin: 1.2.3 M5 / T6 observation on the reused Rocky 8 golden, 2026-08-10
-Identity History: none
-GitHub Issue: 140, https://github.com/jeonghanlee/epics-ioc-runner/issues/140
-Status: Open
-
-#### Summary
-
-The local lifecycle monitor-isolation test needs a readable user systemd
-journal as its positive control. On the reused Rocky 8 golden,
-`/var/log/journal` is absent, `vmadmin` has `Linger=no` and no
-`systemd-journal` membership, and `journalctl --user` reports insufficient
-permissions. S29 therefore cannot distinguish blocked monitor input from an
-unreadable output channel and correctly records three SKIPs in each runner
-mode.
-
-The available evidence does not establish whether this is specific to the VM
-golden, also occurs on production hosts, or represents one of several supported
-operating scenarios. Resolve that question after 1.2.3 rather than changing the
-test or host policy inside the release gate.
-
-#### Scope
-
-- Compare golden VM and representative production environments for journal
-  storage, active login state, linger, user ACL or group access, and user-unit
-  journal visibility.
-- Enumerate the supported scenarios in which S29 can and cannot verify monitor
-  isolation.
-- Decide from measured environments whether a later release should change
-  provisioning, test applicability, or both.
-
-Out of scope: changing the 1.2.3 verdict, enabling journal access on the current
-golden in place, changing product behavior, or treating an unavailable journal
-as a successful monitor-isolation verification.
-
-#### Completion Criteria
-
-- A scenario matrix distinguishes VM and production environments and records
-  the exact journal prerequisite present or absent in each.
-- Every available scenario is measured through the shipped S29 real path; an
-  unavailable production scenario remains explicitly unknown rather than
-  inferred from a VM.
-- The owner selects the supported scenarios and assigns any provisioning or
-  test change to a post-1.2.3 release.
-- No scenario reports monitor isolation as verified without a visible positive
-  control from the IOC user unit.
-
-#### Dependencies And Decisions
-
-- D4
-- Related release evidence: 1.2.3 `docs/milestone.md`, M5 / T6 and M6 / T1.
-- `docs/FAQ.md` Q9 describes active-login, linger, persistent-journal, and
-  journal-access conditions but does not decide which production scenarios are
-  supported.
-
-#### Implementation Plan
-
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. Record the journal conditions on both golden VM families and on each
-   available representative production host class.
-2. Build the scenario matrix from active-login, linger, persistent-storage,
-   ACL or group-access, and unavailable-journal combinations actually found.
-3. Run the shipped local lifecycle S29 path in each available scenario and
-   retain the positive-control and input-isolation result.
-4. Present the measured matrix for an owner decision before proposing any
-   provisioning or test change.
-
-#### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | Golden VM scenarios | Run the shipped local lifecycle S29 path and inspect its journal prerequisites | Debian and Rocky golden VMs | Each VM state is measured and S29 either runs with a visible positive control or records the exact unavailable boundary |
-| T2 | Production scenarios | Run the same read-only prerequisite checks and, where authorized, the shipped S29 path | Representative production host classes | Production applicability is observed directly and is not inferred from a VM result |
-| T3 | Scenario decision | Re-run the selected supported scenarios after the chosen provisioning or test change | Environments selected by the owner | Every supported applicable scenario verifies monitor isolation; every inapplicable scenario has an explicit policy basis |
-
-#### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Golden VMs | Pending | The 1.2.3 Rocky observation is origin evidence, not this post-1.2.3 matrix run |
-| T2 | Not run | Production | Pending | none |
-| T3 | Not run | Owner-selected scenarios | Pending | none |
-
-#### Closure Evidence
-
-- none
-
-#### GitHub Projection
-
-Title: Determine user-journal applicability for local monitor isolation
-Labels: tests, ops
-GitHub Milestone: Backlog
-Observed State: open
-Observed Labels: ops, tests
-Observed Milestone: Backlog
-Observed Assignee: jeonghanlee
-Observed Updated At: 2026-08-11T00:53:33Z
-Last Compared: 2026-08-10T17:53:33-07:00
