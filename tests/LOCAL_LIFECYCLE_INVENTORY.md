@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 125
+Fixed Total: 126
 
 ## Runner Policy
 
@@ -15,11 +15,11 @@ rejected before reporter initialization and is not part of this catalog.
 ## Inventory Basis
 
 The current maximum branch contains 109 assertions. The fixed catalog adds
-three P00 checks and ten prerequisite or applicability checks for logrotate,
+three P00 checks and eleven prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
 camonitor availability and the S15 and S16 configuration requirements. The
-resulting catalog contains 125 identities.
+resulting catalog contains 126 identities.
 
 ## Test Method Assignment
 
@@ -190,8 +190,9 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S28.camonitor-available` | `REQUIRED` | `camonitor` is executable.
 - `local-lifecycle.S28.expected-updates-observed` | `BEHAVIOR` | Channel Access reports the required update count.
 
-### S29 - Monitor Input Isolation (3)
+### S29 - Monitor Input Isolation (4)
 
+- `local-lifecycle.S29.monitor-isolation-applicable` | `APPLICABILITY` | Monitor isolation applies outside the Rocky ordinary-user journal policy.
 - `local-lifecycle.S29.user-journal-available` | `PREREQUISITE` | User journal output is available.
 - `local-lifecycle.S29.unit-journal-visible` | `BEHAVIOR` | Unit-attributed journal output is visible.
 - `local-lifecycle.S29.monitor-input-blocked` | `BEHAVIOR` | Monitor input does not reach the IOC.
@@ -274,7 +275,7 @@ skips, every dependent S14 check also skips.
 
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 125 identities in this
+Every source and installed invocation declares these 126 identities in this
 order. Runner origin changes the selected binary and the SUITE `runner` field,
 not the identity set. Missing prerequisites and non-applicable permission
 branches close their declared dependent checks without changing `Total`.

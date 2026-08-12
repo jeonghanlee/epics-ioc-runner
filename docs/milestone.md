@@ -6,11 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: enter M11 by accepting its draft plan and creating
-its required GitHub issue before implementation. CI-32 closes the Rocky journal
-access question: S29 is not applicable under the ordinary-user policy and must
-report NA rather than SKIP. M3 depends on M11, so its plan and implementation
-remain unauthorized and the release gate is not green.
+Next session entry point: complete the accepted M11 plan under #141 on fresh
+goldens. The separate local logrotate state-file defect is assigned to the
+1.2.4 line through `docs/backlog.md` M13 and does not change 1.2.3 product code.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -40,7 +38,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | #130 and #134 carry the completed M2 and M5 projections, are closed, and passed the post-update body and metadata comparison; [detail](#m10---release-record-reconciliation) |
-| M11 | Classify Rocky local monitor-isolation checks as not applicable | Milestone | Not started | Yes | D16 | Both local lifecycle modes use one explicit applicability check, report the S29 group as NA on Rocky and PASS on Debian, and preserve journal least privilege; [detail](#m11---rocky-s29-applicability) |
+| M11 | (#141) Classify Rocky local monitor-isolation checks as not applicable | Milestone | In progress | No | D16 | Both local lifecycle modes use one explicit applicability check, report the S29 group as NA on Rocky and PASS on Debian, and preserve journal least privilege; [detail](#m11---rocky-s29-applicability) |
 | M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
@@ -61,8 +59,9 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | D12 | Every check is classified on three independent axes: test category, check kind, and test method. `tests/REPORTING_CONTRACT.md` is authoritative for category and check kind; `tests/README.md` "Test Classification" is authoritative for test method. Only real-path execution can support a behavior-verification claim. Direct state inspection can support only the state or contract directly observed, and a hand-built reproduction is invalid as verification evidence. Test method alone does not create a suite or selector. | Owner decision, 2026-08-05 |
 | D13 | M9 does not preserve the current assertion count as an end in itself. Its migration inventory accounts for every current assertion and prerequisite and assigns exactly one reviewed disposition: `retain` keeps the valid check, `replace` preserves a needed verification target through valid evidence, and `remove` retires a redundant or invalid target with an owner-approved reason. No row disappears silently, and M9 step 1 remains open until every row has an accepted disposition. | Owner decision, 2026-08-05, after the second conceptual-integrity review |
 | D14 | One canonical check catalog carries category, check kind, and test method. A single recording path combines that metadata with each observed terminal state in one ledger; the human summary and machine-readable records are two projections of that ledger and never separate calculations. M9 defines destination metadata and valid evidence without implementing reporting. M8 implements the record path, ledger, and both projections across the resulting suite set. M6 consumes only M8's machine-readable records and does not infer states from human-readable prose. The execution order is M9, then M8 producer, then M6 consumer. | Owner decision, 2026-08-05 |
-| D15 | M8 preserves the fixed 487-check identity set and adds `state=<PASS\|FAIL>` to the final `SUITE` machine record. Cleanup and finalization failures are suite execution results, not additional checks. `PASS` requires zero final suite status with no failed checks, script errors, reporter integrity failure, or cleanup failure; every other final result is `FAIL`. M6 consumes this field later without scanning human-readable prose. | Owner decision, 2026-08-10 |
+| D15 | M8 preserves the fixed 487-check identity set and adds `state=<PASS\|FAIL>` to the final `SUITE` machine record. Cleanup and finalization failures are suite execution results, not additional checks. `PASS` requires zero final suite status with no failed checks, script errors, reporter integrity failure, or cleanup failure; every other final result is `FAIL`. M6 consumes this field later without scanning human-readable prose. **Amended 2026-08-11:** M11 adds one governing S29 applicability identity, advancing the maintained current set to 488 without rewriting historical 487-check evidence. | Owner decision, 2026-08-10; amended by owner approval of M11, 2026-08-11 |
 | D16 | Under this project's Rocky ordinary-user policy, local lifecycle S29 cannot obtain its user-journal positive control and is not applicable. Do not grant `systemd-journal` membership or change host journal policy for the test. Add one governing applicability check, close it and the three existing S29 checks as NA on Rocky, and retain the applicable real path on Debian. The examined access question is closed as `CLOSED_DOORS.md` CI-32. | Owner decision, 2026-08-11, after re-reading #17, #50, #140, the reporting contract, and the 1.2.3 gate evidence |
+| D17 | The repeated M11 gate exposed a separate product defect: local logrotate debug validation depends on the root-owned system default state file. Do not repair it inside M11 or change host permissions; assign it to the 1.2.4 line through `docs/backlog.md` M13. | Owner decision, 2026-08-11 |
 
 ## ID Migration
 
@@ -2059,8 +2058,8 @@ Last Compared: 2026-08-10T21:57:26-07:00
 
 Origin: 1.2.3 / M11, owner decision 2026-08-11
 Identity History: none
-GitHub Issue: none; required before implementation under D1
-Status: Not started
+GitHub Issue: #141
+Status: In progress
 
 #### Summary
 
@@ -2106,9 +2105,9 @@ VM-versus-production journal matrix closed by CI-32.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner approval, 2026-08-11
+Implementation Authorization: owner approval, 2026-08-11
 Superseded Plan Artifacts: none
 
 1. Add `local-lifecycle.S29.monitor-isolation-applicable` as an
@@ -2149,8 +2148,8 @@ Superseded Plan Artifacts: none
 Title: Classify Rocky local monitor-isolation checks as not applicable
 Labels: tests, ops
 GitHub Milestone: 1.2.3
-Observed State: none
-Last Compared: never
+Observed State: Open, assigned to `jeonghanlee`
+Last Compared: 2026-08-11
 
 ### M3 - Final release
 

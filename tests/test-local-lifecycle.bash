@@ -18,12 +18,11 @@ declare -g NC='\033[0m'
 declare -g CAMONITOR_COUNT=5
 declare -g CAMONITOR_TIMEOUT=10
 
-# STEP 24 (monitor isolation) reads journalctl --user output. Hosts
-# without a working user-scope journal (no linger, missing
-# /var/log/journal/<machine-id>, or user not in systemd-journal group)
-# cannot verify that step. Detect both common failure messages and mark
-# the journal unavailable so dependent steps skip with a WARN.
-# See issue #50.
+# STEP 29 reads journalctl --user output after its OS applicability boundary.
+# Rocky ordinary operators intentionally lack broad journal access, so the
+# complete step is non-applicable there. Other hosts probe the user journal
+# and skip the dependent behavior checks when that optional facility is absent.
+declare -g MONITOR_ISOLATION_APPLICABLE="true"
 declare -g JOURNAL_AVAILABLE="false"
 
 # U003/M19: the local log-rotation steps need logrotate. Resolve it the way
@@ -120,6 +119,7 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S27|local-lifecycle.S27.socket-listening|BEHAVIOR"
     "S28|local-lifecycle.S28.camonitor-available|REQUIRED"
     "S28|local-lifecycle.S28.expected-updates-observed|BEHAVIOR"
+    "S29|local-lifecycle.S29.monitor-isolation-applicable|APPLICABILITY"
     "S29|local-lifecycle.S29.user-journal-available|PREREQUISITE"
     "S29|local-lifecycle.S29.unit-journal-visible|BEHAVIOR"
     "S29|local-lifecycle.S29.monitor-input-blocked|BEHAVIOR"
@@ -387,12 +387,20 @@ function run_preflight {
 function probe_optional_dependencies {
     local journal_probe=""
     local logrotate_candidate=""
+    local os_name=""
 
-    JOURNAL_AVAILABLE="true"
-    journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
-    if [[ "${journal_probe}" == *"No journal files were found"* ||
-          "${journal_probe}" == *"insufficient permissions"* ]]; then
-        JOURNAL_AVAILABLE="false"
+    MONITOR_ISOLATION_APPLICABLE="true"
+    JOURNAL_AVAILABLE="false"
+    os_name=$(read_os_release_value ID || true)
+    if [[ "${os_name}" == "rocky" ]]; then
+        MONITOR_ISOLATION_APPLICABLE="false"
+    else
+        JOURNAL_AVAILABLE="true"
+        journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
+        if [[ "${journal_probe}" == *"No journal files were found"* ||
+              "${journal_probe}" == *"insufficient permissions"* ]]; then
+            JOURNAL_AVAILABLE="false"
+        fi
     fi
     for logrotate_candidate in /usr/sbin/logrotate /sbin/logrotate /usr/bin/logrotate; do
         if [[ -x "${logrotate_candidate}" ]]; then
@@ -1073,6 +1081,14 @@ function test_monitor_isolation {
     print_divider
     _log "INFO" "STEP ${step}: Test Monitor Input Isolation"
     print_sub_divider
+
+    if [[ "${MONITOR_ISOLATION_APPLICABLE}" != "true" ]]; then
+        _log "INFO" "Monitor isolation is not applicable under the Rocky ordinary-user journal policy."
+        record_current_state NA "Rocky ordinary-user policy excludes broad journal access"
+        close_current_remaining NA "requires ${SUITE_ID}.S29.monitor-isolation-applicable"
+        return 0
+    fi
+    record_current_state PASS
 
     if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
         _log "WARN" "User-scope journal unavailable, skipping monitor isolation test."

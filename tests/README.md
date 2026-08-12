@@ -100,6 +100,11 @@ The system lifecycle runs under root for system-wide systemd control and
 cross-user anonymous-peer mapping (`inspect` via Kernel Netlink); `sudo -E`
 preserves the EPICS environment across that boundary.
 
+Local lifecycle S29 declares an OS applicability check before its user-journal
+prerequisite. Rocky ordinary-user runs close the complete S29 group as NA under
+the journal least-privilege policy; applicable systems retain the real
+user-unit journal and monitor-input isolation path.
+
 ## Result Reporting Contract
 
 See [REPORTING_CONTRACT.md](REPORTING_CONTRACT.md) for the stable catalog,

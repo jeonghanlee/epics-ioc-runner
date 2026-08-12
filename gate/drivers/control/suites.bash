@@ -404,9 +404,9 @@ function matrix_verdict {
             want_step["error-handling/none/source"] = 37
             want["source-regression/system/source"] = 87
             want_step["source-regression/system/source"] = 16
-            want["local-lifecycle/local/source"] = 125
+            want["local-lifecycle/local/source"] = 126
             want_step["local-lifecycle/local/source"] = 36
-            want["local-lifecycle/local/installed"] = 125
+            want["local-lifecycle/local/installed"] = 126
             want_step["local-lifecycle/local/installed"] = 36
             want["system-infra/system/none"] = 36
             want_step["system-infra/system/none"] = 7
@@ -580,9 +580,9 @@ function matrix_verdict {
             for (i = 1; i <= exceptions; i++) {
                 print exception_line[i] " runner=" run_runner[exception_run[i]]
             }
-            if (blocks == 6 && checks == 612 && steps == 165 &&
+            if (blocks == 6 && checks == 614 && steps == 165 &&
                 skip == 0 && fail == 0 && errors == 0 && bad == 0) {
-                print "SUITES OK (6 blocks, 612 checks, na=" na_total ")"
+                print "SUITES OK (6 blocks, 614 checks, na=" na_total ")"
                 exit 0
             }
             printf "SUITES FAIL blocks=%d checks=%d steps=%d skip=%d fail=%d na=%d err=%d invalid=%d\n", blocks + 0, checks + 0, steps + 0, skip + 0, fail + 0, na_total + 0, errors + 0, bad + 0

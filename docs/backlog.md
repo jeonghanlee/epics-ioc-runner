@@ -25,6 +25,7 @@ document only when the owner assigns it to a release line.
 | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m10---conf-value-normalization) |
 | M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Open | No | D3 | Owner assigns it to a release line and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
 | M12 | Separate human-readable test output from machine-readable records | Milestone | Open | No | | Owner assigns it to a release line and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
+| M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Deferred | No | D4 | Transfer the complete row and detail when the 1.2.4 release line opens; [detail](#m13---local-logrotate-state-isolation) |
 
 ## Decisions
 
@@ -33,12 +34,14 @@ document only when the owner assigns it to a release line.
 | D1 | #120 items 1 and 2 are examined-Keep and were retired; only item 3 (SELinux) remains, and it stays closed until the owner confirms a production SELinux-enforcing environment. | Owner decision, 2026-07-28; recorded in `CLOSED_DOORS.md` CI-29 |
 | D2 | #129 stays out of the 1.2.2 and 1.2.3 lines: it changes runtime parsing for every key, and #122 already closed the specific gap at its single call site. | Owner decision, 2026-07-29 |
 | D3 | The `docs/MILESTONE_PROCEDURE.md` draft stays in place and unchanged through 1.2.3; the release-cycle runbook references it rather than absorbing it, so the cycle stays a scenario re-set. | Owner decision, 2026-07-30 |
+| D4 | The local logrotate state-file defect is separate product work for 1.2.4. Keep it out of 1.2.3 M11 and leave the root-owned system state file unchanged. | Owner decision, 2026-08-11 |
 
 ## Assignment History
 
 | Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
 | (#130) Golden `ioc-runner` baseline named at bake time | Backlog, `docs/milestone.md` 1.2.2 register, `master` | 1.2.3, `docs/milestone.md`, `release-1.2.3` | this synchronization commit | this synchronization commit |
+| Local logrotate state isolation | 1.2.3 draft M12, `docs/milestone.md`, `release-1.2.3` | Backlog M13, target release 1.2.4 | this synchronization commit | this synchronization commit |
 
 ## Milestone Details
 
@@ -452,7 +455,7 @@ semantics, or the accepted M8 count vectors. This work is not part of the
 - Owner direction, 2026-08-10: record human and machine output separation as
   later milestone work rather than extending the active M8 remediation.
 - The implementation must preserve the M8 reporting contract and the fixed
-  487-check identity set.
+  488-check identity set.
 
 #### Implementation Plan
 
@@ -498,3 +501,89 @@ Observed State: none
 Observed Labels: none
 Observed Milestone: none
 Last Compared: never
+
+### M13 - Local logrotate state isolation
+
+Origin: 1.2.3 / M12
+Identity History: 1.2.3 draft M12 -> Backlog M13, owner decision 2026-08-11
+GitHub Issue: 143, https://github.com/jeonghanlee/epics-ioc-runner/issues/143
+Status: Deferred
+
+#### Summary
+
+Local configuration validation runs `logrotate -d` without selecting a state
+file. Rocky logrotate treats an unreadable system default state file as an
+error, so a root-owned state file left by an earlier system run prevents the
+ordinary user's later local install from deploying rotation artifacts.
+
+#### Scope
+
+- Make local configuration debug validation independent of the system default
+  state file.
+- Add a real install-path regression check using only the external
+  `IOC_RUNNER_LOGROTATE_TOOL` boundary.
+- Update the maintained inventories and driver expectations when the 1.2.4
+  release line accepts the implementation plan.
+
+Out of scope: changing the system default state file, changing its ownership or
+mode, changing the deployed user timer's runtime state path, changing system
+logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
+
+#### Completion Criteria
+
+- A shipped local install validates and deploys rotation artifacts without
+  reading the system default state file.
+- A regression check drives the real local install path and fails if validation
+  returns to the system default state file.
+- Consecutive two-golden suite-driver runs pass without changing system
+  state-file ownership or mode.
+
+#### Dependencies And Decisions
+
+- D4 assigns the work to 1.2.4 and excludes it from 1.2.3 implementation.
+- Transfer the complete row and detail when the 1.2.4 release line opens.
+- The defect was observed during a repeated Rocky M11 gate after an earlier
+  system run had created a `root:root 0600` default state file.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Select an explicit non-persistent state target for local debug validation.
+2. Add a real install-path regression check at the external logrotate boundary.
+3. Update maintained inventories, driver expectations, and runbook counts.
+4. Run the shipped two-host suite driver consecutively and compare the complete
+   state vectors and default state-file metadata.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Install contract | Drive a real local install through an external logrotate boundary that rejects use of the system default state | Source error-contract suite | The install returns zero, deploys all rotation artifacts, and the check passes |
+| T2 | Repeated integration | Run the shipped suite driver consecutively without changing either system default state file | Debian and Rocky goldens for 1.2.4 | Both runs record complete PASS suite vectors |
+| T3 | State preservation | Compare owner, group, and mode before and after T2 | Both goldens | The default state files remain `root:root 0600` |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Source tree | Pending | none |
+| T2 | Not run | 1.2.4 goldens | Pending | none |
+| T3 | Not run | 1.2.4 goldens | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Make local logrotate validation independent of the system state file
+Labels: bug, tests, ops
+GitHub Milestone: Backlog
+Observed State: Open
+Observed Labels: bug, tests, ops
+Observed Milestone: Backlog
+Last Compared: 2026-08-11
