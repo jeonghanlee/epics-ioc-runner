@@ -6,8 +6,8 @@ Canonical branch or ref: `master`
 Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 
-Next session entry point: no backlog action is scheduled; work leaves this
-document only when the owner assigns it to a release line.
+Next session entry point: review and commit this synchronized pre-reset state,
+then perform the owner-directed milestone reset.
 
 ## Work
 
@@ -17,15 +17,17 @@ document only when the owner assigns it to a release line.
 | M2 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Open | No | | Owner assigns it to a release line and its scope is settled; [detail](#m2---conf-parser-unification) |
 | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m3---fatal-token-boundary-hygiene) |
 | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m4---restart-supervision-probe) |
-| M5 | (#116) Extend suite integrity: tripwire port and the logrotate oneshot under systemd | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m5---suite-integrity) |
+| M5 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Open | No | | Owner assigns the remaining real systemd path to a release line; [detail](#m5---suite-integrity) |
 | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m6---local-install-ordering) |
 | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m7---verify_path-type-expectation) |
 | M8 | (#120 item 3) SELinux context on the setup deploys, RHEL-only | Milestone | Conditional | No | D1 | The owner confirms production hosts run SELinux enforcing; [detail](#m8---selinux-context) |
 | M9 | (#127) Container execution mode without systemd | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m9---container-execution-mode) |
 | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m10---conf-value-normalization) |
 | M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Open | No | D3 | Owner assigns it to a release line and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
-| M12 | Separate human-readable test output from machine-readable records | Milestone | Open | No | | Owner assigns it to a release line and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
+| M12 | (#144) Separate human-readable test output from machine-readable records | Milestone | Open | No | | Owner assigns it to a release line and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
 | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Deferred | No | D4 | Transfer the complete row and detail when the 1.2.4 release line opens; [detail](#m13---local-logrotate-state-isolation) |
+| M14 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Open | No | | Owner assigns the test-entry boundary to a release line; [detail](#m14---epics-base-entry-boundary) |
+| M15 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Open | No | | Owner assigns the operator-message change to a release line; [detail](#m15---conf-mode-mismatch-diagnosis) |
 
 ## Decisions
 
@@ -181,24 +183,69 @@ Status: Open
 
 #### Summary
 
-Port the executed-vs-counted tripwire to the three lifecycle suites, and run
-the logrotate unit once through systemd so a broken ExecStart cannot pass every
-test while production rotation is dead.
+The original issue contained two test-integrity gaps. The shared reporter now
+closes the executed-versus-counted gap: every suite declares a complete
+catalog, records one terminal state per identity, and resolves missing or
+duplicate results as `SCRIPT_ERROR`. The remaining gap is that the local
+lifecycle suite invokes logrotate directly and never starts the deployed
+`epics-logrotate.service` through the user systemd manager.
 
 #### Scope
 
-As filed; both parts are harness code changes.
+Run the real deployed oneshot through `systemctl --user` and verify its result,
+rotation effect, and `%t/ioc-runner-logrotate.state` path. The check must use
+the shipped unit and real logrotate binary rather than reproducing the
+`ExecStart` command.
 
-Out of scope: the scenario-precision half, which the 1.2.3 scenario re-set
-(#131) carries.
+Out of scope: changing the shared reporter, adding a second counter, changing
+product logrotate policy, or implementing #143's install-time validation fix.
 
 #### Completion Criteria
 
-- The owner assigns the work to a release line and its scope is settled there.
+- The owner assigns the remaining systemd path to a release line.
+- The deployed oneshot completes successfully through the real user manager
+  on both applicable golden environments and produces the expected rotation.
+- A broken deployed `ExecStart` makes the check fail.
 
 #### Dependencies And Decisions
 
-- Cross-referenced from #131.
+- The catalog-ledger half completed in commits `f5871c7`, `1893c6e`, and
+  `a60802b`; it is checked in the GitHub issue and is not remaining work.
+- #143 covers install-time `logrotate -d` state isolation. This row covers the
+  deployed runtime systemd path.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Prepare a safe local log fixture under the deployed user configuration.
+2. Start the shipped `epics-logrotate.service` through `systemctl --user`.
+3. Verify the oneshot result, rotation effect, and per-user runtime state path.
+4. Prove that a broken deployed `ExecStart` turns the real-path check red.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Runtime unit | Start the deployed oneshot through the real user systemd manager | Debian and Rocky goldens where the user manager is available | The unit completes and produces the expected rotation effect |
+| T2 | Honest red | Install an isolated broken unit and start it through the same public systemd path | Golden VM test workspace | The check fails on the broken `ExecStart` |
+| T3 | State isolation | Inspect the resolved runtime state and the system default state before and after T1 | Both applicable goldens | The service uses `%t/ioc-runner-logrotate.state` and does not modify the system default state |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Both applicable goldens | Pending | none |
+| T2 | Not run | Golden VM test workspace | Pending | none |
+| T3 | Not run | Both applicable goldens | Pending | none |
+
+#### Closure Evidence
+
+- The catalog-ledger half is complete; the remaining runtime unit path has no
+  closure evidence.
 
 #### GitHub Projection
 
@@ -206,7 +253,10 @@ Title: Extend suite integrity: tripwire port and the M19 oneshot under systemd
 Labels: P3-low, tests
 GitHub Milestone: Backlog
 Observed State: open
-Last Compared: 2026-07-30
+Observed Labels: P3-low, tests
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-12T06:29:59Z
 
 ### M6 - Local install ordering
 
@@ -282,21 +332,66 @@ Status: Conditional
 
 #### Summary
 
-SELinux context on the setup script's `/tmp` to `/etc` deploys. RHEL-only, and
-closed until the owner confirms that production hosts run SELinux enforcing.
+Items 1 and 2 are examined-Keep decisions, not pending implementation. Only
+the SELinux context of setup deployments into `/etc` remains, conditional on
+the owner confirming a production SELinux-enforcing IOC host.
 
 #### Scope
 
-Item 3 only. Items 1 and 2 are examined-Keep (`CLOSED_DOORS.md` CI-29).
+On an enforcing production host, record the expected contexts for the sudoers
+and logrotate targets, run the shipped setup path, and compare the resulting
+contexts and policy acceptance. If a mismatch is observed, implement the
+smallest cross-distribution correction and a real-path final-context check.
+
+Out of scope: reopening items 1 or 2 without new reachability evidence, or
+treating a non-enforcing golden as proof of production SELinux behavior.
 
 #### Completion Criteria
 
 - The named condition is observed: the owner confirms a production
   SELinux-enforcing environment. The row then moves to Not started.
+- The real setup deployment records expected and observed contexts for both
+  `/etc` targets before any correction is selected.
 
 #### Dependencies And Decisions
 
 - D1
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Confirm an owner-authorized production IOC host is SELinux enforcing.
+2. Record `getenforce`, filesystem boundaries, `matchpathcon` expectations,
+   and existing target contexts.
+3. Run the shipped setup deployment and compare resulting contexts and policy
+   acceptance.
+4. Only after an observed mismatch, select and verify a correction supported
+   by the target distributions.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Activation condition | Read the production host SELinux mode with owner authorization | Production IOC host | `Enforcing` is observed before investigation begins |
+| T2 | Deployment context | Run the shipped setup path and compare `matchpathcon` with resulting target contexts | Same enforcing host | Both deployed policies carry their expected contexts and are accepted by their consumers |
+| T3 | Regression | If T2 finds a mismatch, rerun the real setup path with the correction present | Supported enforcing targets | A wrong final context fails the check and the corrected context passes |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Production IOC host | Pending | none |
+| T2 | Not run | Production IOC host | Pending | none |
+| T3 | Not run | Supported enforcing targets | Pending | none |
+
+#### Closure Evidence
+
+- Items 1 and 2 are retired as examined Keep in `docs/CLOSED_DOORS.md` CI-29;
+  the conditional SELinux item remains open.
 
 #### GitHub Projection
 
@@ -304,7 +399,10 @@ Title: Extend atomic same-dir staging to the remaining deploy sites
 Labels: P3-low, ops
 GitHub Milestone: Backlog
 Observed State: open
-Last Compared: 2026-07-30
+Observed Labels: P3-low, ops
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-12T06:30:06Z
 
 ### M9 - Container execution mode
 
@@ -419,7 +517,7 @@ Last Compared: 2026-07-30
 
 Origin: Backlog / M12
 Identity History: none
-GitHub Issue: none
+GitHub Issue: 144, https://github.com/jeonghanlee/epics-ioc-runner/issues/144
 Status: Open
 
 #### Summary
@@ -497,10 +595,11 @@ Superseded Plan Artifacts: none
 Title: Separate human-readable test output from machine-readable records
 Labels: tests
 GitHub Milestone: Backlog
-Observed State: none
-Observed Labels: none
-Observed Milestone: none
-Last Compared: never
+Observed State: open
+Observed Labels: tests
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-12T06:30:50Z
 
 ### M13 - Local logrotate state isolation
 
@@ -514,7 +613,9 @@ Status: Deferred
 Local configuration validation runs `logrotate -d` without selecting a state
 file. Rocky logrotate treats an unreadable system default state file as an
 error, so a root-owned state file left by an earlier system run prevents the
-ordinary user's later local install from deploying rotation artifacts.
+ordinary user's later local install from deploying rotation artifacts. The
+deployed user service already uses `%t/ioc-runner-logrotate.state`; the defect
+is limited to the install-time debug validation.
 
 #### Scope
 
@@ -544,6 +645,11 @@ logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
 - Transfer the complete row and detail when the 1.2.4 release line opens.
 - The defect was observed during a repeated Rocky M11 gate after an earlier
   system run had created a `root:root 0600` default state file.
+- The final 1.2.3 two-host gate passed without changing either default state
+  file. That clean-path result does not mean the state-dependent defect is
+  fixed.
+- #116 covers runtime execution of the deployed oneshot; this row covers the
+  earlier install-time validation.
 
 #### Implementation Plan
 
@@ -583,7 +689,175 @@ Superseded Plan Artifacts: none
 Title: Make local logrotate validation independent of the system state file
 Labels: bug, tests, ops
 GitHub Milestone: Backlog
-Observed State: Open
+Observed State: open
 Observed Labels: bug, tests, ops
 Observed Milestone: Backlog
-Last Compared: 2026-08-11
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-12T06:30:19Z
+
+### M14 - EPICS_BASE entry boundary
+
+Origin: Backlog / M14, synchronized from #139 on 2026-08-12
+Identity History: none
+GitHub Issue: 139, https://github.com/jeonghanlee/epics-ioc-runner/issues/139
+Status: Open
+
+#### Summary
+
+The dispatcher checks `EPICS_BASE` before launching an EPICS-dependent suite.
+The direct local and system lifecycle suites instead initialize the reporter,
+evaluate all P00 prerequisites, record the missing environment as FAIL, and
+close the remaining catalog as SKIP. They do not enter workspace setup or
+lifecycle execution, so this is an inconsistent entry boundary rather than a
+false green.
+
+#### Scope
+
+Inventory every shipped test entry point that consumes `EPICS_BASE`, make the
+missing variable its first environment boundary, and preserve the complete
+catalog reporter contract without later dependency, privilege, workspace,
+compilation, systemd, or IOC work.
+
+Out of scope: sourcing an EPICS environment automatically, making source
+regression depend on EPICS Base, changing IOC behavior, or weakening the
+reporter's complete-state contract.
+
+#### Completion Criteria
+
+- The owner assigns the test-entry boundary to a release line.
+- Every affected entry point stops nonzero at its first environment boundary
+  and performs no later setup or lifecycle work.
+- Direct suites close every catalog identity once with no `SCRIPT_ERROR`.
+- The source-regression-only selection still runs without `EPICS_BASE`.
+- The real lifecycle paths remain unchanged when `EPICS_BASE` is present.
+
+#### Dependencies And Decisions
+
+- The 1.2.3 gate ran with the declared EPICS environment on both goldens, so
+  this inconsistency does not invalidate its evidence.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Inventory the EPICS-dependent entry points and pin that set.
+2. Define the first-boundary reporter result for each direct suite.
+3. Move the environment stop ahead of every unrelated probe and side effect.
+4. Re-run the missing-environment and real lifecycle paths.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Entry contract | Run every EPICS-dependent entry point with `EPICS_BASE` unset | Debian 13 | Nonzero at the first boundary, no later work, complete catalog, no `SCRIPT_ERROR` |
+| T2 | Independent path | Run `tests/run-all-tests.bash --source-regression` without `EPICS_BASE` | Debian 13 | Source regression executes normally |
+| T3 | Positive path | Run both real lifecycle suites with the declared EPICS environment | Both golden OS families | Existing shipped paths and fixtures complete normally |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Debian 13 | Pending | none |
+| T2 | Not run | Debian 13 | Pending | none |
+| T3 | Not run | Both golden OS families | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Stop EPICS-dependent test scripts before setup when EPICS_BASE is unset
+Labels: P3-low, tests
+GitHub Milestone: Backlog
+Observed State: open
+Observed Labels: P3-low, tests
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-12T06:30:10Z
+
+### M15 - Conf mode mismatch diagnosis
+
+Origin: Backlog / M15, synchronized from #142 on 2026-08-12
+Identity History: none
+GitHub Issue: 142, https://github.com/jeonghanlee/epics-ioc-runner/issues/142
+Status: Open
+
+#### Summary
+
+Identity validation safely rejects a configuration whose `IOC_USER` and
+`IOC_GROUP` do not match the selected execution mode, but it reports two
+field-level errors and leaves the operator to infer one mode mismatch. It does
+not show the values found, name the file, or provide the correct regeneration
+command.
+
+#### Scope
+
+When both identity fields support the diagnosis, emit one found-versus-needed
+mode-mismatch message with the configuration path and correct `generate`
+command. A third-account configuration receives the comparison and remedy
+without an unsupported mode claim. System mode remains the unflagged default;
+there is no `--system` option.
+
+Out of scope: rewriting the configuration during install, switching modes,
+adding a `--system` option, or changing the identity validation rules.
+
+#### Completion Criteria
+
+- The owner assigns the operator-message change to a release line.
+- Both supported mismatch directions produce one complete diagnosis and the
+  correct regeneration command.
+- A third-account case does not claim either supported source mode.
+- Invalid identity values still abort without rewriting the configuration.
+- Tests update the error-count and message contract deliberately.
+
+#### Dependencies And Decisions
+
+- This is an operator-message improvement, not a validation bypass. The hard
+  failure behaved correctly during the 1.2.3 verification.
+
+#### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Classify the two supported opposite-mode pairs and the third-account case.
+2. Render one diagnosis from the selected and found identities.
+3. Update the validation count and message tests.
+4. Run the real install validation paths in both modes.
+
+#### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Local mismatch | Install a system-mode conf with `--local` through the shipped install path | Debian 13 | One complete diagnosis and `generate --local` remedy; install aborts |
+| T2 | System mismatch | Install a local-mode conf in default system mode through the shipped path | Debian 13 | Mirror diagnosis and unflagged `generate` remedy; install aborts |
+| T3 | Unknown account | Install a conf naming neither supported identity | Debian 13 | Found-versus-needed output without a source-mode claim; install aborts |
+
+#### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Debian 13 | Pending | none |
+| T2 | Not run | Debian 13 | Pending | none |
+| T3 | Not run | Debian 13 | Pending | none |
+
+#### Closure Evidence
+
+- none
+
+#### GitHub Projection
+
+Title: Diagnose conf/mode mismatch in one message
+Labels: enhancement, P2-medium, area/install
+GitHub Milestone: Backlog
+Observed State: open
+Observed Labels: enhancement, P2-medium, area/install
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-12T06:30:15Z

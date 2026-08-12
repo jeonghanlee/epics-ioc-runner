@@ -6,9 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: review every open issue against the canonical 1.2.3
-milestone before reviewing or accepting the draft M3 final-release plan. M11
-is complete and #141 is closed.
+Next session entry point: review and accept the draft M3 final-release plan.
+M11 is complete, #141 is closed, and the 2026-08-12 open-issue review found no
+additional work to absorb into 1.2.3.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -2194,9 +2194,11 @@ Out of scope: product behavior changes (D1).
   same expectation as an unchanged-behavior cycle.
 - D6: the contract guard over the three stamp sites was examined and declined
   (`CLOSED_DOORS.md` CI-31), so no guard work gates this release.
-- D16: Rocky S29 is not applicable under the ordinary-user policy. M11 must
-  replace the six current SKIPs with explicit NA records without widening
-  journal access before Release Verification 2 can pass.
+- D16: Rocky S29 is not applicable under the ordinary-user policy. M11
+  replaced the six former SKIPs with explicit NA records without widening
+  journal access; Release Verification 2 must preserve that result.
+- The 2026-08-12 open-issue review kept all fifteen surviving issues in the
+  Backlog. #143 remains assigned to 1.2.4 by D17; none gates this release.
 
 #### Implementation Plan
 
@@ -2205,7 +2207,7 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Complete M11 and its two-golden verification.
+1. Review and accept this final-release plan.
 2. Bake both goldens fresh and record the golden acceptance.
 3. Run the gate by following `gate/RUNBOOK.md`.
 4. Execute the release sequence under `git-workflow` authority.
