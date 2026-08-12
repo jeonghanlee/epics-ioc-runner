@@ -6,9 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: review and commit the completed M11 implementation
-and fresh-golden T1-T3 evidence, then close #141 under separate issue authority.
-M3 remains unauthorized while its plan is draft.
+Next session entry point: review every open issue against the canonical 1.2.3
+milestone before reviewing or accepting the draft M3 final-release plan. M11
+is complete and #141 is closed.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -38,8 +38,8 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | M9 | (#138) Separate source regression from post-install infrastructure verification | Milestone | Complete | No | D9, D10, D11, D12, D13, D14 | Source-tree behavior has one `source-regression` suite and separate `--source-regression` selection, while system infrastructure contains only installed-conformance checks; [detail](#m9---source-regression-suite-separation) |
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | #130 and #134 carry the completed M2 and M5 projections, are closed, and passed the post-update body and metadata comparison; [detail](#m10---release-record-reconciliation) |
-| M11 | (#141) Classify Rocky local monitor-isolation checks as not applicable | Milestone | In progress | No | D16 | Both local lifecycle modes use one explicit applicability check, report the S29 group as NA on Rocky and PASS on Debian, and preserve journal least privilege; [detail](#m11---rocky-s29-applicability) |
-| M3 | Final release 1.2.3 | Milestone | Not started | No | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M11 | (#141) Classify Rocky local monitor-isolation checks as not applicable | Milestone | Complete | No | D16 | Both local lifecycle modes use one explicit applicability check, report the S29 group as NA on Rocky and PASS on Debian, and preserve journal least privilege; [detail](#m11---rocky-s29-applicability) |
+| M3 | Final release 1.2.3 | Milestone | Not started | Yes | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -2059,7 +2059,7 @@ Last Compared: 2026-08-10T21:57:26-07:00
 Origin: 1.2.3 / M11, owner decision 2026-08-11
 Identity History: none
 GitHub Issue: #141
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -2141,24 +2141,24 @@ Superseded Plan Artifacts: none
 
 #### Closure Evidence
 
-- The accepted implementation and T1-T3 verification are complete in the
-  working tree. Before and after the two-host run, neither ordinary user was a
+- Commits `e0bc7f0` and `853072b` carry the accepted implementation, canonical
+  suite identity, and T1-T3 verification record. Before and after the two-host
+  run, neither ordinary user was a
   `systemd-journal` group member; Rocky had no `/var/log/journal`; Debian kept
   `/var/log/journal` as `root:systemd-journal 2755`; and the respective
   `/etc/systemd/journald.conf` SHA-256 values remained
   `5665c17814395153b05370a06c1c6cd5b24060ab58b76883535296bac922f7e1` and
   `b7ab521d85bbd289adc37788c469c6ac6a2021dd056a1eada02107bbe891c650`.
-- M11 remains In progress until the driver identity update and this evidence
-  are committed and linked issue #141 is observed closed under separate issue
-  authority.
+- GitHub issue #141 was reconciled with the completed acceptance results and
+  observed closed at 2026-08-12T05:33:37Z.
 
 #### GitHub Projection
 
 Title: Classify Rocky local monitor-isolation checks as not applicable
 Labels: tests, ops
 GitHub Milestone: 1.2.3
-Observed State: Open, assigned to `jeonghanlee`
-Last Compared: 2026-08-11T21:37:51-07:00
+Observed State: Closed at 2026-08-12T05:33:37Z, assigned to `jeonghanlee`
+Last Compared: 2026-08-11T22:33:37-07:00
 
 ### M3 - Final release
 
