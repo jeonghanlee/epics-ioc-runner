@@ -46,7 +46,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | ID | Decision | Source |
 | --- | --- | --- |
 | D1 | 1.2.3 is a verification cycle: documents and test scenarios are its ordinary work, and code is not changed in passing. **Amended 2026-08-02:** the line takes a code change where one is genuinely needed to complete the cycle. The authority is the owner's, and the route is formal — the work gets its own row in this register and its own issue before it is written, never an inline repair made while something else was being fixed. What the amendment removes is the standing bar, not the discipline: the bar was there so scope could not widen quietly, and a row plus an issue is what keeps that true while letting the cycle finish. D5 and D7 remain as the record of the two exceptions named under the earlier form; work from here takes the formal route instead of a new named exception. | Owner decision, 2026-07-30, amended by owner decision 2026-08-02 |
-| D2 | The register adopts the current `milestone-tracking` schema at this cycle open, and unassigned work moves to `docs/backlog.md`. | Owner decision, 2026-07-30 |
+| D2 | The register adopts the current `milestone-tracking` schema at this cycle open. Unassigned work moved through the historical `docs/backlog.md`, whose final state is at `a39623c`, and is staged in the prepared master register at `docs/milestone-a39623c.md` until the M3 cycle close activates it. | Owner decision, 2026-07-30; master reset prepared 2026-08-12 |
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
 | D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change. The first rationale — that the stamp falsifies a gate record — was withdrawn the same day, once the reachability check showed the production deployment path cannot reach the condition (M4, Dependencies And Decisions), and the issue was regraded to `enhancement` / `P3-low`. The exception is kept on the narrower ground that survives: the work is done, the change is three lines with its regression coverage, and the condition it removes is one this project's own gate creates every run by pushing the tree under test with `tar`. The exception covers that change and its test; it does not reopen the line to other code work. | Owner decision, 2026-07-31, rationale narrowed the same day after the reachability finding |
@@ -61,7 +61,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | D14 | One canonical check catalog carries category, check kind, and test method. A single recording path combines that metadata with each observed terminal state in one ledger; the human summary and machine-readable records are two projections of that ledger and never separate calculations. M9 defines destination metadata and valid evidence without implementing reporting. M8 implements the record path, ledger, and both projections across the resulting suite set. M6 consumes only M8's machine-readable records and does not infer states from human-readable prose. The execution order is M9, then M8 producer, then M6 consumer. | Owner decision, 2026-08-05 |
 | D15 | M8 preserves the fixed 487-check identity set and adds `state=<PASS\|FAIL>` to the final `SUITE` machine record. Cleanup and finalization failures are suite execution results, not additional checks. `PASS` requires zero final suite status with no failed checks, script errors, reporter integrity failure, or cleanup failure; every other final result is `FAIL`. M6 consumes this field later without scanning human-readable prose. **Amended 2026-08-11:** M11 adds one governing S29 applicability identity, advancing the maintained current set to 488 without rewriting historical 487-check evidence. | Owner decision, 2026-08-10; amended by owner approval of M11, 2026-08-11 |
 | D16 | Under this project's Rocky ordinary-user policy, local lifecycle S29 cannot obtain its user-journal positive control and is not applicable. Do not grant `systemd-journal` membership or change host journal policy for the test. Add one governing applicability check, close it and the three existing S29 checks as NA on Rocky, and retain the applicable real path on Debian. The examined access question is closed as `CLOSED_DOORS.md` CI-32. | Owner decision, 2026-08-11, after re-reading #17, #50, #140, the reporting contract, and the 1.2.3 gate evidence |
-| D17 | The repeated M11 gate exposed a separate product defect: local logrotate debug validation depends on the root-owned system default state file. Do not repair it inside M11 or change host permissions; assign it to the 1.2.4 line through `docs/backlog.md` M13. | Owner decision, 2026-08-11 |
+| D17 | The repeated M11 gate exposed a separate product defect: local logrotate debug validation depends on the root-owned system default state file. Do not repair it inside M11 or change host permissions; assign it to the 1.2.4 line through `docs/milestone-a39623c.md` M13. | Owner decision, 2026-08-11 |
 
 ## ID Migration
 
@@ -73,7 +73,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 
 | Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
-| (#130) Golden `ioc-runner` baseline named at bake time | Backlog, `docs/backlog.md`, `master` | 1.2.3, `docs/milestone.md`, `release-1.2.3` | this synchronization commit | this synchronization commit |
+| (#130) Golden `ioc-runner` baseline named at bake time | Backlog, `docs/backlog.md` at `6c64624`, `master` | 1.2.3, `docs/milestone.md`, `release-1.2.3` | `6c64624` | `6c64624` |
 
 ## Milestone Details
 
@@ -128,10 +128,10 @@ which is a code change with its own verification.
 #### Dependencies And Decisions
 
 - D1, D3, D4
-- Cross-referenced, staying in `docs/backlog.md`: M11 there carries the fate of
+- Cross-referenced, staying in `docs/milestone-a39623c.md`: M11 there carries the fate of
   the `MILESTONE_PROCEDURE.md` draft, which this runbook references and leaves
   unchanged.
-- Cross-referenced, staying in `docs/backlog.md`: M5 there (#116) keeps the
+- Cross-referenced, staying in `docs/milestone-a39623c.md`: M5 there (#116) keeps the
   harness code changes; M7 (#118) is the false-green class this runbook records
   as a known limitation; M4 (#115) is the coverage gap the runbook names as
   still open.
@@ -213,7 +213,8 @@ Last Compared: 2026-08-06
 ### M2 - Golden baseline declaration
 
 Origin: #130, filed 2026-07-29 during the 1.2.2 gate
-Identity History: Backlog row (`docs/backlog.md`) moved to this register at the 1.2.3 open
+Identity History: Backlog source recorded in `docs/backlog.md` at `6c64624`;
+moved to this register at the 1.2.3 open
 GitHub Issue: 130, https://github.com/jeonghanlee/epics-ioc-runner/issues/130
 Status: Complete
 
@@ -2183,6 +2184,9 @@ Out of scope: product behavior changes (D1).
 
 - Every Release Verification row records Pass with reachable evidence.
 - Tag `1.2.3`, the GitHub release, and the closed remote milestone exist.
+- The cycle-close commit makes `docs/milestone-a39623c.md` the active master
+  register with an active header, a current `Next session entry point:`, and
+  matching README text.
 
 #### Dependencies And Decisions
 
@@ -2199,6 +2203,9 @@ Out of scope: product behavior changes (D1).
   journal access; Release Verification 2 must preserve that result.
 - The 2026-08-12 open-issue review kept all fifteen surviving issues in the
   Backlog. #143 remains assigned to 1.2.4 by D17; none gates this release.
+- `docs/milestone-a39623c.md` is a prepared master generation, not an active
+  canonical register. The M3 cycle-close commit replaces its temporary entry
+  point and activates it on `master` after the release objects are published.
 
 #### Implementation Plan
 
@@ -2242,6 +2249,8 @@ Superseded Plan Artifacts: none
 | 4 | Push `master` and the tag | release delegation | Both refs on `origin` | pending |
 | 5 | Create the GitHub release from the changelog section | release delegation | Release object with a curated body | pending |
 | 6 | Close the remote milestone `1.2.3` | release delegation | Milestone state closed | pending |
+| 7 | Close the release register on `master`, change the prepared master register's `Activation state:` to active, replace its temporary entry point, and mark it active in `docs/README.md` | commit delegation | One standalone cycle-close commit on `master` | pending |
+| 8 | Read the cycle-close commit and verify that `docs/milestone-a39623c.md` is the active master register with no prepared-state marker | read-only | The committed header, entry point, and README agree | pending |
 
 #### Release Verification Plan
 

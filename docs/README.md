@@ -42,9 +42,11 @@ This directory contains the complete documentation for deploying, managing, and 
 * **[../gate/RUNBOOK.md](../gate/RUNBOOK.md)**
   The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
 
-### 7. Milestone Register
+### 7. Milestone Registers
 * **[milestone.md](milestone.md)**
-  Single, unified milestone register covering all active milestones, carry-forward items, the status tally, and the next session entry point. GitHub milestone state is authoritative. Released versions are not retained here — on each release the register is cleared and restarted; the released snapshot lives in the matching git tag.
+  Active 1.2.3 release register, including the final-release plan and its verification state.
+* **[milestone-a39623c.md](milestone-a39623c.md)**
+  Prepared master reset generation for unassigned work. It contains the surviving Backlog and records `a39623c` as the committed prior state; it becomes canonical only through the 1.2.3 M3 cycle-close commit on `master`.
 
 ## Upgrading from 1.0.x
 
