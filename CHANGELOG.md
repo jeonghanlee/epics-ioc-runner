@@ -1,5 +1,67 @@
 # Changelog
 
+## 1.2.3 - Verification Integrity Release
+
+Make the release gate complete, repeatable, and machine-checkable. This cycle
+has one product robustness fix: clean checkouts relocated by `tar`, `cp -a`,
+or snapshot restore no longer report a false `-dirty` version stamp. The
+remaining changes strengthen the standing two-OS release procedure and its
+test evidence without changing IOC runtime behavior.
+
+### Fixes
+
+- Version stamping now compares tracked content instead of trusting cached
+  index stat data. The setup installer, live `-V` fallback, and user-install
+  injector all preserve a bare hash for a relocated clean checkout, retain
+  `-dirty` for a real modification, and work when the index cannot be updated.
+  (#133)
+- Test tool checks resolve `logrotate` and `con` through the same absolute
+  search paths as the runner. A usable tool is no longer skipped merely
+  because a non-login user's `PATH` omits its directory. (#136)
+
+### Changed
+
+- The release gate now has one standing procedure under `gate/`, with shipped
+  control-side and host-side drivers for the six suite runs, the
+  `root_squash` deployment path, and all fourteen multi-user scenarios. Each
+  run pins the prior release baseline in the golden manifest and validates
+  the retained checkout and installed runner before deployment. (#130, #131,
+  #134)
+- Every declared test check now reaches exactly one terminal state: `PASS`,
+  `FAIL`, `SKIP`, `NA`, or `ERROR`. Suite summaries and machine-readable
+  records come from the same ledger, include cleanup failure in the final
+  suite state, and let the collector reject missing, duplicate, malformed, or
+  non-final records. (#135, #137)
+- Source-tree setup, Git, metadata, and path contracts now live in a dedicated
+  source-regression suite. System-infrastructure checks cover only installed
+  host conformance, so each suite runs in the privilege context its assertions
+  require. (#138)
+- Rocky 8 records local monitor-isolation checks as not applicable when the
+  ordinary user has no useful user-journal path; Debian 13 continues to run
+  the real checks. The release does not broaden journal access. (#141)
+
+### Tests
+
+- The gate collector validates the fixed two-host execution matrix and refuses
+  an overall pass when any required suite, mode, check identity, or final
+  reporter record is absent.
+- The shipped scenario driver reports one verdict for each of the three local
+  and eleven system multi-user scenarios, preserving per-scenario evidence and
+  refusing an empty or incomplete run.
+- Relocated-checkout regression coverage exercises all three version-stamp
+  sites with clean, modified, and locked-index fixtures through the shipped
+  source path. (#133)
+
+### Documentation
+
+- The former per-cycle test plans are replaced by `gate/RUNBOOK.md`, which
+  defines golden acceptance, fresh-consumer requirements, suite modes,
+  `root_squash` verification, multi-user scenarios, evidence retention, and
+  failure boundaries in one standing procedure. (#131, #134)
+- `tests/REPORTING_CONTRACT.md` and the suite inventories define the stable
+  check identities, applicability rules, terminal states, and aggregation
+  invariants used by the release gate. (#137, #138)
+
 ## 1.2.2 - Deployment Path Patch
 
 Five deployment-path and validation-path defects, no redesign. The
