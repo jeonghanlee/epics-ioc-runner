@@ -6,9 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: none
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: complete the accepted M11 plan under #141 on fresh
-goldens. The separate local logrotate state-file defect is assigned to the
-1.2.4 line through `docs/backlog.md` M13 and does not change 1.2.3 product code.
+Next session entry point: review and commit the completed M11 implementation
+and fresh-golden T1-T3 evidence, then close #141 under separate issue authority.
+M3 remains unauthorized while its plan is draft.
 
 The recovered set that step 1
 started from is kept at `work/gate-drivers-debian13-20260801/` as the record of
@@ -2135,13 +2135,22 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Rocky 8 golden | Pending | none |
-| T2 | Not run | Debian 13 golden | Pending | none |
-| T3 | Not run | Both goldens | Pending | none |
+| T1 | 2026-08-11T21:37:51-07:00 | Fresh Rocky 8 consumer from the 2026-08-12T04:08:22Z golden; source and installed modes at control HEAD `e0bc7f0` plus the one-line driver identity update | Pass | Each local lifecycle mode emitted 126 TEST records and one final PASS SUITE record with `pass=122 skip=0 na=4 err=0`. The two modes emitted exactly eight S29 NA records and zero S29 SKIP records. Evidence: `work/gate-suites-20260812T043206Z-790798/vmadmin_192.168.122.150.log`, SHA-256 `e776da3b1019496d728069f867fc2e3d007696479e254a0472a3d660b30e58a7`. |
+| T2 | 2026-08-11T21:37:51-07:00 | Fresh Debian 13 consumer from the 2026-08-12T04:13:35Z golden; source and installed modes at control HEAD `e0bc7f0` plus the one-line driver identity update | Pass | Each local lifecycle mode emitted 126 TEST records and one final PASS SUITE record with `pass=126 skip=0 na=0 err=0`. The two modes emitted exactly eight S29 PASS records through the real user-journal path. Evidence: `work/gate-suites-20260812T043206Z-790798/vmadmin_192.168.122.50.log`, SHA-256 `7462aa464f1ec64eb8ff353fb969694d171641289f923e8338fef5b34249569d`. |
+| T3 | 2026-08-11T21:37:51-07:00 | Both fresh consumers; shipped driver snapshot SHA-256 `145d1b43fc99ff2f2ead8806728c2033566fe1f2c30d9030ad4e3db02898d2db` | Pass | All twelve real suite invocations returned 0. Each host retained 614 TEST, 165 STEP, and six final PASS SUITE records with execution-identity SHA-256 `fcfdabf99fb5cfdc897b318afb4df79d611119eca719e96eca803d74422351a7`. Debian returned `SUITES OK (6 blocks, 614 checks, na=0)`; Rocky returned `SUITES OK (6 blocks, 614 checks, na=12)`; the final line was `GATE SUITES PASS hosts=2`. The 60-line normalized diff records only the declared S29 and S06 applicability differences. Evidence directory: `work/gate-suites-20260812T043206Z-790798/`; diff SHA-256 `e47465e819a329b2ba806c7d968b06a9d02a1f8c3e64f2f2b2bcb6dfaf2cf7b4`. |
 
 #### Closure Evidence
 
-- none
+- The accepted implementation and T1-T3 verification are complete in the
+  working tree. Before and after the two-host run, neither ordinary user was a
+  `systemd-journal` group member; Rocky had no `/var/log/journal`; Debian kept
+  `/var/log/journal` as `root:systemd-journal 2755`; and the respective
+  `/etc/systemd/journald.conf` SHA-256 values remained
+  `5665c17814395153b05370a06c1c6cd5b24060ab58b76883535296bac922f7e1` and
+  `b7ab521d85bbd289adc37788c469c6ac6a2021dd056a1eada02107bbe891c650`.
+- M11 remains In progress until the driver identity update and this evidence
+  are committed and linked issue #141 is observed closed under separate issue
+  authority.
 
 #### GitHub Projection
 
@@ -2149,7 +2158,7 @@ Title: Classify Rocky local monitor-isolation checks as not applicable
 Labels: tests, ops
 GitHub Milestone: 1.2.3
 Observed State: Open, assigned to `jeonghanlee`
-Last Compared: 2026-08-11
+Last Compared: 2026-08-11T21:37:51-07:00
 
 ### M3 - Final release
 
