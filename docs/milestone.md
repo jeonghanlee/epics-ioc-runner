@@ -3,7 +3,7 @@
 Release line: 1.2.3
 Canonical path: `docs/milestone.md`
 Canonical branch or ref: `release-1.2.3`
-Git upstream: none
+Git upstream: `origin/release-1.2.3`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
 Next session entry point: review and accept the draft M3 final-release plan.
@@ -39,7 +39,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | #130 and #134 carry the completed M2 and M5 projections, are closed, and passed the post-update body and metadata comparison; [detail](#m10---release-record-reconciliation) |
 | M11 | (#141) Classify Rocky local monitor-isolation checks as not applicable | Milestone | Complete | No | D16 | Both local lifecycle modes use one explicit applicability check, report the S29 group as NA on Rocky and PASS on Debian, and preserve journal least privilege; [detail](#m11---rocky-s29-applicability) |
-| M3 | Final release 1.2.3 | Milestone | Not started | Yes | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M3 | Final release 1.2.3 | Milestone | In progress | No | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -2166,12 +2166,12 @@ Last Compared: 2026-08-11T22:33:37-07:00
 Origin: this cycle open, 2026-07-30
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 #### Summary
 
-Release 1.2.3 once the runbook and the baseline declaration land, and run the
-gate by following that runbook so its first execution is also its first test.
+Release 1.2.3 from a checked readiness commit after a fresh bake and a complete
+gate run driven through `gate/RUNBOOK.md`.
 
 #### Scope
 
@@ -2206,24 +2206,45 @@ Out of scope: product behavior changes (D1).
 - `docs/milestone-a39623c.md` is a prepared master generation, not an active
   canonical register. The M3 cycle-close commit replaces its temporary entry
   point and activates it on `master` after the release objects are published.
+- Owner decision, 2026-08-12: bake both goldens again for M3. The earlier
+  Release Verification 1 observation remains historical evidence but does not
+  satisfy this release run.
+- Select the release moniker while reviewing the 1.2.3 changelog entry. No tag
+  or GitHub release command is authorized until its exact title is previewed.
 
 #### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted the final-release plan, 2026-08-12
+Implementation Authorization: Owner authorized release work to begin, 2026-08-12
 Superseded Plan Artifacts: none
 
 1. Review and accept this final-release plan.
-2. Bake both goldens fresh and record the golden acceptance.
-3. Run the gate by following `gate/RUNBOOK.md`.
-4. Execute the release sequence under `git-workflow` authority.
+2. Bake both goldens fresh. Before any tree push or deploy, run Release
+   Verification 1; read the current `RUNNER_VERSION` for Release Verification
+   5; then record both observations in a separately authorized pre-change
+   evidence commit.
+3. Add and review the 1.2.3 section in `CHANGELOG.md` as its own commit. Select
+   the release moniker there and derive `work/release-notes-1.2.3.md` from the
+   accepted text.
+4. Change only `RUNNER_VERSION` to `1.2.3` in a standalone commit.
+5. Drive the complete gate through `gate/RUNBOOK.md` against that version
+   commit. Record Release Verification 2 through 4 and 6 in a separately
+   authorized readiness-evidence commit; that checked commit is the release
+   candidate.
+6. Execute the merge, tag, remote publish, release-object, milestone, and
+   branch-retention actions below with their separately required authorities.
+7. Run Release Verification 7 and 8 against the actual release, then prepare
+   the source-first cycle-close commit on `master` and activate the prepared
+   master register.
+8. Push the preparation commit, run Release Verification 9 against
+   `origin/master`, and record M3 completion in the final closure commit.
 
 #### Integrated Verification
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T2 | The runbook's multi-user text changed after the drive that corrected it | `docs/RELEASE_CYCLE_RUNBOOK.md` | M1 / T4 | Every scenario drives green from the corrected text, on freshly baked goldens | done, 2026-07-30 |
+| M1 / T2 | The runbook's multi-user text changed after the drive that corrected it | `gate/RUNBOOK.md` | Release Verification 3 | Every scenario drives green from the corrected text, on freshly baked goldens | pending |
 | M2 / T1 | The runbook's evidence format changes after the gate record is written | `gate/RUNBOOK.md` | Release Verification 4 | The gate record still carries the declared baseline | pending |
 | M8 / T4 | M11 adds one S29 applicability identity and changes the Rocky S29 group from SKIP to NA | Test reporting ledger and suite collector | Release Verification 2 | Both hosts retain 614 complete execution identities; Rocky records eight S29 NA and zero SKIP; Debian records all four S29 checks PASS per mode; both host suite verdicts are green | pending |
 
@@ -2237,39 +2258,46 @@ Superseded Plan Artifacts: none
 
 | Field | File | Before | Planned After | Pre-check | Pre-check Label | Post-check | Post-check Label |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `RUNNER_VERSION` | `bin/ioc-runner` | `1.2.2` | `1.2.3` | Read the declaration on the release branch | Release Verification 5 | Read the deployed `-V` after the tagged tree is installed | Release Verification 6 |
+| `RUNNER_VERSION` | `bin/ioc-runner` | `1.2.2` | `1.2.3` | Read the declaration on the release branch before mutation | Release Verification 5 | Read the deployed `-V` after the gate deploys the version commit | Release Verification 6 |
 
 #### Release Execution
 
 | Step | Action | Authorization | Expected Result | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Bump `RUNNER_VERSION` to `1.2.3` on `release-1.2.3` | commit delegation | One standalone commit | pending |
-| 2 | Merge `release-1.2.3` into `master` with `--no-ff` | release delegation | A merge commit on `master` | pending |
-| 3 | Create the annotated tag `1.2.3` on that merge | release delegation | Tag object with the release title | pending |
-| 4 | Push `master` and the tag | release delegation | Both refs on `origin` | pending |
-| 5 | Create the GitHub release from the changelog section | release delegation | Release object with a curated body | pending |
-| 6 | Close the remote milestone `1.2.3` | release delegation | Milestone state closed | pending |
-| 7 | Close the release register on `master`, change the prepared master register's `Activation state:` to active, replace its temporary entry point, and mark it active in `docs/README.md` | commit delegation | One standalone cycle-close commit on `master` | pending |
-| 8 | Read the cycle-close commit and verify that `docs/milestone-a39623c.md` is the active master register with no prepared-state marker | read-only | The committed header, entry point, and README agree | pending |
+| 1 | Record Release Verification 1 and 5 in `docs/milestone.md` on `release-1.2.3` | commit delegation | One pre-change evidence commit | pending |
+| 2 | Add the accepted 1.2.3 section to `CHANGELOG.md` on `release-1.2.3` | commit delegation | One standalone changelog commit with the selected release moniker | pending |
+| 3 | Bump `RUNNER_VERSION` to `1.2.3` on `release-1.2.3` | commit delegation | One standalone version commit | pending |
+| 4 | Record Release Verification 2 through 4 and 6 in `docs/milestone.md` | commit delegation | One readiness-evidence commit naming the release candidate | pending |
+| 5 | Merge the named release candidate from `release-1.2.3` into `master` with `--no-ff` | release delegation | A merge commit on `master` | pending |
+| 6 | Create the annotated tag `1.2.3` on that merge | release delegation | Tag object with the accepted release title | pending |
+| 7 | Push `master`, tag `1.2.3`, and the final `release-1.2.3` ref | release delegation | All three refs on `origin` name the accepted objects | pending |
+| 8 | Create the GitHub release from `work/release-notes-1.2.3.md` | release delegation | Release object with the accepted title and curated body | pending |
+| 9 | Close the remote milestone `1.2.3` | release delegation | Milestone state closed | pending |
+| 10 | After verifying it is merged, delete remote branch `release-1.2.1`; no local branch exists | release delegation | The two-back release branch is absent locally and on `origin` | pending |
+| 11 | Prepare cycle closure on `master`: record Release Verification 7 and 8, activate `docs/milestone-a39623c.md`, replace its temporary entry point, and mark it active in `docs/README.md` | commit delegation | One source-first cycle-close preparation commit | pending |
+| 12 | Push the cycle-close preparation commit to `origin/master` | push delegation | `origin/master` contains the prepared closure and active master register | pending |
+| 13 | Run Release Verification 9, mark M3 Complete, and record final closure evidence | commit delegation | One final closure commit on `master` | pending |
+| 14 | Push the final closure commit to `origin/master` | push delegation | Local `master` and `origin/master` agree on the closed cycle | pending |
 
 #### Release Verification Plan
 
 | Label | Layer | Timing | Method | Environment | Expected Result | Evidence Target |
 | --- | --- | --- | --- | --- | --- | --- |
 | Release Verification 1 | Golden acceptance | pre-change | The bake runbook's acceptance sequence: manifest ownership and hash, the provenance validator, the sidecar comparison, the deployed `-V` | Both goldens | All four checks pass and the baseline is recorded | Command output in the result row |
-| Release Verification 2 | Automated suites | pre-change | Run the complete suite set in each applicable permission mode, following the runbook's mode table | Both goldens | Green with counts recorded per host, suite, and applicable mode | Suite summaries |
-| Release Verification 3 | Standing scenarios | pre-change | The multi-user plan, driven from its own text | Both goldens | Every scenario meets its stated expected result | Per-scenario results |
-| Release Verification 4 | Standing procedure | pre-change | The root_squash path through the three documented entry points from the `nfs_sim` mount | Both goldens | Each entry point stamps a real short hash with no layout warning | Stamp output and `-V` |
-| Release Verification 5 | Version consistency | pre-change | Read `RUNNER_VERSION` on the release branch | Working tree | The value is the planned release version before the mutation is verified | Commit and file read |
-| Release Verification 6 | Version consistency | post-change | Read the deployed `-V` from the tagged tree | Both goldens | `1.2.3` with a real short hash | `-V` output |
-| Release Verification 7 | Release objects | post-release | Read the tag object, the release object, and the remote milestone state | GitHub | Tag, release, and closed milestone exist and match the merge commit | Object identifiers |
+| Release Verification 2 | Automated suites | post-change | Run the complete suite set in each applicable permission mode, following the runbook's mode table | Both freshly baked goldens at the version commit | Green with counts recorded per host, suite, and applicable mode | Suite summaries |
+| Release Verification 3 | Standing scenarios | post-change | Run the shipped multi-user scenario driver through the runbook | Both freshly baked goldens at the version commit | Every scenario meets its stated expected result | Per-scenario results |
+| Release Verification 4 | Standing procedure | post-change | Run the root_squash path through the three documented entry points from the `nfs_sim` mount | Both freshly baked goldens at the version commit | Each entry point stamps a real short hash with no layout warning | Stamp output and `-V` |
+| Release Verification 5 | Version consistency | pre-change | Read `RUNNER_VERSION` on the release branch before mutation | Working tree | The value is `1.2.2` | Commit and file read |
+| Release Verification 6 | Version consistency | post-change | Read deployed `-V` after the gate deploys the version commit | Both freshly baked goldens at the version commit | `1.2.3` with the version commit's real short hash | `-V` output |
+| Release Verification 7 | Release objects | post-release | Read the tag object, the release object, and the remote milestone state | Git and GitHub | The tag and release target the merge commit, and the milestone is closed | Object identifiers |
 | Release Verification 8 | Production deployment | post-release | The documented install path on the production host | `alsucl-psrv3` | Install completes and the runner reports the released version | `-V` output |
+| Release Verification 9 | Master register activation | post-release | Read `docs/milestone-a39623c.md` and `docs/README.md` from `origin/master` after the cycle-close preparation push | Git repository | The register header is active, its entry point names the first master action, the README agrees, and no prepared-state marker remains | Preparation commit and remote object ID |
 
 #### Release Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | 2026-08-10T18:49:18-07:00 | Fresh Rocky 8 and Debian 13 consumers | Pass | Before any deploy or tree push, both manifests were `root:root 644`; remote hashes matched the working-copy sidecars; the shipped provenance validator passed; retained checkout and installed `-V` identities matched `fd14875`; both baseline records were `requested=1.2.2 state=clean-tagged tag=1.2.2` with dirty count `0`. Full bake and acceptance evidence is recorded under M5 step 8 and M2/T2. |
+| Release Verification 1 | Not run for M3 | Fresh Rocky 8 and Debian 13 consumers | Pending | The 2026-08-10 observation at `fd14875` remains historical evidence under M5 step 8 and M2/T2. The owner chose a fresh M3 bake on 2026-08-12, so that earlier observation does not satisfy this row. |
 | Release Verification 2 | Not run | Both goldens | Pending | none |
 | Release Verification 3 | Not run | Both goldens | Pending | none |
 | Release Verification 4 | Not run | Both goldens | Pending | none |
@@ -2277,6 +2305,7 @@ Superseded Plan Artifacts: none
 | Release Verification 6 | Not run | Both goldens | Pending | none |
 | Release Verification 7 | Not run | GitHub | Pending | none |
 | Release Verification 8 | Not run | `alsucl-psrv3` | Pending | none |
+| Release Verification 9 | Not run | `origin/master` | Pending | none |
 
 #### Closure Evidence
 
