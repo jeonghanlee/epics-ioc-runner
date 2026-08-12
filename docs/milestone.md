@@ -6,7 +6,8 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: `origin/release-1.2.3`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: review and accept the draft M3 final-release plan.
+Next session entry point: add and review the 1.2.3 changelog entry and select
+the release moniker.
 M11 is complete, #141 is closed, and the 2026-08-12 open-issue review found no
 additional work to absorb into 1.2.3.
 
@@ -2264,7 +2265,7 @@ Superseded Plan Artifacts: none
 
 | Step | Action | Authorization | Expected Result | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Record Release Verification 1 and 5 in `docs/milestone.md` on `release-1.2.3` | commit delegation | One pre-change evidence commit | pending |
+| 1 | Record Release Verification 1 and 5 in `docs/milestone.md` on `release-1.2.3` | commit delegation | One pre-change evidence commit | RV1 and RV5 Pass; this pre-change evidence commit |
 | 2 | Add the accepted 1.2.3 section to `CHANGELOG.md` on `release-1.2.3` | commit delegation | One standalone changelog commit with the selected release moniker | pending |
 | 3 | Bump `RUNNER_VERSION` to `1.2.3` on `release-1.2.3` | commit delegation | One standalone version commit | pending |
 | 4 | Record Release Verification 2 through 4 and 6 in `docs/milestone.md` | commit delegation | One readiness-evidence commit naming the release candidate | pending |
@@ -2297,11 +2298,11 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | Not run for M3 | Fresh Rocky 8 and Debian 13 consumers | Pending | The 2026-08-10 observation at `fd14875` remains historical evidence under M5 step 8 and M2/T2. The owner chose a fresh M3 bake on 2026-08-12, so that earlier observation does not satisfy this row. |
+| Release Verification 1 | 2026-08-12T14:41:08-07:00 | Fresh Rocky 8 and Debian 13 consumers | Pass | Both bakes exited 0 from baseline `1.2.2` with unchanged clean suppliers `cloud-provision 579a8f3` and `ansible-provision 5c52419`. Rocky archive `iocrunner-rocky8-20260812T212652Z.qcow2` and Debian archive `iocrunner-debian13-20260812T213307Z.qcow2` produced fresh consumers that reached `READY`. On both hosts the manifest was `root:root 644`, the shipped validator reported valid provenance, dirty count was `0`, retained checkout and installed `-V` both reported `fd14875`, and `requested=1.2.2 state=clean-tagged tag=1.2.2`. Remote and local sidecar SHA-256 values matched: Rocky `2c60455c0f4b4c9e03bbe40d3c2c4650f5de90d251889e6eae3d0ebdcfff29bb`, Debian `5597a20f183b6d9dd236d5215761398c664989b32aa7aed06cfe363057f0d30d`. The acceptance log exited 0 and has SHA-256 `fd68ac83c60792604437e7155fc08ed7bac23bb14e7d3b58bde98957b854db55`. |
 | Release Verification 2 | Not run | Both goldens | Pending | none |
 | Release Verification 3 | Not run | Both goldens | Pending | none |
 | Release Verification 4 | Not run | Both goldens | Pending | none |
-| Release Verification 5 | Not run | Working tree | Pending | none |
+| Release Verification 5 | 2026-08-12T14:41:22-07:00 | Clean `release-1.2.3` tree at `5014480` | Pass | `bin/ioc-runner` line 14 declared `RUNNER_VERSION="1.2.2"` before mutation. |
 | Release Verification 6 | Not run | Both goldens | Pending | none |
 | Release Verification 7 | Not run | GitHub | Pending | none |
 | Release Verification 8 | Not run | `alsucl-psrv3` | Pending | none |
