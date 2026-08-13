@@ -44,8 +44,8 @@ This directory contains the complete documentation for deploying, managing, and 
 
 ### 7. Milestone Registers
 * **[milestone.md](milestone.md)**
-  Closing 1.2.3 release register. Release Verification 9 and the final M3
-  closure remain pending.
+  Closed 1.2.3 release register, including all nine Release Verification
+  results and final M3 closure evidence.
 * **[milestone-a39623c.md](milestone-a39623c.md)**
   Active master reset generation for unassigned work. It contains the surviving
   Backlog, records `a39623c` as the committed prior state, and starts the next

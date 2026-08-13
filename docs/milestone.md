@@ -6,9 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: `origin/release-1.2.3`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: commit and push the cycle-close preparation, run
-Release Verification 9 against `origin/master`, then record the final M3
-closure.
+Next session entry point: continue from the active master register at
+`docs/milestone-a39623c.md`; its entry point opens the 1.2.4 release line and
+transfers M13 (#143).
 M11 is complete, #141 is closed, and the 2026-08-12 open-issue review found no
 additional work to absorb into 1.2.3.
 
@@ -41,7 +41,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | M8 | (#137) Re-examine the suites' skip-reporting policy so a skip is countable from the summary, not the body | Milestone | Complete | No | M9, D14, D15 | Every suite defines one Git-style terminal state for every check, records it once, and derives both the human summary and machine-readable records from the same ledger; [detail](#m8---suite-skip-reporting-policy) |
 | M10 | Reconcile the 1.2.3 canonical register with its GitHub issues | Milestone | Complete | No | | #130 and #134 carry the completed M2 and M5 projections, are closed, and passed the post-update body and metadata comparison; [detail](#m10---release-record-reconciliation) |
 | M11 | (#141) Classify Rocky local monitor-isolation checks as not applicable | Milestone | Complete | No | D16 | Both local lifecycle modes use one explicit applicability check, report the S29 group as NA on Rocky and PASS on Debian, and preserve journal least privilege; [detail](#m11---rocky-s29-applicability) |
-| M3 | Final release 1.2.3 | Milestone | In progress | No | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
+| M3 | Final release 1.2.3 | Milestone | Complete | No | M1, M2, M4, M5, M6, M7, M8, M9, M10, M11 | Tag `1.2.3`, GitHub release, milestone closed, and every Release Verification row Pass; [detail](#m3---final-release) |
 
 ## Decisions
 
@@ -2168,7 +2168,7 @@ Last Compared: 2026-08-12T18:28:07-07:00
 Origin: this cycle open, 2026-07-30
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 #### Summary
 
@@ -2219,11 +2219,16 @@ Out of scope: product behavior changes (D1).
   change is this readiness record in `docs/milestone.md`; no suite, deploy,
   setup, or scenario driver reads that file, so the record-only commit cannot
   reach Release Verification 2 through 4 or 6 and does not invalidate them.
+- Owner decision, 2026-08-12: publishing the final closure commit is
+  post-closure transport, not a Release Execution action or an M3 completion
+  gate. A commit cannot record observation of its own push; treating that push
+  as another recorded action would create an endless closure sequence.
 
 #### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: Owner accepted the final-release plan, 2026-08-12
+Plan Acceptance: Owner accepted the final-release plan, 2026-08-12; owner
+accepted the post-closure transport correction, 2026-08-12
 Implementation Authorization: Owner authorized release work to begin, 2026-08-12
 Superseded Plan Artifacts: none
 
@@ -2247,6 +2252,8 @@ Superseded Plan Artifacts: none
    master register.
 8. Push the preparation commit, run Release Verification 9 against
    `origin/master`, and record M3 completion in the final closure commit.
+   Publish that commit afterward under separate push delegation; this
+   post-closure transport is not a Release Execution action.
 
 #### Integrated Verification
 
@@ -2283,9 +2290,13 @@ Superseded Plan Artifacts: none
 | 9 | Close the remote milestone `1.2.3` | release delegation | Milestone state closed | Closed at 2026-08-12T18:02:36-07:00 with 9 closed issues and 0 open issues |
 | 10 | After verifying it is merged, delete remote branch `release-1.2.1`; no local branch exists | release delegation | The two-back release branch is absent locally and on `origin` | No local or remote `release-1.2.1` ref at 2026-08-12T18:28:07-07:00 |
 | 11 | Prepare cycle closure on `master`: record Release Verification 7 and 8, activate `docs/milestone-a39623c.md`, replace its temporary entry point, and mark it active in `docs/README.md` | commit delegation | One source-first cycle-close preparation commit | This preparation: Release Verification 7 and 8 Pass; active register and README agree |
-| 12 | Push the cycle-close preparation commit to `origin/master` | push delegation | `origin/master` contains the prepared closure and active master register | pending |
-| 13 | Run Release Verification 9, mark M3 Complete, and record final closure evidence | commit delegation | One final closure commit on `master` | pending |
-| 14 | Push the final closure commit to `origin/master` | push delegation | Local `master` and `origin/master` agree on the closed cycle | pending |
+| 12 | Push the cycle-close preparation commit to `origin/master` | push delegation | `origin/master` contains the prepared closure and active master register | `7cf7c1fc96792e2812a093013ee6071953d7cc65` on `origin/master` |
+| 13 | Run Release Verification 9, mark M3 Complete, and record final closure evidence | commit delegation | One final closure commit on `master` | This closure commit; Release Verification 9 Pass against `origin/master` at `7cf7c1f` |
+
+The final closure commit is published afterward under separate push
+delegation. That publication is post-closure transport, not a Release
+Execution action or M3 completion gate, because the commit cannot contain an
+observation of its own push.
 
 #### Release Verification Plan
 
@@ -2338,11 +2349,24 @@ Control-side evidence directory:
 | Release Verification 6 | 2026-08-12T15:35:15-07:00 | Both fresh consumers after all three root-squash deploy entry points | Pass | Every deployed readback reported `epics-ioc-runner version 1.2.3 (b133fb9)` with commit date `2026-08-12T22:19:19Z`; the final install dates were `2026-08-12T22:35:11Z` on Rocky and `2026-08-12T22:35:07Z` on Debian. The matching stamp files are named in Release Verification 4. |
 | Release Verification 7 | 2026-08-12T18:28:07-07:00 | Git and GitHub | Pass | Remote `master` and dereferenced tag `1.2.3` resolve to merge `4868a251d18803de34b731da63bd6cf609142666`; annotated tag object `9644eca48e976eed74bd9ae2518c661844e86d78`; published GitHub release ID `369608799`; closed GitHub milestone with 9 closed issues and 0 open issues. |
 | Release Verification 8 | 2026-08-12T18:24:51-07:00 | `alsucl-psrv3`, Rocky 8, NFS home with root_squash | Pass | From the release checkout on the NFS home, `sudo -v && make install` exited successfully and verified 3/3 deployed artifacts. `hostname -f` reported `alsucl-psrv3`; `/usr/local/bin/ioc-runner -V` reported version `1.2.3 (4868a25)`, commit date `2026-08-13T01:01:32Z`, and install date `2026-08-13T01:24:51Z`. |
-| Release Verification 9 | Not run | `origin/master` | Pending | none |
+| Release Verification 9 | 2026-08-12T19:39:17-07:00 | `origin/master` at `7cf7c1fc96792e2812a093013ee6071953d7cc65` | Pass | The remote object contains an active `docs/milestone-a39623c.md` header, its next entry opens 1.2.4 and transfers M13 (#143), and `docs/README.md` agrees. Neither file contains a prepared-state marker. |
 
 #### Closure Evidence
 
-- none
+- The accepted final-release plan, implementation authority, and readiness
+  evidence are recorded in candidate commit
+  `60de0cf10d5d549712f146d293d13a7adc795740`.
+- Release merge `4868a251d18803de34b731da63bd6cf609142666`,
+  annotated tag object `9644eca48e976eed74bd9ae2518c661844e86d78`,
+  and published GitHub release ID `369608799` identify release 1.2.3.
+- Release Verification 8 passed on `alsucl-psrv3` through the documented NFS
+  home install path; deployed readback reported `1.2.3 (4868a25)`.
+- Release Verification 9 passed against `origin/master` at `7cf7c1f` and
+  confirmed `docs/milestone-a39623c.md` as the active next-line record.
+- Every non-final row is Complete. The GitHub milestone is closed with nine
+  closed issues and no open issues. All nine Release Verification rows Pass.
+- Owner-approved post-closure transport publishes this final closure commit
+  without creating another recorded release action.
 
 #### GitHub Projection
 
