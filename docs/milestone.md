@@ -6,8 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: `origin/release-1.2.3`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: add and review the 1.2.3 changelog entry and select
-the release moniker.
+Next session entry point: execute the separately authorized release sequence
+from the readiness-evidence commit containing this record. That commit is the
+1.2.3 release candidate.
 M11 is complete, #141 is closed, and the 2026-08-12 open-issue review found no
 additional work to absorb into 1.2.3.
 
@@ -2210,8 +2211,14 @@ Out of scope: product behavior changes (D1).
 - Owner decision, 2026-08-12: bake both goldens again for M3. The earlier
   Release Verification 1 observation remains historical evidence but does not
   satisfy this release run.
-- Select the release moniker while reviewing the 1.2.3 changelog entry. No tag
-  or GitHub release command is authorized until its exact title is previewed.
+- Release moniker: `Verification Integrity Release`, selected with the accepted
+  1.2.3 changelog entry. No tag or GitHub release command is authorized until
+  its exact title is previewed.
+- The complete post-change gate ran against version commit
+  `b133fb96d4e965f209f5ca1ba9ff5fb8d4f7513f`. The only later candidate-tree
+  change is this readiness record in `docs/milestone.md`; no suite, deploy,
+  setup, or scenario driver reads that file, so the record-only commit cannot
+  reach Release Verification 2 through 4 or 6 and does not invalidate them.
 
 #### Implementation Plan
 
@@ -2245,9 +2252,9 @@ Superseded Plan Artifacts: none
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T2 | The runbook's multi-user text changed after the drive that corrected it | `gate/RUNBOOK.md` | Release Verification 3 | Every scenario drives green from the corrected text, on freshly baked goldens | pending |
-| M2 / T1 | The runbook's evidence format changes after the gate record is written | `gate/RUNBOOK.md` | Release Verification 4 | The gate record still carries the declared baseline | pending |
-| M8 / T4 | M11 adds one S29 applicability identity and changes the Rocky S29 group from SKIP to NA | Test reporting ledger and suite collector | Release Verification 2 | Both hosts retain 614 complete execution identities; Rocky records eight S29 NA and zero SKIP; Debian records all four S29 checks PASS per mode; both host suite verdicts are green | pending |
+| M1 / T2 | The runbook's multi-user text changed after the drive that corrected it | `gate/RUNBOOK.md` | Release Verification 3 | Every scenario drives green from the corrected text, on freshly baked goldens | Pass: both shipped `run-all.bash` drives report 14 of 14 PASS |
+| M2 / T1 | The runbook's evidence format changes after the gate record is written | `gate/RUNBOOK.md` | Release Verification 4 | The gate record still carries the declared baseline | Pass: the host evidence below records baseline `1.2.2`, commit `fd14875`, state `clean-tagged`, and tag `1.2.2` for both goldens |
+| M8 / T4 | M11 adds one S29 applicability identity and changes the Rocky S29 group from SKIP to NA | Test reporting ledger and suite collector | Release Verification 2 | Both hosts retain 614 complete execution identities; Rocky records eight S29 NA and zero SKIP; Debian records all four S29 checks PASS per mode; both host suite verdicts are green | Pass: both hosts report 614 checks and zero SKIP; Rocky has the expected eight S29 NA plus four sudo-policy NA, and Debian has zero NA |
 
 #### Production Environment Tests
 
@@ -2265,10 +2272,10 @@ Superseded Plan Artifacts: none
 
 | Step | Action | Authorization | Expected Result | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Record Release Verification 1 and 5 in `docs/milestone.md` on `release-1.2.3` | commit delegation | One pre-change evidence commit | RV1 and RV5 Pass; this pre-change evidence commit |
-| 2 | Add the accepted 1.2.3 section to `CHANGELOG.md` on `release-1.2.3` | commit delegation | One standalone changelog commit with the selected release moniker | pending |
-| 3 | Bump `RUNNER_VERSION` to `1.2.3` on `release-1.2.3` | commit delegation | One standalone version commit | pending |
-| 4 | Record Release Verification 2 through 4 and 6 in `docs/milestone.md` | commit delegation | One readiness-evidence commit naming the release candidate | pending |
+| 1 | Record Release Verification 1 and 5 in `docs/milestone.md` on `release-1.2.3` | commit delegation | One pre-change evidence commit | `0807510`; Release Verification 1 and 5 Pass |
+| 2 | Add the accepted 1.2.3 section to `CHANGELOG.md` on `release-1.2.3` | commit delegation | One standalone changelog commit with the selected release moniker | `7c28862`; `Verification Integrity Release` |
+| 3 | Bump `RUNNER_VERSION` to `1.2.3` on `release-1.2.3` | commit delegation | One standalone version commit | `b133fb9`; only `RUNNER_VERSION` changed |
+| 4 | Record Release Verification 2 through 4 and 6 in `docs/milestone.md` | commit delegation | One readiness-evidence commit naming the release candidate | Release Verification 2 through 4 and 6 Pass; the commit containing this row is the release candidate |
 | 5 | Merge the named release candidate from `release-1.2.3` into `master` with `--no-ff` | release delegation | A merge commit on `master` | pending |
 | 6 | Create the annotated tag `1.2.3` on that merge | release delegation | Tag object with the accepted release title | pending |
 | 7 | Push `master`, tag `1.2.3`, and the final `release-1.2.3` ref | release delegation | All three refs on `origin` name the accepted objects | pending |
@@ -2294,16 +2301,41 @@ Superseded Plan Artifacts: none
 | Release Verification 8 | Production deployment | post-release | The documented install path on the production host | `alsucl-psrv3` | Install completes and the runner reports the released version | `-V` output |
 | Release Verification 9 | Master register activation | post-release | Read `docs/milestone-a39623c.md` and `docs/README.md` from `origin/master` after the cycle-close preparation push | Git repository | The register header is active, its entry point names the first master action, the README agrees, and no prepared-state marker remains | Preparation commit and remote object ID |
 
+#### Gate Host Evidence
+
+Control-side evidence directory:
+`work/gate-suites-20260812T222706Z-1193556/`.
+
+| Host | Golden Bake Date | Baseline Ref | Baseline Commit / State / Tag | Host Verdict | Log SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| Rocky 8 | 2026-08-12T21:26:52Z | `1.2.2` | `fd14875` / `clean-tagged` / `1.2.2` | `SUITES OK (6 blocks, 614 checks, na=12)` | `3974295e179767150997262e4c4c1d168f4f7964a4be9cbef50b1d0882efc1bf` |
+| Debian 13 | 2026-08-12T21:33:07Z | `1.2.2` | `fd14875` / `clean-tagged` / `1.2.2` | `SUITES OK (6 blocks, 614 checks, na=0)` | `0d44247d22a6ccc66be6984c5e1147590ed8b79b490dd76eadb1c6d9a77a57e5` |
+
+| Host | Suite | Scope | Runner | PASS | FAIL | SKIP | NA | ERROR | State | Elapsed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Rocky 8 | `error-handling` | none | source | 146 | 0 | 0 | 0 | 0 | PASS | 4s |
+| Rocky 8 | `source-regression` | system | source | 87 | 0 | 0 | 0 | 0 | PASS | 2s |
+| Rocky 8 | `local-lifecycle` | local | source | 122 | 0 | 0 | 4 | 0 | PASS | 78s |
+| Rocky 8 | `local-lifecycle` | local | installed | 122 | 0 | 0 | 4 | 0 | PASS | 80s |
+| Rocky 8 | `system-infra` | system | none | 32 | 0 | 0 | 4 | 0 | PASS | 0s |
+| Rocky 8 | `system-lifecycle` | system | installed | 93 | 0 | 0 | 0 | 0 | PASS | 73s |
+| Debian 13 | `error-handling` | none | source | 146 | 0 | 0 | 0 | 0 | PASS | 5s |
+| Debian 13 | `source-regression` | system | source | 87 | 0 | 0 | 0 | 0 | PASS | 2s |
+| Debian 13 | `local-lifecycle` | local | source | 126 | 0 | 0 | 0 | 0 | PASS | 85s |
+| Debian 13 | `local-lifecycle` | local | installed | 126 | 0 | 0 | 0 | 0 | PASS | 85s |
+| Debian 13 | `system-infra` | system | none | 36 | 0 | 0 | 0 | 0 | PASS | 1s |
+| Debian 13 | `system-lifecycle` | system | installed | 93 | 0 | 0 | 0 | 0 | PASS | 76s |
+
 #### Release Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-08-12T14:41:08-07:00 | Fresh Rocky 8 and Debian 13 consumers | Pass | Both bakes exited 0 from baseline `1.2.2` with unchanged clean suppliers `cloud-provision 579a8f3` and `ansible-provision 5c52419`. Rocky archive `iocrunner-rocky8-20260812T212652Z.qcow2` and Debian archive `iocrunner-debian13-20260812T213307Z.qcow2` produced fresh consumers that reached `READY`. On both hosts the manifest was `root:root 644`, the shipped validator reported valid provenance, dirty count was `0`, retained checkout and installed `-V` both reported `fd14875`, and `requested=1.2.2 state=clean-tagged tag=1.2.2`. Remote and local sidecar SHA-256 values matched: Rocky `2c60455c0f4b4c9e03bbe40d3c2c4650f5de90d251889e6eae3d0ebdcfff29bb`, Debian `5597a20f183b6d9dd236d5215761398c664989b32aa7aed06cfe363057f0d30d`. The acceptance log exited 0 and has SHA-256 `fd68ac83c60792604437e7155fc08ed7bac23bb14e7d3b58bde98957b854db55`. |
-| Release Verification 2 | Not run | Both goldens | Pending | none |
-| Release Verification 3 | Not run | Both goldens | Pending | none |
-| Release Verification 4 | Not run | Both goldens | Pending | none |
+| Release Verification 2 | 2026-08-12T15:31:20-07:00 | Fresh Rocky 8 and Debian 13 consumers at `b133fb9` | Pass | The shipped `gate/drivers/control/suites.bash` ran all six blocks on both hosts. Each host recorded 614 checks, zero FAIL, zero SKIP, zero ERROR, and suite state PASS throughout. Rocky recorded 12 NA: eight S29 identities across source and installed local lifecycle, plus four `system-infra` S06 identities for its expected sudo glob policy. Debian recorded zero NA. The exact suite rows, elapsed times, baseline, host verdicts, and log hashes are in Gate Host Evidence above; normalized differences are limited to those expected NA branches in `work/gate-suites-20260812T222706Z-1193556/cross-host.diff`. |
+| Release Verification 3 | 2026-08-12T15:37:08-07:00 | Fresh Rocky 8 and Debian 13 consumers at deployed `b133fb9` | Pass | The shipped `gate/drivers/control/run-all.bash` ran L1 through L3 and S1 through S11 on each host. Both final records are `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none`. Rocky took the S11 glob branch and Debian the anchored branch. Evidence: `work/gate-run-release-1.2.3-20260812T223540Z-rocky8/` with `run-all.log` SHA-256 `6060557a29ae7d347a8f0c991f7b5c493b23d3b23983e806d79335506e1af217`, and `work/gate-run-release-1.2.3-20260812T223540Z-debian13/` with SHA-256 `d2b131c1e3fbe4a0af868b36dd9230470e0374af63c38789ef6973463a04e20e`. After named payload removal, the shipped leftovers reader reported `P-LEFTOVERS PASS` on both hosts. |
+| Release Verification 4 | 2026-08-12T15:35:15-07:00 | Both fresh consumers, `nfs_sim` root-squash mount, version commit `b133fb9` | Pass | Both fixtures first reported `SQUASH REPRODUCED`: root was denied at the absolute NFS tree, its owner succeeded there, and root succeeded on `/usr/local/bin`. On both hosts the default setup script, `make install`, and `make setup` each exited 0, reported zero layout/unknown warnings, changed the deployed binary mtime, and stamped `1.2.3 (b133fb9)` with commit date `2026-08-12T22:19:19Z`. Rocky mtimes were `15:34:52.900047894`, `15:35:03.302118333`, and `15:35:11.193171769`; Debian mtimes were `15:34:52.220664289`, `15:35:01.548728271`, and `15:35:07.832771370`, all at `-0700`. Evidence: `work/release-1.2.3-root-squash-<os>-precheck.log`, `work/release-1.2.3-root-squash-<os>-<entry>.log`, and matching `.stamp` files. |
 | Release Verification 5 | 2026-08-12T14:41:22-07:00 | Clean `release-1.2.3` tree at `5014480` | Pass | `bin/ioc-runner` line 14 declared `RUNNER_VERSION="1.2.2"` before mutation. |
-| Release Verification 6 | Not run | Both goldens | Pending | none |
+| Release Verification 6 | 2026-08-12T15:35:15-07:00 | Both fresh consumers after all three root-squash deploy entry points | Pass | Every deployed readback reported `epics-ioc-runner version 1.2.3 (b133fb9)` with commit date `2026-08-12T22:19:19Z`; the final install dates were `2026-08-12T22:35:11Z` on Rocky and `2026-08-12T22:35:07Z` on Debian. The matching stamp files are named in Release Verification 4. |
 | Release Verification 7 | Not run | GitHub | Pending | none |
 | Release Verification 8 | Not run | `alsucl-psrv3` | Pending | none |
 | Release Verification 9 | Not run | `origin/master` | Pending | none |
