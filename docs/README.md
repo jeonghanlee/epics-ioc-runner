@@ -45,8 +45,9 @@ This directory contains the complete documentation for deploying, managing, and 
 ### 7. Milestone Registers
 * **[milestone-a39623c.md](milestone-a39623c.md)**
   Active master reset generation for unassigned work. It contains the surviving
-  Backlog, records `a39623c` as the committed prior state, and starts the next
-  session by opening the 1.2.4 release line for #143.
+  Backlog, records `a39623c` as the committed prior state, and records the
+  approved 1.2.4 bugfix set: M3, M7, M6, and M13. The next step stages those
+  four items on `release-1.2.4` before authority moves from master.
 
 ## Upgrading from 1.0.x
 

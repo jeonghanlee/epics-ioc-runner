@@ -8,8 +8,9 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.2.3 reset generation
 
-Next session entry point: open the 1.2.4 release line and transfer M13 (#143),
-including its full row and detail, into that release's canonical document.
+Next session entry point: commit this source assignment intent, then create
+`release-1.2.4` and stage `docs/milestone-1.2.4.md` with M3, M7, M6, M13,
+and the final release work.
 
 ## Milestone
 
@@ -28,6 +29,16 @@ No work is currently assigned to master.
 | D2 | #129 stays out of the 1.2.2 and 1.2.3 lines: it changes runtime parsing for every key, and #122 already closed the specific gap at its single call site. | Owner decision, 2026-07-29 |
 | D3 | The `docs/MILESTONE_PROCEDURE.md` draft stays in place and unchanged through 1.2.3; the release-cycle runbook references it rather than absorbing it, so the cycle stays a scenario re-set. | Owner decision, 2026-07-30 |
 | D4 | The local logrotate state-file defect is separate product work for 1.2.4. Keep it out of 1.2.3 M11 and leave the root-owned system state file unchanged. | Owner decision, 2026-08-11 |
+| D5 | Open 1.2.4 as a bugfix line with M3, M7, M6, and M13 in that order, followed by the final release work. Target M1, M2, M4, M5, M9, M10, M11, M12, M14, and M15 for 1.3.0 when that cycle opens. Keep M8 conditional in Backlog. | Owner decision, 2026-08-12 |
+
+### Assignment History
+
+| Identity | From | To | Target Commit | Authority Moved At |
+| --- | --- | --- | --- | --- |
+| a39623c / M3 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
+| a39623c / M6 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
+| a39623c / M7 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
+| a39623c / M13 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
 
 ## Backlog
 
@@ -35,21 +46,21 @@ No work is currently assigned to master.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| | M1 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Open | No | | Owner assigns it to a release line and its scope is settled; [detail](#m1---fleet-layer-reliability) |
-| | M2 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Open | No | | Owner assigns it to a release line and its scope is settled; [detail](#m2---conf-parser-unification) |
-| | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m3---fatal-token-boundary-hygiene) |
-| | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m4---restart-supervision-probe) |
-| | M5 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Open | No | | Owner assigns the remaining real systemd path to a release line; [detail](#m5---suite-integrity) |
-| | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m6---local-install-ordering) |
-| | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m7---verify_path-type-expectation) |
+| | M1 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens and its scope is settled; [detail](#m1---fleet-layer-reliability) |
+| | M2 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens and its scope is settled; [detail](#m2---conf-parser-unification) |
+| | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Deferred | No | D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m3---fatal-token-boundary-hygiene) |
+| | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m4---restart-supervision-probe) |
+| | M5 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Deferred | No | D5 | Transfer the remaining real systemd path when the 1.3.0 release line opens; [detail](#m5---suite-integrity) |
+| | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Deferred | No | D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m6---local-install-ordering) |
+| | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Deferred | No | D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m7---verify_path-type-expectation) |
 | | M8 | (#120 item 3) SELinux context on the setup deploys, RHEL-only | Milestone | Conditional | No | D1 | The owner confirms production hosts run SELinux enforcing; [detail](#m8---selinux-context) |
-| | M9 | (#127) Container execution mode without systemd | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m9---container-execution-mode) |
-| | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Open | No | | Owner assigns it to a release line; [detail](#m10---conf-value-normalization) |
-| | M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Open | No | D3 | Owner assigns it to a release line and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
-| | M12 | (#144) Separate human-readable test output from machine-readable records | Milestone | Open | No | | Owner assigns it to a release line and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
-| | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Deferred | No | D4 | Transfer the complete row and detail when the 1.2.4 release line opens; [detail](#m13---local-logrotate-state-isolation) |
-| | M14 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Open | No | | Owner assigns the test-entry boundary to a release line; [detail](#m14---epics-base-entry-boundary) |
-| | M15 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Open | No | | Owner assigns the operator-message change to a release line; [detail](#m15---conf-mode-mismatch-diagnosis) |
+| | M9 | (#127) Container execution mode without systemd | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m9---container-execution-mode) |
+| | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m10---conf-value-normalization) |
+| | M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Deferred | No | D3, D5 | Transfer it when the 1.3.0 release line opens and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
+| | M12 | (#144) Separate human-readable test output from machine-readable records | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
+| | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Deferred | No | D4, D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m13---local-logrotate-state-isolation) |
+| | M14 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m14---epics-base-entry-boundary) |
+| | M15 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m15---conf-mode-mismatch-diagnosis) |
 
 ### Backlog Details
 
@@ -58,7 +69,7 @@ No work is currently assigned to master.
 Origin: a39623c / M1
 Identity History: none
 GitHub Issue: 102, https://github.com/jeonghanlee/epics-ioc-runner/issues/102
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -94,6 +105,7 @@ per-IOC indefinite-restart policy.
   #67. Restart-storm control therefore remains a fleet and operations-layer
   responsibility rather than a per-IOC unit change.
 - Related history: #52, #54, and #67.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -141,7 +153,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:37Z
 Origin: a39623c / M2
 Identity History: none
 GitHub Issue: 113, https://github.com/jeonghanlee/epics-ioc-runner/issues/113
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -170,6 +182,7 @@ format.
 ##### Dependencies And Decisions
 
 - Related: M10 (#129) is the narrow two-reader case inside this general work.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -216,7 +229,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:37Z
 Origin: a39623c / M3
 Identity History: none
 GitHub Issue: 114, https://github.com/jeonghanlee/epics-ioc-runner/issues/114
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -244,11 +257,12 @@ measured startup window.
 ##### Dependencies And Decisions
 
 - Pairs with M4 (#115), the end-to-end supervision probe.
+- D5 assigns this work to the 1.2.4 bugfix line.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
@@ -290,7 +304,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:39Z
 Origin: a39623c / M4
 Identity History: none
 GitHub Issue: 115, https://github.com/jeonghanlee/epics-ioc-runner/issues/115
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -317,6 +331,7 @@ guards.
 
 - Named as a still-open coverage gap by the 1.2.3 runbook work (#131), so a
   gate record cannot read as if restart supervision had been exercised.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -361,7 +376,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:40Z
 Origin: a39623c / M5
 Identity History: none
 GitHub Issue: 116, https://github.com/jeonghanlee/epics-ioc-runner/issues/116
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -397,6 +412,7 @@ logrotate policy, or implementing #143's install-time validation fix.
   `a60802b`; it is checked in the GitHub issue and is not remaining work.
 - #143 covers install-time `logrotate -d` state isolation. This row covers the
   deployed runtime systemd path.
+- D5 targets this remaining work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -447,7 +463,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:41Z
 Origin: a39623c / M6
 Identity History: none
 GitHub Issue: 117, https://github.com/jeonghanlee/epics-ioc-runner/issues/117
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -476,12 +492,12 @@ of the deployed local artifacts.
 
 ##### Dependencies And Decisions
 
-- none
+- D5 assigns this work to the 1.2.4 bugfix line.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
@@ -524,7 +540,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:42Z
 Origin: a39623c / M7
 Identity History: none
 GitHub Issue: 118, https://github.com/jeonghanlee/epics-ioc-runner/issues/118
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -564,11 +580,12 @@ deployment mechanisms.
   directory is reachable and persistent: later runs neither displace nor
   reject it. This is why the correction covers all seven call sites rather
   than only the first reproduced target.
+- D5 assigns this work to the 1.2.4 bugfix line.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
@@ -694,7 +711,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:44Z
 Origin: a39623c / M9
 Identity History: none
 GitHub Issue: 127, https://github.com/jeonghanlee/epics-ioc-runner/issues/127
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -721,7 +738,7 @@ definitions in another repository.
 
 ##### Dependencies And Decisions
 
-- none
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -768,7 +785,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:45Z
 Origin: a39623c / M10
 Identity History: none
 GitHub Issue: 129, https://github.com/jeonghanlee/epics-ioc-runner/issues/129
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -797,6 +814,7 @@ The `CRASH_LOG_PATTERNS_EXTRA` call-site trim, which #122 landed.
 
 - D2
 - Related: M2 (#113) subsumes this once the shared parse core exists.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -845,7 +863,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:46Z
 Origin: a39623c / M11
 Identity History: none
 GitHub Issue: 132, https://github.com/jeonghanlee/epics-ioc-runner/issues/132
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -880,6 +898,7 @@ The 1.2.3 line, which references the draft and leaves it unchanged (D3).
 - D3
 - The runbook written under 1.2.3 M1 (#131) references this draft, so whichever
   fate is chosen must keep that reference resolvable.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -927,7 +946,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:47Z
 Origin: a39623c / M12
 Identity History: none
 GitHub Issue: 144, https://github.com/jeonghanlee/epics-ioc-runner/issues/144
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -965,6 +984,7 @@ remediation.
   later milestone work rather than extending the active M8 remediation.
 - The implementation must preserve the M8 reporting contract and the fixed
   488-check identity set.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -1055,7 +1075,8 @@ logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
 ##### Dependencies And Decisions
 
 - D4 assigns the work to 1.2.4 and excludes it from 1.2.3 implementation.
-- Transfer the complete row and detail when the 1.2.4 release line opens.
+- D5 confirms the work in the approved 1.2.4 bugfix set.
+- Transfer the complete row and detail after the 1.2.4 release line is staged.
 - The defect was observed during a repeated Rocky M11 gate after an earlier
   system run had created a `root:root 0600` default state file.
 - The final 1.2.3 two-host gate passed without changing either default state
@@ -1066,8 +1087,8 @@ logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
@@ -1113,7 +1134,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:49Z
 Origin: a39623c / M14
 Identity History: none
 GitHub Issue: 139, https://github.com/jeonghanlee/epics-ioc-runner/issues/139
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -1150,6 +1171,7 @@ complete-state contract.
 
 - The 1.2.3 gate ran with the declared EPICS environment on both goldens, so
   this inconsistency does not invalidate its evidence.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
@@ -1199,7 +1221,7 @@ Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:50Z
 Origin: a39623c / M15
 Identity History: none
 GitHub Issue: 142, https://github.com/jeonghanlee/epics-ioc-runner/issues/142
-Status: Open
+Status: Deferred
 
 ##### Summary
 
@@ -1235,6 +1257,7 @@ Rewriting the configuration during install, switching modes, adding a
 
 - This is an operator-message improvement, not a validation bypass. The hard
   failure behaved correctly during the 1.2.3 verification.
+- D5 targets this work for 1.3.0 when that release cycle opens.
 
 ##### Implementation Plan
 
