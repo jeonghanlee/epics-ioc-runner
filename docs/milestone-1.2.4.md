@@ -21,10 +21,11 @@ separate implementation authorization, and begin no code change before it.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Not started | Yes | D1, D2 | Identifier-contained `fatal` stays benign while true fatal startup remains detected on both goldens; [detail](#m3---fatal-token-boundary-hygiene) |
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Not started | Yes | D1, D2 | Every file target rejects a directory impostor and the two directory targets still verify through the shipped setup path; [detail](#m7---verify_path-type-expectation) |
+| Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Not started | Yes | D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises an overridden deployment destination through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
-| Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M6, M13, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
+| Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M17, M6, M13, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
 
 ### Decisions
 
@@ -33,6 +34,7 @@ separate implementation authorization, and begin no code change before it.
 | D1 | Stage M3, M7, M6, and M13 on `release-1.2.4`; authority moves only after the master source transfer commit names this exact target commit and removes the four source rows and details. | Owner-approved cross-branch assignment, 2026-08-12 |
 | D2 | Run the bugfix work in the order M3, M7, M6, and M13. M3 and M7 are independent; M6 precedes M13 because both change the local install path. | Owner-accepted 1.2.4 cycle plan, 2026-08-12 |
 | D3 | Final release verification runs the complete gate on Debian 13 and Rocky 8, changes the version to 1.2.4, verifies the release objects, and verifies the documented production install path. | Owner-accepted 1.2.4 cycle plan, 2026-08-12 |
+| D4 | Run M17 after M7 and before M6. Keep the canonical installed path as the default while allowing lifecycle verification to follow `IOC_RUNNER_SCRIPT_DEST`. | Owner decision, 2026-08-13 |
 
 ### Assignment History
 
@@ -211,6 +213,92 @@ Observed Labels: P3-low, ops
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-13; remote updated 2026-08-13T07:00:02Z
+
+#### M17 - Installed runner destination
+
+Origin: 1.2.4 / M17
+Identity History: none
+GitHub Issue: 145, https://github.com/jeonghanlee/epics-ioc-runner/issues/145
+Status: Not started
+
+##### Summary
+
+Both lifecycle suites map installed mode directly to
+`/usr/local/bin/ioc-runner`. That path is the canonical deployment default,
+but setup also supports `IOC_RUNNER_SCRIPT_DEST`; installed lifecycle tests
+cannot currently follow a deployment to that alternate destination.
+
+##### Scope
+
+Resolve the installed runner from `IOC_RUNNER_SCRIPT_DEST` with
+`/usr/local/bin/ioc-runner` as the default in both lifecycle suites, preserve
+the value through the dispatcher's clean local environment, and document the
+selection contract.
+
+##### Out of Scope
+
+Changing the default production path, changing setup deployment semantics, or
+adding another installed-runner environment variable.
+
+##### Completion Criteria
+
+- Installed mode still selects `/usr/local/bin/ioc-runner` when
+  `IOC_RUNNER_SCRIPT_DEST` is unset.
+- Both local and system lifecycle suites select an executable destination set
+  through `IOC_RUNNER_SCRIPT_DEST`.
+- `run-all-tests.bash` preserves the override across its clean local
+  privilege-drop environment.
+- Captured lifecycle output identifies the selected path and its real `-V`
+  output.
+
+##### Dependencies And Decisions
+
+- D4 places this work after M7 and before M6.
+- The canonical `/usr/local/bin/ioc-runner` default remains unchanged.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Derive installed mode from `IOC_RUNNER_SCRIPT_DEST` with the current
+   canonical path as its default in both lifecycle suites.
+2. Preserve the variable through the dispatcher's explicit clean environment.
+3. Add selection regression coverage and update the runner-selection
+   documentation.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Default installed selection | Run the shipped dispatcher in installed mode with `IOC_RUNNER_SCRIPT_DEST` unset | Debian 13 and Rocky 8 goldens | Both lifecycle suites report and execute `/usr/local/bin/ioc-runner` |
+| T2 | Overridden installed selection | Run the shipped dispatcher against a real executable runner at an alternate `IOC_RUNNER_SCRIPT_DEST`, including the clean local privilege-drop path | Debian 13 and Rocky 8 goldens | Both lifecycle suites report and execute the alternate path and its `-V` identity |
+| T3 | Source selection | Run the shipped source mode and source-regression suite after the resolver change | Source checkout | Source mode still selects `bin/ioc-runner` and every source contract passes |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
+| T2 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
+| T3 | Not run | Source checkout | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Honor IOC_RUNNER_SCRIPT_DEST in installed lifecycle tests
+Labels: P3-low, tests
+GitHub Milestone: 1.2.4
+Observed State: open
+Observed Labels: P3-low, tests
+Observed Milestone: 1.2.4
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-13; remote updated 2026-08-13T07:34:24Z
 
 #### M6 - Local install ordering
 
@@ -399,7 +487,7 @@ Status: Not started
 
 ##### Summary
 
-Release 1.2.4 after the four accepted bugfixes complete and the combined
+Release 1.2.4 after the five assigned work units complete and the combined
 candidate passes the standing release gate on Debian 13 and Rocky 8.
 
 ##### Scope
@@ -414,7 +502,7 @@ future line.
 
 ##### Completion Criteria
 
-- M3, M7, M6, and M13 are Complete with reachable real-path evidence.
+- M3, M7, M17, M6, and M13 are Complete with reachable real-path evidence.
 - Every Release Verification row records Pass with reachable evidence.
 - Tag `1.2.4`, the GitHub release, and the closed remote milestone agree on
   the released commit.
@@ -422,7 +510,7 @@ future line.
 
 ##### Dependencies And Decisions
 
-- M3, M7, M6, and M13.
+- M3, M7, M17, M6, and M13.
 - G1 is Complete; GitHub milestone 1.2.4 exists as number 15.
 - D3 defines the complete two-golden gate and release boundary.
 - The 1.3.0 target decisions remain on master and do not open that cycle.
@@ -430,11 +518,12 @@ future line.
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
+Plan Acceptance: Owner accepted the 1.2.4 cycle plan on 2026-08-12 and added
+M17 to the pre-release sequence on 2026-08-13
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Confirm the four bugfix rows are Complete and review their recorded
+1. Confirm the five assigned work rows are Complete and review their recorded
    evidence against the combined candidate.
 2. Bake or accept clean Debian 13 and Rocky 8 goldens according to
    `gate/RUNBOOK.md`, recording Release Verification 1.
@@ -453,6 +542,7 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- | --- |
 | M3 / T1, T2 | Later changes reach the shared runner and startup scan | Crash scan and startup path | Release Verification 2 | Benign identifier text remains accepted and true fatal startup remains detected in the final candidate | pending |
 | M7 / T1, T2 | Later setup changes may alter type checks or deployment | System setup path | Release Verification 2 | File impostors fail and legitimate directories pass in the final candidate | pending |
+| M17 / T1, T2, T3 | Later test-driver changes may alter runner selection or environment propagation | Lifecycle runner selection and dispatcher environment | Release Verification 2 | Default, override, and source selections execute the intended real runner in the final candidate | pending |
 | M6 / T1, T2 | M13 later changes the same local install path | Local install ordering | Release Verification 2 | Abort integrity and accepted deployment both hold after M13 | pending |
 | M13 / T1, T2, T3 | Final candidate and repeated host execution may expose state coupling | Local logrotate validation and suite driver | Release Verification 2 | Both consecutive host runs pass and default state-file metadata is unchanged | pending |
 
@@ -529,8 +619,9 @@ Status: Complete
 
 ##### Summary
 
-The repository owner must create the open GitHub milestone `1.2.4` before the
-four issue projections can move from Backlog and before final release closure.
+The repository owner must create the open GitHub milestone `1.2.4` before
+assigned issue projections can move from Backlog and before final release
+closure.
 
 ##### Completion Criteria
 
