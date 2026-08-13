@@ -8,9 +8,9 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.2.3 reset generation
 
-Next session entry point: commit this source assignment intent, then create
-`release-1.2.4` and stage `docs/milestone-1.2.4.md` with M3, M7, M6, M13,
-and the final release work.
+Next session entry point: create the GitHub milestone `1.2.4`, then reconcile
+issues #114, #118, #117, and #143 with the activated release register at
+target commit `4bcd638`.
 
 ## Milestone
 
@@ -35,10 +35,10 @@ No work is currently assigned to master.
 
 | Identity | From | To | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
-| a39623c / M3 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
-| a39623c / M6 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
-| a39623c / M7 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
-| a39623c / M13 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | pending target commit | not moved |
+| a39623c / M3 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | this synchronization commit |
+| a39623c / M6 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | this synchronization commit |
+| a39623c / M7 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | this synchronization commit |
+| a39623c / M13 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | this synchronization commit |
 
 ## Backlog
 
@@ -48,17 +48,13 @@ No work is currently assigned to master.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | | M1 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens and its scope is settled; [detail](#m1---fleet-layer-reliability) |
 | | M2 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens and its scope is settled; [detail](#m2---conf-parser-unification) |
-| | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Deferred | No | D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m3---fatal-token-boundary-hygiene) |
 | | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m4---restart-supervision-probe) |
 | | M5 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Deferred | No | D5 | Transfer the remaining real systemd path when the 1.3.0 release line opens; [detail](#m5---suite-integrity) |
-| | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Deferred | No | D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m6---local-install-ordering) |
-| | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Deferred | No | D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m7---verify_path-type-expectation) |
 | | M8 | (#120 item 3) SELinux context on the setup deploys, RHEL-only | Milestone | Conditional | No | D1 | The owner confirms production hosts run SELinux enforcing; [detail](#m8---selinux-context) |
 | | M9 | (#127) Container execution mode without systemd | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m9---container-execution-mode) |
 | | M10 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m10---conf-value-normalization) |
 | | M11 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft: fold into a skill, keep as a repository document, or absorb | Milestone | Deferred | No | D3, D5 | Transfer it when the 1.3.0 release line opens and the boundary with the release-cycle runbook is settled; [detail](#m11---milestone-procedure-draft-fate) |
 | | M12 | (#144) Separate human-readable test output from machine-readable records | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens and the output contract is settled; [detail](#m12---human-and-machine-output-separation) |
-| | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Deferred | No | D4, D5 | Transfer the complete row and detail after the 1.2.4 release line is staged; [detail](#m13---local-logrotate-state-isolation) |
 | | M14 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m14---epics-base-entry-boundary) |
 | | M15 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Deferred | No | D5 | Transfer it when the 1.3.0 release line opens; [detail](#m15---conf-mode-mismatch-diagnosis) |
 
@@ -224,81 +220,6 @@ Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:37Z
 
-#### M3 - FATAL token boundary hygiene
-
-Origin: a39623c / M3
-Identity History: none
-GitHub Issue: 114, https://github.com/jeonghanlee/epics-ioc-runner/issues/114
-Status: Deferred
-
-##### Summary
-
-The case-insensitive FATAL substring match has no word boundaries, so a
-pre-marker line carrying `fatal` inside an identifier trips the standalone
-exit-1 path while the IOC starts fine.
-
-##### Scope
-
-Add a portable leading boundary to the case-insensitive FATAL subset and
-re-run the shipped benign and fatal startup paths on both golden OS families.
-
-##### Out of Scope
-
-Adding crash tokens, changing the initialization marker, or changing the
-measured startup window.
-
-##### Completion Criteria
-
-- The owner assigns the detection change to a release line.
-- `fatal` inside an identifier does not produce the standalone fatal verdict.
-- A true fatal startup still produces the expected failed-initialization
-  verdict on both golden OS families.
-
-##### Dependencies And Decisions
-
-- Pairs with M4 (#115), the end-to-end supervision probe.
-- D5 assigns this work to the 1.2.4 bugfix line.
-
-##### Implementation Plan
-
-Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. Define a portable leading boundary for the FATAL subset.
-2. Apply it to the shipped crash scan without weakening true-fatal detection.
-3. Re-run benign and fatal startup cases on both golden OS families.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | False-positive boundary | Start a real IOC whose pre-marker output contains `fatal` only inside an identifier | Both golden OS families | Startup succeeds without the standalone fatal verdict |
-| T2 | Detection sensitivity | Start the shipped fatal softIoc fixture through the real runner path | Both golden OS families | The true fatal token still produces the expected failed-initialization verdict |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Both golden OS families | Pending | none |
-| T2 | Not run | Both golden OS families | Pending | none |
-
-##### Closure Evidence
-
-- none
-
-##### GitHub Projection
-
-Title: Add boundary hygiene to the FATAL crash-token subset
-Labels: P2-medium, area/detection
-GitHub Milestone: Backlog
-Observed State: open
-Observed Labels: P2-medium, area/detection
-Observed Milestone: Backlog
-Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:39Z
-
 #### M4 - Restart supervision probe
 
 Origin: a39623c / M4
@@ -457,171 +378,6 @@ Observed Labels: P3-low, tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:41Z
-
-#### M6 - Local install ordering
-
-Origin: a39623c / M6
-Identity History: none
-GitHub Issue: 117, https://github.com/jeonghanlee/epics-ioc-runner/issues/117
-Status: Deferred
-
-##### Summary
-
-Local-mode `do_install` replaces the shared user template and reloads systemd
-before the running-service guard and the overwrite prompt, so an aborted
-install still leaves durable changes affecting every local IOC.
-
-##### Scope
-
-Settle whether accepted local installs refresh shared assets, then place every
-selected deployment and daemon reload after the running-service guard and
-overwrite-abort gates.
-
-##### Out of Scope
-
-Changing system-mode ordering or the content, ownership, and mode contracts
-of the deployed local artifacts.
-
-##### Completion Criteria
-
-- The owner assigns the ordering change and settles the refresh policy.
-- EOF and explicit decline leave the shared template, rotation units, and
-  manager state unchanged.
-- An accepted install deploys the configuration and selected shared assets
-  after all abort gates pass.
-
-##### Dependencies And Decisions
-
-- D5 assigns this work to the 1.2.4 bugfix line.
-
-##### Implementation Plan
-
-Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. Settle whether every accepted install refreshes the shared local assets.
-2. Move shared deployment and daemon reload after the running-service and
-   overwrite-abort gates.
-3. Verify both abort paths and the accepted-install upgrade path.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | Abort integrity | Drive EOF and explicit decline through the shipped local install path and compare shared assets before and after | Local lifecycle environment | Each abort returns nonzero and leaves the template, rotation units, and manager state unchanged |
-| T2 | Accepted install | Accept the overwrite through the same shipped path | Local lifecycle environment | Configuration and shared assets deploy once after all abort gates pass |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Local lifecycle environment | Pending | none |
-| T2 | Not run | Local lifecycle environment | Pending | none |
-
-##### Closure Evidence
-
-- none
-
-##### GitHub Projection
-
-Title: Reorder local install so deployment follows the abort gates
-Labels: enhancement, P3-low
-GitHub Milestone: Backlog
-Observed State: open
-Observed Labels: enhancement, P3-low
-Observed Milestone: Backlog
-Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:42Z
-
-#### M7 - verify_path type expectation
-
-Origin: a39623c / M7
-Identity History: none
-GitHub Issue: 118, https://github.com/jeonghanlee/epics-ioc-runner/issues/118
-Status: Deferred
-
-##### Summary
-
-`verify_path` asserts owner and mode but not file type, so a pre-existing
-directory at a file target verifies green while the deployment is broken.
-
-##### Scope
-
-An expected-type parameter threaded through all seven call sites; two targets
-are legitimately directories, so a blanket file test is wrong.
-
-##### Out of Scope
-
-Changing target ownership or mode contracts, or replacing the existing
-deployment mechanisms.
-
-##### Completion Criteria
-
-- The owner assigns the helper-signature change to a release line.
-- Every file target rejects a directory impostor through the real setup path.
-- The two legitimate directory targets pass explicit directory checks.
-
-##### Dependencies And Decisions
-
-- The 1.2.3 runbook (#131) records this false-green class as a known limitation
-  of a green `verify_path` result until the type expectation lands.
-- The false green was reproduced through the real setup behavior at
-  `BASH_COMP_DEST`: `backup_if_exists` ignores a directory because its guard
-  uses `[[ -f ]]`, `cp` writes the payload inside that directory, `chmod`
-  gives the directory the expected mode, and `verify_path` reports success
-  from its owner and mode alone.
-- Crafted directories at `SUDOERS_FILE` and `LOGROTATE_FILE` produce the same
-  class through their `mv` deployment paths. The sudo includedir ignores the
-  dot-named payload and logrotate ignores the subdirectory, so the required
-  policy is absent even though setup reports success.
-- No maintained provisioning path creates these impostors, but a root-created
-  directory is reachable and persistent: later runs neither displace nor
-  reject it. This is why the correction covers all seven call sites rather
-  than only the first reproduced target.
-- D5 assigns this work to the 1.2.4 bugfix line.
-
-##### Implementation Plan
-
-Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. Define the expected type at every `verify_path` call site.
-2. Extend the helper to reject a type mismatch before reporting success.
-3. Exercise file-target impostors and legitimate directory targets through
-   the shipped setup path.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | Honest red | Place directories at file targets and run the shipped setup path | Isolated system setup environment | Each type mismatch returns nonzero and cannot produce the success banner |
-| T2 | Legitimate directories | Run the same setup with the real configuration and log directories | Isolated system setup environment | Directory targets pass their explicit type checks and deployment completes |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Isolated system setup environment | Pending | none |
-| T2 | Not run | Isolated system setup environment | Pending | none |
-
-##### Closure Evidence
-
-- none
-
-##### GitHub Projection
-
-Title: Add a type expectation to verify_path (false-green directory impostors)
-Labels: P3-low, ops
-GitHub Milestone: Backlog
-Observed State: open
-Observed Labels: P3-low, ops
-Observed Milestone: Backlog
-Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:43Z
 
 #### M8 - SELinux context
 
@@ -1031,103 +787,6 @@ Observed Labels: tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:48Z
-
-#### M13 - Local logrotate state isolation
-
-Origin: a39623c / M13
-Identity History: none
-GitHub Issue: 143, https://github.com/jeonghanlee/epics-ioc-runner/issues/143
-Status: Deferred
-
-##### Summary
-
-Local configuration validation runs `logrotate -d` without selecting a state
-file. Rocky logrotate treats an unreadable system default state file as an
-error, so a root-owned state file left by an earlier system run prevents the
-ordinary user's later local install from deploying rotation artifacts. The
-deployed user service already uses `%t/ioc-runner-logrotate.state`; the defect
-is limited to the install-time debug validation.
-
-##### Scope
-
-- Make local configuration debug validation independent of the system default
-  state file.
-- Add a real install-path regression check using only the external
-  `IOC_RUNNER_LOGROTATE_TOOL` boundary.
-- Update the maintained inventories and driver expectations when the 1.2.4
-  release line accepts the implementation plan.
-
-##### Out of Scope
-
-Changing the system default state file, changing its ownership or mode,
-changing the deployed user timer's runtime state path, changing system
-logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
-
-##### Completion Criteria
-
-- A shipped local install validates and deploys rotation artifacts without
-  reading the system default state file.
-- A regression check drives the real local install path and fails if validation
-  returns to the system default state file.
-- Consecutive two-golden suite-driver runs pass without changing system
-  state-file ownership or mode.
-
-##### Dependencies And Decisions
-
-- D4 assigns the work to 1.2.4 and excludes it from 1.2.3 implementation.
-- D5 confirms the work in the approved 1.2.4 bugfix set.
-- Transfer the complete row and detail after the 1.2.4 release line is staged.
-- The defect was observed during a repeated Rocky M11 gate after an earlier
-  system run had created a `root:root 0600` default state file.
-- The final 1.2.3 two-host gate passed without changing either default state
-  file. That clean-path result does not mean the state-dependent defect is
-  fixed.
-- #116 covers runtime execution of the deployed oneshot; this row covers the
-  earlier install-time validation.
-
-##### Implementation Plan
-
-Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. Select an explicit non-persistent state target for local debug validation.
-2. Add a real install-path regression check at the external logrotate boundary.
-3. Update maintained inventories, driver expectations, and runbook counts.
-4. Run the shipped two-host suite driver consecutively and compare the complete
-   state vectors and default state-file metadata.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | Install contract | Drive a real local install through an external logrotate boundary that rejects use of the system default state | Source error-contract suite | The install returns zero, deploys all rotation artifacts, and the check passes |
-| T2 | Repeated integration | Run the shipped suite driver consecutively without changing either system default state file | Debian and Rocky goldens for 1.2.4 | Both runs record complete PASS suite vectors |
-| T3 | State preservation | Compare owner, group, and mode before and after T2 | Both goldens | The default state files remain `root:root 0600` |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | Source tree | Pending | none |
-| T2 | Not run | 1.2.4 goldens | Pending | none |
-| T3 | Not run | 1.2.4 goldens | Pending | none |
-
-##### Closure Evidence
-
-- none
-
-##### GitHub Projection
-
-Title: Make local logrotate validation independent of the system state file
-Labels: bug, ops, tests
-GitHub Milestone: Backlog
-Observed State: open
-Observed Labels: bug, ops, tests
-Observed Milestone: Backlog
-Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:49Z
 
 #### M14 - EPICS_BASE entry boundary
 
