@@ -6,90 +6,202 @@
 # procServ, or a running systemd service.
 
 set -e
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+umask 077
+unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE
 
 declare -g RED='\033[0;31m'
 declare -g GREEN='\033[0;32m'
-declare -g MAGENTA='\033[0;35m'
 declare -g BLUE='\033[0;34m'
 declare -g YELLOW='\033[0;33m'
 declare -g NC='\033[0m'
 
-declare -g TEST_TOTAL=0
-declare -g TEST_PASSED=0
-declare -g TEST_FAILED=0
-declare -g SCRIPT_ERROR=0
-declare -g -a FAILED_DETAILS=()
-
-declare -g SC_RPATH
-declare -g SC_TOP
-SC_RPATH="$(realpath "$0")"
+declare -g SC_RPATH="${BASH_SOURCE[0]}"
+declare -g SC_TOP=""
+if [[ "${SC_RPATH}" != /* ]]; then
+    SC_RPATH="${PWD}/${SC_RPATH}"
+fi
 SC_TOP="${SC_RPATH%/*}"
 
 declare -g RUNNER_SCRIPT="${SC_TOP}/../bin/ioc-runner"
+declare -gr SUITE_ID="error-handling"
+declare -gr SUITE_SCOPE="none"
+declare -gr SUITE_RUNNER="source"
+declare -gr SUITE_CATEGORY="error-contract"
+declare -g REPORT_DIR=""
+declare -g REPORT_READY=0
+declare -g CURRENT_STEP_ID=""
+declare -g CURRENT_STEP_CHECK_INDEX=0
+declare -g MOCK_CON_BIN=""
+declare -g TEST_TMPDIR=""
+declare -g -a ERROR_CATALOG_ROWS=(
+    "P00|error-handling.P00.runner-source-readable|REQUIRED|direct-inspection"
+    "S02|error-handling.S02.help-exits-0|BEHAVIOR|real-path"
+    "S02|error-handling.S02.h-exits-0|BEHAVIOR|real-path"
+    "S02|error-handling.S02.no-arguments-exits-0|BEHAVIOR|real-path"
+    "S02|error-handling.S02.unknown-command-exits-1|BEHAVIOR|real-path"
+    "S02|error-handling.S02.v-exits-0-from-unrelated-cwd|BEHAVIOR|real-path"
+    "S02|error-handling.S02.v-produces-valid-version-output-from-unrelated-cwd|BEHAVIOR|real-path"
+    "S02|error-handling.S02.v-start-exits-1-verbose-restricted-to-list|BEHAVIOR|real-path"
+    "S02|error-handling.S02.vv-status-exits-1-verbose-restricted-to-list|BEHAVIOR|real-path"
+    "S02|error-handling.S02.local-v-list-exits-0-verbose-valid-for-list|BEHAVIOR|real-path"
+    "S03|error-handling.S03.start-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.stop-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.restart-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.status-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.enable-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.disable-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.remove-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.attach-without-target-exits-1|BEHAVIOR|real-path"
+    "S03|error-handling.S03.view-without-target-exits-1|BEHAVIOR|real-path"
+    "S04|error-handling.S04.generate-native-dot-path-resolves-successfully|BEHAVIOR|real-path"
+    "S04|error-handling.S04.configuration-artifact-created-dynamically|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-artifact-natively-bypasses-overwrite-and-exits-0|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-re-generate-takes-the-skip-path|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-skip-reasserts-conf-mode-0600-123|BEHAVIOR|real-path"
+    "S04|error-handling.S04.differential-artifact-prompt-exits-1-on-eof|BEHAVIOR|real-path"
+    "S04|error-handling.S04.differential-artifact-prompt-exits-1-on-user-decline|BEHAVIOR|real-path"
+    "S04|error-handling.S04.forced-overwrite-ignores-diff-constraint-and-exits-0|BEHAVIOR|real-path"
+    "S05|error-handling.S05.directory-based-installation-resolves-artifact-correctly|BEHAVIOR|real-path"
+    "S05|error-handling.S05.artifact-successfully-routed-to-configuration-directory|BEHAVIOR|real-path"
+    "S05|error-handling.S05.install-overwrite-prompt-exits-1-on-eof|BEHAVIOR|real-path"
+    "S05|error-handling.S05.install-eof-abort-preserves-existing-conf-marker-retained|BEHAVIOR|real-path"
+    "S05|error-handling.S05.install-overwrite-prompt-exits-1-on-user-decline|BEHAVIOR|real-path"
+    "S05|error-handling.S05.install-decline-abort-preserves-existing-conf-marker-retained|BEHAVIOR|real-path"
+    "S06|error-handling.S06.atomic-install-no-partial-conf-across-120-interrupted-installs|BEHAVIOR|real-path"
+    "S06|error-handling.S06.atomic-install-install-exits-only-0-or-124-under-interruption|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-with-invalid-directory-name-exits-1|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-with-no-executable-scripts-exits-1|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-with-multiple-candidates-aborts-interactively|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-with-force-flag-resolves-multiple-candidates-and-exits-0|BEHAVIOR|real-path"
+    "S07|error-handling.S07.multiple-cmd-candidates-without-input-exits-1-no-default|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-overwrite-prompt-exits-1-on-eof|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-eof-abort-preserves-existing-conf-unchanged|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-abort-leaves-no-staged-tmp-in-the-target-dir-107|BEHAVIOR|real-path"
+    "S07|error-handling.S07.generate-succeeds-with-a-poisoned-tmpdir-107-same-dir-staging|BEHAVIOR|real-path"
+    "S07|error-handling.S07.local-generate-writes-the-conf-0600-107|BEHAVIOR|real-path"
+    "S07|error-handling.S07.system-mode-generate-succeeds-with-a-poisoned-tmpdir-107|BEHAVIOR|real-path"
+    "S07|error-handling.S07.system-mode-generate-writes-the-conf-0660-107|BEHAVIOR|real-path"
+    "S08|error-handling.S08.install-with-missing-conf-file-exits-1|BEHAVIOR|real-path"
+    "S08|error-handling.S08.install-with-missing-system-template-exits-1|BEHAVIOR|real-path"
+    "S08|error-handling.S08.install-directory-with-mismatched-conf-name-exits-1|BEHAVIOR|real-path"
+    "S08|error-handling.S08.install-file-direct-with-invalid-ioc-name-exits-1|BEHAVIOR|real-path"
+    "S09|error-handling.S09.plain-list-succeeds-with-broken-ss-no-vv-dependency|BEHAVIOR|real-path"
+    "S09|error-handling.S09.list-vv-with-broken-ss-exits-1|BEHAVIOR|real-path"
+    "S09|error-handling.S09.list-vv-failure-names-ss-in-the-error|BEHAVIOR|real-path"
+    "S10|error-handling.S10.stop-on-a-never-installed-name-exits-1|BEHAVIOR|real-path"
+    "S10|error-handling.S10.enable-on-a-never-installed-name-exits-1|BEHAVIOR|real-path"
+    "S10|error-handling.S10.disable-on-a-never-installed-name-exits-1|BEHAVIOR|real-path"
+    "S10|error-handling.S10.remove-on-a-never-installed-name-exits-1|BEHAVIOR|real-path"
+    "S10|error-handling.S10.view-on-a-never-installed-name-exits-1|BEHAVIOR|real-path"
+    "S10|error-handling.S10.gate-message-names-the-missing-configuration|BEHAVIOR|real-path"
+    "S11|error-handling.S11.exactly-one-ioc-port-replacement-warning|BEHAVIOR|real-path"
+    "S17|error-handling.S17.system-differing-ioc-runner-log-dir-triggers-warning|BEHAVIOR|real-path"
+    "S17|error-handling.S17.system-matching-ioc-runner-log-dir-suppresses-warning|BEHAVIOR|real-path"
+    "S17|error-handling.S17.local-mode-suppresses-log-dir-guard|BEHAVIOR|real-path"
+    "S19|error-handling.S19.relative-ioc-runner-conf-dir-exits-1-on-list|BEHAVIOR|real-path"
+    "S19|error-handling.S19.relative-conf-dir-error-names-the-resolved-directory|BEHAVIOR|real-path"
+    "S19|error-handling.S19.whitespace-conf-dir-exits-1-on-status|BEHAVIOR|real-path"
+    "S19|error-handling.S19.whitespace-conf-dir-error-names-the-resolved-directory|BEHAVIOR|real-path"
+    "S19|error-handling.S19.absolute-conf-dir-passes-the-guard|BEHAVIOR|real-path"
+    "S21|error-handling.S21.install-proceeds-when-the-rotation-cfg-dir-is-uncreatable-110|BEHAVIOR|real-path"
+    "S21|error-handling.S21.uncreatable-cfg-dir-warns-and-skips-rotation-110|BEHAVIOR|real-path"
+    "S23|error-handling.S23.completion-script-available|REQUIRED|direct-inspection"
+    "S23|error-handling.S23.bare-invocation-offers-generate-install-list|BEHAVIOR|real-path"
+    "S23|error-handling.S23.dash-prefix-offers-global-options|BEHAVIOR|real-path"
+    "S23|error-handling.S23.system-mode-reads-ioc-runner-system-conf-dir|BEHAVIOR|real-path"
+    "S23|error-handling.S23.local-mode-reads-ioc-runner-local-conf-dir|BEHAVIOR|real-path"
+    "S23|error-handling.S23.ioc-runner-conf-dir-overrides-local-var-in-completion|BEHAVIOR|real-path"
+    "S23|error-handling.S23.list-command-suggests-v-and-vv|BEHAVIOR|real-path"
+    "S23|error-handling.S23.st-prefix-narrows-to-start-stop-status|BEHAVIOR|real-path"
+    "S23|error-handling.S23.missing-conf-dir-yields-empty-compreply|BEHAVIOR|real-path"
+    "S24|error-handling.S24.view-bad-name-whitespace-exits-1-via-name-validation|BEHAVIOR|real-path"
+    "S24|error-handling.S24.view-bad-name-special-char-exits-1-via-name-validation|BEHAVIOR|real-path"
+    "S24|error-handling.S24.view-bad-name-period-exits-1-via-name-validation|BEHAVIOR|real-path"
+    "S24|error-handling.S24.view-bad-name-produces-invalid-ioc-name-error-message|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-with-illegal-characters-in-cmd-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-with-wrong-local-user-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-without-directory-execute-permission-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-with-missing-required-key-ioc-cmd-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-with-in-system-ioc-chdir-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.rejection-error-references-the-component|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-with-bare-ioc-chdir-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.bare-rejected-by-the-absolute-path-requirement-m6-109|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-with-relative-ioc-chdir-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.relative-ioc-chdir-error-names-the-absolute-path-requirement|BEHAVIOR|real-path"
+    "S25|error-handling.S25.install-with-multi-word-ioc-cmd-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.multi-word-ioc-cmd-error-names-the-single-word-contract|BEHAVIOR|real-path"
+    "S26|error-handling.S26.attach-with-missing-conf-exits-1|BEHAVIOR|real-path"
+    "S26|error-handling.S26.attach-with-missing-ioc-port-key-exits-1|BEHAVIOR|real-path"
+    "S26|error-handling.S26.attach-error-references-missing-ioc-port-key|BEHAVIOR|real-path"
+    "S27|error-handling.S27.nonroot-permission-probes-applicable|APPLICABILITY|direct-inspection"
+    "S27|error-handling.S27.list-with-no-active-sockets-exits-0|BEHAVIOR|real-path"
+    "S27|error-handling.S27.genuinely-empty-list-carries-no-permission-hint|BEHAVIOR|real-path"
+    "S27|error-handling.S27.list-with-a-non-traversable-socket-dir-exits-0|BEHAVIOR|real-path"
+    "S27|error-handling.S27.non-traversable-socket-dir-appends-the-permission-hint|BEHAVIOR|real-path"
+    "S28|error-handling.S28.inspect-without-root-privileges-exits-1|BEHAVIOR|real-path"
+    "S29|error-handling.S29.nonroot-permission-probes-applicable|APPLICABILITY|direct-inspection"
+    "S29|error-handling.S29.generate-into-a-non-writable-directory-exits-1|BEHAVIOR|real-path"
+    "S29|error-handling.S29.generate-staging-failure-names-directory-writability|BEHAVIOR|real-path"
+    "S29|error-handling.S29.generate-staging-failure-hides-the-raw-mktemp-error|BEHAVIOR|real-path"
+    "S30|error-handling.S30.nonroot-permission-probes-applicable|APPLICABILITY|direct-inspection"
+    "S30|error-handling.S30.view-of-an-absent-conf-exits-1|BEHAVIOR|real-path"
+    "S30|error-handling.S30.view-missing-conf-error-rides-stderr|BEHAVIOR|real-path"
+    "S30|error-handling.S30.view-missing-conf-closing-divider-joins-the-error-on-stderr|BEHAVIOR|real-path"
+    "S30|error-handling.S30.view-missing-conf-stdout-keeps-only-the-header-divider|BEHAVIOR|real-path"
+    "S30|error-handling.S30.view-of-an-unreadable-conf-dir-exits-1|BEHAVIOR|real-path"
+    "S30|error-handling.S30.view-names-the-access-barrier-for-an-unreadable-conf-dir|BEHAVIOR|real-path"
+    "S30|error-handling.S30.view-does-not-misreport-an-unreadable-conf-dir-as-not-found|BEHAVIOR|real-path"
+    "S31|error-handling.S31.nonroot-permission-probes-applicable|APPLICABILITY|direct-inspection"
+    "S31|error-handling.S31.attach-to-an-unreadable-conf-dir-exits-1|BEHAVIOR|real-path"
+    "S31|error-handling.S31.attach-names-the-access-barrier-for-an-unreadable-conf-dir|BEHAVIOR|real-path"
+    "S31|error-handling.S31.attach-does-not-misreport-an-unreadable-conf-dir-as-not-found|BEHAVIOR|real-path"
+    "S32|error-handling.S32.nonroot-permission-probes-applicable|APPLICABILITY|direct-inspection"
+    "S32|error-handling.S32.local-install-into-a-non-writable-conf-dir-exits-1|BEHAVIOR|real-path"
+    "S32|error-handling.S32.local-install-names-the-non-writable-conf-dir-branch-reached|BEHAVIOR|real-path"
+    "S32|error-handling.S32.local-install-drops-the-ioc-group-question|BEHAVIOR|real-path"
+    "S35|error-handling.S35.valid-crash-log-patterns-extra-accepted-at-install|BEHAVIOR|real-path"
+    "S35|error-handling.S35.illegal-characters-in-crash-log-patterns-extra-rejected-at-install|BEHAVIOR|real-path"
+    "S35|error-handling.S35.invalid-regex-in-crash-log-patterns-extra-rejected-at-install|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.dot-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.internal-empty-alternation-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.leading-empty-alternation-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.trailing-empty-alternation-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.grouped-leading-empty-alternation-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.grouped-trailing-empty-alternation-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.ordinary-lowercase-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.extra.ordinary-uppercase-rejected|BEHAVIOR|real-path"
+    "S35|error-handling.S35.legitimate-multi-alternation-extra-accepted-at-install-106|BEHAVIOR|real-path"
+    "S36|error-handling.S36.non-executable-ioc-runner-procserv-tool-exits-1|BEHAVIOR|real-path"
+    "S36|error-handling.S36.non-executable-override-error-names-the-variable|BEHAVIOR|real-path"
+    "S36|error-handling.S36.executable-directory-ioc-runner-procserv-tool-exits-1|BEHAVIOR|real-path"
+    "S36|error-handling.S36.executable-directory-override-error-names-the-variable|BEHAVIOR|real-path"
+    "S36|error-handling.S36.executable-ioc-runner-procserv-tool-accepted|BEHAVIOR|real-path"
+    "S36|error-handling.S36.template-execstart-references-the-override-binary|BEHAVIOR|real-path"
+    "S36|error-handling.S36.home-bin-procserv-resolves-without-an-override|BEHAVIOR|real-path"
+    "S36|error-handling.S36.template-execstart-references-the-home-bin-binary|BEHAVIOR|real-path"
+    "S36|error-handling.S36.con-search-path-prepends-home-bin-when-home-is-trusted|BEHAVIOR|real-path"
+)
+declare -g -A ERROR_STEP_CHECK_IDS=()
 
-# Extract CRASH_LOG_PATTERNS and CRASH_LOG_EXCLUDE_PATTERNS from runner script via
-# zero-fork parameter expansion.
-# Source-and-execute is not viable: the runner auto-dispatches commands at module bottom.
-declare -g CRASH_LOG_PATTERNS=""
-declare -g CRASH_LOG_PATTERNS_FATAL=""
-declare -g CRASH_LOG_PATTERNS_AMBIGUOUS=""
-declare -g CRASH_LOG_EXCLUDE_PATTERNS=""
-declare _line
-# Order matters: the _FATAL / _AMBIGUOUS clauses are tested before the bare
-# CRASH_LOG_PATTERNS= clause. The bare glob anchors on '=' so it cannot capture
-# the '_FATAL='/'_AMBIGUOUS=' lines, but listing the specific keys first keeps the
-# intent explicit (M11/#67 subset extraction for the DRY-base guard).
-while IFS= read -r _line; do
-    if [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS_FATAL='* ]]; then
-        CRASH_LOG_PATTERNS_FATAL="${_line#*\"}"
-        CRASH_LOG_PATTERNS_FATAL="${CRASH_LOG_PATTERNS_FATAL%\"}"
-    elif [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS_AMBIGUOUS='* ]]; then
-        CRASH_LOG_PATTERNS_AMBIGUOUS="${_line#*\"}"
-        CRASH_LOG_PATTERNS_AMBIGUOUS="${CRASH_LOG_PATTERNS_AMBIGUOUS%\"}"
-    elif [[ "${_line}" == 'declare -g CRASH_LOG_PATTERNS='* ]]; then
-        CRASH_LOG_PATTERNS="${_line#*\"}"
-        CRASH_LOG_PATTERNS="${CRASH_LOG_PATTERNS%\"}"
-    elif [[ "${_line}" == 'declare -g CRASH_LOG_EXCLUDE_PATTERNS='* ]]; then
-        CRASH_LOG_EXCLUDE_PATTERNS="${_line#*\"}"
-        CRASH_LOG_EXCLUDE_PATTERNS="${CRASH_LOG_EXCLUDE_PATTERNS%\"}"
-    fi
-    if [[ -n "${CRASH_LOG_PATTERNS}" && -n "${CRASH_LOG_PATTERNS_FATAL}" \
-          && -n "${CRASH_LOG_PATTERNS_AMBIGUOUS}" && -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
-        break
-    fi
-done < "${RUNNER_SCRIPT}"
-unset _line
-
-
-declare -g MOCK_CON_BIN
-declare -g TEST_TMPDIR
-# Issue #98: assertion-count integrity. Every verify_* call appends one line
-# to TEST_TRACE_FILE; file appends survive subshells while the counter
-# variables do not, so executed-vs-counted divergence exposes an assertion
-# whose counter update was lost.
-declare -g TEST_TRACE_FILE=""
-declare -g TEST_EXECUTED=0
+# shellcheck source=lib/test-reporting.bash
+source "${SC_TOP}/lib/test-reporting.bash"
 
 # --- Interrupt & Exit Handling ---
 function _handle_exit {
     local exit_code=$?
-    if [[ $exit_code -ne 0 ]]; then
-        SCRIPT_ERROR=1
-        printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
-    fi
-    # Snapshot the executed-assertion count before _cleanup removes the
-    # trace file with the rest of TEST_TMPDIR (#98).
-    if [[ -n "${TEST_TRACE_FILE}" && -f "${TEST_TRACE_FILE}" ]]; then
-        TEST_EXECUTED=$(wc -l < "${TEST_TRACE_FILE}")
-    fi
-    _cleanup
-    print_summary
+    local final_status="${exit_code}"
 
-    # System Requirement: Propagate aggregate failure state to CI/CD pipeline
-    if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 ]]; then
-        exit 1
+    trap - EXIT
+    set +e
+    if ! _cleanup; then
+        final_status=1
+        _log "ERROR" "Failed to remove the error-handling workspace."
     fi
-    exit 0
+    if (( REPORT_READY )); then
+        report_finalize "${final_status}" || final_status=1
+    fi
+    exit "${final_status}"
 }
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
@@ -110,78 +222,138 @@ function _log {
         "ERROR")   color="$RED" ;;
     esac
 
-    printf "${color}[%-7s] %s${NC}\n" "$level" "$message"
+    printf "%b[%-7s] %s%b\n" "${color}" "${level}" "${message}" "${NC}"
 }
 
 function print_divider {
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+    printf "%b%s%b\n" "${BLUE}" "====================================================================================================" "${NC}"
 }
 
 function print_sub_divider {
-    printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
+    printf "%b%s%b\n" "${BLUE}" "----------------------------------------------------------------------------------------------------" "${NC}"
 }
 
-function print_summary {
-    printf "\n"
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
-    printf "${BLUE}%s${NC}\n" "                                   ERROR HANDLING TEST SUMMARY                                      "
-    printf "${BLUE}%s${NC}\n" "===================================================================================================="
+function initialize_reporting {
+    local row=""
+    local step_id=""
+    local check_id=""
+    local check_kind=""
+    local test_method=""
+    local description=""
+    local arch_id=""
+    local run_id="${SUITE_ID}.$$.${BASHPID}"
+    local index=0
+    local -a step_ids=(P00)
 
-    # Issue #98: executed-vs-counted integrity. A mismatch means an assertion
-    # ran where its counter update was lost (e.g. inside a subshell); the
-    # suite result can no longer be trusted, so the run fails.
-    if [[ ${TEST_EXECUTED} -ne ${TEST_TOTAL} ]]; then
-        TEST_FAILED=$((TEST_FAILED + 1))
-        FAILED_DETAILS+=("Assertion-count integrity: ${TEST_EXECUTED} executed vs ${TEST_TOTAL} counted (#98)")
-    fi
-    printf "  %-20s : %d (executed: %d)\n" "Total Assertions" "${TEST_TOTAL}" "${TEST_EXECUTED}"
-    printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "${RED}  %-20s : %d${NC}\n" "Failed" "${TEST_FAILED}"
-    else
-        printf "  %-20s : %d\n" "Failed" "0"
-    fi
-
-    if [[ ${SCRIPT_ERROR} -gt 0 ]]; then
-        printf "${MAGENTA}  %-20s : %d${NC}\n" "Script Errors" "${SCRIPT_ERROR}"
-    else
-        printf "  %-20s : %d\n" "Script Errors" "0"
-    fi
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "\n${RED}%s${NC}\n" "--- [ FAILED ASSERTIONS ] ---"
-        for detail in "${FAILED_DETAILS[@]}"; do
-            printf "${RED}  * %s${NC}\n" "$detail"
-        done
-        printf "${RED}%s${NC}\n" "-----------------------------"
-    elif [[ ${SCRIPT_ERROR} -eq 0 ]]; then
-        printf "\n${GREEN}%s${NC}\n" "[SUCCESS] All error handling tests completed perfectly!"
-    fi
-
-    printf "${BLUE}%s${NC}\n\n" "===================================================================================================="
+    for ((index = 1; index <= 36; index += 1)); do
+        printf -v step_id 'S%02d' "${index}"
+        step_ids+=("${step_id}")
+    done
+    arch_id=$(uname -m)
+    REPORT_DIR=$(mktemp -d /tmp/ioc-runner-error-report.XXXXXX)
+    report_init "${SUITE_ID}" "${run_id}" "${SUITE_SCOPE}" "${SUITE_RUNNER}" \
+        host "${arch_id}" "${REPORT_DIR}"
+    REPORT_READY=1
+    for step_id in "${step_ids[@]}"; do
+        report_register_step "${step_id}" "Error handling ${step_id}"
+    done
+    for row in "${ERROR_CATALOG_ROWS[@]}"; do
+        IFS='|' read -r step_id check_id check_kind test_method <<< "${row}"
+        description="${check_id#${SUITE_ID}.${step_id}.}"
+        report_register_check "${check_id}" "${step_id}" "${SUITE_CATEGORY}" \
+            "${check_kind}" "${test_method}" "${description}"
+        if [[ -n "${ERROR_STEP_CHECK_IDS[${step_id}]:-}" ]]; then
+            ERROR_STEP_CHECK_IDS["${step_id}"]+=" ${check_id}"
+        else
+            ERROR_STEP_CHECK_IDS["${step_id}"]="${check_id}"
+        fi
+    done
+    report_close_catalog
 }
 
-# Validates string equality between expected and actual states, tracking aggregate test metrics.
+function next_current_check_id {
+    local result_name="$1"
+    local check_list="${ERROR_STEP_CHECK_IDS[${CURRENT_STEP_ID}]:-}"
+    local -a check_ids=()
+
+    read -r -a check_ids <<< "${check_list}"
+    if (( CURRENT_STEP_CHECK_INDEX >= ${#check_ids[@]} )); then
+        printf 'REPORTING ERROR: extra assertion in %s\n' "${CURRENT_STEP_ID}" >&2
+        return 1
+    fi
+    printf -v "${result_name}" '%s' "${check_ids[${CURRENT_STEP_CHECK_INDEX}]}"
+    CURRENT_STEP_CHECK_INDEX=$((CURRENT_STEP_CHECK_INDEX + 1))
+}
+
+function record_current_state {
+    local state="$1"
+    local reason="${2:-}"
+    local check_id=""
+
+    next_current_check_id check_id
+    if [[ "${state}" == "PASS" ]]; then
+        report_record "${check_id}" PASS
+    else
+        report_record "${check_id}" "${state}" "${reason}"
+    fi
+}
+
+function close_current_remaining {
+    local state="$1"
+    local reason="$2"
+    local check_list="${ERROR_STEP_CHECK_IDS[${CURRENT_STEP_ID}]:-}"
+    local check_id=""
+    local -a check_ids=()
+
+    read -r -a check_ids <<< "${check_list}"
+    while (( CURRENT_STEP_CHECK_INDEX < ${#check_ids[@]} )); do
+        check_id="${check_ids[${CURRENT_STEP_CHECK_INDEX}]}"
+        CURRENT_STEP_CHECK_INDEX=$((CURRENT_STEP_CHECK_INDEX + 1))
+        report_record "${check_id}" "${state}" "${reason}"
+    done
+}
+
+function close_error_catalog_after_preflight {
+    local row=""
+    local step_id=""
+    local check_id=""
+    local check_kind=""
+    local test_method=""
+
+    for row in "${ERROR_CATALOG_ROWS[@]:1}"; do
+        IFS='|' read -r step_id check_id check_kind test_method <<< "${row}"
+        report_record "${check_id}" SKIP "requires ${SUITE_ID}.P00.runner-source-readable"
+    done
+}
+
+function run_preflight {
+    local runner_source_readable="false"
+
+    CURRENT_STEP_ID=P00
+    CURRENT_STEP_CHECK_INDEX=0
+    [[ -r "${RUNNER_SCRIPT}" ]] && runner_source_readable="true"
+    verify_state true "${runner_source_readable}" "Runner source is readable"
+    if [[ "${runner_source_readable}" != "true" ]]; then
+        close_error_catalog_after_preflight
+        return 1
+    fi
+}
+
 function verify_state {
     local expected="$1"
     local actual="$2"
     local step_name="$3"
-
-    if [[ -n "${TEST_TRACE_FILE}" ]]; then
-        printf "%s\n" "${step_name}" >> "${TEST_TRACE_FILE}"
-    fi
-    TEST_TOTAL=$((TEST_TOTAL + 1))
+    local reason=""
 
     if [[ "${expected}" == "${actual}" ]]; then
-        printf "${GREEN}[ PASS ]${NC} %s\n" "${step_name}"
-        TEST_PASSED=$((TEST_PASSED + 1))
+        printf "%b[ PASS ]%b %s\n" "${GREEN}" "${NC}" "${step_name}"
+        record_current_state PASS
     else
-        printf "${RED}[ FAIL ]${NC} %s\n" "${step_name}" >&2
-        printf "  ${YELLOW}Expected : %s${NC}\n" "${expected}" >&2
-        printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
-        TEST_FAILED=$((TEST_FAILED + 1))
-        FAILED_DETAILS+=("${step_name} (Expected: ${expected}, Actual: ${actual})")
+        printf "%b[ FAIL ]%b %s\n" "${RED}" "${NC}" "${step_name}" >&2
+        printf "  %bExpected : %s%b\n" "${YELLOW}" "${expected}" "${NC}" >&2
+        printf "  %bActual   : %s%b\n" "${YELLOW}" "${actual}" "${NC}" >&2
+        reason="${step_name}: expected ${expected}, actual ${actual}"
+        record_current_state FAIL "${reason}"
     fi
 }
 
@@ -189,121 +361,26 @@ function verify_exit_code {
     local expected_exit="$1"
     local actual_exit="$2"
     local step_name="$3"
-
-    if [[ -n "${TEST_TRACE_FILE}" ]]; then
-        printf "%s\n" "${step_name}" >> "${TEST_TRACE_FILE}"
-    fi
-    TEST_TOTAL=$((TEST_TOTAL + 1))
+    local reason=""
 
     if [[ "${expected_exit}" == "${actual_exit}" ]]; then
-        printf "${GREEN}[ PASS ]${NC} %s\n" "${step_name}"
-        TEST_PASSED=$((TEST_PASSED + 1))
+        printf "%b[ PASS ]%b %s\n" "${GREEN}" "${NC}" "${step_name}"
+        record_current_state PASS
     else
-        printf "${RED}[ FAIL ]${NC} %s\n" "${step_name}" >&2
-        printf "  ${YELLOW}Expected exit : %s${NC}\n" "${expected_exit}" >&2
-        printf "  ${YELLOW}Actual exit   : %s${NC}\n" "${actual_exit}" >&2
-        TEST_FAILED=$((TEST_FAILED + 1))
-        FAILED_DETAILS+=("${step_name} (Expected exit: ${expected_exit}, Actual exit: ${actual_exit})")
+        printf "%b[ FAIL ]%b %s\n" "${RED}" "${NC}" "${step_name}" >&2
+        printf "  %bExpected exit : %s%b\n" "${YELLOW}" "${expected_exit}" "${NC}" >&2
+        printf "  %bActual exit   : %s%b\n" "${YELLOW}" "${actual_exit}" "${NC}" >&2
+        reason="${step_name}: expected exit ${expected_exit}, actual exit ${actual_exit}"
+        record_current_state FAIL "${reason}"
     fi
 }
 
 function _run {
     local cmd=("$@")
-    local exit_code
-    "${cmd[@]}" >/dev/null 2>&1; exit_code=$?; true
+    local exit_code=0
+
+    "${cmd[@]}" >/dev/null 2>&1 || exit_code=$?
     printf "%d" "${exit_code}"
-}
-
-# Extracts LOG_DIR-related declarations and the set_local_mode function
-# from RUNNER_SCRIPT, sources them in a clean subshell, and prints the
-# resolved LOG_DIR for the requested mode. Use to validate Phase A LOG_DIR
-# routing without requiring Phase B file-system side effects.
-#
-# Usage: _probe_log_dir <system|local> [env_modifier...]
-#   env_modifier is any argument accepted by env(1), e.g.,
-#   "IOC_RUNNER_LOG_DIR=/tmp/x" or "-u XDG_STATE_HOME".
-function _probe_log_dir {
-    local mode="$1"
-    shift
-    local probe
-    probe=$(mktemp)
-    {
-        sed -n '/^declare -g SYSTEM_CONF_DIR=/,/^declare -g LOCAL_LOG_DIR=/p' "${RUNNER_SCRIPT}"
-        sed -n '/^declare -g EXEC_MODE=/,/^declare -g LOG_DIR=/p' "${RUNNER_SCRIPT}"
-        sed -n '/^function set_local_mode {/,/^}/p' "${RUNNER_SCRIPT}"
-    } > "${probe}"
-    env "$@" bash -c "source '${probe}'; if [[ '${mode}' == 'local' ]]; then set_local_mode; fi; printf '%s' \"\${LOG_DIR}\""
-    rm -f "${probe}"
-}
-
-# Asserts whether a fixture string matches CRASH_LOG_PATTERNS through the same
-# pipeline the runner's startup-signal reader (read_startup_signals) uses: the
-# case-sensitive benign-noise pre-filter (grep -vE), then the case-insensitive
-# match (grep -qiE). Mirrors the runner's empty-value guard so the mirror never
-# blanks its input.
-function verify_match {
-    local expected="$1"
-    local fixture="$2"
-    local step_name="$3"
-    local actual="nomatch"
-
-    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
-        if printf "%s\n" "${fixture}" | grep -vE "${CRASH_LOG_EXCLUDE_PATTERNS}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
-            actual="match"
-        fi
-    elif printf "%s\n" "${fixture}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
-        actual="match"
-    fi
-    verify_state "${expected}" "${actual}" "${step_name}"
-}
-
-# Asserts a fixture against CRASH_LOG_PATTERNS alone, bypassing the benign-noise
-# pre-filter. Pins that an excluded fixture is cleared by the exclusion, not by a
-# pattern-set change.
-function verify_match_unfiltered {
-    local expected="$1"
-    local fixture="$2"
-    local step_name="$3"
-    local actual="nomatch"
-
-    if printf "%s\n" "${fixture}" | grep -qiE "${CRASH_LOG_PATTERNS}"; then
-        actual="match"
-    fi
-    verify_state "${expected}" "${actual}" "${step_name}"
-}
-
-# DRY-base guard (M11/#67): the spelled-out base CRASH_LOG_PATTERNS must be exactly
-# the union of the fatal and ambiguous subsets, compared as SETS (split on '|',
-# sorted) so token order and the outer parentheses do not matter. The base is a
-# literal (the zero-fork scraper above cannot expand a derived form), so this guard
-# is what enforces the subsets as the single source of truth.
-function verify_base_subset_union {
-    local step_name="$1"
-    local base actual="unequal"
-    base="${CRASH_LOG_PATTERNS#\(}"
-    base="${base%\)}"
-    if [[ "$(printf '%s' "${base}" | tr '|' '\n' | sort)" \
-          == "$(printf '%s' "${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS}" | tr '|' '\n' | sort)" ]]; then
-        actual="equal"
-    fi
-    verify_state "equal" "${actual}" "${step_name}"
-}
-
-# Asserts a fixture matches the named subset regex (fatal | ambiguous), pinning the
-# fatal-vs-ambiguous split at the token level (M11/#67, D031).
-function verify_match_subset {
-    local subset="$1"
-    local fixture="$2"
-    local step_name="$3"
-    local regex="" actual="nomatch"
-    case "${subset}" in
-        fatal)     regex="${CRASH_LOG_PATTERNS_FATAL}" ;;
-        ambiguous) regex="${CRASH_LOG_PATTERNS_AMBIGUOUS}" ;;
-    esac
-    if [[ -n "${regex}" ]] && printf '%s\n' "${fixture}" | grep -qiE "${regex}"; then
-        actual="match"
-    fi
-    verify_state "match" "${actual}" "${step_name}"
 }
 
 # ==============================================================================
@@ -316,12 +393,7 @@ function _setup {
     _log "INFO" "STEP ${step}: Setup Mock Environment"
     print_sub_divider
 
-    TEST_TMPDIR=$(mktemp -d)
-
-    # Issue #98: arm the assertion trace as early as possible so every
-    # subsequent verify_* call is recorded.
-    TEST_TRACE_FILE="${TEST_TMPDIR}/assertion_trace"
-    : > "${TEST_TRACE_FILE}"
+    TEST_TMPDIR=$(mktemp -d /tmp/ioc-runner-error-handling.XXXXXX)
 
     # Isolate local-mode CONF / SYSTEMD / RUN / LOG directories under
     # TEST_TMPDIR so a direct or sudo-elevated run cannot corrupt the
@@ -356,9 +428,15 @@ function _setup {
 }
 
 function _cleanup {
-    if [[ -d "${TEST_TMPDIR}" ]]; then
-        rm -rf "${TEST_TMPDIR}"
+    if [[ -z "${TEST_TMPDIR}" ]]; then
+        return 0
     fi
+    if [[ "${TEST_TMPDIR}" != /tmp/ioc-runner-error-handling.* ||
+          ! -d "${TEST_TMPDIR}" || -L "${TEST_TMPDIR}" ]]; then
+        return 1
+    fi
+    "${REPORT_RM_BIN:-/bin/rm}" -rf -- "${TEST_TMPDIR}"
+    TEST_TMPDIR=""
 }
 
 # ==============================================================================
@@ -808,118 +886,10 @@ CONF
     verify_exit_code "1" "${count}" "exactly one IOC_PORT replacement warning"
 }
 
-# Validates that the new namespaced env vars (IOC_RUNNER_LOCAL_*) route install
-# targets independently of the legacy unified IOC_RUNNER_*_DIR overrides.
-function test_env_var_namespacing {
-    local step="$1"
-    local exit_code
-    local test_dir="${TEST_TMPDIR}/ns_ioc"
-    local ns_conf_dir="${TEST_TMPDIR}/ns_conf"
-    local ns_sysd_dir="${TEST_TMPDIR}/ns_sysd"
-    local ns_log_dir="${TEST_TMPDIR}/ns_log"
-    local legacy_conf_dir="${TEST_TMPDIR}/legacy_conf"
-    local legacy_sysd_dir="${TEST_TMPDIR}/legacy_sysd"
-
-    print_divider
-    _log "INFO" "STEP ${step}: Env Var Namespacing and Precedence"
-    print_sub_divider
-
-    mkdir -p "${test_dir}" "${ns_conf_dir}" "${ns_sysd_dir}" "${ns_log_dir}" \
-             "${legacy_conf_dir}" "${legacy_sysd_dir}"
-    touch "${test_dir}/st.cmd"
-    chmod +x "${test_dir}/st.cmd"
-
-    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
-
-    # Case 1: Namespaced IOC_RUNNER_LOCAL_* variables route install to ns dirs.
-    exit_code=$(cd "${test_dir}" && \
-                IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf_dir}" \
-                IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd_dir}" \
-                _run bash "${RUNNER_SCRIPT}" --local -f install .)
-    verify_exit_code "0" "${exit_code}" "IOC_RUNNER_LOCAL_* routes --local install"
-
-    local ns_installed="${ns_conf_dir}/ns_ioc.conf"
-    local ns_exists="false"
-    [[ -f "${ns_installed}" ]] && ns_exists="true"
-    verify_state "true" "${ns_exists}" "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
-
-    # Case 2: Namespaced IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local mode.
-    local actual_log_dir
-    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log_dir}")
-    verify_state "${ns_log_dir}" "${actual_log_dir}" "IOC_RUNNER_LOCAL_LOG_DIR resolves LOG_DIR in --local"
-
-}
-
-# Validates that unified legacy IOC_RUNNER_*_DIR vars consistently
-# override their namespaced IOC_RUNNER_{LOCAL,SYSTEM}_*_DIR counterparts
-# for CONF_DIR, SYSTEMD_DIR, and RUN_DIR (via IOC_PORT path resolution).
-function test_env_var_precedence {
-    local step="$1"
-    local exit_code
-    local test_dir="${TEST_TMPDIR}/prec_ioc"
-    local unified_conf="${TEST_TMPDIR}/prec_unified_conf"
-    local unified_sysd="${TEST_TMPDIR}/prec_unified_sysd"
-    local unified_run="${TEST_TMPDIR}/prec_unified_run"
-    local ns_conf="${TEST_TMPDIR}/prec_ns_conf"
-    local ns_sysd="${TEST_TMPDIR}/prec_ns_sysd"
-    local ns_run="${TEST_TMPDIR}/prec_ns_run"
-
-    print_divider
-    _log "INFO" "STEP ${step}: Env Var Precedence (unified > namespaced)"
-    print_sub_divider
-
-    mkdir -p "${test_dir}" "${unified_conf}" "${unified_sysd}" "${unified_run}" \
-             "${ns_conf}" "${ns_sysd}" "${ns_run}"
-    touch "${test_dir}/st.cmd"
-    chmod +x "${test_dir}/st.cmd"
-
-    ( cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
-
-    # Install with contradicting unified + namespaced vars across all three pairs.
-    exit_code=$(cd "${test_dir}" && \
-                IOC_RUNNER_CONF_DIR="${unified_conf}" \
-                IOC_RUNNER_SYSTEMD_DIR="${unified_sysd}" \
-                IOC_RUNNER_RUN_DIR="${unified_run}" \
-                IOC_RUNNER_LOCAL_CONF_DIR="${ns_conf}" \
-                IOC_RUNNER_LOCAL_SYSTEMD_DIR="${ns_sysd}" \
-                IOC_RUNNER_LOCAL_RUN_DIR="${ns_run}" \
-                _run bash "${RUNNER_SCRIPT}" --local -f install .)
-    verify_exit_code "0" "${exit_code}" "Install succeeds with full precedence matrix"
-
-    # CONF_DIR precedence: conf file lands in unified, not namespaced.
-    local conf_in_unified="false" conf_in_ns="false"
-    [[ -f "${unified_conf}/prec_ioc.conf" ]] && conf_in_unified="true"
-    [[ -f "${ns_conf}/prec_ioc.conf" ]] && conf_in_ns="true"
-    verify_state "true"  "${conf_in_unified}" "CONF_DIR: unified var wins"
-    verify_state "false" "${conf_in_ns}"      "CONF_DIR: namespaced var ignored"
-
-    # RUN_DIR precedence: installed conf's IOC_PORT path points into unified_run,
-    # not ns_run (process_ioc_port composes the path from RUN_DIR).
-    local port_line="" port_in_unified="false" port_in_ns="false"
-    port_line=$(grep '^IOC_PORT=' "${unified_conf}/prec_ioc.conf" 2>/dev/null || true)
-    [[ "${port_line}" == *"${unified_run}/prec_ioc/control"* ]] && port_in_unified="true"
-    [[ "${port_line}" == *"${ns_run}/prec_ioc/control"* ]] && port_in_ns="true"
-    verify_state "true"  "${port_in_unified}" "RUN_DIR: unified var wins in IOC_PORT"
-    verify_state "false" "${port_in_ns}"      "RUN_DIR: namespaced var ignored in IOC_PORT"
-
-    # SYSTEMD_DIR precedence: local template landed in unified, not namespaced.
-    local tpl_in_unified="false" tpl_in_ns="false"
-    [[ -f "${unified_sysd}/epics-@.service" ]] && tpl_in_unified="true"
-    [[ -f "${ns_sysd}/epics-@.service" ]] && tpl_in_ns="true"
-    verify_state "true"  "${tpl_in_unified}" "SYSTEMD_DIR: unified var wins"
-    verify_state "false" "${tpl_in_ns}"      "SYSTEMD_DIR: namespaced var ignored"
-
-    # LOG_DIR precedence: unified IOC_RUNNER_LOG_DIR wins over namespaced
-    # IOC_RUNNER_LOCAL_LOG_DIR in --local mode; namespaced honored when no unified.
-    local unified_log="${TEST_TMPDIR}/prec_unified_log"
-    local ns_log="${TEST_TMPDIR}/prec_ns_log"
-    local actual_log_dir
-    actual_log_dir=$(_probe_log_dir "local" \
-                       "IOC_RUNNER_LOG_DIR=${unified_log}" \
-                       "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
-    verify_state "${unified_log}" "${actual_log_dir}" "LOG_DIR: unified var wins"
-    actual_log_dir=$(_probe_log_dir "local" "IOC_RUNNER_LOCAL_LOG_DIR=${ns_log}")
-    verify_state "${ns_log}" "${actual_log_dir}" "LOG_DIR: namespaced var honored when no unified"
+# Preserves the stable error-contract STEP sequence when this position owns no
+# rejection or safe-failure check.
+function no_error_contract_checks {
+    :
 }
 
 # Validates the system-mode foot-gun warning for IOC_RUNNER_LOG_DIR:
@@ -960,45 +930,25 @@ function test_log_dir_guard {
     rm -f "${stderr_cap}"
 }
 
-# Validates XDG_STATE_HOME fallback semantics for LOCAL_LOG_DIR:
-# when XDG_STATE_HOME is unset, LOCAL_LOG_DIR falls back to
-# $HOME/.local/state/procserv; when set, LOCAL_LOG_DIR uses
-# $XDG_STATE_HOME/procserv.
-function test_log_dir_xdg_fallback {
-    local step="$1"
-    local actual
-
-    print_divider
-    _log "INFO" "STEP ${step}: LOG_DIR XDG_STATE_HOME Fallback"
-    print_sub_divider
-
-    # Case 1: XDG_STATE_HOME unset -> $HOME/.local/state/procserv.
-    actual=$(_probe_log_dir "local" "-u" "XDG_STATE_HOME" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR")
-    verify_state "${HOME}/.local/state/procserv" "${actual}" \
-        "XDG_STATE_HOME unset: LOCAL_LOG_DIR falls back to \$HOME/.local/state/procserv"
-
-    # Case 2: XDG_STATE_HOME set -> <XDG_STATE_HOME>/procserv.
-    # env(1) requires options before VAR=value pairs.
-    actual=$(_probe_log_dir "local" "-u" "IOC_RUNNER_LOG_DIR" "-u" "IOC_RUNNER_LOCAL_LOG_DIR" "XDG_STATE_HOME=/tmp/xdg_fallback_test")
-    verify_state "/tmp/xdg_fallback_test/procserv" "${actual}" \
-        "XDG_STATE_HOME set: LOCAL_LOG_DIR uses <XDG_STATE_HOME>/procserv"
-}
-
 # Validates the bash completion script by sourcing it in isolated subshells
 # and invoking _ioc_runner_completions with synthesized COMP_WORDS/COMP_CWORD.
 # Targets the env-var refactor to ensure completion picks up namespaced vars.
 function test_completion {
     local step="$1"
     local comp_script="${SC_TOP}/../bin/ioc-runner-completion.bash"
+    local completion_available="false"
 
     print_divider
     _log "INFO" "STEP ${step}: Bash Completion Smoke Tests"
     print_sub_divider
 
-    if [[ ! -f "${comp_script}" ]]; then
+    [[ -f "${comp_script}" ]] && completion_available="true"
+    verify_state "true" "${completion_available}" "Completion script is available"
+    if [[ "${completion_available}" != "true" ]]; then
         _log "ERROR" "Completion script not found at ${comp_script}"
-        (( TEST_FAILED++ )) || true
-        return
+        close_current_remaining SKIP \
+            "requires ${SUITE_ID}.S23.completion-script-available"
+        return 0
     fi
 
     local sys_conf="${TEST_TMPDIR}/comp_sys"
@@ -1311,11 +1261,18 @@ function test_attach_errors {
 
 function test_list_empty {
     local step="$1"
+    local applicability_reason="requires a non-root effective user"
     print_divider
     _log "INFO" "STEP ${step}: List with No Active Sockets"
     print_sub_divider
 
     local exit_code
+
+    if [[ ${EUID} -eq 0 ]]; then
+        record_current_state NA "${applicability_reason}"
+    else
+        record_current_state PASS
+    fi
 
     exit_code=$(IOC_RUNNER_RUN_DIR="${TEST_TMPDIR}/empty_run" _run bash "${RUNNER_SCRIPT}" --local list)
     verify_exit_code "0" "${exit_code}" "'list' with no active sockets exits 0"
@@ -1336,6 +1293,7 @@ function test_list_empty {
 
     if [[ ${EUID} -eq 0 ]]; then
         _log "WARN" "Running as root: skipping the non-traversable hint case (chmod 0 cannot deny root)."
+        close_current_remaining NA "${applicability_reason}"
     else
         local denied_run="${TEST_TMPDIR}/denied_run"
         local denied_exit=0
@@ -1353,281 +1311,23 @@ function test_list_empty {
 }
 
 
-# Validates the #87 single-source identity contract: bin/ioc-runner and
-# bin/setup-system-infra.bash resolve the same IOC_RUNNER_SYSTEM_USER /
-# IOC_RUNNER_SYSTEM_GROUP / IOC_RUNNER_SYSTEM_LOG_DIR overrides with the same
-# shipped defaults. A one-sided edit of either declaration fails here before it
-# can ship. LOG_DIR joins the family per CI-14 (Refs #87): the runner declares
-# it as SYSTEM_LOG_DIR (no TARGET_ prefix, unlike USER/GROUP), so the runner
-# side maps each field to its declaration name explicitly.
-function test_system_identity_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: System Identity Single-Source Guard (#87)"
-    print_sub_divider
-
-    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
-    local line field
-    local -A runner_env=() runner_def=() setup_env=() setup_def=()
-    # The runner names USER/GROUP with a TARGET_ prefix but the log dir as a
-    # bare SYSTEM_LOG_DIR; map each field to its runner-side declaration name.
-    local -A runner_decl=( [USER]="TARGET_SYSTEM_USER" [GROUP]="TARGET_SYSTEM_GROUP" [LOG_DIR]="SYSTEM_LOG_DIR" )
-
-    while IFS= read -r line; do
-        for field in USER GROUP LOG_DIR; do
-            if [[ "${line}" == "declare -g ${runner_decl[${field}]}="* ]]; then
-                runner_env[${field}]="${line#*\$\{}"
-                runner_env[${field}]="${runner_env[${field}]%%:-*}"
-                runner_def[${field}]="${line#*:-}"
-                runner_def[${field}]="${runner_def[${field}]%%\}*}"
-            fi
-        done
-    done < "${RUNNER_SCRIPT}"
-
-    while IFS= read -r line; do
-        for field in USER GROUP LOG_DIR; do
-            if [[ "${line}" == "declare -g SYSTEM_${field}="* ]]; then
-                setup_env[${field}]="${line#*\$\{}"
-                setup_env[${field}]="${setup_env[${field}]%%:-*}"
-                setup_def[${field}]="${line#*:-}"
-                setup_def[${field}]="${setup_def[${field}]%%\}*}"
-            fi
-        done
-    done < "${setup_script}"
-
-    verify_state "IOC_RUNNER_SYSTEM_USER" "${runner_env[USER]:-}" "Runner user identity resolves the IOC_RUNNER_SYSTEM_USER override"
-    verify_state "IOC_RUNNER_SYSTEM_USER" "${setup_env[USER]:-}" "Setup user identity resolves the same override variable"
-    verify_state "ioc-srv" "${runner_def[USER]:-}" "Runner user default pinned to ioc-srv"
-    verify_state "${runner_def[USER]:-runner-unset}" "${setup_def[USER]:-setup-unset}" "User defaults agree across both scripts"
-    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${runner_env[GROUP]:-}" "Runner group identity resolves the IOC_RUNNER_SYSTEM_GROUP override"
-    verify_state "IOC_RUNNER_SYSTEM_GROUP" "${setup_env[GROUP]:-}" "Setup group identity resolves the same override variable"
-    verify_state "ioc" "${runner_def[GROUP]:-}" "Runner group default pinned to ioc"
-    verify_state "${runner_def[GROUP]:-runner-unset}" "${setup_def[GROUP]:-setup-unset}" "Group defaults agree across both scripts"
-    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${runner_env[LOG_DIR]:-}" "Runner log dir resolves the IOC_RUNNER_SYSTEM_LOG_DIR override"
-    verify_state "IOC_RUNNER_SYSTEM_LOG_DIR" "${setup_env[LOG_DIR]:-}" "Setup log dir resolves the same override variable"
-    verify_state "/var/log/procserv" "${runner_def[LOG_DIR]:-}" "Runner log dir default pinned to /var/log/procserv"
-    verify_state "${runner_def[LOG_DIR]:-runner-unset}" "${setup_def[LOG_DIR]:-setup-unset}" "Log dir defaults agree across both scripts"
-}
-
-# Extract the procServ unit-template heredoc body from a script (the block whose
-# Description names procServ), normalize the known mode-divergent variables
-# (procServ binary, log dir), and drop the mode-divergent rows. The remaining
-# lines are the must-agree contract. Assumes the heredoc uses the unquoted
-# <<EOF delimiter; converting it to <<'EOF' or <<-EOF yields an empty block,
-# which the caller catches loudly via its nonempty sentinel (fail-closed, never
-# a false pass).
-function _unit_must_agree_block {
-    awk '/<<EOF/{cap=1;buf="";next} cap&&/^[[:space:]]*EOF[[:space:]]*$/{if(buf~/Description=procServ for/){printf "%s",buf;exit} cap=0;next} cap{buf=buf $0 "\n"}' "$1" \
-      | sed 's/${procserv_bin}/@BIN@/g; s/${RESOLVED_PROCSERV_BIN}/@BIN@/g; s/${LOG_DIR}/@LOGDIR@/g; s/${SYSTEM_LOG_DIR}/@LOGDIR@/g' \
-      | grep -vE '^(Description=|Wants=|After=|UMask=|User=|Group=|WantedBy=)'
-}
-
-# Validates the #81 / CI-4 shared-contract: the must-agree rows of the procServ
-# systemd unit template are byte-identical between bin/ioc-runner (local user
-# unit) and bin/setup-system-infra.bash (system unit), after normalizing the
-# known mode-divergent variables. The two copies are examined-Keep (the runner
-# is self-contained and cannot share a sourced lib); this guard forbids a
-# one-sided drift of any must-agree row. Comparison is byte-exact (row order and
-# blank lines included) — deliberate lockstep. The dropped rows are principled
-# mode-divergences: UMask=0027 is local-only (the system unit keeps the default
-# for group-readable logs, see LOG_LAYOUT.md); User/Group and Wants/After are
-# system-only; WantedBy/Description differ by mode.
-function test_template_contract_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: procServ Unit Template Shared-Contract Guard (#81/CI-4)"
-    print_sub_divider
-
-    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
-    local local_blk system_blk extracted="empty"
-    local_blk="$(_unit_must_agree_block "${RUNNER_SCRIPT}")"
-    system_blk="$(_unit_must_agree_block "${setup_script}")"
-
-    if [[ -n "${local_blk}" && -n "${system_blk}" ]]; then extracted="nonempty"; fi
-    verify_state "nonempty" "${extracted}" "Both unit templates extracted from source"
-
-    if [[ "${local_blk}" != "${system_blk}" ]]; then
-        printf "${YELLOW}  must-agree drift (local < > system):${NC}\n"
-        diff <(printf '%s\n' "${local_blk}") <(printf '%s\n' "${system_blk}") || true
-    fi
-    verify_state "${local_blk}" "${system_blk}" "Unit template must-agree rows identical across both scripts"
-
-    # M10/#54 (M10.T1): the byte-exact compare above catches a one-sided drift, but
-    # a two-sided removal of a shared row would still agree. Assert each M10 restart
-    # directive is PRESENT in the must-agree block so a both-copies removal fails.
-    local m10_row m10_present="all"
-    for m10_row in "StartLimitIntervalSec=0" "StartLimitBurst=5" "StartLimitAction=none" \
-                   "Restart=always" "RestartSec=2" "KillMode=mixed"; do
-        if ! printf '%s\n' "${local_blk}" | grep -qxF "${m10_row}"; then
-            m10_present="missing:${m10_row}"
-            break
-        fi
-    done
-    verify_state "all" "${m10_present}" "M10 restart directives present in the unit must-agree block"
-
-    # M5/#108: RuntimeDirectoryPreserve existence pin. The byte-exact
-    # compare above cannot catch a both-copies removal (absent from
-    # both still agrees), and the M10 loop pins only the M10 rows.
-    # Pin the bin files directly so this assert does not depend on
-    # the extraction/equality asserts above.
-    local m5_pin="present" m5_script
-    for m5_script in "${RUNNER_SCRIPT}" "${setup_script}"; do
-        if ! grep -qxF "RuntimeDirectoryPreserve=restart" "${m5_script}"; then
-            m5_pin="missing:${m5_script##*/}"
-            break
-        fi
-    done
-    verify_state "present" "${m5_pin}" "RuntimeDirectoryPreserve=restart present in both unit templates (M5/#108)"
-}
-
-# Extract the set of RUNNER_* metadata variables an installer injects via sed,
-# i.e. the names targeted by s/^declare -g RUNNER_X=. Sorted and deduplicated.
-# An empty result trips the caller's nonempty sentinel (fail-closed), so a
-# rewrite of the injection lines that stops matching fails loudly, not silently.
-function _metadata_injection_targets {
-    grep -oE 's/\^declare -g RUNNER_[A-Z_]+=' "$1" 2>/dev/null \
-      | grep -oE 'RUNNER_[A-Z_]+' \
-      | sort -u
-}
-
-# Validates the #84 / CI-9 shared-contract: the git-metadata injection targets
-# agree across the runner declaration anchor (bin/ioc-runner) and the two
-# installers that sed them in (bin/setup-system-infra.bash,
-# configure/inject-runner-version.bash). The metadata is hand-maintained in
-# three places; a one-sided rename, a dropped injection line, or a field added
-# to one injector only would silently leave the installed binary reporting the
-# placeholder value with no install error. The guard forbids that drift:
-# (1) both injectors must target the same RUNNER_* set, and (2) every injected
-# name must have a matching declaration anchor in the runner, so the sed regex
-# keeps matching its target. RUNNER_VERSION is the source-controlled value (not
-# injected) and is intentionally excluded.
-function test_metadata_contract_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Git-Metadata Injection Shared-Contract Guard (#84/CI-9)"
-    print_sub_divider
-
-    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
-    local inject_script="${SC_TOP}/../configure/inject-runner-version.bash"
-    local setup_set inject_set anchor_set missing extracted="empty"
-
-    setup_set="$(_metadata_injection_targets "${setup_script}")"
-    inject_set="$(_metadata_injection_targets "${inject_script}")"
-    anchor_set="$(grep -oE '^declare -g RUNNER_[A-Z_]+=' "${RUNNER_SCRIPT}" | grep -oE 'RUNNER_[A-Z_]+' | sort -u)"
-
-    if [[ -n "${setup_set}" && -n "${inject_set}" ]]; then extracted="nonempty"; fi
-    verify_state "nonempty" "${extracted}" "Metadata sed targets extracted from both injectors"
-
-    if [[ "${setup_set}" != "${inject_set}" ]]; then
-        printf "${YELLOW}  injector drift (setup < > inject):${NC}\n"
-        diff <(printf '%s\n' "${setup_set}") <(printf '%s\n' "${inject_set}") || true
-    fi
-    verify_state "${setup_set}" "${inject_set}" "Both injectors target the same RUNNER_* metadata set"
-
-    missing="$(comm -23 <(printf '%s\n' "${setup_set}") <(printf '%s\n' "${anchor_set}"))"
-    if [[ -n "${missing}" ]]; then
-        printf "${YELLOW}  injected names with no declaration anchor:${NC}\n%s\n" "${missing}"
-    fi
-    verify_state "" "${missing}" "Every injected RUNNER_* has a declaration anchor in the runner"
-}
-
 function test_inspect_errors {
     local step="$1"
+    local applicability_reason="requires a non-root effective user"
     print_divider
     _log "INFO" "STEP ${step}: Inspect Error Paths"
     print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the non-root inspect privilege case."
+        close_current_remaining NA "${applicability_reason}"
+        return 0
+    fi
 
     local exit_code
 
     exit_code=$(_run bash "${RUNNER_SCRIPT}" inspect "dummy_ioc")
     verify_exit_code "1" "${exit_code}" "'inspect' without root privileges exits 1"
-}
-
-
-function test_crash_pattern_matching {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Crash Log Pattern Matching"
-    print_sub_divider
-
-    # Issue #4: iocsh parser, dynamic linker, and startup path failures
-    verify_match "match"   "ERROR st.cmd line 52: Unbalanced quote."             "Pattern: Unbalanced quote"
-    verify_match "match"   "Invalid directory path: /opt/ioc/missing"            "Pattern: Invalid directory path"
-    verify_match "match"   "Can't open db/example.db"                            "Pattern: Can't open"
-    verify_match "match"   "iocsh: cannot open '/etc/protocol/foo.proto'"        "Pattern: cannot open"
-    verify_match "match"   "symbol lookup error: undefined symbol: epicsRingNew" "Pattern: undefined symbol"
-    verify_match "match"   "/opt/ioc/iocBoot/iocX/st.cmd: No such file or directory" "Pattern: No such file or directory"
-
-    # Issue #5: case-insensitive matching across casing variants
-    verify_match "match"   "ERROR: device timeout"                  "Case-insensitive: ERROR (upper)"
-    verify_match "match"   "Error: cannot allocate"                 "Case-insensitive: Error (title)"
-    verify_match "match"   "error: nullptr deref"                   "Case-insensitive: error (lower)"
-    verify_match "match"   "FATAL: aborting"                        "Case-insensitive: FATAL (upper)"
-    verify_match "match"   "fatal allocation failure"               "Case-insensitive: fatal (lower)"
-
-    # Regression: fatal startup patterns continue to match
-    verify_match "match"   "Segmentation fault (core dumped)"       "Regression: Segmentation fault"
-
-    # Negative: routine startup lines must not trigger crash detection
-    verify_match "nomatch" "procServ: Restarting child"             "Negative: procServ child start line"
-    verify_match "nomatch" "iocInit: All initialization complete"   "Negative: iocInit complete line"
-    verify_match "nomatch" "## EPICS R7.0.7 banner"                 "Negative: EPICS banner"
-    verify_match "nomatch" "Starting iocsh.bash"                    "Negative: startup banner"
-
-    # M11/#67: the spelled-out base must equal the fatal|ambiguous union (set eq).
-    verify_base_subset_union "DRY-base CRASH_LOG_PATTERNS == fatal|ambiguous subsets"
-
-    # M11/#67: subset membership — fatal tokens are the standalone pre-marker
-    # exit-1 triggers; ambiguous tokens are corroborating-only. Asserted via the
-    # extracted subset regexes so a future mis-split is caught here.
-    verify_match_subset "fatal"     "FATAL: aborting"                  "Subset: FATAL is fatal"
-    verify_match_subset "fatal"     "undefined symbol: epicsRingNew"   "Subset: undefined symbol is fatal"
-    verify_match_subset "ambiguous" "Can't open db/example.db"         "Subset: Can't open is ambiguous"
-    verify_match_subset "ambiguous" "ERROR: device timeout"            "Subset: ERROR is ambiguous"
-    verify_match_subset "ambiguous" "config: Invalid directory path, ignored" "Subset: Invalid directory path is ambiguous (benign EPICS warning)"
-}
-
-
-# Validates the issue #92 benign-noise exclusion contract: the iocsh history
-# load/save failure line is removed before pattern matching, the exclusion is
-# line-targeted, and the constant itself is pinned non-empty and well-formed.
-# Fixtures carry the raw ANSI escape bytes the EPICS errlog ERL_ERROR macro
-# emits around 'ERROR'; a regex spanning the escape boundary would not match.
-function test_crash_scan_exclusion {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Crash Scan Benign-Noise Exclusion (#92)"
-    print_sub_divider
-
-    local benign_loading=$'\033[31;1mERROR\033[0m Permission denied (13) loading \'/opt/epics-iocs/demo/iocBoot/iocdemo/.iocsh_history\''
-    local benign_writing=$'\033[31;1mERROR\033[0m Permission denied (13) writing \'.iocsh_history\''
-    local benign_plus_fatal="${benign_loading}"$'\nFATAL: real crash in the same window'
-    local same_line_collision="${benign_loading} FATAL: marker on the same physical line"
-
-    # Guard pins: an empty or invalid exclude regex must fail here, not at runtime.
-    local exclude_state="empty"
-    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
-        exclude_state="nonempty"
-    fi
-    verify_state "nonempty" "${exclude_state}" "Exclusion: constant extracted non-empty from runner script"
-
-    local compile_state="invalid"
-    if printf "%s\n" "compile probe" | grep -vE "${CRASH_LOG_EXCLUDE_PATTERNS}" >/dev/null 2>&1; then
-        compile_state="valid"
-    fi
-    verify_state "valid" "${compile_state}" "Exclusion: constant compiles under grep -E"
-
-    # The benign line matches the raw pattern set; the exclusion is what clears it.
-    verify_match_unfiltered "match"   "${benign_loading}" "Exclusion pin: history-load line matches patterns without filter"
-    verify_match "nomatch" "${benign_loading}"            "Exclusion: history-load line cleared through pipeline"
-    verify_match "nomatch" "${benign_writing}"            "Exclusion: history-write variant cleared through pipeline"
-
-    # Line-targeted proof: a real fatal marker on another line in the same window still matches.
-    verify_match "match"   "${benign_plus_fatal}"         "Exclusion: FATAL on another line in the window still matches"
-
-    # Accepted residual (#92 design record): a marker sharing the benign line is
-    # excluded with it; pinned as documented semantics, not engineered around.
-    verify_match "nomatch" "${same_line_collision}"       "Exclusion: same-line collision excluded (documented residual)"
 }
 
 
@@ -1725,26 +1425,20 @@ function test_conf_dir_guard {
     verify_exit_code "0" "${ec}" "absolute CONF_DIR passes the guard"
 }
 
-# M7/#110 (CI-H class): no capability probe may pipe a helper's -h output
-# straight into grep -q — under pipefail a usage exit or an early-match
-# SIGPIPE turns a capable tool into a false negative. Capture-first only.
-function test_pipefail_probe_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Pipefail Probe Guard (#110)"
-    print_sub_divider
-    local hits
-    hits=$(grep -cE -- '-h 2>&1 \| grep -q' "${RUNNER_SCRIPT}" || true)
-    verify_exit_code "0" "${hits}" "no '-h 2>&1 | grep -q' pipeline probes remain in bin/ioc-runner (#110)"
-}
-
 # M7/#110 (1a): an uncreatable local logrotate cfg_dir must skip rotation
 # with a warning, never abort the IOC install (never-abort contract).
 function test_logrotate_skip_guard {
     local step="$1"
+    local applicability_reason="requires a non-root effective user"
     print_divider
     _log "INFO" "STEP ${step}: Logrotate Never-Abort Guard (#110)"
     print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the uncreatable-directory case (chmod 0555 cannot deny root)."
+        close_current_remaining NA "${applicability_reason}"
+        return 0
+    fi
 
     local w="${TEST_TMPDIR}/lr_guard"
     mkdir -p "${w}/boot" "${w}/sysd" "${w}/run" "${w}/log" "${w}/roparent/procServ.d"
@@ -1768,65 +1462,6 @@ EOF
     local skipped="false"
     grep -q "rotation not installed" "${lr_stderr}" 2>/dev/null && skipped="true"
     verify_state "true" "${skipped}" "uncreatable cfg_dir warns and skips rotation (#110)"
-}
-
-# M8/#111 (CI-F): behavioral parity between the runner's IOC-name rule
-# (validate_ioc_name) and the sudoers REGEX-form Cmnd ERE generator in
-# setup. BOTH sides are EXTRACTED from their source lines (never re-typed,
-# so this cannot become a third copy of the rule) and evaluated as bash
-# EREs under LC_ALL=C against the same candidate set. Scope: pins the
-# regex-form heredoc only; the glob fallback deployed on sudo < 1.9.10 is
-# intentionally broader and out of parity scope (PERMISSION_MODEL.md).
-# Option-shaped names (leading '-') are excluded: the CLI parser rejects
-# them before validation and the sudoers ERE rejects them by class — the
-# behaviors align but through different mechanisms.
-function test_ioc_name_charset_parity {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: IOC-Name Charset Parity Guard (#111/CI-F)"
-    print_sub_divider
-
-    local setup_script="${SC_TOP}/../bin/setup-system-infra.bash"
-    local eres uniq_ere
-    eres=$(grep -oE 'epics-@\[[^]]*\]\[[^]]*\]\{[0-9]+,[0-9]+\}[\\]+\.service[\\]\$' "${setup_script}" || true)
-    verify_exit_code "6" "$(printf '%s\n' "${eres}" | grep -c . || true)" "six regex-form Cmnd EREs found in setup"
-    uniq_ere=$(printf '%s\n' "${eres}" | sort -u)
-    verify_exit_code "1" "$(printf '%s\n' "${uniq_ere}" | grep -c . || true)" "all six Cmnd EREs are identical"
-
-    # Unquoted-heredoc transform: the generated sudoers carries \. and $
-    # where the .bash source spells double-backslash-dot and
-    # backslash-dollar.
-    local sudo_ere="${uniq_ere}"
-    sudo_ere="${sudo_ere/\\\\./\\.}"
-    sudo_ere="${sudo_ere/\\$/$}"
-    sudo_ere="^${sudo_ere}"
-
-    # Runner side, extracted from the validate_ioc_name source line.
-    local runner_re runner_len
-    runner_re=$(grep -oE '\^\[[^]]*\]\[[^]]*\]\*\$' "${RUNNER_SCRIPT}" | head -n1)
-    runner_len=$(sed -n 's/.*"\${#name}" -le \([0-9]\+\).*/\1/p' "${RUNNER_SCRIPT}" | head -n1)
-    verify_state "64" "${runner_len}" "runner length rule extracted (<=64)"
-
-    local n63 n64 n65
-    n63=$(printf 'a%.0s' $(seq 1 63)); n64=$(printf 'a%.0s' $(seq 1 64)); n65=$(printf 'a%.0s' $(seq 1 65))
-    local -a candidates=("a" "z" "A" "Z" "0" "9" "_" "_x" "a-b" "ab-" "a_b" \
-        "a.b" "a:b" "a/b" "a b" "a@b" ".hidden" "a," \
-        "${n63}" "${n64}" "${n65}")
-    # Locale-scoped via a function-local variable: an assignment prefix
-    # on the reserved word [[ would execute a command named '[[' and
-    # leave both flags at zero (the R3-F1 vacuity, landing precheck).
-    local LC_ALL=C
-    local name runner_ok sudo_ok mismatch=""
-    for name in "${candidates[@]}"; do
-        runner_ok=0
-        if [[ "${#name}" -le "${runner_len}" && "${name}" =~ ${runner_re} ]]; then runner_ok=1; fi
-        sudo_ok=0
-        if [[ "epics-@${name}.service" =~ ${sudo_ere} ]]; then sudo_ok=1; fi
-        if [[ ${runner_ok} -ne ${sudo_ok} ]]; then
-            mismatch+=" [${name}:runner=${runner_ok},sudoers=${sudo_ok}]"
-        fi
-    done
-    verify_state "" "${mismatch}" "runner and sudoers charsets agree across ${#candidates[@]} candidates"
 }
 
 # Validates #74/#78 tool resolution: IOC_RUNNER_PROCSERV_TOOL override semantics
@@ -1948,14 +1583,18 @@ function test_tool_resolution {
 # fires under EUID 0 and the case is skipped there.
 function test_generate_staging_perm {
     local step="$1"
+    local applicability_reason="requires a non-root effective user"
     print_divider
     _log "INFO" "STEP ${step}: Generate Staging Permission Barrier (#121)"
     print_sub_divider
 
     if [[ ${EUID} -eq 0 ]]; then
         _log "WARN" "Running as root: skipping the staging-permission case (chmod 0500 cannot deny root)."
+        record_current_state NA "${applicability_reason}"
+        close_current_remaining NA "${applicability_reason}"
         return 0
     fi
+    record_current_state PASS
 
     local ro_dir="${TEST_TMPDIR}/ro_generate"
     mkdir -p "${ro_dir}"
@@ -1985,9 +1624,16 @@ function test_generate_staging_perm {
 # under EUID 0.
 function test_view_message_streams {
     local step="$1"
+    local applicability_reason="requires a non-root effective user"
     print_divider
     _log "INFO" "STEP ${step}: View Message Streams and Access Barrier (#121)"
     print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        record_current_state NA "${applicability_reason}"
+    else
+        record_current_state PASS
+    fi
 
     local conf_dir="${IOC_RUNNER_LOCAL_CONF_DIR}"
     mkdir -p "${conf_dir}"
@@ -2012,6 +1658,7 @@ function test_view_message_streams {
     # access barrier, not report the installed IOC as "not found".
     if [[ ${EUID} -eq 0 ]]; then
         _log "WARN" "Running as root: skipping the view access-barrier case (chmod 0 cannot deny root)."
+        close_current_remaining NA "${applicability_reason}"
         return 0
     fi
 
@@ -2038,14 +1685,18 @@ function test_view_message_streams {
 # so execution reaches resolve_sock_path. chmod 0 cannot deny root; skipped there.
 function test_attach_access_barrier {
     local step="$1"
+    local applicability_reason="requires a non-root effective user"
     print_divider
     _log "INFO" "STEP ${step}: Attach Access Barrier (#121)"
     print_sub_divider
 
     if [[ ${EUID} -eq 0 ]]; then
         _log "WARN" "Running as root: skipping the attach access-barrier case (chmod 0 cannot deny root)."
+        record_current_state NA "${applicability_reason}"
+        close_current_remaining NA "${applicability_reason}"
         return 0
     fi
+    record_current_state PASS
 
     local conf_dir="${IOC_RUNNER_LOCAL_CONF_DIR}"
     mkdir -p "${conf_dir}"
@@ -2075,14 +1726,18 @@ function test_attach_access_barrier {
 # skipped under EUID 0.
 function test_install_local_perm_hint {
     local step="$1"
+    local applicability_reason="requires a non-root effective user"
     print_divider
     _log "INFO" "STEP ${step}: Install Local Permission Hint (#121)"
     print_sub_divider
 
     if [[ ${EUID} -eq 0 ]]; then
         _log "WARN" "Running as root: skipping the local install hint case (chmod 0500 cannot deny root)."
+        record_current_state NA "${applicability_reason}"
+        close_current_remaining NA "${applicability_reason}"
         return 0
     fi
+    record_current_state PASS
 
     local src_dir="${TEST_TMPDIR}/install_hint_ioc"
     local blocked_conf_dir="${TEST_TMPDIR}/blocked_conf"
@@ -2121,17 +1776,17 @@ function run_all_tests {
         "test_list_ss_vv_contract"
         "test_unknown_name_verb_gate"
         "test_local_ioc_port_replacement_warns"
-        "test_env_var_namespacing"
-        "test_env_var_precedence"
-        "test_system_identity_guard"
-        "test_template_contract_guard"
-        "test_metadata_contract_guard"
+        "no_error_contract_checks"
+        "no_error_contract_checks"
+        "no_error_contract_checks"
+        "no_error_contract_checks"
+        "no_error_contract_checks"
         "test_log_dir_guard"
-        "test_log_dir_xdg_fallback"
+        "no_error_contract_checks"
         "test_conf_dir_guard"
-        "test_pipefail_probe_guard"
+        "no_error_contract_checks"
         "test_logrotate_skip_guard"
-        "test_ioc_name_charset_parity"
+        "no_error_contract_checks"
         "test_completion"
         "test_ioc_name_validation"
         "test_validation_errors"
@@ -2142,17 +1797,23 @@ function run_all_tests {
         "test_view_message_streams"
         "test_attach_access_barrier"
         "test_install_local_perm_hint"
-        "test_crash_pattern_matching"
-        "test_crash_scan_exclusion"
+        "no_error_contract_checks"
+        "no_error_contract_checks"
         "test_crash_pattern_extra"
         "test_tool_resolution"
     )
     local step=1
     local func
     for func in "${pipeline[@]}"; do
+        printf -v CURRENT_STEP_ID 'S%02d' "${step}"
+        CURRENT_STEP_CHECK_INDEX=0
         "${func}" "${step}"
         step=$((step + 1))
     done
 }
 
+initialize_reporting
+if ! run_preflight; then
+    exit 1
+fi
 run_all_tests

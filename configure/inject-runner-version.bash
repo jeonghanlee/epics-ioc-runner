@@ -14,7 +14,7 @@ dest="${1:?usage: inject-runner-version.bash <installed-file> <repo-dir>}"
 repo="${2:?usage: inject-runner-version.bash <installed-file> <repo-dir>}"
 
 git_hash=$(git -C "${repo}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
-if [[ "${git_hash}" != "unknown" ]] && ! git -C "${repo}" diff-index --quiet HEAD -- 2>/dev/null; then
+if [[ "${git_hash}" != "unknown" ]] && ! git -C "${repo}" diff --quiet HEAD -- 2>/dev/null; then
     git_hash="${git_hash}-dirty"
 fi
 

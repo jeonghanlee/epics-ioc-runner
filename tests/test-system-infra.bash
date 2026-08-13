@@ -3,20 +3,35 @@
 # Integration tests for system infrastructure.
 # Validates the installed system components without modifying them.
 
-set -e
+set -euo pipefail
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+umask 077
+unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE
 
 declare -g RED='\033[0;31m'
 declare -g GREEN='\033[0;32m'
-declare -g MAGENTA='\033[0;35m'
 declare -g BLUE='\033[0;34m'
 declare -g YELLOW='\033[0;33m'
 declare -g NC='\033[0m'
 
-declare -g TEST_TOTAL=0
-declare -g TEST_PASSED=0
-declare -g TEST_FAILED=0
-declare -g SCRIPT_ERROR=0
-declare -g -a FAILED_DETAILS=()
+declare -gr SUITE_ID="system-infra"
+declare -gr SUITE_SCOPE="system"
+declare -gr SUITE_RUNNER="none"
+declare -gr SUITE_CATEGORY="installed-conformance"
+declare -g SC_PATH="${BASH_SOURCE[0]}"
+declare -g SC_TOP=""
+declare -g REPORT_DIR=""
+declare -g REPORT_READY=0
+declare -g SUDOERS_EXISTS=0
+declare -g LOGROTATE_EXISTS=0
+declare -g -a SYSTEM_INFRA_CHECK_IDS=()
+
+if [[ "${SC_PATH}" != /* ]]; then
+    SC_PATH="${PWD}/${SC_PATH}"
+fi
+SC_TOP="${SC_PATH%/*}"
+# shellcheck source=lib/test-reporting.bash
+source "${SC_TOP}/lib/test-reporting.bash"
 
 # Set by the regex-deny probe when it creates an ephemeral ioc-group
 # member; cleared after the normal cleanup path. A pre-existing account
@@ -43,29 +58,19 @@ declare -g PERM_BASH_COMPLETION="0644"
 declare -g OWNER_CONF_DIR="root:${SYSTEM_GROUP}"
 declare -g OWNER_SYSTEM="root:root"
 
-if [[ $EUID -ne 0 ]]; then
-    printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
-    printf "%s\n" "Usage: sudo bash $(basename "$0")" >&2
-    exit 1
-fi
-
 function _handle_exit {
     local exit_code=$?
-    if [[ $exit_code -ne 0 ]]; then
-        SCRIPT_ERROR=1
-        printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
-    fi
+    local final_status="${exit_code}"
+
+    trap - EXIT
     if [[ -n "${C57_CREATED_USER:-}" ]]; then
         userdel "${C57_CREATED_USER}" 2>/dev/null || true
         C57_CREATED_USER=""
     fi
-    print_summary
-
-    # System Requirement: Propagate aggregate failure state to CI/CD pipeline
-    if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 ]]; then
-        exit 1
+    if (( REPORT_READY )); then
+        report_finalize "${exit_code}" || final_status=1
     fi
-    exit 0
+    exit "${final_status}"
 }
 trap _handle_exit EXIT
 trap 'exit 1' SIGINT
@@ -93,80 +98,154 @@ function print_sub_divider {
     printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
 }
 
-function print_summary {
-    printf "\n"
-    print_divider
-    printf "${BLUE}%s${NC}\n" "                                  SYSTEM INFRA TEST SUMMARY                                         "
-    print_divider
-
-    printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
-    printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "${RED}  %-20s : %d${NC}\n" "Failed" "${TEST_FAILED}"
-    else
-        printf "  %-20s : %d\n" "Failed" "0"
-    fi
-
-    if [[ ${SCRIPT_ERROR} -gt 0 ]]; then
-        printf "${MAGENTA}  %-20s : %d${NC}\n" "Script Errors" "${SCRIPT_ERROR}"
-    else
-        printf "  %-20s : %d\n" "Script Errors" "0"
-    fi
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "\n${RED}%s${NC}\n" "--- [ FAILED ASSERTIONS ] ---"
-        for detail in "${FAILED_DETAILS[@]}"; do
-            printf "${RED}  * %s${NC}\n" "$detail"
-        done
-        printf "${RED}%s${NC}\n" "-----------------------------"
-    elif [[ ${SCRIPT_ERROR} -eq 0 ]]; then
-        printf "\n${GREEN}%s${NC}\n" "[SUCCESS] All system infra tests completed perfectly!"
-    fi
-
-    printf "${BLUE}%s${NC}\n\n" "===================================================================================================="
-}
-
 function verify_state {
     local expected="$1"
     local actual="$2"
-    local step_name="$3"
-
-    TEST_TOTAL=$((TEST_TOTAL + 1))
+    local check_id="$3"
+    local reason=""
 
     if [[ "${expected}" == "${actual}" ]]; then
-        printf "${GREEN}[ PASS ]${NC} %s\n" "${step_name}"
-        TEST_PASSED=$((TEST_PASSED + 1))
+        printf "${GREEN}[ PASS ]${NC} %s\n" "${check_id}"
+        report_record "${check_id}" PASS
     else
-        printf "${RED}[ FAIL ]${NC} %s\n" "${step_name}" >&2
+        printf "${RED}[ FAIL ]${NC} %s\n" "${check_id}" >&2
         printf "  ${YELLOW}Expected : %s${NC}\n" "${expected}" >&2
         printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
-        TEST_FAILED=$((TEST_FAILED + 1))
-        FAILED_DETAILS+=("${step_name} (Expected: ${expected}, Actual: ${actual})")
+        reason="expected ${expected}, actual ${actual}"
+        report_record "${check_id}" FAIL "${reason}"
     fi
+}
+
+function register_catalog_check {
+    local check_id="$1"
+    local step_id="$2"
+    local check_kind="$3"
+    local test_method="$4"
+    local description="$5"
+
+    report_register_check "${check_id}" "${step_id}" "${SUITE_CATEGORY}" \
+        "${check_kind}" "${test_method}" "${description}"
+    SYSTEM_INFRA_CHECK_IDS+=("${check_id}")
+}
+
+function register_reporting_catalog {
+    report_register_step P00 "Verify invocation boundary"
+    report_register_step S01 "Verify service accounts and groups"
+    report_register_step S02 "Verify installed files and permissions"
+    report_register_step S03 "Verify sudoers policy syntax"
+    report_register_step S04 "Verify logrotate policy"
+    report_register_step S05 "Verify sudoers include directive ordering"
+    report_register_step S06 "Verify anchored sudoers authorization"
+
+    register_catalog_check "${SUITE_ID}.P00.root-required" P00 REQUIRED direct-inspection "Effective user is root."
+    register_catalog_check "${SUITE_ID}.S01.ioc-group-exists" S01 BEHAVIOR direct-inspection "System group ioc exists."
+    register_catalog_check "${SUITE_ID}.S01.ioc-service-user-exists" S01 BEHAVIOR direct-inspection "System user ioc-srv exists."
+    register_catalog_check "${SUITE_ID}.S02.conf-dir.exists" S02 REQUIRED direct-inspection "/etc/procServ.d exists."
+    register_catalog_check "${SUITE_ID}.S02.conf-dir.owner" S02 BEHAVIOR direct-inspection "Configuration directory owner is root:ioc."
+    register_catalog_check "${SUITE_ID}.S02.conf-dir.permission" S02 BEHAVIOR direct-inspection "Configuration directory permission is 2770."
+    register_catalog_check "${SUITE_ID}.S02.sudoers-policy.exists" S02 REQUIRED direct-inspection "Sudoers policy exists."
+    register_catalog_check "${SUITE_ID}.S02.sudoers-policy.owner" S02 BEHAVIOR direct-inspection "Sudoers policy owner is root:root."
+    register_catalog_check "${SUITE_ID}.S02.sudoers-policy.permission" S02 BEHAVIOR direct-inspection "Sudoers policy permission is 0440."
+    register_catalog_check "${SUITE_ID}.S02.systemd-template.exists" S02 REQUIRED direct-inspection "Systemd template exists."
+    register_catalog_check "${SUITE_ID}.S02.systemd-template.owner" S02 BEHAVIOR direct-inspection "Systemd template owner is root:root."
+    register_catalog_check "${SUITE_ID}.S02.systemd-template.permission" S02 BEHAVIOR direct-inspection "Systemd template permission is 0644."
+    register_catalog_check "${SUITE_ID}.S02.logrotate-policy.exists" S02 REQUIRED direct-inspection "Logrotate policy exists."
+    register_catalog_check "${SUITE_ID}.S02.logrotate-policy.owner" S02 BEHAVIOR direct-inspection "Logrotate policy owner is root:root."
+    register_catalog_check "${SUITE_ID}.S02.logrotate-policy.permission" S02 BEHAVIOR direct-inspection "Logrotate policy permission is 0644."
+    register_catalog_check "${SUITE_ID}.S02.installed-runner.exists" S02 REQUIRED direct-inspection "Installed runner exists."
+    register_catalog_check "${SUITE_ID}.S02.installed-runner.owner" S02 BEHAVIOR direct-inspection "Installed runner owner is root:root."
+    register_catalog_check "${SUITE_ID}.S02.installed-runner.permission" S02 BEHAVIOR direct-inspection "Installed runner permission is 0755."
+    register_catalog_check "${SUITE_ID}.S02.bash-completion.exists" S02 REQUIRED direct-inspection "Bash completion exists."
+    register_catalog_check "${SUITE_ID}.S02.bash-completion.owner" S02 BEHAVIOR direct-inspection "Bash completion owner is root:root."
+    register_catalog_check "${SUITE_ID}.S02.bash-completion.permission" S02 BEHAVIOR direct-inspection "Bash completion permission is 0644."
+    register_catalog_check "${SUITE_ID}.S03.sudoers-syntax-valid" S03 BEHAVIOR real-path "Deployed sudoers policy passes visudo validation."
+    register_catalog_check "${SUITE_ID}.S04.logrotate-syntax-valid" S04 BEHAVIOR real-path "Deployed logrotate policy passes debug validation."
+    register_catalog_check "${SUITE_ID}.S04.log-glob-pinned" S04 BEHAVIOR direct-inspection "Policy contains the configured log directory glob."
+    register_catalog_check "${SUITE_ID}.S04.su-directive-pinned" S04 BEHAVIOR direct-inspection "Policy contains su root ioc."
+    register_catalog_check "${SUITE_ID}.S04.copytruncate-pinned" S04 BEHAVIOR direct-inspection "Policy contains copytruncate."
+    register_catalog_check "${SUITE_ID}.S04.compress-pinned" S04 BEHAVIOR direct-inspection "Policy contains compress."
+    register_catalog_check "${SUITE_ID}.S04.weekly-pinned" S04 BEHAVIOR direct-inspection "Policy contains weekly."
+    register_catalog_check "${SUITE_ID}.S04.rotate-eight-pinned" S04 BEHAVIOR direct-inspection "Policy contains rotate 8."
+    register_catalog_check "${SUITE_ID}.S04.nodateext-pinned" S04 BEHAVIOR direct-inspection "Policy contains nodateext."
+    register_catalog_check "${SUITE_ID}.S05.include-directive-exists" S05 REQUIRED direct-inspection "Main sudoers policy contains the sudoers.d include directive."
+    register_catalog_check "${SUITE_ID}.S05.include-directive-final" S05 BEHAVIOR direct-inspection "No active rule follows the include directive."
+    register_catalog_check "${SUITE_ID}.S06.regex-policy-applicable" S06 APPLICABILITY direct-inspection "Deployed sudoers policy uses anchored regex commands."
+    register_catalog_check "${SUITE_ID}.S06.probe-user-available" S06 PREREQUISITE direct-inspection "A safe ioc-group probe user is available."
+    register_catalog_check "${SUITE_ID}.S06.bad-name-denied" S06 BEHAVIOR real-path "Anchored policy denies an out-of-model service name."
+    register_catalog_check "${SUITE_ID}.S06.good-name-allowed" S06 BEHAVIOR real-path "Anchored policy allows a valid service name."
+    report_close_catalog
+}
+
+function read_os_release_value {
+    local wanted="$1"
+    local key=""
+    local value=""
+
+    while IFS='=' read -r key value || [[ -n "${key:-}" ]]; do
+        if [[ "${key}" == "${wanted}" ]]; then
+            value="${value#\"}"
+            value="${value%\"}"
+            printf '%s' "${value}"
+            return 0
+        fi
+    done < /etc/os-release
+    return 1
+}
+
+function initialize_reporting {
+    local os_name="unknown"
+    local os_version="0"
+    local os_id=""
+    local arch_id="${EPICS_HOST_ARCH:-unknown}"
+    local run_id="${SUITE_ID}.$$.${BASHPID}"
+
+    if [[ -r /etc/os-release ]]; then
+        os_name=$(read_os_release_value ID || true)
+        os_version=$(read_os_release_value VERSION_ID || true)
+    fi
+    os_name="${os_name:-unknown}"
+    os_version="${os_version%%.*}"
+    os_version="${os_version:-0}"
+    os_id="${os_name}-${os_version}"
+    REPORT_DIR=$(mktemp -d /tmp/ioc-runner-system-infra-report.XXXXXX)
+    report_init "${SUITE_ID}" "${run_id}" "${SUITE_SCOPE}" "${SUITE_RUNNER}" \
+        "${os_id}" "${arch_id}" "${REPORT_DIR}"
+    REPORT_READY=1
+    register_reporting_catalog
+}
+
+function close_after_root_failure {
+    local check_id=""
+
+    for check_id in "${SYSTEM_INFRA_CHECK_IDS[@]:1}"; do
+        report_record "${check_id}" SKIP "requires ${SUITE_ID}.P00.root-required"
+    done
 }
 
 function verify_perm {
     local path="$1"
     local expected_owner="$2"
     local expected_perm="$3"
+    local check_prefix="$4"
+    local actual_owner=""
+    local actual_perm=""
 
     if [[ ! -e "${path}" ]]; then
-        verify_state "exists" "not_found" "File or directory exists: ${path}"
+        verify_state "exists" "not_found" "${check_prefix}.exists"
+        report_record "${check_prefix}.owner" SKIP "requires ${check_prefix}.exists"
+        report_record "${check_prefix}.permission" SKIP "requires ${check_prefix}.exists"
         return
     fi
 
-    local actual_owner
-    local actual_perm
-
+    verify_state "exists" "exists" "${check_prefix}.exists"
     actual_owner=$(stat -c "%U:%G" "${path}")
     actual_perm=$(stat -c "%a" "${path}")
 
     expected_perm=$(printf "%04o" "0${expected_perm}")
     actual_perm=$(printf "%04o" "0${actual_perm}")
 
-    verify_state "${expected_owner}" "${actual_owner}" "Owner of ${path} is ${expected_owner}"
-    verify_state "${expected_perm}"  "${actual_perm}"  "Permission of ${path} is ${expected_perm}"
+    verify_state "${expected_owner}" "${actual_owner}" "${check_prefix}.owner"
+    verify_state "${expected_perm}" "${actual_perm}" "${check_prefix}.permission"
 }
 
 function test_service_accounts {
@@ -180,8 +259,8 @@ function test_service_accounts {
     if getent group "${SYSTEM_GROUP}" >/dev/null; then group_exists="true"; fi
     if id -u "${SYSTEM_USER}" >/dev/null 2>&1; then user_exists="true"; fi
 
-    verify_state "true" "${group_exists}" "Group '${SYSTEM_GROUP}' exists"
-    verify_state "true" "${user_exists}"  "User '${SYSTEM_USER}' exists"
+    verify_state "true" "${group_exists}" "${SUITE_ID}.S01.ioc-group-exists"
+    verify_state "true" "${user_exists}" "${SUITE_ID}.S01.ioc-service-user-exists"
 }
 
 function test_infrastructure_files {
@@ -190,12 +269,18 @@ function test_infrastructure_files {
     _log "INFO" "STEP ${step}: Verify Infrastructure Files and Permissions"
     print_sub_divider
 
-    verify_perm "${CONF_DIR}"             "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}"
-    verify_perm "${SUDOERS_FILE}"         "${OWNER_SYSTEM}"   "${PERM_SUDOERS}"
-    verify_perm "${SYSTEMD_TEMPLATE}"     "${OWNER_SYSTEM}"   "${PERM_SYSTEMD_TEMPLATE}"
-    verify_perm "${LOGROTATE_FILE}"       "${OWNER_SYSTEM}"   "${PERM_LOGROTATE}"
-    verify_perm "${RUNNER_SCRIPT_DEST}"   "${OWNER_SYSTEM}"   "${PERM_RUNNER_SCRIPT}"
-    verify_perm "${BASH_COMPLETION_DEST}" "${OWNER_SYSTEM}"   "${PERM_BASH_COMPLETION}"
+    verify_perm "${CONF_DIR}" "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}" "${SUITE_ID}.S02.conf-dir"
+    verify_perm "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "${SUITE_ID}.S02.sudoers-policy"
+    verify_perm "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" \
+        "${SUITE_ID}.S02.systemd-template"
+    verify_perm "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" \
+        "${SUITE_ID}.S02.logrotate-policy"
+    verify_perm "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" \
+        "${SUITE_ID}.S02.installed-runner"
+    verify_perm "${BASH_COMPLETION_DEST}" "${OWNER_SYSTEM}" "${PERM_BASH_COMPLETION}" \
+        "${SUITE_ID}.S02.bash-completion"
+    [[ -f "${SUDOERS_FILE}" ]] && SUDOERS_EXISTS=1
+    [[ -f "${LOGROTATE_FILE}" ]] && LOGROTATE_EXISTS=1
 }
 
 function test_sudoers_syntax {
@@ -205,10 +290,16 @@ function test_sudoers_syntax {
     print_sub_divider
 
     local syntax_ok="false"
-    if [[ -f "${SUDOERS_FILE}" ]] && visudo -cf "${SUDOERS_FILE}" >/dev/null 2>&1; then
+
+    if (( ! SUDOERS_EXISTS )); then
+        report_record "${SUITE_ID}.S03.sudoers-syntax-valid" SKIP \
+            "requires ${SUITE_ID}.S02.sudoers-policy.exists"
+        return
+    fi
+    if visudo -cf "${SUDOERS_FILE}" >/dev/null 2>&1; then
         syntax_ok="true"
     fi
-    verify_state "true" "${syntax_ok}" "Sudoers file syntax is valid"
+    verify_state "true" "${syntax_ok}" "${SUITE_ID}.S03.sudoers-syntax-valid"
 }
 
 function test_logrotate_syntax {
@@ -218,22 +309,53 @@ function test_logrotate_syntax {
     print_sub_divider
 
     local syntax_ok="false"
-    if [[ -f "${LOGROTATE_FILE}" ]] && logrotate -d "${LOGROTATE_FILE}" >/dev/null 2>&1; then
+    local check_id=""
+    local directive=""
+    local present="false"
+    local index=0
+    local -a directives=(
+        "${SYSTEM_LOG_DIR}/*.log"
+        "su root ${SYSTEM_GROUP}"
+        "copytruncate"
+        "compress"
+        "weekly"
+        "rotate 8"
+        "nodateext"
+    )
+    local -a check_ids=(
+        "${SUITE_ID}.S04.log-glob-pinned"
+        "${SUITE_ID}.S04.su-directive-pinned"
+        "${SUITE_ID}.S04.copytruncate-pinned"
+        "${SUITE_ID}.S04.compress-pinned"
+        "${SUITE_ID}.S04.weekly-pinned"
+        "${SUITE_ID}.S04.rotate-eight-pinned"
+        "${SUITE_ID}.S04.nodateext-pinned"
+    )
+
+    if (( ! LOGROTATE_EXISTS )); then
+        report_record "${SUITE_ID}.S04.logrotate-syntax-valid" SKIP \
+            "requires ${SUITE_ID}.S02.logrotate-policy.exists"
+        for check_id in "${check_ids[@]}"; do
+            report_record "${check_id}" SKIP "requires ${SUITE_ID}.S02.logrotate-policy.exists"
+        done
+        return
+    fi
+    if logrotate -d "${LOGROTATE_FILE}" >/dev/null 2>&1; then
         syntax_ok="true"
     fi
-    verify_state "true" "${syntax_ok}" "Logrotate policy syntax is valid"
+    verify_state "true" "${syntax_ok}" "${SUITE_ID}.S04.logrotate-syntax-valid"
 
     # Pin the #15 acceptance directives. logrotate -d passes even if e.g.
     # copytruncate is dropped, so assert the contract directives explicitly;
     # copytruncate is mandatory because procServ does not reopen on SIGHUP,
     # and nodateext keeps the <name>.log.N.gz numbering the acceptance cites.
-    local directive
-    for directive in "${SYSTEM_LOG_DIR}/*.log" "su root ${SYSTEM_GROUP}" "copytruncate" "compress" "weekly" "rotate 8" "nodateext"; do
-        local present="false"
-        if [[ -f "${LOGROTATE_FILE}" ]] && grep -qF "${directive}" "${LOGROTATE_FILE}"; then
+    for index in "${!directives[@]}"; do
+        directive="${directives[${index}]}"
+        present="false"
+        if grep -qF "${directive}" "${LOGROTATE_FILE}"; then
             present="true"
         fi
-        verify_state "true" "${present}" "Logrotate policy pins '${directive}'"
+        verify_state "true" "${present}" "${check_ids[${index}]}"
     done
 }
 
@@ -248,12 +370,15 @@ function test_sudoers_includedir_order {
     local trailing
     local ordering_ok="false"
 
-    idr_line=$(grep -nE '^[[:space:]]*[#@]includedir[[:space:]]+/etc/sudoers\.d' "${main_sudoers}" | tail -1 | cut -d: -f1)
+    idr_line=$(grep -nE '^[[:space:]]*[#@]includedir[[:space:]]+/etc/sudoers\.d' "${main_sudoers}" | tail -1 | cut -d: -f1 || true)
 
     if [[ -z "${idr_line}" ]]; then
-        verify_state "true" "false" "includedir directive exists in ${main_sudoers}"
+        verify_state "true" "false" "${SUITE_ID}.S05.include-directive-exists"
+        report_record "${SUITE_ID}.S05.include-directive-final" SKIP \
+            "requires ${SUITE_ID}.S05.include-directive-exists"
         return
     fi
+    verify_state "true" "true" "${SUITE_ID}.S05.include-directive-exists"
 
     trailing=$(tail -n +$((idr_line + 1)) "${main_sudoers}" | grep -E '^[[:space:]]*([^#[:space:]]|[#@]include)' || true)
 
@@ -268,7 +393,7 @@ function test_sudoers_includedir_order {
         done
     fi
 
-    verify_state "true" "${ordering_ok}" "includedir is the final active directive in ${main_sudoers}"
+    verify_state "true" "${ordering_ok}" "${SUITE_ID}.S05.include-directive-final"
 }
 
 function test_sudoers_regex_denies_bad_name {
@@ -278,7 +403,14 @@ function test_sudoers_regex_denies_bad_name {
     print_sub_divider
 
     if [[ ! -f "${SUDOERS_FILE}" ]]; then
-        verify_state "true" "false" "Sudoers file exists for regex-deny probe"
+        report_record "${SUITE_ID}.S06.regex-policy-applicable" SKIP \
+            "requires ${SUITE_ID}.S02.sudoers-policy.exists"
+        report_record "${SUITE_ID}.S06.probe-user-available" SKIP \
+            "requires ${SUITE_ID}.S02.sudoers-policy.exists"
+        report_record "${SUITE_ID}.S06.bad-name-denied" SKIP \
+            "requires ${SUITE_ID}.S02.sudoers-policy.exists"
+        report_record "${SUITE_ID}.S06.good-name-allowed" SKIP \
+            "requires ${SUITE_ID}.S02.sudoers-policy.exists"
         return
     fi
 
@@ -289,9 +421,17 @@ function test_sudoers_regex_denies_bad_name {
     # See docs/PERMISSION_MODEL.md residual-risk subsection.
     if ! grep -qE '\^(start|stop|restart|status|enable|disable) epics-@' "${SUDOERS_FILE}"; then
         _log "INFO" "SKIP: deployed sudoers uses glob fallback; regex-deny probe does not apply."
-        verify_state "skipped" "skipped" "Regex-deny probe skipped on glob-form policy"
+        report_record "${SUITE_ID}.S06.regex-policy-applicable" NA \
+            "deployed sudoers policy uses glob commands"
+        report_record "${SUITE_ID}.S06.probe-user-available" NA \
+            "requires ${SUITE_ID}.S06.regex-policy-applicable"
+        report_record "${SUITE_ID}.S06.bad-name-denied" NA \
+            "requires ${SUITE_ID}.S06.regex-policy-applicable"
+        report_record "${SUITE_ID}.S06.good-name-allowed" NA \
+            "requires ${SUITE_ID}.S06.regex-policy-applicable"
         return
     fi
+    report_record "${SUITE_ID}.S06.regex-policy-applicable" PASS
 
     local test_user="epics-c57-iocmember"
 
@@ -299,11 +439,17 @@ function test_sudoers_regex_denies_bad_name {
         _log "INFO" "Pre-existing user '${test_user}' detected; reusing without cleanup on exit."
     else
         if ! useradd -M -N -G "${SYSTEM_GROUP}" "${test_user}" >/dev/null 2>&1; then
-            verify_state "true" "false" "Create ephemeral ioc-group user '${test_user}'"
+            report_record "${SUITE_ID}.S06.probe-user-available" SKIP \
+                "cannot create ephemeral ioc-group probe user"
+            report_record "${SUITE_ID}.S06.bad-name-denied" SKIP \
+                "requires ${SUITE_ID}.S06.probe-user-available"
+            report_record "${SUITE_ID}.S06.good-name-allowed" SKIP \
+                "requires ${SUITE_ID}.S06.probe-user-available"
             return
         fi
         C57_CREATED_USER="${test_user}"
     fi
+    report_record "${SUITE_ID}.S06.probe-user-available" PASS
 
     # Resolve the systemctl path from the deployed policy so the probe
     # argv matches the policy line verbatim (Debian uses /usr/bin,
@@ -318,377 +464,18 @@ function test_sudoers_regex_denies_bad_name {
     if ! runuser -u "${test_user}" -- sudo -n -l "${systemctl_bin}" start 'epics-@bad name.service' >/dev/null 2>&1; then
         bad_deny="true"
     fi
-    verify_state "true" "${bad_deny}" "Anchored regex denies 'epics-@bad name.service' for ioc-group member"
+    verify_state "true" "${bad_deny}" "${SUITE_ID}.S06.bad-name-denied"
 
     local good_allow="false"
     if runuser -u "${test_user}" -- sudo -n -l "${systemctl_bin}" start 'epics-@goodname.service' >/dev/null 2>&1; then
         good_allow="true"
     fi
-    verify_state "true" "${good_allow}" "Anchored regex allows 'epics-@goodname.service' for ioc-group member"
+    verify_state "true" "${good_allow}" "${SUITE_ID}.S06.good-name-allowed"
 
     if [[ -n "${C57_CREATED_USER:-}" ]]; then
         userdel "${C57_CREATED_USER}" 2>/dev/null || true
         C57_CREATED_USER=""
     fi
-}
-
-function test_git_context_resolution {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Verify Git Context Resolution for Version Injection"
-    print_sub_divider
-
-    # Locate the source repo's bin/ directory. Build an absolute form
-    # from ${PWD} (no syscall on the user-owned NFS path) so the
-    # unrelated-CWD probe below stays meaningful even after we drop the
-    # cd ... && pwd canonicalization that fails under sudo+NFS root_squash.
-    local script_dir
-    script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    local repo_bin
-    if [[ "${script_dir}" = /* ]]; then
-        repo_bin="${script_dir}/../bin"
-    else
-        repo_bin="${PWD}/${script_dir}/../bin"
-    fi
-
-    # Baseline: the repo's actual short HEAD obtained via -C.
-    local expected_hash
-    expected_hash=$(git -C "${repo_bin}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
-
-    # Mimic setup-system-infra.bash: call git -C from an unrelated CWD.
-    # Without -C the call would consult /tmp's (non-)git context and fail.
-    local resolved_hash
-    resolved_hash=$(cd /tmp && git -C "${repo_bin}" rev-parse --short HEAD 2>/dev/null || printf "unknown")
-
-    verify_state "${expected_hash}" "${resolved_hash}" "git -C resolves repo hash from unrelated CWD"
-}
-
-function test_setup_script_dir_resolution {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Verify Setup Script Directory Resolution"
-    print_sub_divider
-
-    local script_dir
-    script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    local setup_script="${script_dir}/../bin/setup-system-infra.bash"
-    # Keep repo_bin relative; an absolute form built from ${PWD} below
-    # is used only for the unrelated-CWD probe. cd ... && pwd would
-    # require root traversal of the user-owned NFS path under sudo.
-    local repo_bin="${script_dir}/../bin"
-    local repo_bin_abs
-    if [[ "${repo_bin}" = /* ]]; then
-        repo_bin_abs="${repo_bin}"
-    else
-        repo_bin_abs="${PWD}/${repo_bin}"
-    fi
-
-    if [[ ! -f "${setup_script}" ]]; then
-        verify_state "exists" "not_found" "setup-system-infra.bash exists at expected location"
-        return
-    fi
-
-    # Regression guard: SC_DIR must not be derived via 'readlink -f'.
-    # Under NFS root_squash, sudo cannot canonicalize parent directories,
-    # so readlink -f silently returns an empty string and SC_DIR falls
-    # back to the caller's CWD. STEPS 1-4 do not consume SC_DIR, so the
-    # script proceeds to mutate /etc state and only fails at STEP 5,
-    # leaving the host partially configured.
-    local readlink_in_sc_dir="false"
-    if grep -qE '^[[:space:]]*SC_DIR=.*readlink[[:space:]]+-f' "${setup_script}"; then
-        readlink_in_sc_dir="true"
-    fi
-    verify_state "false" "${readlink_in_sc_dir}" "SC_DIR resolution does not depend on 'readlink -f'"
-
-    # Regression guard: test files run under sudo (test-system-infra.bash,
-    # test-system-lifecycle.bash) must not derive their own script_dir via
-    # readlink -f, realpath, or cd ... && pwd. Same NFS root_squash failure
-    # mode applies when root sudo's into a user-owned test file. Tracked
-    # as #44.
-    local test_canonicalize="false"
-    if grep -qE '="\$\([^)]*(readlink -f|realpath)|="\$\(cd[^)]*&& pwd' "${BASH_SOURCE[0]}" "${script_dir}/test-system-lifecycle.bash" 2>/dev/null; then
-        test_canonicalize="true"
-    fi
-    verify_state "false" "${test_canonicalize}" "sudo-mode test files do not depend on readlink -f, realpath, or cd ... && pwd"
-
-    # Behavioral: replicate the script's SC_DIR strategy
-    # ('dirname "${BASH_SOURCE[0]}"') across plausible invocation forms
-    # and confirm the resolved directory locates the sibling ioc-runner.
-    # For a directly invoked (non-sourced) script, $0 equals BASH_SOURCE[0].
-    #
-    # Run the probe as the invoking user (the repo owner). On NFS
-    # root_squash mounts the probe would otherwise stat the user-owned
-    # path as nobody and report missing even when the file exists.
-    # Same SUDO_USER drop pattern as #42.
-    local probe='sc_dir="$(dirname "$0")"; [[ -f "${sc_dir}/ioc-runner" ]] && printf found || printf missing'
-    local invoker="${SUDO_USER:-$(id -un)}"
-    local runner=(bash -c "${probe}")
-    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
-        runner=(sudo -u "${invoker}" -n bash -c "${probe}")
-    fi
-
-    local check_a
-    check_a=$(cd "${repo_bin}/.." && "${runner[@]}" "bin/setup-system-infra.bash")
-    verify_state "found" "${check_a}" "SC_DIR locates ioc-runner when invoked as bin/... from repo root"
-
-    local check_b
-    check_b=$(cd "${repo_bin}" && "${runner[@]}" "./setup-system-infra.bash")
-    verify_state "found" "${check_b}" "SC_DIR locates ioc-runner when invoked as ./... from bin/"
-
-    local check_c
-    check_c=$(cd /tmp && "${runner[@]}" "${repo_bin_abs}/setup-system-infra.bash")
-    verify_state "found" "${check_c}" "SC_DIR locates ioc-runner when invoked via absolute path from unrelated CWD"
-}
-
-# Behavioral regression for the version-stamp layout guard (#128). Runs the
-# REAL setup-system-infra.bash STEP 7 with the runner, symlink, and completion
-# destinations redirected to a scratch tree, so no system component is touched,
-# and observes the deployed script's injected RUNNER_GIT_HASH. Two observable
-# cases the prior static grep could not catch:
-#   positive  - the real epics-ioc-runner checkout stamps a non-unknown hash;
-#   R7-F9     - bin/ copied into an unrelated git checkout stamps unknown and
-#               emits the layout WARN.
-# Scratch is owned by the invoking user so the delegated git query can read it;
-# root_squash is not required, so this runs on every invocation.
-function test_setup_stamp_layout_guard {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Verify Version-Stamp Layout Guard (real run)"
-    print_sub_divider
-
-    local script_dir setup_script runner_src
-    script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    setup_script="${script_dir}/../bin/setup-system-infra.bash"
-    runner_src="${script_dir}/../bin/ioc-runner"
-    if [[ ! -f "${setup_script}" || ! -f "${runner_src}" ]]; then
-        verify_state "exists" "not_found" "setup-system-infra.bash and ioc-runner exist"
-        return
-    fi
-
-    local invoker="${SUDO_USER:-$(id -un)}"
-    local as_invoker=(bash -c)
-    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
-        as_invoker=(sudo -u "${invoker}" -n bash -c)
-    fi
-    local work
-    work=$("${as_invoker[@]}" 'mktemp -d')
-
-    local stamped
-    stamp_from() {   # $1 = deployed script path
-        grep -m1 '^declare -g RUNNER_GIT_HASH=' "$1" 2>/dev/null | sed 's/.*="\(.*\)"/\1/'
-    }
-
-    # Positive: the real checkout stamps a non-unknown hash.
-    IOC_RUNNER_SCRIPT_DEST="${work}/pos-runner" \
-    IOC_RUNNER_SCRIPT_SYMLINK="${work}/pos-symlink" \
-    IOC_RUNNER_BASH_COMP_DEST="${work}/pos-completion" \
-        bash "${setup_script}" >/dev/null 2>&1 || true
-    stamped=$(stamp_from "${work}/pos-runner")
-    local pos_ok="false"
-    [[ -n "${stamped}" && "${stamped}" != "unknown" ]] && pos_ok="true"
-    verify_state "true" "${pos_ok}" "Real checkout stamps a non-unknown hash (${stamped:-none})"
-
-    # R7-F9 negative: bin/ copied into an unrelated git checkout stamps unknown.
-    "${as_invoker[@]}" "
-        mkdir -p '${work}/xrepo/bin'
-        cp '${script_dir}/../bin/'* '${work}/xrepo/bin/' 2>/dev/null
-        cd '${work}/xrepo' && git init -q && git config user.email t@t \
-            && git config user.name t && git add -A && git commit -q -m init
-    " >/dev/null 2>&1
-    local neg_out
-    neg_out=$(IOC_RUNNER_SCRIPT_DEST="${work}/neg-runner" \
-        IOC_RUNNER_SCRIPT_SYMLINK="${work}/neg-symlink" \
-        IOC_RUNNER_BASH_COMP_DEST="${work}/neg-completion" \
-        bash "${work}/xrepo/bin/setup-system-infra.bash" 2>&1 || true)
-    stamped=$(stamp_from "${work}/neg-runner")
-    verify_state "unknown" "${stamped:-none}" "Unrelated checkout stamps unknown (R7-F9)"
-    local neg_warn="false"
-    printf "%s" "${neg_out}" | grep -q "does not have the epics-ioc-runner layout" && neg_warn="true"
-    verify_state "true" "${neg_warn}" "Unrelated checkout emits the layout WARN"
-
-    rm -rf "${work}" 2>/dev/null || true
-}
-
-# Behavioral regression for the runner backup filter (#123). Runs the REAL
-# setup STEP 7 with the runner/symlink/completion destinations AND the backup
-# directory (IOC_RUNNER_BACKUP_DIR) redirected to a scratch tree, so nothing
-# system is touched. A no-change redeploy differs only in the three volatile
-# RUNNER_* stamp lines and must NOT create a backup; a real source change must
-# create exactly one. Counts "Created backup" log events, not .bak files
-# (same-second timestamps would overwrite and undercount).
-function test_setup_runner_backup_filter {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Verify Runner Backup Filter (real run)"
-    print_sub_divider
-
-    local script_dir setup_script
-    script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    setup_script="${script_dir}/../bin/setup-system-infra.bash"
-    if [[ ! -f "${setup_script}" ]]; then
-        verify_state "exists" "not_found" "setup-system-infra.bash exists"
-        return
-    fi
-
-    local invoker="${SUDO_USER:-$(id -un)}"
-    local as_invoker=(bash -c)
-    if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
-        as_invoker=(sudo -u "${invoker}" -n bash -c)
-    fi
-    local work
-    work=$("${as_invoker[@]}" 'mktemp -d')
-    # A scratch copy of the runner source, so the positive control can make a
-    # genuine SOURCE change without touching the repo.
-    "${as_invoker[@]}" "cp '${script_dir}/../bin/ioc-runner' '${work}/src-ioc-runner'"
-
-    run_setup() {   # deploys once into the scratch tree; echoes the run output
-        IOC_RUNNER_SCRIPT_SRC="${work}/src-ioc-runner" \
-        IOC_RUNNER_SCRIPT_DEST="${work}/ioc-runner" \
-        IOC_RUNNER_SCRIPT_SYMLINK="${work}/symlink" \
-        IOC_RUNNER_BASH_COMP_DEST="${work}/completion" \
-        IOC_RUNNER_BACKUP_DIR="${work}/backups" \
-            bash "${setup_script}" 2>&1 || true
-    }
-
-    run_setup >/dev/null        # run 1: establishes the deployed runner
-    local out2 out3 nochange_backups
-    out2=$(run_setup)           # run 2 and 3: no source change -> stamp-only diff
-    out3=$(run_setup)
-    nochange_backups=$(printf "%s\n%s" "${out2}" "${out3}" | grep -c "Created backup of ioc-runner" || true)
-    verify_state "0" "${nochange_backups}" "No-change redeploys create no runner backup (#123)"
-
-    # Positive control: a genuine source change (a non-stamp line) creates one.
-    "${as_invoker[@]}" "printf '# real change\n' >> '${work}/src-ioc-runner'"
-    local out_changed changed_backups
-    out_changed=$(run_setup)
-    changed_backups=$(printf "%s" "${out_changed}" | grep -c "Created backup of ioc-runner" || true)
-    verify_state "1" "${changed_backups}" "A real source change creates exactly one runner backup"
-
-    rm -rf "${work}" 2>/dev/null || true
-}
-
-function test_setup_version_injection_guards {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Verify Setup Version Injection Guards"
-    print_sub_divider
-
-    local script_dir
-    script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    local setup_script="${script_dir}/../bin/setup-system-infra.bash"
-
-    if [[ ! -f "${setup_script}" ]]; then
-        verify_state "exists" "not_found" "setup-system-infra.bash exists at expected location"
-        return
-    fi
-
-    # Regression guard: version-injection block must drop privileges to
-    # the invoking user (SUDO_USER) when running under sudo. safe.directory
-    # does not help on NFS root_squash mounts where root cannot even stat
-    # the work tree (failure precedes git's ownership check). Tracked as #42.
-    local sudo_user_ref="false"
-    if grep -qE 'SUDO_USER' "${setup_script}"; then
-        sudo_user_ref="true"
-    fi
-    verify_state "true" "${sudo_user_ref}" "version injection references SUDO_USER for privilege drop"
-
-    local sudo_u_drop="false"
-    if grep -qE 'sudo[[:space:]]+-u[[:space:]]' "${setup_script}"; then
-        sudo_u_drop="true"
-    fi
-    verify_state "true" "${sudo_u_drop}" "version injection uses sudo -u for privilege drop"
-
-    # Regression guard: the dirty marker must be gated on a real hash so a
-    # failed diff-index does not yield 'unknown-dirty'. Tracked as #42.
-    local unknown_guard="false"
-    if grep -qE '\[\[[[:space:]]*"\$\{current_git_hash\}"[[:space:]]*!=[[:space:]]*"unknown"' "${setup_script}"; then
-        unknown_guard="true"
-    fi
-    verify_state "true" "${unknown_guard}" "dirty marker is gated on non-unknown current_git_hash"
-}
-
-function test_metadata_field_naming {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Verify Version Metadata Field Naming"
-    print_sub_divider
-
-    local script_dir
-    script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    local runner_script="${script_dir}/../bin/ioc-runner"
-    local setup_script="${script_dir}/../bin/setup-system-infra.bash"
-
-    if [[ ! -f "${runner_script}" ]] || [[ ! -f "${setup_script}" ]]; then
-        verify_state "exists" "not_found" "ioc-runner and setup-system-infra.bash exist at expected locations"
-        return
-    fi
-
-    # Regression guard: ioc-runner must declare the renamed metadata
-    # fields. The legacy RUNNER_BUILD_DATE is dropped because its value
-    # was the install moment, not the commit moment. Tracked as #43.
-    local commit_decl="false"
-    if grep -qE '^declare -g RUNNER_COMMIT_DATE=' "${runner_script}"; then
-        commit_decl="true"
-    fi
-    verify_state "true" "${commit_decl}" "ioc-runner declares RUNNER_COMMIT_DATE"
-
-    local install_decl="false"
-    if grep -qE '^declare -g RUNNER_INSTALL_DATE=' "${runner_script}"; then
-        install_decl="true"
-    fi
-    verify_state "true" "${install_decl}" "ioc-runner declares RUNNER_INSTALL_DATE"
-
-    # Negative guard: no residue of the deprecated RUNNER_BUILD_DATE
-    # name in either source. A sed line in setup-system-infra.bash that
-    # still targets RUNNER_BUILD_DATE would silently no-op against the
-    # renamed declaration and leave install date as 'unreleased'.
-    local build_residue="false"
-    if grep -qE 'RUNNER_BUILD_DATE|build date:' "${runner_script}" "${setup_script}"; then
-        build_residue="true"
-    fi
-    verify_state "false" "${build_residue}" "no RUNNER_BUILD_DATE or build date label residue in source"
-
-    # Regression guard: setup-system-infra.bash must inject both new
-    # fields via sed; otherwise the deployed CLI keeps 'unreleased'
-    # placeholders.
-    local commit_inject="false"
-    if grep -qE 'sed.*RUNNER_COMMIT_DATE' "${setup_script}"; then
-        commit_inject="true"
-    fi
-    verify_state "true" "${commit_inject}" "setup-system-infra.bash injects RUNNER_COMMIT_DATE via sed"
-
-    local install_inject="false"
-    if grep -qE 'sed.*RUNNER_INSTALL_DATE' "${setup_script}"; then
-        install_inject="true"
-    fi
-    verify_state "true" "${install_inject}" "setup-system-infra.bash injects RUNNER_INSTALL_DATE via sed"
-}
-
-function test_runner_version_path_resolution {
-    local step="$1"
-    print_divider
-    _log "INFO" "STEP ${step}: Verify Runner -V Live-Hash Path Resolution"
-    print_sub_divider
-
-    local script_dir
-    script_dir="$(dirname "${BASH_SOURCE[0]}")"
-    local runner_script="${script_dir}/../bin/ioc-runner"
-
-    if [[ ! -f "${runner_script}" ]]; then
-        verify_state "exists" "not_found" "ioc-runner exists at expected location"
-        return
-    fi
-
-    # Regression guard: the -V live-hash branch must not derive script_dir
-    # via 'readlink -f'. realpath silently returns empty under NFS
-    # root_squash + sudo, falling back to '.' (caller's CWD), which then
-    # makes 'git -C "."' fail and the live-hash output regress to
-    # 'unknown'. Same assumption as #38; tracked as #39.
-    local readlink_in_v_handler="false"
-    if grep -qE '^[[:space:]]*script_dir=.*readlink[[:space:]]+-f' "${runner_script}"; then
-        readlink_in_v_handler="true"
-    fi
-    verify_state "false" "${readlink_in_v_handler}" "ioc-runner -V handler does not derive script_dir via 'readlink -f'"
 }
 
 function run_all_tests {
@@ -699,16 +486,18 @@ function run_all_tests {
         "test_logrotate_syntax"
         "test_sudoers_includedir_order"
         "test_sudoers_regex_denies_bad_name"
-        "test_git_context_resolution"
-        "test_setup_script_dir_resolution"
-        "test_setup_stamp_layout_guard"
-        "test_setup_runner_backup_filter"
-        "test_setup_version_injection_guards"
-        "test_metadata_field_naming"
-        "test_runner_version_path_resolution"
     )
     local step=1
-    local func
+    local func=""
+    local root_invocation="false"
+
+    initialize_reporting
+    [[ ${EUID} -eq 0 ]] && root_invocation="true"
+    verify_state "true" "${root_invocation}" "${SUITE_ID}.P00.root-required"
+    if [[ "${root_invocation}" != "true" ]]; then
+        close_after_root_failure
+        return
+    fi
     for func in "${pipeline[@]}"; do
         "${func}" "${step}"
         step=$((step + 1))

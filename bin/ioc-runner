@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.2.2"
+declare -g RUNNER_VERSION="1.2.3"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
@@ -85,17 +85,17 @@ declare -g FORCE_OVERWRITE=0
 # Single configurable source for the system-mode service identity (#87).
 # setup-system-infra.bash resolves the same IOC_RUNNER_SYSTEM_USER/GROUP
 # overrides with the same defaults; the shared defaults are pinned by a
-# static guard test in tests/test-error-handling.bash.
+# static guard test in tests/test-source-regression.bash.
 declare -g TARGET_SYSTEM_USER="${IOC_RUNNER_SYSTEM_USER:-ioc-srv}"
 declare -g TARGET_SYSTEM_GROUP="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
 
 # --- Health Check Configuration ---
 # Crash/fatal detection tokens for procServ startup logs (M11/#67). The detection
 # set is split into two subsets; the base CRASH_LOG_PATTERNS below is their union.
-# A static guard test (tests/test-error-handling.bash) asserts the union holds, so
+# A static guard test (tests/test-source-regression.bash) asserts the union holds, so
 # the subsets remain the single source of truth even though the base is spelled out
-# as a literal (the zero-fork test scraper reads the base line as text and cannot
-# expand a derived form).
+# as a literal (the source-regression extractor reads the base line as text and
+# cannot expand a derived form).
 #
 # Fatal subset: a standalone pre-marker exit-1 trigger (failed-to-init). These name
 # a process that cannot run, not a transient that may recover.
@@ -277,7 +277,7 @@ while [[ $# -gt 0 ]]; do
                 script_dir="$(dirname "${BASH_SOURCE[0]}")"
                 if command -v git >/dev/null 2>&1 && git -C "${script_dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
                     display_hash=$(git -C "${script_dir}" rev-parse --short HEAD)
-                    if ! git -C "${script_dir}" diff-index --quiet HEAD -- 2>/dev/null; then
+                    if ! git -C "${script_dir}" diff --quiet HEAD -- 2>/dev/null; then
                         display_hash="${display_hash}-dirty"
                     fi
                     display_hash="${display_hash} (live)"

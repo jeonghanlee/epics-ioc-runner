@@ -5,56 +5,27 @@
 # the install, start, view, list, enable, disable, and remove workflows.
 # It validates the systemd template unit (@.service) architecture at the system level.
 
-set -e
+set -euo pipefail
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+umask 077
+unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE
 
 declare -g RED='\033[0;31m'
 declare -g GREEN='\033[0;32m'
-declare -g MAGENTA='\033[0;35m'
 declare -g BLUE='\033[0;34m'
 declare -g YELLOW='\033[0;33m'
 declare -g NC='\033[0m'
 
-declare -g TEST_TOTAL=0
-declare -g TEST_PASSED=0
-declare -g TEST_FAILED=0
-declare -g SCRIPT_ERROR=0
-declare -g -a FAILED_DETAILS=()
-
 declare -g CAMONITOR_COUNT=5
 declare -g CAMONITOR_TIMEOUT=10
 
-if [[ -z "${EPICS_BASE}" ]]; then
-    printf "${RED}%s${NC}\n" "ERROR: The EPICS_BASE environment variable is not set." >&2
-    printf "Please source your EPICS environment script and run as: bash %s\n" "$(basename "$0")" >&2
-    exit 1
-fi
-
-if ! command -v lsof >/dev/null 2>&1; then
-    printf "${RED}%s${NC}\n" "ERROR: The 'lsof' utility is required for the inspect test (STEP 24) but was not found in PATH." >&2
-    printf "Hint: install lsof via your package manager (apt install lsof / dnf install lsof).\n" >&2
-    exit 1
-fi
-
-if [[ -z "${EPICS_HOST_ARCH}" ]]; then
+if [[ -z "${EPICS_HOST_ARCH:-}" ]]; then
     export EPICS_HOST_ARCH="linux-x86_64"
-fi
-
-# System Requirement: System-wide operations and Netlink socket diagnostics require root privileges.
-if [[ "${EUID}" -ne 0 ]]; then
-    printf "${RED}%s${NC}\n" "ERROR: System lifecycle tests require root privileges." >&2
-    printf "Please run this script with sudo: sudo bash %s\n" "$(basename "$0")" >&2
-    exit 1
 fi
 
 # Monitor isolation reads system journal output. Mark unavailable so the
 # dependent step skips with a WARN rather than aborting the run.
-declare -g JOURNAL_AVAILABLE="true"
-journal_probe=$(journalctl --no-pager -n 1 2>&1 || true)
-if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}" == *"insufficient permissions"* ]]; then
-    JOURNAL_AVAILABLE="false"
-    printf "${YELLOW}%s${NC}\n" "WARN: System journal unavailable on this host." >&2
-    printf "Monitor isolation step will be skipped.\n" >&2
-fi
+declare -g JOURNAL_AVAILABLE="false"
 
 declare -g SC_TOP
 # Capture an absolute SC_TOP without readlink/realpath/cd-pwd; later
@@ -63,6 +34,115 @@ declare -g SC_TOP
 # start, set by the kernel and not subject to NFS root_squash.
 SC_TOP="$(dirname "${BASH_SOURCE[0]}")"
 [[ "${SC_TOP}" != /* ]] && SC_TOP="${PWD}/${SC_TOP}"
+
+declare -gr SUITE_ID="system-lifecycle"
+declare -gr SUITE_SCOPE="system"
+declare -gr SUITE_CATEGORY="lifecycle-behavior"
+declare -g SUITE_RUNNER="source"
+declare -g REPORT_DIR=""
+declare -g REPORT_READY=0
+declare -g CURRENT_STEP_ID=""
+declare -g CURRENT_STEP_CHECK_INDEX=0
+declare -g SUITE_ASSERTION_FAILED=0
+declare -g SYSTEM_INFRA_READY=0
+declare -g -a SYSTEM_CATALOG_ROWS=(
+    "P00|system-lifecycle.P00.epics-base-set|REQUIRED|direct-inspection"
+    "P00|system-lifecycle.P00.lsof-available|REQUIRED|direct-inspection"
+    "P00|system-lifecycle.P00.root-invocation|REQUIRED|direct-inspection"
+    "P00|system-lifecycle.P00.selected-runner-executable|REQUIRED|direct-inspection"
+    "S01|system-lifecycle.S01.system-configuration-directory-exists-conf-dir|REQUIRED|direct-inspection"
+    "S01|system-lifecycle.S01.system-configuration-directory-is-writable-by-current-user|REQUIRED|direct-inspection"
+    "S01|system-lifecycle.S01.system-template-unit-exists-systemd-dir-epics-service|REQUIRED|direct-inspection"
+    "S05|system-lifecycle.S05.manual-configuration-artifact-created|BEHAVIOR|real-path"
+    "S06|system-lifecycle.S06.explicit-file-installation-succeeded|BEHAVIOR|real-path"
+    "S07|system-lifecycle.S07.deployed-configuration-safely-removed|BEHAVIOR|real-path"
+    "S08|system-lifecycle.S08.directory-based-installation-succeeded|BEHAVIOR|real-path"
+    "S09|system-lifecycle.S09.deployed-configuration-safely-removed|BEHAVIOR|real-path"
+    "S10|system-lifecycle.S10.workspace-configuration-artifact-removed|BEHAVIOR|real-path"
+    "S11|system-lifecycle.S11.configuration-artifact-auto-generated-natively|BEHAVIOR|real-path"
+    "S12|system-lifecycle.S12.explicit-file-installation-succeeded|BEHAVIOR|real-path"
+    "S13|system-lifecycle.S13.deployed-configuration-safely-removed|BEHAVIOR|real-path"
+    "S14|system-lifecycle.S14.directory-based-installation-succeeded|BEHAVIOR|real-path"
+    "S15|system-lifecycle.S15.service-active|BEHAVIOR|real-path"
+    "S16|system-lifecycle.S16.status-output-shows-active-active|BEHAVIOR|real-path"
+    "S17|system-lifecycle.S17.view-output-renders-the-configuration-ioc-cmd|BEHAVIOR|real-path"
+    "S18|system-lifecycle.S18.service-remains-active-after-restart|BEHAVIOR|real-path"
+    "S19|system-lifecycle.S19.service-is-inactive-after-stop|BEHAVIOR|real-path"
+    "S19|system-lifecycle.S19.service-is-active-after-restart-following-stop|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.unix-domain-socket-explicitly-created|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.ioc-name-appears-in-list-output|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.uds-socket-path-appears-in-list-output|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.list-v-output-contains-pid-column|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.list-v-output-contains-cpu-column|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.list-v-output-contains-mem-column|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.list-vv-output-contains-recv-q-column|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.list-vv-output-contains-send-q-column|BEHAVIOR|real-path"
+    "S20|system-lifecycle.S20.list-vv-output-contains-perm-column|BEHAVIOR|real-path"
+    "S21|system-lifecycle.S21.parsed-list-v|BEHAVIOR|real-path"
+    "S21|system-lifecycle.S21.parsed-v-list|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.uds-socket-has-correct-permissions-srw-rw|BEHAVIOR|direct-inspection"
+    "S22|system-lifecycle.S22.con-available|REQUIRED|direct-inspection"
+    "S22|system-lifecycle.S22.uds-socket-is-in-listening-state|BEHAVIOR|direct-inspection"
+    "S23|system-lifecycle.S23.camonitor-available|REQUIRED|direct-inspection"
+    "S23|system-lifecycle.S23.expected-updates-observed|BEHAVIOR|real-path"
+    "S24|system-lifecycle.S24.inspect-command-successfully-retrieved-server-netlink-context|BEHAVIOR|real-path"
+    "S24|system-lifecycle.S24.inspect-section-1-references-the-target-socket-path|BEHAVIOR|real-path"
+    "S24|system-lifecycle.S24.inspect-section-1-excludes-unrelated-systemd-uds-entries|BEHAVIOR|real-path"
+    "S25|system-lifecycle.S25.system-journal-available|PREREQUISITE|direct-inspection"
+    "S25|system-lifecycle.S25.journal-channel-visible-for-unit-positive-control|BEHAVIOR|real-path"
+    "S25|system-lifecycle.S25.input-securely-blocked-in-monitor-mode|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.softioc-available|PREREQUISITE|direct-inspection"
+    "S26|system-lifecycle.S26.broken-softioc-fatal-pre-init-exit-1|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.broken-softioc-failed-to-initialize-verdict|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.softioc-available|PREREQUISITE|direct-inspection"
+    "S27|system-lifecycle.S27.probe-user-name-available|PREREQUISITE|direct-inspection"
+    "S27|system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.operator-is-not-in-systemd-journal|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.journal-less-operator-crash-exit-1|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.journal-less-operator-failed-to-initialize-verdict-reads-log-file-not-journal|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.logrotate-policy-exists|REQUIRED|direct-inspection"
+    "S28|system-lifecycle.S28.softioc-available|PREREQUISITE|direct-inspection"
+    "S28|system-lifecycle.S28.logrotate-available|PREREQUISITE|direct-inspection"
+    "S28|system-lifecycle.S28.pre-rotate-fatal-pattern-moved-into-rotated-log-boundary-created|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.active-log-cleared-of-the-pre-rotate-fatal-pattern-after-rotation|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.no-false-crash-verdict-from-rotated-historical-fatal-pattern|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.t2-sub-case-a-restart-activation-observed-before-log-mutation|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.t2-sub-case-a-log-mv-to-side-name-succeeded|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.t2-sub-case-a-replacement-log-install-succeeded|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.t2-sub-case-a-active-log-inode-actually-changed-after-replacement|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.t2-sub-case-a-in-window-new-inode-replacement-triggers-crash-verdict-exit-1|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.t2-sub-case-b-restart-activation-observed-before-log-mutation|BEHAVIOR|real-path"
+    "S28|system-lifecycle.S28.t2-sub-case-b-in-window-same-inode-regrow-past-triggers-crash-verdict-via-tailhash-mismatch|BEHAVIOR|real-path"
+    "S29|system-lifecycle.S29.sudoers-policy-exists|REQUIRED|direct-inspection"
+    "S29|system-lifecycle.S29.softioc-available|PREREQUISITE|direct-inspection"
+    "S29|system-lifecycle.S29.probe-user-name-available|PREREQUISITE|direct-inspection"
+    "S29|system-lifecycle.S29.probe-user-not-ioc-member|REQUIRED|direct-inspection"
+    "S29|system-lifecycle.S29.non-ioc-user-can-read-the-log-file-mode-0644|BEHAVIOR|real-path"
+    "S29|system-lifecycle.S29.non-ioc-user-denied-systemctl-start-by-ioc-sudoers-gate|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.conforming-root-ioc-2775-dir-emits-no-warning|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.conforming-install-exits-0|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.group-mismatch-dir-not-ioc-warns|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.group-mismatch-install-with-f-exits-0|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.untraversable-0700-parent-warns|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.untraversable-parent-install-with-f-exits-0|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.relative-ioc-chdir-is-a-hard-validation-error-m6-109|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.relative-path-install-exits-1-despite-f|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.symlinked-ioc-chdir-warns-symlinked-leaf-rejected|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.symlinked-leaf-install-with-f-exits-0|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.missing-setgid-0775-dir-warns|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.missing-setgid-install-with-f-exits-0|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.prompt-eof-aborts-install-exit-1|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.prompt-explicit-n-declines-install-exit-1|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.prompt-explicit-y-proceeds-with-install-exit-0|BEHAVIOR|real-path"
+    "S30|system-lifecycle.S30.prompt-y-path-deploys-the-conf-file|BEHAVIOR|real-path"
+    "S31|system-lifecycle.S31.symlink-created-in-multi-user-wants-enable|BEHAVIOR|real-path"
+    "S31|system-lifecycle.S31.symlink-strictly-removed-disable|BEHAVIOR|real-path"
+    "S32|system-lifecycle.S32.configuration-file-safely-removed|BEHAVIOR|real-path"
+    "S32|system-lifecycle.S32.service-completely-stopped-inactive|BEHAVIOR|real-path"
+)
+declare -g -A SYSTEM_STEP_CHECK_IDS=()
+# shellcheck source=lib/test-reporting.bash
+source "${SC_TOP}/lib/test-reporting.bash"
 
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
 # the binary origin; the unset default is the source tree, matching the
@@ -80,21 +160,14 @@ function resolve_runner_script {
             RUNNER_SCRIPT="${source_bin}"
             ;;
         installed)
-            if [[ ! -x "${installed_bin}" ]]; then
-                printf "Error: installed ioc-runner not found\n" >&2
-                exit 1
-            fi
             RUNNER_SCRIPT="${installed_bin}"
+            SUITE_RUNNER="installed"
             ;;
         *)
             printf "Error: invalid IOC_RUNNER_TEST_MODE '%s' (expected: source, installed)\n" "${mode}" >&2
             exit 1
             ;;
     esac
-    if [[ "${RUNNER_SCRIPT}" == "${source_bin}" && ! -x "${RUNNER_SCRIPT}" ]]; then
-        printf "Error: source ioc-runner not found\n" >&2
-        exit 1
-    fi
 }
 resolve_runner_script
 declare -g CONF_DIR="/etc/procServ.d"
@@ -136,45 +209,200 @@ declare -g -a SYSTEMCTL_CMD=(systemctl)
 
 declare -g KEEP_WORKSPACE="${KEEP_WORKSPACE:-0}"
 
+function read_os_release_value {
+    local wanted="$1"
+    local key=""
+    local value=""
+
+    while IFS='=' read -r key value || [[ -n "${key:-}" ]]; do
+        if [[ "${key}" == "${wanted}" ]]; then
+            value="${value#\"}"
+            value="${value%\"}"
+            printf '%s' "${value}"
+            return 0
+        fi
+    done < /etc/os-release
+    return 1
+}
+
+function initialize_reporting {
+    local row=""
+    local step_id=""
+    local check_id=""
+    local check_kind=""
+    local test_method=""
+    local description=""
+    local os_name="unknown"
+    local os_version="0"
+    local os_id=""
+    local run_id="${SUITE_ID}.$$.${BASHPID}"
+    local -a step_ids=(P00)
+    local index=0
+
+    for ((index = 1; index <= 32; index += 1)); do
+        printf -v step_id 'S%02d' "${index}"
+        step_ids+=("${step_id}")
+    done
+    if [[ -r /etc/os-release ]]; then
+        os_name=$(read_os_release_value ID || true)
+        os_version=$(read_os_release_value VERSION_ID || true)
+    fi
+    os_name="${os_name:-unknown}"
+    os_version="${os_version%%.*}"
+    os_version="${os_version:-0}"
+    os_id="${os_name}-${os_version}"
+    REPORT_DIR=$(mktemp -d /tmp/ioc-runner-system-lifecycle-report.XXXXXX)
+    report_init "${SUITE_ID}" "${run_id}" "${SUITE_SCOPE}" "${SUITE_RUNNER}" \
+        "${os_id}" "${EPICS_HOST_ARCH}" "${REPORT_DIR}"
+    REPORT_READY=1
+    for step_id in "${step_ids[@]}"; do
+        report_register_step "${step_id}" "System lifecycle ${step_id}"
+    done
+    for row in "${SYSTEM_CATALOG_ROWS[@]}"; do
+        IFS='|' read -r step_id check_id check_kind test_method <<< "${row}"
+        description="${check_id#${SUITE_ID}.${step_id}.}"
+        report_register_check "${check_id}" "${step_id}" "${SUITE_CATEGORY}" \
+            "${check_kind}" "${test_method}" "${description}"
+        if [[ -n "${SYSTEM_STEP_CHECK_IDS[${step_id}]:-}" ]]; then
+            SYSTEM_STEP_CHECK_IDS["${step_id}"]+=" ${check_id}"
+        else
+            SYSTEM_STEP_CHECK_IDS["${step_id}"]="${check_id}"
+        fi
+    done
+    report_close_catalog
+}
+
+function next_current_check_id {
+    local result_name="$1"
+    local check_list="${SYSTEM_STEP_CHECK_IDS[${CURRENT_STEP_ID}]:-}"
+    local -a check_ids=()
+
+    read -r -a check_ids <<< "${check_list}"
+    if (( CURRENT_STEP_CHECK_INDEX >= ${#check_ids[@]} )); then
+        printf 'REPORTING ERROR: extra assertion in %s\n' "${CURRENT_STEP_ID}" >&2
+        return 1
+    fi
+    printf -v "${result_name}" '%s' "${check_ids[${CURRENT_STEP_CHECK_INDEX}]}"
+    CURRENT_STEP_CHECK_INDEX=$((CURRENT_STEP_CHECK_INDEX + 1))
+}
+
+function record_current_state {
+    local state="$1"
+    local reason="${2:-}"
+    local check_id=""
+
+    next_current_check_id check_id
+    if [[ "${state}" == "PASS" ]]; then
+        report_record "${check_id}" PASS
+    else
+        report_record "${check_id}" "${state}" "${reason}"
+    fi
+}
+
+function close_current_remaining {
+    local state="$1"
+    local reason="$2"
+    local check_list="${SYSTEM_STEP_CHECK_IDS[${CURRENT_STEP_ID}]:-}"
+    local check_id=""
+    local -a check_ids=()
+
+    read -r -a check_ids <<< "${check_list}"
+    while (( CURRENT_STEP_CHECK_INDEX < ${#check_ids[@]} )); do
+        check_id="${check_ids[${CURRENT_STEP_CHECK_INDEX}]}"
+        CURRENT_STEP_CHECK_INDEX=$((CURRENT_STEP_CHECK_INDEX + 1))
+        report_record "${check_id}" "${state}" "${reason}"
+    done
+}
+
+function close_catalog_from_index {
+    local start_index="$1"
+    local state="$2"
+    local reason="$3"
+    local row=""
+    local step_id=""
+    local check_id=""
+    local check_kind=""
+    local test_method=""
+
+    for row in "${SYSTEM_CATALOG_ROWS[@]:${start_index}}"; do
+        IFS='|' read -r step_id check_id check_kind test_method <<< "${row}"
+        report_record "${check_id}" "${state}" "${reason}"
+    done
+}
+
+function run_preflight {
+    local epics_base_set="false"
+    local lsof_available="false"
+    local root_invocation="false"
+    local runner_executable="false"
+
+    CURRENT_STEP_ID=P00
+    CURRENT_STEP_CHECK_INDEX=0
+    [[ -n "${EPICS_BASE:-}" ]] && epics_base_set="true"
+    command -v lsof >/dev/null 2>&1 && lsof_available="true"
+    [[ "${EUID}" -eq 0 ]] && root_invocation="true"
+    [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
+    verify_state true "${epics_base_set}" "EPICS_BASE is set"
+    verify_state true "${lsof_available}" "lsof is available"
+    verify_state true "${root_invocation}" "Effective user is root"
+    verify_state true "${runner_executable}" "Selected runner is executable"
+    if [[ "${epics_base_set}" != "true" || "${lsof_available}" != "true" ||
+          "${root_invocation}" != "true" || "${runner_executable}" != "true" ]]; then
+        close_catalog_from_index 4 SKIP "requires system lifecycle P00"
+        return 1
+    fi
+}
+
+function probe_optional_dependencies {
+    local journal_probe=""
+
+    JOURNAL_AVAILABLE="true"
+    journal_probe=$(journalctl --no-pager -n 1 2>&1 || true)
+    if [[ "${journal_probe}" == *"No journal files were found"* ||
+          "${journal_probe}" == *"insufficient permissions"* ]]; then
+        JOURNAL_AVAILABLE="false"
+    fi
+}
+
 function _handle_exit {
     local exit_code=$?
+    local final_status="${exit_code}"
 
-    # System Requirement: Suppress unexpected abort message if failure is due to controlled test assertions
-    if [[ ${exit_code} -ne 0 && ${TEST_FAILED} -eq 0 && ${SCRIPT_ERROR} -eq 0 ]]; then
-        SCRIPT_ERROR=1
-        printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
-    fi
+    trap - EXIT
+    set +e
 
     # T5 may create a throwaway non-ioc account; remove only the one this run
     # created (a pre-existing account of the same name is left untouched).
-    if [[ -n "${T5_CREATED_USER}" ]] && id "${T5_CREATED_USER}" &>/dev/null; then
+    if [[ -n "${T5_CREATED_USER:-}" ]] && id "${T5_CREATED_USER}" &>/dev/null; then
         userdel "${T5_CREATED_USER}" 2>/dev/null || true
         T5_CREATED_USER=""
     fi
-    if [[ -n "${T1_CREATED_USER}" ]] && id "${T1_CREATED_USER}" &>/dev/null; then
+    if [[ -n "${T1_CREATED_USER:-}" ]] && id "${T1_CREATED_USER}" &>/dev/null; then
         userdel "${T1_CREATED_USER}" 2>/dev/null || true
         T1_CREATED_USER=""
     fi
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
-        if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
+        if [[ ${exit_code} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
             print_divider
             _log "WARN" "DEBUG: Test workspace retained for inspection."
             _log "WARN" "Path: ${WORKSPACE}"
             print_divider
-        else
-            rm -rf "${WORKSPACE}"
+        elif "${REPORT_RM_BIN:-/bin/rm}" -rf -- "${WORKSPACE}"; then
             _log "INFO" "Test workspace removed."
+        else
+            final_status=1
+            print_divider
+            _log "ERROR" "Failed to remove test workspace."
+            _log "ERROR" "Path: ${WORKSPACE}"
+            print_divider
         fi
     fi
 
-    print_summary
-
-    # System Requirement: Propagate aggregate failure state to CI/CD pipeline
-    if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 ]]; then
-        exit 1
+    if (( REPORT_READY )); then
+        report_finalize "${final_status}" || final_status=1
     fi
-    exit 0
+    exit "${final_status}"
 }
 
 
@@ -205,56 +433,24 @@ function print_sub_divider {
     printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
 }
 
-function print_summary {
-    printf "\n"
-    print_divider
-    printf "${BLUE}%s${NC}\n" "                                    SYSTEM LIFECYCLE TEST SUMMARY                                   "
-    print_divider
-
-    printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
-    printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "${RED}  %-20s : %d${NC}\n" "Failed" "${TEST_FAILED}"
-    else
-        printf "  %-20s : %d\n" "Failed" "0"
-    fi
-
-    if [[ ${SCRIPT_ERROR} -gt 0 ]]; then
-        printf "${MAGENTA}  %-20s : %d${NC}\n" "Script Errors" "${SCRIPT_ERROR}"
-    else
-        printf "  %-20s : %d\n" "Script Errors" "0"
-    fi
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "\n${RED}%s${NC}\n" "--- [ FAILED ASSERTIONS ] ---"
-        for detail in "${FAILED_DETAILS[@]}"; do
-            printf "${RED}  * %s${NC}\n" "$detail"
-        done
-        printf "${RED}%s${NC}\n" "-----------------------------"
-    elif [[ ${SCRIPT_ERROR} -eq 0 ]]; then
-        printf "\n${GREEN}%s${NC}\n" "[SUCCESS] All lifecycle tests completed perfectly!"
-    fi
-
-    printf "${BLUE}%s${NC}\n\n" "===================================================================================================="
-}
-
 function verify_state {
     local expected="$1"
     local actual="$2"
     local step_name="$3"
+    local check_id=""
 
-    TEST_TOTAL=$((TEST_TOTAL + 1))
+    next_current_check_id check_id
 
     if [[ "${expected}" == "${actual}" ]]; then
-        printf "${GREEN}[ PASS ]${NC} %s\n" "${step_name}"
-        TEST_PASSED=$((TEST_PASSED + 1))
+        printf "${GREEN}[ PASS ]${NC} %s\n" "${check_id}"
+        report_record "${check_id}" PASS
     else
-        printf "${RED}[ FAIL ]${NC} %s\n" "${step_name}" >&2
+        printf "${RED}[ FAIL ]${NC} %s\n" "${check_id}" >&2
         printf "  ${YELLOW}Expected : %s${NC}\n" "${expected}" >&2
         printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
-        TEST_FAILED=$((TEST_FAILED + 1))
-        FAILED_DETAILS+=("${step_name} (Expected: ${expected}, Actual: ${actual})")
+        SUITE_ASSERTION_FAILED=1
+        report_record "${check_id}" FAIL \
+            "${step_name}: expected ${expected}, actual ${actual}"
     fi
 }
 
@@ -294,6 +490,12 @@ function verify_infrastructure {
     verify_state "true" "${conf_dir_exist}" "System configuration directory exists (${CONF_DIR})"
     verify_state "true" "${conf_dir_writable}" "System configuration directory is writable by current user"
     verify_state "true" "${tmpl_exist}" "System template unit exists (${SYSTEMD_DIR}/epics-@.service)"
+    if [[ "${conf_dir_exist}" == "true" && "${conf_dir_writable}" == "true" &&
+          "${tmpl_exist}" == "true" ]]; then
+        SYSTEM_INFRA_READY=1
+    else
+        close_catalog_from_index 7 SKIP "requires system-lifecycle S01 infrastructure"
+    fi
 }
 
 # Returns the first free UDP port at or above the candidate base, so the
@@ -377,7 +579,8 @@ function setup_environment {
 
     # System tests run as root, but the IOC runs as ioc-srv. Ensure permissions.
     chown -R "${OWNER_WORKSPACE}" "${TOP_DIR}"
-    chmod +x "${BOOT_DIR}/st.cmd"
+    chmod -R g+rX "${TOP_DIR}"
+    chmod 0750 "${BOOT_DIR}/st.cmd"
 
     _log "SUCCESS" "System environment structure prepared at ${BOOT_DIR}"
 }
@@ -632,15 +835,17 @@ function test_console_attach {
     if [[ "${socket_perm}" == "srw-rw----" ]]; then perm_ok="true"; fi
     verify_state "true" "${perm_ok}" "UDS socket has correct permissions (srw-rw----)"
 
-    local con_cmd
-    if command -v con >/dev/null 2>&1; then
-        con_cmd="con"
-    else
-        con_cmd="/usr/local/bin/con"
-    fi
-
-    local con_ok="false"
-    if command -v "${con_cmd}" >/dev/null 2>&1; then con_ok="true"; fi
+    # Probe con exactly where bin/ioc-runner's resolve_con_tool searches in
+    # system mode (/usr/local/bin, then /usr/bin); the runner never consults
+    # PATH for con, so neither does the probe. The runner's socat fallback is
+    # not mirrored: this check asserts the con utility itself.
+    local con_ok="false" con_candidate
+    for con_candidate in /usr/local/bin/con /usr/bin/con; do
+        if [[ -x "${con_candidate}" ]]; then
+            con_ok="true"
+            break
+        fi
+    done
     verify_state "true" "${con_ok}" "con utility is available"
 
     local socket_listening="false"
@@ -664,7 +869,10 @@ function test_channel_access {
     if [[ ! -x "${camonitor_cmd}" ]] && ! command -v "${camonitor_cmd}" >/dev/null 2>&1; then
         _log "ERROR" "camonitor utility not found. Cannot verify PV."
         verify_state "found" "not_found" "camonitor executable availability"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S23.camonitor-available"
+        return 0
     fi
+    record_current_state PASS
 
     local test_pv="LBNL:TESTIOC:aiExample"
     _log "INFO" "Monitoring PV: ${test_pv} (${CAMONITOR_COUNT} updates)"
@@ -761,8 +969,11 @@ function test_monitor_isolation {
 
     if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
         _log "WARN" "System journal unavailable, skipping monitor isolation test."
+        record_current_state SKIP "system journal is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S25.system-journal-available"
         return 0
     fi
+    record_current_state PASS
 
     # Positive control (R8-F2): prove the unit's journal channel is
     # visible before asserting the marker's ABSENCE; the empty-window
@@ -806,12 +1017,17 @@ function test_crash_detection {
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping crash detection test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S26.softioc-available"
         return 0
     fi
+    record_current_state PASS
 
     local bad_ioc_name="CrashTestIOC-SYS"
     local bad_ioc_dir="${WORKSPACE}/bad_ioc"
     mkdir -p "${bad_ioc_dir}"
+    chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}"
+    chmod 2775 "${bad_ioc_dir}"
 
     cat << EOF > "${bad_ioc_dir}/st.cmd"
 #!${softioc_bin}
@@ -819,7 +1035,8 @@ system "sleep 0.5"
 system "echo 'FATAL: Simulated softIoc crash'"
 system "kill -9 \$PPID"
 EOF
-    chmod +x "${bad_ioc_dir}/st.cmd"
+    chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}/st.cmd"
+    chmod 0750 "${bad_ioc_dir}/st.cmd"
 
     cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
 IOC_USER="${SYSTEM_USER}"
@@ -859,15 +1076,21 @@ function test_detection_without_journal {
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping journal-less detection test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S27.softioc-available"
         return 0
     fi
+    record_current_state PASS
 
     local operator="epics-t1-operator"
     # Never touch a pre-existing account of this name: it may not be ours.
     if id "${operator}" &>/dev/null; then
         _log "WARN" "User ${operator} already exists; skipping to avoid removing a non-test account."
+        record_current_state SKIP "probe user name is already in use"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S27.probe-user-name-available"
         return 0
     fi
+    record_current_state PASS
     useradd -M -N -G "${SYSTEM_GROUP}" "${operator}" >/dev/null 2>&1
     T1_CREATED_USER="${operator}"
 
@@ -891,7 +1114,8 @@ function test_detection_without_journal {
 #!${softioc_bin}
 epicsEnvSet("BROKEN", "unterminated
 EOF
-    chmod +x "${bad_ioc_dir}/st.cmd"
+    chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}/st.cmd"
+    chmod 0750 "${bad_ioc_dir}/st.cmd"
 
     cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
 IOC_USER="${SYSTEM_USER}"
@@ -937,12 +1161,40 @@ function test_logrotate_boundary {
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -f "${logrotate_conf}" ]]; then
         _log "WARN" "${logrotate_conf} not found, skipping logrotate boundary test."
+        verify_state "true" "false" "System logrotate policy exists"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S28.logrotate-policy-exists"
         return 0
     fi
+    record_current_state PASS
     if [[ ! -x "${softioc_bin}" ]]; then
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping logrotate boundary test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S28.softioc-available"
         return 0
     fi
+    record_current_state PASS
+
+    # Resolve logrotate the way bin/ioc-runner's resolve_logrotate_tool does
+    # (a second copy of its LOGROTATE_SEARCH_PATHS, like the local suite's
+    # probe): root's PATH normally carries sbin, but under set -e a bare name
+    # that fails to resolve would abort the whole suite instead of skipping.
+    local logrotate_bin="" logrotate_candidate
+    for logrotate_candidate in /usr/sbin/logrotate /sbin/logrotate /usr/bin/logrotate; do
+        if [[ -x "${logrotate_candidate}" ]]; then
+            logrotate_bin="${logrotate_candidate}"
+            break
+        fi
+    done
+    if [[ -z "${logrotate_bin}" ]]; then
+        logrotate_bin=$(command -v logrotate 2>/dev/null || true)
+    fi
+    if [[ -z "${logrotate_bin}" ]]; then
+        _log "WARN" "logrotate not found, skipping logrotate boundary test."
+        record_current_state SKIP "logrotate is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S28.logrotate-available"
+        return 0
+    fi
+    record_current_state PASS
 
     # M11/#67: the T2 fixtures intentionally never call iocInit (they stay in the
     # pre-marker phase so an in-window FATAL is a deterministic exit-1), so the
@@ -971,7 +1223,8 @@ function test_logrotate_boundary {
 #!${softioc_bin}
 system "sleep 0.5"
 EOF
-    chmod +x "${rot_ioc_dir}/st.cmd"
+    chown "${OWNER_WORKSPACE}" "${rot_ioc_dir}/st.cmd"
+    chmod 0750 "${rot_ioc_dir}/st.cmd"
 
     cat << EOF > "${WORKSPACE}/${rot_ioc_name}.conf"
 IOC_USER="${SYSTEM_USER}"
@@ -990,7 +1243,7 @@ EOF
 
     # Force rotation: copytruncate moves history into <name>.log.1.gz and
     # truncates the active log in place.
-    logrotate -f "${logrotate_conf}" >/dev/null 2>&1
+    "${logrotate_bin}" -f "${logrotate_conf}" >/dev/null 2>&1
 
     # Evidence 1 (boundary created): the marker now lives in the rotated file
     # and no longer in the active log.
@@ -1156,19 +1409,28 @@ function test_permission_enforcement {
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -f "${SUDOERS_FILE_PATH}" ]]; then
         _log "WARN" "${SUDOERS_FILE_PATH} not found, skipping permission enforcement test."
+        verify_state "true" "false" "System sudoers policy exists"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S29.sudoers-policy-exists"
         return 0
     fi
+    record_current_state PASS
     if [[ ! -x "${softioc_bin}" ]]; then
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping permission enforcement test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S29.softioc-available"
         return 0
     fi
+    record_current_state PASS
 
     local nonioc_user="epics-t5-noioc"
     # Never touch a pre-existing account of this name: it may not be ours.
     if id "${nonioc_user}" &>/dev/null; then
         _log "WARN" "User ${nonioc_user} already exists; skipping to avoid removing a non-test account."
+        record_current_state SKIP "probe user name is already in use"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S29.probe-user-name-available"
         return 0
     fi
+    record_current_state PASS
     useradd -M -N "${nonioc_user}" >/dev/null 2>&1
     T5_CREATED_USER="${nonioc_user}"
 
@@ -1176,10 +1438,13 @@ function test_permission_enforcement {
     # below would be meaningless.
     if id -nG "${nonioc_user}" 2>/dev/null | grep -qw "${SYSTEM_GROUP}"; then
         _log "WARN" "Test user unexpectedly in ${SYSTEM_GROUP}; skipping."
+        verify_state "false" "true" "Probe user is not an ioc-group member"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S29.probe-user-not-ioc-member"
         userdel "${nonioc_user}" 2>/dev/null || true
         T5_CREATED_USER=""
         return 0
     fi
+    record_current_state PASS
 
     local perm_ioc_name="PermTestIOC-SYS"
     local perm_ioc_dir="${WORKSPACE}/perm_ioc"
@@ -1192,7 +1457,8 @@ function test_permission_enforcement {
 #!${softioc_bin}
 system "sleep 0.5"
 EOF
-    chmod +x "${perm_ioc_dir}/st.cmd"
+    chown "${OWNER_WORKSPACE}" "${perm_ioc_dir}/st.cmd"
+    chmod 0750 "${perm_ioc_dir}/st.cmd"
 
     cat << EOF > "${WORKSPACE}/${perm_ioc_name}.conf"
 IOC_USER="${SYSTEM_USER}"
@@ -1244,6 +1510,8 @@ function test_chdir_precheck {
     # needed, and _handle_exit's cleanup/retention covers it even on abort.
     local base="${WORKSPACE}/precheck"
     mkdir -p "${base}"
+    chown "${OWNER_WORKSPACE}" "${base}"
+    chmod 2770 "${base}"
 
     local stderr_cap="${base}/stderr"
     local ec
@@ -1259,7 +1527,7 @@ function test_chdir_precheck {
     sysd="${base}/s1"; conf="${base}/c1"
     mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
     chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 2775 "${chdir}"
-    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    touch "${chdir}/st.cmd"; chmod 0755 "${chdir}/st.cmd"
     cat <<EOF > "${conf_file}"
 IOC_NAME="${name}"
 IOC_USER="${SYSTEM_USER}"
@@ -1282,7 +1550,7 @@ EOF
     sysd="${base}/s2"; conf="${base}/c2"
     mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
     chgrp root "${chdir}"; chmod 2775 "${chdir}"
-    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    touch "${chdir}/st.cmd"; chmod 0755 "${chdir}/st.cmd"
     cat <<EOF > "${conf_file}"
 IOC_NAME="${name}"
 IOC_USER="${SYSTEM_USER}"
@@ -1305,7 +1573,7 @@ EOF
     sysd="${base}/s3"; conf="${base}/c3"
     mkdir -p "${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
     chgrp "${SYSTEM_GROUP}" "${chdir}"; chmod 2775 "${chdir}"
-    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    touch "${chdir}/st.cmd"; chmod 0755 "${chdir}/st.cmd"
     chmod 0700 "${p3}"
     cat <<EOF > "${conf_file}"
 IOC_NAME="${name}"
@@ -1333,7 +1601,7 @@ EOF
     sysd="${base}/s4"; conf="${base}/c4"
     mkdir -p "${case_root}/${chdir}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
     chgrp "${SYSTEM_GROUP}" "${case_root}/${chdir}"; chmod 2775 "${case_root}/${chdir}"
-    touch "${case_root}/${chdir}/st.cmd"; chmod +x "${case_root}/${chdir}/st.cmd"
+    touch "${case_root}/${chdir}/st.cmd"; chmod 0755 "${case_root}/${chdir}/st.cmd"
     cat <<EOF > "${conf_file}"
 IOC_NAME="${name}"
 IOC_USER="${SYSTEM_USER}"
@@ -1357,7 +1625,7 @@ EOF
     sysd="${base}/s5"; conf="${base}/c5"
     mkdir -p "${link_target}" "${sysd}" "${conf}"; touch "${sysd}/epics-@.service"
     chgrp "${SYSTEM_GROUP}" "${link_target}"; chmod 2775 "${link_target}"
-    touch "${link_target}/st.cmd"; chmod +x "${link_target}/st.cmd"
+    touch "${link_target}/st.cmd"; chmod 0755 "${link_target}/st.cmd"
     ln -s "${link_target}" "${chdir}"
     cat <<EOF > "${conf_file}"
 IOC_NAME="${name}"
@@ -1384,7 +1652,7 @@ EOF
     # chmod 0775 keeps the parent-inherited setgid bit; clear it explicitly so
     # this case truly exercises a non-setgid (mode 775) directory.
     chmod g-s "${chdir}"
-    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    touch "${chdir}/st.cmd"; chmod 0755 "${chdir}/st.cmd"
     cat <<EOF > "${conf_file}"
 IOC_NAME="${name}"
 IOC_USER="${SYSTEM_USER}"
@@ -1406,7 +1674,7 @@ EOF
     chdir="${base}/promptdir"; conf_file="${base}/${name}.conf"
     mkdir -p "${chdir}"
     chgrp root "${chdir}"; chmod 2775 "${chdir}"
-    touch "${chdir}/st.cmd"; chmod +x "${chdir}/st.cmd"
+    touch "${chdir}/st.cmd"; chmod 0755 "${chdir}/st.cmd"
     cat <<EOF > "${conf_file}"
 IOC_NAME="${name}"
 IOC_USER="${SYSTEM_USER}"
@@ -1523,6 +1791,15 @@ function run_all_tests {
         "test_remove"
     )
 
+    local step=1
+    local func=""
+
+    initialize_reporting
+    if ! run_preflight; then
+        return
+    fi
+    probe_optional_dependencies
+
     # Record which ioc-runner binary this run exercises, so captured
     # output shows whether the installed or source-tree binary ran. A
     # stale installed binary previously masked a passing fix as a failing
@@ -1532,13 +1809,15 @@ function run_all_tests {
     bash "${RUNNER_SCRIPT}" -V || _log "WARN" "ioc-runner -V returned non-zero"
     print_divider
 
-    local step=1
-    local func
     for func in "${pipeline[@]}"; do
+        printf -v CURRENT_STEP_ID 'S%02d' "${step}"
+        CURRENT_STEP_CHECK_INDEX=0
         "${func}" "${step}"
+        if [[ "${CURRENT_STEP_ID}" == "S01" && ${SYSTEM_INFRA_READY} -eq 0 ]]; then
+            return
+        fi
         step=$((step + 1))
     done
 }
 
 run_all_tests
-

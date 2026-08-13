@@ -10,61 +10,34 @@ set -e
 # --- Global Output & Color Settings ---
 declare -g RED='\033[0;31m'
 declare -g GREEN='\033[0;32m'
-declare -g MAGENTA='\033[0;35m'
 declare -g BLUE='\033[0;34m'
 declare -g YELLOW='\033[0;33m'
 declare -g NC='\033[0m'
-
-# --- Global Test Tracking ---
-declare -g TEST_TOTAL=0
-declare -g TEST_PASSED=0
-declare -g TEST_FAILED=0
-declare -g SCRIPT_ERROR=0
-declare -g -a FAILED_DETAILS=()
 
 # --- EPICS Test Configuration ---
 declare -g CAMONITOR_COUNT=5
 declare -g CAMONITOR_TIMEOUT=10
 
-if [[ -z "${EPICS_BASE}" ]]; then
-    printf "${RED}%s${NC}\n" "ERROR: The EPICS_BASE environment variable is not set." >&2
-    printf "Please source your EPICS environment script before running this test.\n" >&2
-    exit 1
-fi
+# STEP 29 reads journalctl --user output after its OS applicability boundary.
+# Rocky ordinary operators intentionally lack broad journal access, so the
+# complete step is non-applicable there. Other hosts probe the user journal
+# and skip the dependent behavior checks when that optional facility is absent.
+declare -g MONITOR_ISOLATION_APPLICABLE="true"
+declare -g JOURNAL_AVAILABLE="false"
 
-if ! command -v lsof >/dev/null 2>&1; then
-    printf "${RED}%s${NC}\n" "ERROR: The 'lsof' utility is required for the inspect test (STEP 17) but was not found in PATH." >&2
-    printf "Hint: install lsof via your package manager (apt install lsof / dnf install lsof).\n" >&2
-    exit 1
-fi
+# U003/M19: the local log-rotation steps need logrotate. Resolve it the way
+# bin/ioc-runner's resolve_logrotate_tool does - absolute paths first, PATH
+# lookup as fallback - because Debian keeps sbin off a user PATH while the
+# runner still installs rotation there; the probe must answer what the runner
+# answers. The path list is a deliberate second copy of the runner's
+# LOGROTATE_SEARCH_PATHS; IOC_RUNNER_LOGROTATE_TOOL is not consulted because
+# the suite verifies the default deployment. Hosts without logrotate cannot
+# verify rotation; mark it unavailable so those steps skip with a WARN rather
+# than fail (deploy_local_logrotate itself warns and skips).
+declare -g LOGROTATE_AVAILABLE="false"
+declare -g LOGROTATE_BIN=""
 
-# STEP 24 (monitor isolation) reads journalctl --user output. Hosts
-# without a working user-scope journal (no linger, missing
-# /var/log/journal/<machine-id>, or user not in systemd-journal group)
-# cannot verify that step. Detect both common failure messages and mark
-# the journal unavailable so dependent steps skip with a WARN.
-# See issue #50.
-declare -g JOURNAL_AVAILABLE="true"
-journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
-if [[ "${journal_probe}" == *"No journal files were found"* || "${journal_probe}" == *"insufficient permissions"* ]]; then
-    JOURNAL_AVAILABLE="false"
-    printf "${YELLOW}%s${NC}\n" "WARN: User-scope journal unavailable on this host." >&2
-    printf "The monitor-isolation step will be skipped.\n" >&2
-    printf "Hint: enable linger and persistent journal to enable these steps:\n" >&2
-    printf "  sudo loginctl enable-linger %s\n" "$(id -un)" >&2
-    printf "  sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald\n" >&2
-fi
-
-# U003/M19: the local log-rotation steps need logrotate. Hosts without it
-# cannot verify rotation; mark it unavailable so those steps skip with a WARN
-# rather than fail (deploy_local_logrotate itself warns and skips).
-declare -g LOGROTATE_AVAILABLE="true"
-if ! command -v logrotate >/dev/null 2>&1; then
-    LOGROTATE_AVAILABLE="false"
-    printf "${YELLOW}%s${NC}\n" "WARN: logrotate not found; U003/M19 rotation steps will be skipped." >&2
-fi
-
-if [[ -z "${EPICS_HOST_ARCH}" ]]; then
+if [[ -z "${EPICS_HOST_ARCH:-}" ]]; then
     export EPICS_HOST_ARCH="linux-x86_64"
 fi
 
@@ -72,6 +45,146 @@ declare -g SC_RPATH
 declare -g SC_TOP
 SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
+
+declare -gr SUITE_ID="local-lifecycle"
+declare -gr SUITE_SCOPE="local"
+declare -gr SUITE_CATEGORY="lifecycle-behavior"
+declare -g SUITE_RUNNER="source"
+declare -g REPORT_DIR=""
+declare -g REPORT_READY=0
+declare -g CURRENT_STEP_ID=""
+declare -g CURRENT_STEP_CHECK_INDEX=0
+declare -g -a LOCAL_CATALOG_ROWS=(
+    "P00|local-lifecycle.P00.epics-base-set|REQUIRED"
+    "P00|local-lifecycle.P00.lsof-available|REQUIRED"
+    "P00|local-lifecycle.P00.selected-runner-executable|REQUIRED"
+    "S04|local-lifecycle.S04.manual-configuration-created|BEHAVIOR"
+    "S05|local-lifecycle.S05.explicit-install-succeeded|BEHAVIOR"
+    "S06|local-lifecycle.S06.installed-configuration-removed|BEHAVIOR"
+    "S07|local-lifecycle.S07.directory-install-succeeded|BEHAVIOR"
+    "S08|local-lifecycle.S08.installed-configuration-removed|BEHAVIOR"
+    "S09|local-lifecycle.S09.workspace-configuration-removed|BEHAVIOR"
+    "S10|local-lifecycle.S10.automatic-configuration-created|BEHAVIOR"
+    "S11|local-lifecycle.S11.explicit-install-succeeded|BEHAVIOR"
+    "S12|local-lifecycle.S12.installed-configuration-removed|BEHAVIOR"
+    "S13|local-lifecycle.S13.directory-install-succeeded|BEHAVIOR"
+    "S14|local-lifecycle.S14.logrotate-available|PREREQUISITE"
+    "S14|local-lifecycle.S14.rotation-config-exists|REQUIRED"
+    "S14|local-lifecycle.S14.rotation-service-exists|REQUIRED"
+    "S14|local-lifecycle.S14.rotation-timer-exists|REQUIRED"
+    "S14|local-lifecycle.S14.rotation-contract-pinned|BEHAVIOR"
+    "S14|local-lifecycle.S14.su-directive-absent|BEHAVIOR"
+    "S14|local-lifecycle.S14.rotation-config-valid|BEHAVIOR"
+    "S14|local-lifecycle.S14.rotation-timer-enabled|BEHAVIOR"
+    "S14|local-lifecycle.S14.repeat-install-succeeded|BEHAVIOR"
+    "S14|local-lifecycle.S14.repeat-install-stable|BEHAVIOR"
+    "S15|local-lifecycle.S15.logrotate-available|PREREQUISITE"
+    "S15|local-lifecycle.S15.rotation-config-exists|REQUIRED"
+    "S15|local-lifecycle.S15.compressed-archive-created|BEHAVIOR"
+    "S15|local-lifecycle.S15.live-log-truncated|BEHAVIOR"
+    "S16|local-lifecycle.S16.logrotate-available|PREREQUISITE"
+    "S16|local-lifecycle.S16.rotation-config-exists|REQUIRED"
+    "S16|local-lifecycle.S16.maxsize-rotates-before-weekly|BEHAVIOR"
+    "S17|local-lifecycle.S17.service-active|BEHAVIOR"
+    "S18|local-lifecycle.S18.status-shows-active|BEHAVIOR"
+    "S19|local-lifecycle.S19.view-renders-configuration|BEHAVIOR"
+    "S20|local-lifecycle.S20.inspect-exits-zero|BEHAVIOR"
+    "S20|local-lifecycle.S20.inspect-shows-sockets|BEHAVIOR"
+    "S20|local-lifecycle.S20.inspect-shows-server|BEHAVIOR"
+    "S20|local-lifecycle.S20.inspect-shows-client|BEHAVIOR"
+    "S21|local-lifecycle.S21.socat-available|PREREQUISITE"
+    "S21|local-lifecycle.S21.unrelated-sockets-created|BEHAVIOR"
+    "S21|local-lifecycle.S21.inspect-exits-zero|BEHAVIOR"
+    "S21|local-lifecycle.S21.inspect-within-one-second|BEHAVIOR"
+    "S22|local-lifecycle.S22.service-active-after-restart|BEHAVIOR"
+    "S23|local-lifecycle.S23.service-inactive-after-stop|BEHAVIOR"
+    "S23|local-lifecycle.S23.service-active-after-start|BEHAVIOR"
+    "S24|local-lifecycle.S24.control-socket-created|BEHAVIOR"
+    "S24|local-lifecycle.S24.list-shows-ioc-name|BEHAVIOR"
+    "S24|local-lifecycle.S24.list-shows-socket-path|BEHAVIOR"
+    "S24|local-lifecycle.S24.verbose-list-shows-pid|BEHAVIOR"
+    "S24|local-lifecycle.S24.verbose-list-shows-cpu|BEHAVIOR"
+    "S24|local-lifecycle.S24.verbose-list-shows-memory|BEHAVIOR"
+    "S24|local-lifecycle.S24.double-verbose-list-shows-recvq|BEHAVIOR"
+    "S24|local-lifecycle.S24.double-verbose-list-shows-sendq|BEHAVIOR"
+    "S24|local-lifecycle.S24.double-verbose-list-shows-permission|BEHAVIOR"
+    "S25|local-lifecycle.S25.local-list-v-parsed|BEHAVIOR"
+    "S25|local-lifecycle.S25.list-v-local-parsed|BEHAVIOR"
+    "S25|local-lifecycle.S25.list-local-v-parsed|BEHAVIOR"
+    "S26|local-lifecycle.S26.user-list-shows-ioc|BEHAVIOR"
+    "S26|local-lifecycle.S26.user-list-matches-local|BEHAVIOR"
+    "S26|local-lifecycle.S26.user-status-shows-active|BEHAVIOR"
+    "S27|local-lifecycle.S27.socket-permission-valid|BEHAVIOR"
+    "S27|local-lifecycle.S27.con-available|REQUIRED"
+    "S27|local-lifecycle.S27.socket-listening|BEHAVIOR"
+    "S28|local-lifecycle.S28.camonitor-available|REQUIRED"
+    "S28|local-lifecycle.S28.expected-updates-observed|BEHAVIOR"
+    "S29|local-lifecycle.S29.monitor-isolation-applicable|APPLICABILITY"
+    "S29|local-lifecycle.S29.user-journal-available|PREREQUISITE"
+    "S29|local-lifecycle.S29.unit-journal-visible|BEHAVIOR"
+    "S29|local-lifecycle.S29.monitor-input-blocked|BEHAVIOR"
+    "S30|local-lifecycle.S30.softioc-available|PREREQUISITE"
+    "S30|local-lifecycle.S30.fatal-probe-exits-one|BEHAVIOR"
+    "S30|local-lifecycle.S30.fatal-probe-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.silent-loop-exits-one|BEHAVIOR"
+    "S30|local-lifecycle.S30.silent-loop-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.parse-error-exits-one|BEHAVIOR"
+    "S30|local-lifecycle.S30.parse-error-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.historical-fatal-exits-zero|BEHAVIOR"
+    "S30|local-lifecycle.S30.historical-fatal-success-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.truncate-available|PREREQUISITE"
+    "S30|local-lifecycle.S30.truncated-log-exits-one|BEHAVIOR"
+    "S30|local-lifecycle.S30.truncated-log-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.nonroot-history-probes-applicable|APPLICABILITY"
+    "S30|local-lifecycle.S30.history-noise-exits-zero|BEHAVIOR"
+    "S30|local-lifecycle.S30.history-noise-success-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.history-noise-emitted|BEHAVIOR"
+    "S30|local-lifecycle.S30.history-fatal-exits-one|BEHAVIOR"
+    "S30|local-lifecycle.S30.history-fatal-verdict|BEHAVIOR"
+    "S31|local-lifecycle.S31.softioc-available|PREREQUISITE"
+    "S31|local-lifecycle.S31.wellformed-start-succeeds|BEHAVIOR"
+    "S31|local-lifecycle.S31.wellformed-not-warned|BEHAVIOR"
+    "S31|local-lifecycle.S31.dot-start-succeeds|BEHAVIOR"
+    "S31|local-lifecycle.S31.dot-reason-reported|BEHAVIOR"
+    "S31|local-lifecycle.S31.dot-does-not-corroborate|BEHAVIOR"
+    "S31|local-lifecycle.S31.trailing-pipe-start-succeeds|BEHAVIOR"
+    "S31|local-lifecycle.S31.trailing-pipe-reason-reported|BEHAVIOR"
+    "S31|local-lifecycle.S31.trailing-pipe-does-not-corroborate|BEHAVIOR"
+    "S31|local-lifecycle.S31.invalid-regex-start-succeeds|BEHAVIOR"
+    "S31|local-lifecycle.S31.invalid-regex-reason-reported|BEHAVIOR"
+    "S31|local-lifecycle.S31.invalid-regex-does-not-corroborate|BEHAVIOR"
+    "S31|local-lifecycle.S31.positive-start-succeeds|BEHAVIOR"
+    "S31|local-lifecycle.S31.positive-not-rejected|BEHAVIOR"
+    "S31|local-lifecycle.S31.positive-corroborates|BEHAVIOR"
+    "S31|local-lifecycle.S31.spaced-start-succeeds|BEHAVIOR"
+    "S31|local-lifecycle.S31.spaced-reason-reported|BEHAVIOR"
+    "S31|local-lifecycle.S31.spaced-does-not-corroborate|BEHAVIOR"
+    "S31|local-lifecycle.S31.blank-start-succeeds|BEHAVIOR"
+    "S31|local-lifecycle.S31.blank-not-warned|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-creates-link|BEHAVIOR"
+    "S32|local-lifecycle.S32.disable-removes-link|BEHAVIOR"
+    "S33|local-lifecycle.S33.configuration-removed|BEHAVIOR"
+    "S33|local-lifecycle.S33.service-inactive|BEHAVIOR"
+    "S34|local-lifecycle.S34.logrotate-available|PREREQUISITE"
+    "S34|local-lifecycle.S34.shared-timer-survives-ioc-remove|BEHAVIOR"
+    "S34|local-lifecycle.S34.manual-teardown-removes-timer|BEHAVIOR"
+    "S35|local-lifecycle.S35.namespaced-install-succeeds|BEHAVIOR"
+    "S35|local-lifecycle.S35.namespaced-conf-path-used|BEHAVIOR"
+    "S35|local-lifecycle.S35.namespaced-log-path-baked-into-unit|BEHAVIOR"
+    "S35|local-lifecycle.S35.precedence-install-succeeds|BEHAVIOR"
+    "S35|local-lifecycle.S35.unified-conf-path-used|BEHAVIOR"
+    "S35|local-lifecycle.S35.namespaced-conf-path-unused|BEHAVIOR"
+    "S35|local-lifecycle.S35.unified-run-path-baked-into-ioc-port|BEHAVIOR"
+    "S35|local-lifecycle.S35.namespaced-run-path-unused|BEHAVIOR"
+    "S35|local-lifecycle.S35.unified-systemd-path-used|BEHAVIOR"
+    "S35|local-lifecycle.S35.namespaced-systemd-path-unused|BEHAVIOR"
+    "S35|local-lifecycle.S35.unified-log-path-baked-into-unit|BEHAVIOR"
+    "S35|local-lifecycle.S35.xdg-state-home-unset-log-path-baked-into-unit|BEHAVIOR"
+    "S35|local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit|BEHAVIOR"
+)
+declare -g -A LOCAL_STEP_CHECK_IDS=()
+# shellcheck source=lib/test-reporting.bash
+source "${SC_TOP}/lib/test-reporting.bash"
 
 # --- Managed Architecture Paths ---
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
@@ -88,21 +201,14 @@ function resolve_runner_script {
             RUNNER_SCRIPT="${source_bin}"
             ;;
         installed)
-            if [[ ! -x "${installed_bin}" ]]; then
-                printf "Error: installed ioc-runner not found\n" >&2
-                exit 1
-            fi
             RUNNER_SCRIPT="${installed_bin}"
+            SUITE_RUNNER="installed"
             ;;
         *)
             printf "Error: invalid IOC_RUNNER_TEST_MODE '%s' (expected: source, installed)\n" "${mode}" >&2
             exit 1
             ;;
     esac
-    if [[ "${RUNNER_SCRIPT}" == "${source_bin}" && ! -x "${RUNNER_SCRIPT}" ]]; then
-        printf "Error: source ioc-runner not found\n" >&2
-        exit 1
-    fi
 }
 resolve_runner_script
 declare -g CONF_DIR="${HOME}/.config/procServ.d"
@@ -134,15 +240,186 @@ declare -g TEST_CA_PORT=""
 declare -g -a SYSTEMCTL_CMD=(systemctl --user)
 
 declare -g KEEP_WORKSPACE="${KEEP_WORKSPACE:-0}"
+declare -g SUITE_ASSERTION_FAILED=0
+
+function read_os_release_value {
+    local wanted="$1"
+    local key=""
+    local value=""
+
+    while IFS='=' read -r key value || [[ -n "${key:-}" ]]; do
+        if [[ "${key}" == "${wanted}" ]]; then
+            value="${value#\"}"
+            value="${value%\"}"
+            printf '%s' "${value}"
+            return 0
+        fi
+    done < /etc/os-release
+    return 1
+}
+
+function initialize_reporting {
+    local row=""
+    local step_id=""
+    local check_id=""
+    local check_kind=""
+    local test_method=""
+    local description=""
+    local os_name="unknown"
+    local os_version="0"
+    local os_id=""
+    local run_id="${SUITE_ID}.$$.${BASHPID}"
+    local -a step_ids=(P00)
+    local index=0
+
+    for ((index = 1; index <= 35; index += 1)); do
+        printf -v step_id 'S%02d' "${index}"
+        step_ids+=("${step_id}")
+    done
+    if [[ -r /etc/os-release ]]; then
+        os_name=$(read_os_release_value ID || true)
+        os_version=$(read_os_release_value VERSION_ID || true)
+    fi
+    os_name="${os_name:-unknown}"
+    os_version="${os_version%%.*}"
+    os_version="${os_version:-0}"
+    os_id="${os_name}-${os_version}"
+    REPORT_DIR=$(mktemp -d /tmp/ioc-runner-local-report.XXXXXX)
+    report_init "${SUITE_ID}" "${run_id}" "${SUITE_SCOPE}" "${SUITE_RUNNER}" \
+        "${os_id}" "${EPICS_HOST_ARCH}" "${REPORT_DIR}"
+    REPORT_READY=1
+    for step_id in "${step_ids[@]}"; do
+        report_register_step "${step_id}" "Local lifecycle ${step_id}"
+    done
+    for row in "${LOCAL_CATALOG_ROWS[@]}"; do
+        IFS='|' read -r step_id check_id check_kind <<< "${row}"
+        if [[ "${check_kind}" == "BEHAVIOR" ]]; then
+            test_method="real-path"
+        else
+            test_method="direct-inspection"
+        fi
+        description="${check_id#${SUITE_ID}.${step_id}.}"
+        report_register_check "${check_id}" "${step_id}" "${SUITE_CATEGORY}" \
+            "${check_kind}" "${test_method}" "${description}"
+        if [[ -n "${LOCAL_STEP_CHECK_IDS[${step_id}]:-}" ]]; then
+            LOCAL_STEP_CHECK_IDS["${step_id}"]+=" ${check_id}"
+        else
+            LOCAL_STEP_CHECK_IDS["${step_id}"]="${check_id}"
+        fi
+    done
+    report_close_catalog
+}
+
+function next_current_check_id {
+    local result_name="$1"
+    local check_list="${LOCAL_STEP_CHECK_IDS[${CURRENT_STEP_ID}]:-}"
+    local -a check_ids=()
+
+    read -r -a check_ids <<< "${check_list}"
+    if (( CURRENT_STEP_CHECK_INDEX >= ${#check_ids[@]} )); then
+        printf 'REPORTING ERROR: extra assertion in %s\n' "${CURRENT_STEP_ID}" >&2
+        return 1
+    fi
+    printf -v "${result_name}" '%s' "${check_ids[${CURRENT_STEP_CHECK_INDEX}]}"
+    CURRENT_STEP_CHECK_INDEX=$((CURRENT_STEP_CHECK_INDEX + 1))
+}
+
+function record_current_state {
+    local state="$1"
+    local reason="${2:-}"
+    local check_id=""
+
+    next_current_check_id check_id
+    if [[ "${state}" == "PASS" ]]; then
+        report_record "${check_id}" PASS
+    else
+        report_record "${check_id}" "${state}" "${reason}"
+    fi
+}
+
+function close_current_remaining {
+    local state="$1"
+    local reason="$2"
+    local check_list="${LOCAL_STEP_CHECK_IDS[${CURRENT_STEP_ID}]:-}"
+    local check_id=""
+    local -a check_ids=()
+
+    read -r -a check_ids <<< "${check_list}"
+    while (( CURRENT_STEP_CHECK_INDEX < ${#check_ids[@]} )); do
+        check_id="${check_ids[${CURRENT_STEP_CHECK_INDEX}]}"
+        CURRENT_STEP_CHECK_INDEX=$((CURRENT_STEP_CHECK_INDEX + 1))
+        report_record "${check_id}" "${state}" "${reason}"
+    done
+}
+
+function close_local_catalog_after_preflight {
+    local row=""
+    local step_id=""
+    local check_id=""
+    local check_kind=""
+
+    for row in "${LOCAL_CATALOG_ROWS[@]:3}"; do
+        IFS='|' read -r step_id check_id check_kind <<< "${row}"
+        report_record "${check_id}" SKIP "requires local lifecycle P00"
+    done
+}
+
+function run_preflight {
+    local epics_base_set="false"
+    local lsof_available="false"
+    local runner_executable="false"
+
+    CURRENT_STEP_ID=P00
+    CURRENT_STEP_CHECK_INDEX=0
+    [[ -n "${EPICS_BASE:-}" ]] && epics_base_set="true"
+    command -v lsof >/dev/null 2>&1 && lsof_available="true"
+    [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
+    verify_state true "${epics_base_set}" "EPICS_BASE is set"
+    verify_state true "${lsof_available}" "lsof is available"
+    verify_state true "${runner_executable}" "Selected runner is executable"
+    if [[ "${epics_base_set}" != "true" || "${lsof_available}" != "true" ||
+          "${runner_executable}" != "true" ]]; then
+        close_local_catalog_after_preflight
+        return 1
+    fi
+}
+
+function probe_optional_dependencies {
+    local journal_probe=""
+    local logrotate_candidate=""
+    local os_name=""
+
+    MONITOR_ISOLATION_APPLICABLE="true"
+    JOURNAL_AVAILABLE="false"
+    os_name=$(read_os_release_value ID || true)
+    if [[ "${os_name}" == "rocky" ]]; then
+        MONITOR_ISOLATION_APPLICABLE="false"
+    else
+        JOURNAL_AVAILABLE="true"
+        journal_probe=$(journalctl --user --no-pager -n 1 2>&1 || true)
+        if [[ "${journal_probe}" == *"No journal files were found"* ||
+              "${journal_probe}" == *"insufficient permissions"* ]]; then
+            JOURNAL_AVAILABLE="false"
+        fi
+    fi
+    for logrotate_candidate in /usr/sbin/logrotate /sbin/logrotate /usr/bin/logrotate; do
+        if [[ -x "${logrotate_candidate}" ]]; then
+            LOGROTATE_BIN="${logrotate_candidate}"
+            break
+        fi
+    done
+    if [[ -z "${LOGROTATE_BIN}" ]]; then
+        LOGROTATE_BIN=$(command -v logrotate 2>/dev/null || true)
+    fi
+    [[ -n "${LOGROTATE_BIN}" ]] && LOGROTATE_AVAILABLE="true"
+}
 
 function _handle_exit {
     local exit_code=$?
+    local final_status="${exit_code}"
 
-    # System Requirement: Suppress unexpected abort message if failure is due to controlled test assertions
-    if [[ ${exit_code} -ne 0 && ${TEST_FAILED} -eq 0 && ${SCRIPT_ERROR} -eq 0 ]]; then
-        SCRIPT_ERROR=1
-        printf "\n${RED}%s${NC}\n" "[ABORT] Script terminated unexpectedly. (Exit code: ${exit_code})"
-    fi
+    trap - EXIT
+    set +e
 
     # U003/M19: unconditionally disarm the user log-rotation timer on every exit
     # path (success, assertion-fail, set -e abort, SIGINT). The pipeline arms a
@@ -151,28 +428,35 @@ function _handle_exit {
     # removed workspace config. Runs even under KEEP_WORKSPACE=1 (re-arm by
     # re-running install). SYSTEMD_USER_DIR is declared unconditionally above.
     systemctl --user disable --now epics-logrotate.timer >/dev/null 2>&1 || true
-    rm -f "${SYSTEMD_USER_DIR}/epics-logrotate.service" "${SYSTEMD_USER_DIR}/epics-logrotate.timer"
+    if ! "${REPORT_RM_BIN:-/bin/rm}" -f -- \
+        "${SYSTEMD_USER_DIR}/epics-logrotate.service" \
+        "${SYSTEMD_USER_DIR}/epics-logrotate.timer"; then
+        final_status=1
+        _log "ERROR" "Failed to remove local log-rotation units."
+    fi
     systemctl --user daemon-reload >/dev/null 2>&1 || true
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
-        if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
+        if [[ ${exit_code} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
             print_divider
             _log "WARN" "DEBUG: Test workspace retained for inspection."
             _log "WARN" "Path: ${WORKSPACE}"
             print_divider
-        else
-            rm -rf "${WORKSPACE}"
+        elif "${REPORT_RM_BIN:-/bin/rm}" -rf -- "${WORKSPACE}"; then
             _log "INFO" "Test workspace removed."
+        else
+            final_status=1
+            print_divider
+            _log "ERROR" "Failed to remove test workspace."
+            _log "ERROR" "Path: ${WORKSPACE}"
+            print_divider
         fi
     fi
 
-    print_summary
-
-    # System Requirement: Propagate aggregate failure state to CI/CD pipeline
-    if [[ ${TEST_FAILED} -gt 0 || ${SCRIPT_ERROR} -gt 0 ]]; then
-        exit 1
+    if (( REPORT_READY )); then
+        report_finalize "${final_status}" || final_status=1
     fi
-    exit 0
+    exit "${final_status}"
 }
 
 trap _handle_exit EXIT
@@ -201,56 +485,24 @@ function print_sub_divider {
     printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
 }
 
-function print_summary {
-    printf "\n"
-    print_divider
-    printf "${BLUE}%s${NC}\n" "                                     LOCAL LIFECYCLE TEST SUMMARY                                   "
-    print_divider
-
-    printf "  %-20s : %d\n" "Total Assertions" "${TEST_TOTAL}"
-    printf "${GREEN}  %-20s : %d${NC}\n" "Passed" "${TEST_PASSED}"
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "${RED}  %-20s : %d${NC}\n" "Failed" "${TEST_FAILED}"
-    else
-        printf "  %-20s : %d\n" "Failed" "0"
-    fi
-
-    if [[ ${SCRIPT_ERROR} -gt 0 ]]; then
-        printf "${MAGENTA}  %-20s : %d${NC}\n" "Script Errors" "${SCRIPT_ERROR}"
-    else
-        printf "  %-20s : %d\n" "Script Errors" "0"
-    fi
-
-    if [[ ${TEST_FAILED} -gt 0 ]]; then
-        printf "\n${RED}%s${NC}\n" "--- [ FAILED ASSERTIONS ] ---"
-        for detail in "${FAILED_DETAILS[@]}"; do
-            printf "${RED}  * %s${NC}\n" "$detail"
-        done
-        printf "${RED}%s${NC}\n" "-----------------------------"
-    elif [[ ${SCRIPT_ERROR} -eq 0 ]]; then
-        printf "\n${GREEN}%s${NC}\n" "[SUCCESS] All lifecycle tests completed perfectly!"
-    fi
-
-    printf "${BLUE}%s${NC}\n\n" "===================================================================================================="
-}
-
 function verify_state {
     local expected="$1"
     local actual="$2"
     local step_name="$3"
+    local check_id=""
 
-    TEST_TOTAL=$((TEST_TOTAL + 1))
+    next_current_check_id check_id
 
     if [[ "${expected}" == "${actual}" ]]; then
-        printf "${GREEN}[ PASS ]${NC} %s\n" "${step_name}"
-        TEST_PASSED=$((TEST_PASSED + 1))
+        printf "${GREEN}[ PASS ]${NC} %s\n" "${check_id}"
+        report_record "${check_id}" PASS
     else
-        printf "${RED}[ FAIL ]${NC} %s\n" "${step_name}" >&2
+        printf "${RED}[ FAIL ]${NC} %s\n" "${check_id}" >&2
         printf "  ${YELLOW}Expected : %s${NC}\n" "${expected}" >&2
         printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
-        TEST_FAILED=$((TEST_FAILED + 1))
-        FAILED_DETAILS+=("${step_name} (Expected: ${expected}, Actual: ${actual})")
+        SUITE_ASSERTION_FAILED=1
+        report_record "${check_id}" FAIL \
+            "${step_name}: expected ${expected}, actual ${actual}"
     fi
 }
 
@@ -555,8 +807,11 @@ function test_inspect_bounded_runtime {
     socat_bin=$(command -v socat 2>/dev/null || true)
     if [[ -z "${socat_bin}" ]]; then
         _log "WARN" "socat not found, skipping inspect bounded-runtime test (T4)."
+        record_current_state SKIP "socat is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S21.socat-available"
         return 0
     fi
+    record_current_state PASS
 
     # Spawn many unrelated UDS listeners. inspect must stay bounded and not be
     # dragged down by host-wide socket noise independent of the IOC's own UDS.
@@ -747,15 +1002,18 @@ function test_console_attach {
     if [[ "${socket_perm}" == "srw-rw----" ]]; then perm_ok="true"; fi
     verify_state "true" "${perm_ok}" "UDS socket has correct permissions (srw-rw----)"
 
-    local con_cmd
-    if command -v con >/dev/null 2>&1; then
-        con_cmd="con"
-    else
-        con_cmd="/usr/local/bin/con"
-    fi
-
-    local con_ok="false"
-    if command -v "${con_cmd}" >/dev/null 2>&1; then con_ok="true"; fi
+    # Probe con exactly where bin/ioc-runner's resolve_con_tool searches in
+    # user mode (home bin first, then /usr/local/bin, /usr/bin); the runner
+    # never consults PATH for con, so neither does the probe. The runner's
+    # socat fallback is not mirrored: this check asserts the con utility
+    # itself.
+    local con_ok="false" con_candidate
+    for con_candidate in "${HOME}/.local/bin/con" /usr/local/bin/con /usr/bin/con; do
+        if [[ -x "${con_candidate}" ]]; then
+            con_ok="true"
+            break
+        fi
+    done
     verify_state "true" "${con_ok}" "con utility is available"
 
     local socket_listening="false"
@@ -779,7 +1037,10 @@ function test_channel_access {
     if [[ ! -x "${camonitor_cmd}" ]] && ! command -v "${camonitor_cmd}" >/dev/null 2>&1; then
         _log "ERROR" "camonitor utility not found. Cannot verify PV."
         verify_state "found" "not_found" "camonitor executable availability"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S28.camonitor-available"
+        return 0
     fi
+    record_current_state PASS
 
     local test_pv="LBNL:TESTIOC:aiExample"
     _log "INFO" "Monitoring PV: ${test_pv} (${CAMONITOR_COUNT} updates)"
@@ -821,10 +1082,21 @@ function test_monitor_isolation {
     _log "INFO" "STEP ${step}: Test Monitor Input Isolation"
     print_sub_divider
 
-    if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
-        _log "WARN" "User-scope journal unavailable, skipping monitor isolation test."
+    if [[ "${MONITOR_ISOLATION_APPLICABLE}" != "true" ]]; then
+        _log "INFO" "Monitor isolation is not applicable under the Rocky ordinary-user journal policy."
+        record_current_state NA "Rocky ordinary-user policy excludes broad journal access"
+        close_current_remaining NA "requires ${SUITE_ID}.S29.monitor-isolation-applicable"
         return 0
     fi
+    record_current_state PASS
+
+    if [[ "${JOURNAL_AVAILABLE}" != "true" ]]; then
+        _log "WARN" "User-scope journal unavailable, skipping monitor isolation test."
+        record_current_state SKIP "user journal is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S29.user-journal-available"
+        return 0
+    fi
+    record_current_state PASS
 
     # Positive control (R8-F2): prove the unit's journal channel is
     # visible before asserting the marker's ABSENCE. The IOC has been
@@ -1001,8 +1273,11 @@ function test_runtime_extra_pattern_gates {
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping runtime pattern gate test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S31.softioc-available"
         return 0
     fi
+    record_current_state PASS
 
     local positive_token="M1PROBETOKEN"
 
@@ -1044,8 +1319,11 @@ function test_crash_detection {
     local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping crash detection test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S30.softioc-available"
         return 0
     fi
+    record_current_state PASS
 
     local local_log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
     local fatal_ioc_name="CrashTestFatal"
@@ -1107,6 +1385,7 @@ EOF
     local truncate_bin
     truncate_bin=$(command -v truncate || true)
     if [[ -n "${truncate_bin}" ]]; then
+        record_current_state PASS
         local truncate_ioc_name="CrashTestTruncate"
         local truncate_ioc_dir="${WORKSPACE}/crash_truncate_ioc"
         local truncate_log="${local_log_dir}/${truncate_ioc_name}.log"
@@ -1130,6 +1409,9 @@ EOF
         _run_crash_probe "${truncate_ioc_name}" "fatal" "Crash detection: truncated log scans new fatal content -> exit 1"
     else
         _log "WARN" "truncate not found, skipping truncated log crash detection test."
+        record_current_state SKIP "truncate is unavailable"
+        record_current_state SKIP "requires ${SUITE_ID}.S30.truncate-available"
+        record_current_state SKIP "requires ${SUITE_ID}.S30.truncate-available"
     fi
 
     # Issue #92: a pre-existing unreadable .iocsh_history makes iocsh emit the
@@ -1140,7 +1422,10 @@ EOF
     # CrashTestHistory above, which covers historical-log-offset behavior.
     if [[ ${EUID} -eq 0 ]]; then
         _log "WARN" "Running as root: chmod 0 cannot deny reads, skipping history-noise crash scan probes."
+        record_current_state NA "read-denial probes do not apply to root"
+        close_current_remaining NA "requires ${SUITE_ID}.S30.nonroot-history-probes-applicable"
     else
+        record_current_state PASS
         local histnoise_ioc_name="CrashTestHistNoise"
         local histnoise_ioc_dir="${WORKSPACE}/crash_histnoise_ioc"
         local histnoise_log="${local_log_dir}/${histnoise_ioc_name}.log"
@@ -1231,8 +1516,11 @@ function test_local_logrotate {
 
     if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
         _log "WARN" "logrotate unavailable; skipping M19.T1."
+        record_current_state SKIP "logrotate is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S14.logrotate-available"
         return 0
     fi
+    record_current_state PASS
 
     local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
     local svc="${SYSTEMD_USER_DIR}/epics-logrotate.service"
@@ -1259,13 +1547,21 @@ function test_local_logrotate {
         local su_absent="true"; grep -qE '^[[:space:]]*su ' "${cfg}" && su_absent="false"
         verify_state "true" "${su_absent}" "M19.T1: no 'su' directive (single-user dir)"
 
-        local validate_ok="true"; logrotate -d "${cfg}" >/dev/null 2>&1 || validate_ok="false"
+        local validate_ok="true"; "${LOGROTATE_BIN}" -d "${cfg}" >/dev/null 2>&1 || validate_ok="false"
         verify_state "true" "${validate_ok}" "M19.T1: logrotate -d validates the config"
+    else
+        record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-config-exists"
+        record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-config-exists"
+        record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-config-exists"
     fi
 
     # Timer armed (the user bus is up in this suite, as the IOC lifecycle steps need it).
     local enabled; enabled=$(systemctl --user is-enabled epics-logrotate.timer 2>/dev/null || true)
-    verify_state "enabled" "${enabled}" "M19.T1: timer enabled"
+    if [[ "${tmr_exist}" == "true" ]]; then
+        verify_state "enabled" "${enabled}" "M19.T1: timer enabled"
+    else
+        record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-timer-exists"
+    fi
 
     # Idempotency: a repeat install must run deploy_local_logrotate (assert it
     # exits 0) and rewrite nothing. The units (not the config) are what
@@ -1283,6 +1579,9 @@ function test_local_logrotate {
         svc_a=$(stat -c %Y "${svc}" 2>/dev/null || echo 0)
         tmr_a=$(stat -c %Y "${tmr}" 2>/dev/null || echo 0)
         verify_state "${cfg_b}-${svc_b}-${tmr_b}" "${cfg_a}-${svc_a}-${tmr_a}" "M19.T1: repeat install rewrites nothing (config + units stable)"
+    else
+        record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-config-exists"
+        record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-config-exists"
     fi
 }
 
@@ -1296,20 +1595,25 @@ function test_logrotate_rotation {
 
     if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
         _log "WARN" "logrotate unavailable; skipping M19.T2."
+        record_current_state SKIP "logrotate is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S15.logrotate-available"
         return 0
     fi
+    record_current_state PASS
     local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
     if [[ ! -f "${cfg}" ]]; then
         verify_state "true" "false" "M19.T2: config present for rotation test"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S15.rotation-config-exists"
         return 0
     fi
+    verify_state "true" "true" "M19.T2: config present for rotation test"
 
     local log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
     install -d -m 0750 "${log_dir}"
     local probe="${log_dir}/rotateprobe.log"
     printf 'seed line for copytruncate\n' > "${probe}"
     local state; state=$(mktemp)
-    logrotate -f --state "${state}" "${cfg}" >/dev/null 2>&1 || true
+    "${LOGROTATE_BIN}" -f --state "${state}" "${cfg}" >/dev/null 2>&1 || true
 
     local archived="false"; [[ -f "${probe}.1.gz" ]] && archived="true"
     verify_state "true" "${archived}" "M19.T2: copytruncate produced rotateprobe.log.1.gz"
@@ -1330,13 +1634,18 @@ function test_logrotate_maxsize {
 
     if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
         _log "WARN" "logrotate unavailable; skipping M19.T3."
+        record_current_state SKIP "logrotate is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S16.logrotate-available"
         return 0
     fi
+    record_current_state PASS
     local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
     if [[ ! -f "${cfg}" ]]; then
         verify_state "true" "false" "M19.T3: config present for maxsize test"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S16.rotation-config-exists"
         return 0
     fi
+    verify_state "true" "true" "M19.T3: config present for maxsize test"
 
     local tcfg; tcfg=$(mktemp)
     sed 's/maxsize 50M/maxsize 1k/' "${cfg}" > "${tcfg}"
@@ -1345,7 +1654,7 @@ function test_logrotate_maxsize {
     local probe="${log_dir}/maxprobe.log"
     head -c 4096 /dev/zero | tr '\0' 'x' > "${probe}"
     local state; state=$(mktemp)
-    logrotate --state "${state}" "${tcfg}" >/dev/null 2>&1 || true
+    "${LOGROTATE_BIN}" --state "${state}" "${tcfg}" >/dev/null 2>&1 || true
 
     local rotated="false"; [[ -f "${probe}.1.gz" ]] && rotated="true"
     verify_state "true" "${rotated}" "M19.T3: maxsize rotates the log before the weekly mark"
@@ -1363,8 +1672,11 @@ function test_logrotate_teardown {
 
     if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
         _log "WARN" "logrotate unavailable; skipping M19 teardown checks."
+        record_current_state SKIP "logrotate is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S34.logrotate-available"
         return 0
     fi
+    record_current_state PASS
     local tmr="${SYSTEMD_USER_DIR}/epics-logrotate.timer"
 
     local survived="false"; [[ -f "${tmr}" ]] && survived="true"
@@ -1378,6 +1690,209 @@ function test_logrotate_teardown {
 
     local gone="true"; [[ -f "${tmr}" ]] && gone="false"
     verify_state "true" "${gone}" "M19: manual teardown removes the timer"
+}
+
+# Verifies namespaced local path settings and unified-variable precedence
+# through artifacts emitted by the real install command. The procServ
+# executable is an outer boundary: install records it but does not execute it.
+function test_local_install_path_resolution {
+    local step="$1"
+    local namespaced_dir="${WORKSPACE}/namespaced_ioc"
+    local namespaced_conf="${WORKSPACE}/namespaced-conf"
+    local namespaced_systemd="${WORKSPACE}/namespaced-systemd"
+    local namespaced_log="${WORKSPACE}/namespaced-log"
+    local namespaced_installed_conf="${namespaced_conf}/namespaced_ioc.conf"
+    local namespaced_installed_unit="${namespaced_systemd}/epics-@.service"
+    local namespaced_install_rc=0
+    local namespaced_conf_exists="false"
+    local namespaced_baked_log=""
+    local precedence_dir="${WORKSPACE}/precedence_ioc"
+    local unified_conf="${WORKSPACE}/precedence-unified-conf"
+    local unified_systemd="${WORKSPACE}/precedence-unified-systemd"
+    local unified_run="${WORKSPACE}/precedence-unified-run"
+    local unified_log="${WORKSPACE}/precedence-unified-log"
+    local namespaced_fallback_conf="${WORKSPACE}/precedence-namespaced-conf"
+    local namespaced_fallback_systemd="${WORKSPACE}/precedence-namespaced-systemd"
+    local namespaced_fallback_run="${WORKSPACE}/precedence-namespaced-run"
+    local namespaced_fallback_log="${WORKSPACE}/precedence-namespaced-log"
+    local precedence_installed_conf="${unified_conf}/precedence_ioc.conf"
+    local precedence_installed_unit="${unified_systemd}/epics-@.service"
+    local precedence_install_rc=0
+    local conf_in_unified="false"
+    local conf_in_namespaced="false"
+    local port_line=""
+    local port_in_unified="false"
+    local port_in_namespaced="false"
+    local unit_in_unified="false"
+    local unit_in_namespaced="false"
+    local precedence_baked_log=""
+    local fallback_unset_root="${WORKSPACE}/fallback-unset"
+    local fallback_unset_dir="${fallback_unset_root}/fallbackUnset"
+    local fallback_unset_conf="${fallback_unset_root}/config/procServ.d"
+    local fallback_unset_systemd="${fallback_unset_root}/systemd"
+    local fallback_unset_home="${fallback_unset_root}/home"
+    local fallback_unset_log="${fallback_unset_home}/.local/state/procserv"
+    local fallback_unset_unit="${fallback_unset_systemd}/epics-@.service"
+    local fallback_unset_rc=0
+    local fallback_unset_baked_log=""
+    local fallback_xdg_root="${WORKSPACE}/fallback-xdg"
+    local fallback_xdg_dir="${fallback_xdg_root}/fallbackXdg"
+    local fallback_xdg_conf="${fallback_xdg_root}/config/procServ.d"
+    local fallback_xdg_systemd="${fallback_xdg_root}/systemd"
+    local fallback_xdg_home="${fallback_xdg_root}/home"
+    local fallback_xdg_state="${fallback_xdg_root}/state"
+    local fallback_xdg_log="${fallback_xdg_state}/procserv"
+    local fallback_xdg_unit="${fallback_xdg_systemd}/epics-@.service"
+    local fallback_xdg_rc=0
+    local fallback_xdg_baked_log=""
+
+    print_divider
+    _log "INFO" "STEP ${step}: Local Install Path Resolution"
+    print_sub_divider
+
+    mkdir -p "${namespaced_dir}" "${namespaced_conf}" \
+        "${namespaced_systemd}" "${namespaced_log}"
+    touch "${namespaced_dir}/st.cmd"
+    chmod +x "${namespaced_dir}/st.cmd"
+
+    (cd "${namespaced_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${namespaced_dir}"
+        IOC_RUNNER_LOCAL_CONF_DIR="${namespaced_conf}" \
+        IOC_RUNNER_LOCAL_SYSTEMD_DIR="${namespaced_systemd}" \
+        IOC_RUNNER_LOCAL_LOG_DIR="${namespaced_log}" \
+        IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || namespaced_install_rc=$?
+    verify_state "0" "${namespaced_install_rc}" \
+        "Namespaced CONF_DIR, SYSTEMD_DIR, and LOG_DIR route --local install"
+
+    if [[ -f "${namespaced_installed_conf}" ]]; then
+        namespaced_conf_exists="true"
+    fi
+    verify_state "true" "${namespaced_conf_exists}" \
+        "IOC_RUNNER_LOCAL_CONF_DIR resolves to namespaced path"
+
+    if [[ -f "${namespaced_installed_unit}" ]]; then
+        namespaced_baked_log=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${namespaced_installed_unit}" | head -n1)
+    fi
+    verify_state "${namespaced_log}" "${namespaced_baked_log}" \
+        "IOC_RUNNER_LOCAL_LOG_DIR reaches the installed unit logfile path"
+
+    mkdir -p "${precedence_dir}" "${unified_conf}" "${unified_systemd}" \
+        "${unified_run}" "${unified_log}" "${namespaced_fallback_conf}" \
+        "${namespaced_fallback_systemd}" "${namespaced_fallback_run}" \
+        "${namespaced_fallback_log}"
+    touch "${precedence_dir}/st.cmd"
+    chmod +x "${precedence_dir}/st.cmd"
+
+    (cd "${precedence_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${precedence_dir}"
+        IOC_RUNNER_CONF_DIR="${unified_conf}" \
+        IOC_RUNNER_SYSTEMD_DIR="${unified_systemd}" \
+        IOC_RUNNER_RUN_DIR="${unified_run}" \
+        IOC_RUNNER_LOG_DIR="${unified_log}" \
+        IOC_RUNNER_LOCAL_CONF_DIR="${namespaced_fallback_conf}" \
+        IOC_RUNNER_LOCAL_SYSTEMD_DIR="${namespaced_fallback_systemd}" \
+        IOC_RUNNER_LOCAL_RUN_DIR="${namespaced_fallback_run}" \
+        IOC_RUNNER_LOCAL_LOG_DIR="${namespaced_fallback_log}" \
+        IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || precedence_install_rc=$?
+    verify_state "0" "${precedence_install_rc}" \
+        "Unified path variables take precedence during --local install"
+
+    if [[ -f "${precedence_installed_conf}" ]]; then
+        conf_in_unified="true"
+        port_line=$(grep '^IOC_PORT=' "${precedence_installed_conf}" 2>/dev/null || true)
+    fi
+    if [[ -f "${namespaced_fallback_conf}/precedence_ioc.conf" ]]; then
+        conf_in_namespaced="true"
+    fi
+    verify_state "true" "${conf_in_unified}" \
+        "IOC_RUNNER_CONF_DIR overrides IOC_RUNNER_LOCAL_CONF_DIR"
+    verify_state "false" "${conf_in_namespaced}" \
+        "IOC_RUNNER_LOCAL_CONF_DIR is unused when IOC_RUNNER_CONF_DIR is set"
+
+    if [[ "${port_line}" == *"${unified_run}/precedence_ioc/control"* ]]; then
+        port_in_unified="true"
+    fi
+    if [[ "${port_line}" == *"${namespaced_fallback_run}/precedence_ioc/control"* ]]; then
+        port_in_namespaced="true"
+    fi
+    verify_state "true" "${port_in_unified}" \
+        "IOC_RUNNER_RUN_DIR reaches the installed IOC_PORT"
+    verify_state "false" "${port_in_namespaced}" \
+        "IOC_RUNNER_LOCAL_RUN_DIR is unused when IOC_RUNNER_RUN_DIR is set"
+
+    if [[ -f "${precedence_installed_unit}" ]]; then
+        unit_in_unified="true"
+        precedence_baked_log=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${precedence_installed_unit}" | head -n1)
+    fi
+    if [[ -f "${namespaced_fallback_systemd}/epics-@.service" ]]; then
+        unit_in_namespaced="true"
+    fi
+    verify_state "true" "${unit_in_unified}" \
+        "IOC_RUNNER_SYSTEMD_DIR receives the installed unit"
+    verify_state "false" "${unit_in_namespaced}" \
+        "IOC_RUNNER_LOCAL_SYSTEMD_DIR is unused when IOC_RUNNER_SYSTEMD_DIR is set"
+    verify_state "${unified_log}" "${precedence_baked_log}" \
+        "IOC_RUNNER_LOG_DIR reaches the installed unit logfile path"
+
+    mkdir -p "${fallback_unset_dir}" "${fallback_unset_conf}" \
+        "${fallback_unset_systemd}" "${fallback_unset_home}"
+    touch "${fallback_unset_dir}/st.cmd"
+    chmod +x "${fallback_unset_dir}/st.cmd"
+    (cd "${fallback_unset_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${fallback_unset_dir}"
+        env -u XDG_STATE_HOME -u IOC_RUNNER_LOG_DIR -u IOC_RUNNER_LOCAL_LOG_DIR \
+            HOME="${fallback_unset_home}" \
+            IOC_RUNNER_LOCAL_CONF_DIR="${fallback_unset_conf}" \
+            IOC_RUNNER_LOCAL_SYSTEMD_DIR="${fallback_unset_systemd}" \
+            IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || fallback_unset_rc=$?
+    if [[ ${fallback_unset_rc} -eq 0 && -f "${fallback_unset_unit}" ]]; then
+        fallback_unset_baked_log=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${fallback_unset_unit}" | head -n1)
+    fi
+    verify_state "${fallback_unset_log}" "${fallback_unset_baked_log}" \
+        "XDG_STATE_HOME unset reaches the installed unit logfile fallback"
+
+    mkdir -p "${fallback_xdg_dir}" "${fallback_xdg_conf}" \
+        "${fallback_xdg_systemd}" "${fallback_xdg_home}" \
+        "${fallback_xdg_state}"
+    touch "${fallback_xdg_dir}/st.cmd"
+    chmod +x "${fallback_xdg_dir}/st.cmd"
+    (cd "${fallback_xdg_dir}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1)
+
+    (
+        cd "${fallback_xdg_dir}"
+        env -u IOC_RUNNER_LOG_DIR -u IOC_RUNNER_LOCAL_LOG_DIR \
+            HOME="${fallback_xdg_home}" \
+            XDG_STATE_HOME="${fallback_xdg_state}" \
+            IOC_RUNNER_LOCAL_CONF_DIR="${fallback_xdg_conf}" \
+            IOC_RUNNER_LOCAL_SYSTEMD_DIR="${fallback_xdg_systemd}" \
+            IOC_RUNNER_PROCSERV_TOOL=/bin/true \
+            bash "${RUNNER_SCRIPT}" --local -f install . >/dev/null 2>&1
+    ) || fallback_xdg_rc=$?
+    if [[ ${fallback_xdg_rc} -eq 0 && -f "${fallback_xdg_unit}" ]]; then
+        fallback_xdg_baked_log=$(sed -n \
+            's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' \
+            "${fallback_xdg_unit}" | head -n1)
+    fi
+    verify_state "${fallback_xdg_log}" "${fallback_xdg_baked_log}" \
+        "XDG_STATE_HOME reaches the installed unit logfile path"
 }
 
 function run_all_tests {
@@ -1416,7 +1931,17 @@ function run_all_tests {
         "test_persistence"
         "test_remove"
         "test_logrotate_teardown"
+        "test_local_install_path_resolution"
     )
+
+    local step=1
+    local func=""
+
+    initialize_reporting
+    if ! run_preflight; then
+        return
+    fi
+    probe_optional_dependencies
 
     # Record which ioc-runner binary this run exercises, so captured
     # output shows whether the installed or source-tree binary ran. A
@@ -1427,9 +1952,9 @@ function run_all_tests {
     bash "${RUNNER_SCRIPT}" -V || _log "WARN" "ioc-runner -V returned non-zero"
     print_divider
 
-    local step=1
-    local func
     for func in "${pipeline[@]}"; do
+        printf -v CURRENT_STEP_ID 'S%02d' "${step}"
+        CURRENT_STEP_CHECK_INDEX=0
         "${func}" "${step}"
         step=$((step + 1))
     done
