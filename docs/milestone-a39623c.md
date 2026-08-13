@@ -70,8 +70,10 @@ reliability work that the 1.3.0 theme is built around.
 Running-time hang detection through an active health signal, plus fleet-level
 restart-storm observability and orchestrated recovery.
 
-Out of scope: unit-layer restart jitter, `ExecStartPre` random delay, or
-changing the per-IOC indefinite-restart policy.
+##### Out of Scope
+
+Unit-layer restart jitter, `ExecStartPre` random delay, or changing the
+per-IOC indefinite-restart policy.
 
 ##### Completion Criteria
 
@@ -82,7 +84,16 @@ changing the per-IOC indefinite-restart policy.
 
 ##### Dependencies And Decisions
 
-- none
+- systemd service units have no restart jitter. `RandomizedDelaySec` applies
+  to timer units, not service restarts.
+- `RestartSteps` and `RestartMaxDelaySec` require systemd v254 or later,
+  remain phase-synchronized across identical units, and are unavailable on
+  Rocky 8 systemd 239.
+- An `ExecStartPre` random delay would affect every start and restart and
+  conflict with the measured per-IOC stabilization window established by
+  #67. Restart-storm control therefore remains a fleet and operations-layer
+  responsibility rather than a per-IOC unit change.
+- Related history: #52, #54, and #67.
 
 ##### Implementation Plan
 
@@ -123,7 +134,7 @@ Observed State: open
 Observed Labels: enhancement, P3-low, ops, area/architecture
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-07T05:15:26Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:37Z
 
 #### M2 - Conf parser unification
 
@@ -144,8 +155,10 @@ One configuration contract for trimming, quotes, duplicate keys, and CRLF,
 shared by the runner's install-time and runtime readers and constrained so the
 systemd `EnvironmentFile` interpretation agrees.
 
-Out of scope: changing the supported configuration keys or adding a second
-configuration format.
+##### Out of Scope
+
+Changing the supported configuration keys or adding a second configuration
+format.
 
 ##### Completion Criteria
 
@@ -196,7 +209,7 @@ Observed State: open
 Observed Labels: P2-medium, refactor, area/architecture
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-07T05:29:48Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:37Z
 
 #### M3 - FATAL token boundary hygiene
 
@@ -216,8 +229,10 @@ exit-1 path while the IOC starts fine.
 Add a portable leading boundary to the case-insensitive FATAL subset and
 re-run the shipped benign and fatal startup paths on both golden OS families.
 
-Out of scope: adding crash tokens, changing the initialization marker, or
-changing the measured startup window.
+##### Out of Scope
+
+Adding crash tokens, changing the initialization marker, or changing the
+measured startup window.
 
 ##### Completion Criteria
 
@@ -268,7 +283,7 @@ Observed State: open
 Observed Labels: P2-medium, area/detection
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-07T05:29:50Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:39Z
 
 #### M4 - Restart supervision probe
 
@@ -287,8 +302,10 @@ promise is pinned only by static directive-row guards.
 An automated golden-VM probe that starts a healthy managed softIoc, kills the
 child with `SIGKILL`, and observes systemd and procServ recovery.
 
-Out of scope: changing the restart policy or replacing the existing static
-directive guards.
+##### Out of Scope
+
+Changing the restart policy or replacing the existing static directive
+guards.
 
 ##### Completion Criteria
 
@@ -337,7 +354,7 @@ Observed State: open
 Observed Labels: P2-medium, tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-30T20:35:28Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:40Z
 
 #### M5 - Suite integrity
 
@@ -362,8 +379,10 @@ rotation effect, and `%t/ioc-runner-logrotate.state` path. The check must use
 the shipped unit and real logrotate binary rather than reproducing the
 `ExecStart` command.
 
-Out of scope: changing the shared reporter, adding a second counter, changing
-product logrotate policy, or implementing #143's install-time validation fix.
+##### Out of Scope
+
+Changing the shared reporter, adding a second counter, changing product
+logrotate policy, or implementing #143's install-time validation fix.
 
 ##### Completion Criteria
 
@@ -421,7 +440,7 @@ Observed State: open
 Observed Labels: P3-low, tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-12T06:29:59Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:41Z
 
 #### M6 - Local install ordering
 
@@ -442,8 +461,10 @@ Settle whether accepted local installs refresh shared assets, then place every
 selected deployment and daemon reload after the running-service guard and
 overwrite-abort gates.
 
-Out of scope: changing system-mode ordering or the content, ownership, and
-mode contracts of the deployed local artifacts.
+##### Out of Scope
+
+Changing system-mode ordering or the content, ownership, and mode contracts
+of the deployed local artifacts.
 
 ##### Completion Criteria
 
@@ -496,7 +517,7 @@ Observed State: open
 Observed Labels: enhancement, P3-low
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-07T05:29:54Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:42Z
 
 #### M7 - verify_path type expectation
 
@@ -515,8 +536,10 @@ directory at a file target verifies green while the deployment is broken.
 An expected-type parameter threaded through all seven call sites; two targets
 are legitimately directories, so a blanket file test is wrong.
 
-Out of scope: changing target ownership or mode contracts, or replacing the
-existing deployment mechanisms.
+##### Out of Scope
+
+Changing target ownership or mode contracts, or replacing the existing
+deployment mechanisms.
 
 ##### Completion Criteria
 
@@ -528,6 +551,19 @@ existing deployment mechanisms.
 
 - The 1.2.3 runbook (#131) records this false-green class as a known limitation
   of a green `verify_path` result until the type expectation lands.
+- The false green was reproduced through the real setup behavior at
+  `BASH_COMP_DEST`: `backup_if_exists` ignores a directory because its guard
+  uses `[[ -f ]]`, `cp` writes the payload inside that directory, `chmod`
+  gives the directory the expected mode, and `verify_path` reports success
+  from its owner and mode alone.
+- Crafted directories at `SUDOERS_FILE` and `LOGROTATE_FILE` produce the same
+  class through their `mv` deployment paths. The sudo includedir ignores the
+  dot-named payload and logrotate ignores the subdirectory, so the required
+  policy is absent even though setup reports success.
+- No maintained provisioning path creates these impostors, but a root-created
+  directory is reachable and persistent: later runs neither displace nor
+  reject it. This is why the correction covers all seven call sites rather
+  than only the first reproduced target.
 
 ##### Implementation Plan
 
@@ -568,7 +604,7 @@ Observed State: open
 Observed Labels: P3-low, ops
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-30T20:35:27Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:43Z
 
 #### M8 - SELinux context
 
@@ -590,8 +626,10 @@ and logrotate targets, run the shipped setup path, and compare the resulting
 contexts and policy acceptance. If a mismatch is observed, implement the
 smallest cross-distribution correction and a real-path final-context check.
 
-Out of scope: reopening items 1 or 2 without new reachability evidence, or
-treating a non-enforcing golden as proof of production SELinux behavior.
+##### Out of Scope
+
+Reopening items 1 or 2 without new reachability evidence, or treating a
+non-enforcing golden as proof of production SELinux behavior.
 
 ##### Completion Criteria
 
@@ -649,7 +687,7 @@ Observed State: open
 Observed Labels: P3-low, ops
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-12T06:30:06Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:44Z
 
 #### M9 - Container execution mode
 
@@ -668,8 +706,10 @@ Add a third lifecycle backend that manages procServ without systemd, plus a
 matching setup mode that installs accounts, configuration, the CLI, and
 completion while skipping systemd-only assets.
 
-Out of scope: behavior changes to system and `--local` modes, and container
-image definitions in another repository.
+##### Out of Scope
+
+Behavior changes to system and `--local` modes, and container image
+definitions in another repository.
 
 ##### Completion Criteria
 
@@ -721,7 +761,7 @@ Observed State: open
 Observed Labels: P3-low, feature, area/architecture
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-18T08:13:24Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:45Z
 
 #### M10 - Conf value normalization
 
@@ -742,7 +782,9 @@ One trim-before-unquote normalization step shared by `read_conf_var` and
 `read_conf_all`, covering whitespace around `=`, quoted values, and quoted
 whitespace-only values.
 
-Out of scope: the `CRASH_LOG_PATTERNS_EXTRA` call-site trim, which #122 landed.
+##### Out of Scope
+
+The `CRASH_LOG_PATTERNS_EXTRA` call-site trim, which #122 landed.
 
 ##### Completion Criteria
 
@@ -796,7 +838,7 @@ Observed State: open
 Observed Labels: bug, P3-low, area/architecture
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-28T16:48:27Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:46Z
 
 #### M11 - Milestone procedure draft fate
 
@@ -821,8 +863,9 @@ into another document. The decision settles its boundary with
 `gate/RUNBOOK.md`, which covers the release gate rather than the
 work inside a cycle.
 
-Out of scope: the 1.2.3 line, which references the draft and leaves it
-unchanged (D3).
+##### Out of Scope
+
+The 1.2.3 line, which references the draft and leaves it unchanged (D3).
 
 ##### Completion Criteria
 
@@ -877,7 +920,7 @@ Observed State: open
 Observed Labels: P3-low, docs
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-07-30T21:23:18Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:47Z
 
 #### M12 - Human and machine output separation
 
@@ -899,9 +942,11 @@ machine-readable record sequence. Both outputs continue to derive from the
 same validated ledger, and the collector consumes only the machine-readable
 surface.
 
-Out of scope: changing the fixed check identities, terminal states, suite-state
-semantics, or the accepted M8 count vectors. This work is not part of the
-1.2.3 M8 remediation.
+##### Out of Scope
+
+Changing the fixed check identities, terminal states, suite-state semantics,
+or the accepted M8 count vectors. This work is not part of the 1.2.3 M8
+remediation.
 
 ##### Completion Criteria
 
@@ -965,7 +1010,7 @@ Observed State: open
 Observed Labels: tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-12T06:30:50Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:48Z
 
 #### M13 - Local logrotate state isolation
 
@@ -992,8 +1037,10 @@ is limited to the install-time debug validation.
 - Update the maintained inventories and driver expectations when the 1.2.4
   release line accepts the implementation plan.
 
-Out of scope: changing the system default state file, changing its ownership or
-mode, changing the deployed user timer's runtime state path, changing system
+##### Out of Scope
+
+Changing the system default state file, changing its ownership or mode,
+changing the deployed user timer's runtime state path, changing system
 logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
 
 ##### Completion Criteria
@@ -1059,7 +1106,7 @@ Observed State: open
 Observed Labels: bug, ops, tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-12T06:30:19Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:49Z
 
 #### M14 - EPICS_BASE entry boundary
 
@@ -1084,9 +1131,11 @@ missing variable its first environment boundary, and preserve the complete
 catalog reporter contract without later dependency, privilege, workspace,
 compilation, systemd, or IOC work.
 
-Out of scope: sourcing an EPICS environment automatically, making source
-regression depend on EPICS Base, changing IOC behavior, or weakening the
-reporter's complete-state contract.
+##### Out of Scope
+
+Sourcing an EPICS environment automatically, making source regression depend
+on EPICS Base, changing IOC behavior, or weakening the reporter's
+complete-state contract.
 
 ##### Completion Criteria
 
@@ -1143,7 +1192,7 @@ Observed State: open
 Observed Labels: P3-low, tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-12T06:30:10Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:50Z
 
 #### M15 - Conf mode mismatch diagnosis
 
@@ -1168,8 +1217,10 @@ command. A third-account configuration receives the comparison and remedy
 without an unsupported mode claim. System mode remains the unflagged default;
 there is no `--system` option.
 
-Out of scope: rewriting the configuration during install, switching modes,
-adding a `--system` option, or changing the identity validation rules.
+##### Out of Scope
+
+Rewriting the configuration during install, switching modes, adding a
+`--system` option, or changing the identity validation rules.
 
 ##### Completion Criteria
 
@@ -1226,7 +1277,7 @@ Observed State: open
 Observed Labels: enhancement, P2-medium, area/install
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-12T06:30:15Z
+Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:51Z
 
 ## History
 
