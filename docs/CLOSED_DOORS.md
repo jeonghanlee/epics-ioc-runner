@@ -11,8 +11,8 @@ here. The list does not hold the argument — it gives the next sweep something
 to read in one pass, so a settled question is recognized before it is derived
 again from the start.
 
-This file is not tied to a release cycle. `docs/milestone.md` is cleared when a
-cycle opens; this one is not.
+This file is not tied to a release cycle. Closed release registers leave the
+active tree after their final state is committed; this file does not.
 
 **Promotion test** — default is Keep; promotion to an enforced guard runs four
 ordered gates, and elimination is tried before guarding: `3e47ee6`.

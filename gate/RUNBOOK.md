@@ -454,10 +454,11 @@ Re-run every change-specific verification the cycle's work defined, against
 this tree. This is the first state in which all of the cycle's changes coexist;
 each was previously verified against a tree that had only its own change.
 
-They are recorded in the release line's own register, `docs/milestone.md`, one
-Test Plan per work item — that document is where to find them, and a released
-line keeps its copy at its tag (`git show <tag>:docs/milestone.md`). Executing
-them is this step; owning them is not this runbook's business.
+They are recorded in the release line's canonical register, whose path is
+listed under `docs/README.md`, one Test Plan per work item. A released line
+retains that path at its tag; releases through 1.2.3 use
+`git show <tag>:docs/milestone.md`. Executing them is this step; owning them is
+not this runbook's business.
 
 Not every row is executable here, and the three kinds part cleanly.
 

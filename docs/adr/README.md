@@ -22,8 +22,8 @@ and self-contained:
 | Architecture decision (cross-cutting, alternatives weighed, lasting) | **ADR** in this directory | Restart supervision, unit ordering, startup-poll classification (ADR 0001) |
 | Coherence **Keep** decision | **[`CLOSED_DOORS.md`](../CLOSED_DOORS.md)** — one line per verdict; the commit named in the row carries the reasoning | CI-25 two-copy unit template; CI-27 socket-path alias |
 | Coherence **guard-promotion** decision | the guarding milestone's **Active Register row** + the **promotion test** in [`CLOSED_DOORS.md`](../CLOSED_DOORS.md) | CI-4 two-copy unit template (M5); CI-9 git-metadata injection contract (M6/#84); CI-22 crash-scan token partition (M11) |
-| Release strategy decision | **`docs/milestone.md` → Open strategy decisions (U001-U008)** | U006 `^T` mechanism; U008 `=0` acceptance-criterion rewrite |
-| Per-milestone fix decision | **`docs/milestone.md` → Active Register row** (rationale inline) + GitHub issue body as original full record | M1/#92 crash-warning false positive; M2/#93 abort exit codes |
+| Release strategy decision | **1.2.0 tagged register** (`git show 1.2.0:docs/milestone.md`) | U006 `^T` mechanism; U008 `=0` acceptance-criterion rewrite |
+| Per-milestone fix decision | **1.2.0 tagged register row** (rationale inline) + GitHub issue body as original full record | M1/#92 crash-warning false positive; M2/#93 abort exit codes |
 | Subsystem specification | **Topic doc** | `PERMISSION_MODEL.md`, `LOG_LAYOUT.md`, `EXIT_SIGNAL_HANDLING.md`, `ARCHITECTURE.md`, `FAQ.md` |
 
 A decision is promoted to an ADR (rather than left in the Ledger or a register
