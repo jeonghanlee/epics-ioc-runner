@@ -6,9 +6,9 @@ Canonical branch or ref: `release-1.2.3`
 Git upstream: `origin/release-1.2.3`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.3`
 
-Next session entry point: execute the separately authorized release sequence
-from the readiness-evidence commit containing this record. That commit is the
-1.2.3 release candidate.
+Next session entry point: commit and push the cycle-close preparation, run
+Release Verification 9 against `origin/master`, then record the final M3
+closure.
 M11 is complete, #141 is closed, and the 2026-08-12 open-issue review found no
 additional work to absorb into 1.2.3.
 
@@ -48,7 +48,7 @@ question is settled as Keep (D6, `CLOSED_DOORS.md` CI-31). M1 is complete and
 | ID | Decision | Source |
 | --- | --- | --- |
 | D1 | 1.2.3 is a verification cycle: documents and test scenarios are its ordinary work, and code is not changed in passing. **Amended 2026-08-02:** the line takes a code change where one is genuinely needed to complete the cycle. The authority is the owner's, and the route is formal — the work gets its own row in this register and its own issue before it is written, never an inline repair made while something else was being fixed. What the amendment removes is the standing bar, not the discipline: the bar was there so scope could not widen quietly, and a row plus an issue is what keeps that true while letting the cycle finish. D5 and D7 remain as the record of the two exceptions named under the earlier form; work from here takes the formal route instead of a new named exception. | Owner decision, 2026-07-30, amended by owner decision 2026-08-02 |
-| D2 | The register adopts the current `milestone-tracking` schema at this cycle open. Unassigned work moved through the historical `docs/backlog.md`, whose final state is at `a39623c`, and is staged in the prepared master register at `docs/milestone-a39623c.md` until the M3 cycle close activates it. | Owner decision, 2026-07-30; master reset prepared 2026-08-12 |
+| D2 | The register adopts the current `milestone-tracking` schema at this cycle open. Unassigned work moved through the historical `docs/backlog.md`, whose final state is at `a39623c`, and was staged in `docs/milestone-a39623c.md`. This cycle-close preparation activates that document as the post-1.2.3 master register. | Owner decision, 2026-07-30; master reset prepared and activated 2026-08-12 |
 | D3 | `docs/testplan.md` is retired as an active file; the per-cycle plan lives in the final release detail of this register, and released cycles keep their plan through their tag. | Owner decision, 2026-07-30, following the current `release-cycle` contract |
 | D4 | `docs/MILESTONE_PROCEDURE.md` stays in place and unchanged through this cycle; the runbook references it rather than absorbing it, and its fate is recorded as backlog M11. | Owner decision, 2026-07-30 |
 | D5 | M4 (#133) is a named exception to D1, which otherwise stands: this cycle takes one product code change. The first rationale — that the stamp falsifies a gate record — was withdrawn the same day, once the reachability check showed the production deployment path cannot reach the condition (M4, Dependencies And Decisions), and the issue was regraded to `enhancement` / `P3-low`. The exception is kept on the narrower ground that survives: the work is done, the change is three lines with its regression coverage, and the condition it removes is one this project's own gate creates every run by pushing the tree under test with `tar`. The exception covers that change and its test; it does not reopen the line to other code work. | Owner decision, 2026-07-31, rationale narrowed the same day after the reachability finding |
@@ -210,7 +210,7 @@ Observed State: closed
 Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M2 - Golden baseline declaration
 
@@ -332,7 +332,7 @@ Observed Labels: P3-low, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Observed Body SHA-256: 3ca402b4ac7f8eba47d5d196bf63ec5c76cbe6afdf6ad4e6a10682f6c71390b3
-Last Compared: 2026-08-10T21:54:27-07:00
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M4 - Stale index dirty stamp
 
@@ -581,7 +581,7 @@ Observed State: closed
 Observed Labels: enhancement, P3-low, area/install
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06, after the reconciled body sync and manual close
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M5 - Shipped scenario drivers
 
@@ -991,7 +991,7 @@ Observed Labels: P2-medium, docs, tests
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Observed Body SHA-256: cd82e7fdeac4bfdbc8ec352aff5d854e730d7d78d5e63ea79763f29c7392bc66
-Last Compared: 2026-08-10T21:54:23-07:00
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M6 - The suite verdict cannot see a skip
 
@@ -1187,7 +1187,7 @@ Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Observed Updated At: 2026-08-10T22:58:28Z
 Observed Body: current; all four completion criteria are checked, #137 is recorded closed, T1/T2 results match the canonical detail, and closure cites commit `61eea12`
-Last Compared: 2026-08-10T15:58:28-07:00
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M7 - The suite tool probe disagrees with the runner
 
@@ -1393,7 +1393,7 @@ Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Observed Body: current; all four completion criteria are checked, T1 through T3 match the canonical detail, and closure cites `9f8d01c` and `9f6a3e9`
 Observed Updated At: 2026-08-11T01:05:17Z
-Last Compared: 2026-08-10T18:05:42-07:00
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M9 - Source regression suite separation
 
@@ -1616,7 +1616,7 @@ Observed State: closed
 Observed Labels: P2-medium, refactor, tests, area/architecture
 Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-06
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M8 - Suite skip-reporting policy
 
@@ -1932,7 +1932,7 @@ Observed Milestone: 1.2.3
 Observed Assignee: jeonghanlee
 Observed Updated At: 2026-08-10T20:50:28Z
 Observed Body: matches the canonical M8 closure record through T8
-Last Compared: 2026-08-10T20:50:28Z
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M10 - Release record reconciliation
 
@@ -2161,7 +2161,7 @@ Title: Classify Rocky local monitor-isolation checks as not applicable
 Labels: tests, ops
 GitHub Milestone: 1.2.3
 Observed State: Closed at 2026-08-12T05:33:37Z, assigned to `jeonghanlee`
-Last Compared: 2026-08-11T22:33:37-07:00
+Last Compared: 2026-08-12T18:28:07-07:00
 
 ### M3 - Final release
 
@@ -2205,9 +2205,9 @@ Out of scope: product behavior changes (D1).
   journal access; Release Verification 2 must preserve that result.
 - The 2026-08-12 open-issue review kept all fifteen surviving issues in the
   Backlog. #143 remains assigned to 1.2.4 by D17; none gates this release.
-- `docs/milestone-a39623c.md` is a prepared master generation, not an active
-  canonical register. The M3 cycle-close commit replaces its temporary entry
-  point and activates it on `master` after the release objects are published.
+- `docs/milestone-a39623c.md` is the active post-1.2.3 master generation. This
+  cycle-close preparation replaces its temporary entry point after the release
+  objects were published.
 - Owner decision, 2026-08-12: bake both goldens again for M3. The earlier
   Release Verification 1 observation remains historical evidence but does not
   satisfy this release run.
@@ -2260,7 +2260,7 @@ Superseded Plan Artifacts: none
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 8 | post-release | `alsucl-psrv3` | Rocky 8, NFS home with root_squash | x86_64 | `/usr/local/bin/ioc-runner` | Follow the documented install path from a checkout on the NFS home, then read `-V` | Install completes and `-V` reports `1.2.3` with a real short hash | pending |
+| Release Verification 8 | post-release | `alsucl-psrv3` | Rocky 8, NFS home with root_squash | x86_64 | `/usr/local/bin/ioc-runner` | Follow the documented install path from a checkout on the NFS home, then read `-V` | Install completes and `-V` reports `1.2.3` with a real short hash | Pass: `make install` verified 3/3 deployed artifacts; readback reported `1.2.3 (4868a25)` |
 
 #### Version Changes
 
@@ -2275,14 +2275,14 @@ Superseded Plan Artifacts: none
 | 1 | Record Release Verification 1 and 5 in `docs/milestone.md` on `release-1.2.3` | commit delegation | One pre-change evidence commit | `0807510`; Release Verification 1 and 5 Pass |
 | 2 | Add the accepted 1.2.3 section to `CHANGELOG.md` on `release-1.2.3` | commit delegation | One standalone changelog commit with the selected release moniker | `7c28862`; `Verification Integrity Release` |
 | 3 | Bump `RUNNER_VERSION` to `1.2.3` on `release-1.2.3` | commit delegation | One standalone version commit | `b133fb9`; only `RUNNER_VERSION` changed |
-| 4 | Record Release Verification 2 through 4 and 6 in `docs/milestone.md` | commit delegation | One readiness-evidence commit naming the release candidate | Release Verification 2 through 4 and 6 Pass; the commit containing this row is the release candidate |
-| 5 | Merge the named release candidate from `release-1.2.3` into `master` with `--no-ff` | release delegation | A merge commit on `master` | pending |
-| 6 | Create the annotated tag `1.2.3` on that merge | release delegation | Tag object with the accepted release title | pending |
-| 7 | Push `master`, tag `1.2.3`, and the final `release-1.2.3` ref | release delegation | All three refs on `origin` name the accepted objects | pending |
-| 8 | Create the GitHub release from `work/release-notes-1.2.3.md` | release delegation | Release object with the accepted title and curated body | pending |
-| 9 | Close the remote milestone `1.2.3` | release delegation | Milestone state closed | pending |
-| 10 | After verifying it is merged, delete remote branch `release-1.2.1`; no local branch exists | release delegation | The two-back release branch is absent locally and on `origin` | pending |
-| 11 | Prepare cycle closure on `master`: record Release Verification 7 and 8, activate `docs/milestone-a39623c.md`, replace its temporary entry point, and mark it active in `docs/README.md` | commit delegation | One source-first cycle-close preparation commit | pending |
+| 4 | Record Release Verification 2 through 4 and 6 in `docs/milestone.md` | commit delegation | One readiness-evidence commit naming the release candidate | `60de0cf`; Release Verification 2 through 4 and 6 Pass |
+| 5 | Merge the named release candidate from `release-1.2.3` into `master` with `--no-ff` | release delegation | A merge commit on `master` | `4868a251d18803de34b731da63bd6cf609142666` |
+| 6 | Create the annotated tag `1.2.3` on that merge | release delegation | Tag object with the accepted release title | Tag object `9644eca48e976eed74bd9ae2518c661844e86d78`, targeting `4868a251d18803de34b731da63bd6cf609142666` |
+| 7 | Push `master`, tag `1.2.3`, and the final `release-1.2.3` ref | release delegation | All three refs on `origin` name the accepted objects | Remote `master` and dereferenced tag target `4868a25`; remote release branch `60de0cf`; remote tag object `9644eca` |
+| 8 | Create the GitHub release from `work/release-notes-1.2.3.md` | release delegation | Release object with the accepted title and curated body | Published release ID `369608799` at 2026-08-12T18:02:19-07:00 |
+| 9 | Close the remote milestone `1.2.3` | release delegation | Milestone state closed | Closed at 2026-08-12T18:02:36-07:00 with 9 closed issues and 0 open issues |
+| 10 | After verifying it is merged, delete remote branch `release-1.2.1`; no local branch exists | release delegation | The two-back release branch is absent locally and on `origin` | No local or remote `release-1.2.1` ref at 2026-08-12T18:28:07-07:00 |
+| 11 | Prepare cycle closure on `master`: record Release Verification 7 and 8, activate `docs/milestone-a39623c.md`, replace its temporary entry point, and mark it active in `docs/README.md` | commit delegation | One source-first cycle-close preparation commit | This preparation: Release Verification 7 and 8 Pass; active register and README agree |
 | 12 | Push the cycle-close preparation commit to `origin/master` | push delegation | `origin/master` contains the prepared closure and active master register | pending |
 | 13 | Run Release Verification 9, mark M3 Complete, and record final closure evidence | commit delegation | One final closure commit on `master` | pending |
 | 14 | Push the final closure commit to `origin/master` | push delegation | Local `master` and `origin/master` agree on the closed cycle | pending |
@@ -2336,8 +2336,8 @@ Control-side evidence directory:
 | Release Verification 4 | 2026-08-12T15:35:15-07:00 | Both fresh consumers, `nfs_sim` root-squash mount, version commit `b133fb9` | Pass | Both fixtures first reported `SQUASH REPRODUCED`: root was denied at the absolute NFS tree, its owner succeeded there, and root succeeded on `/usr/local/bin`. On both hosts the default setup script, `make install`, and `make setup` each exited 0, reported zero layout/unknown warnings, changed the deployed binary mtime, and stamped `1.2.3 (b133fb9)` with commit date `2026-08-12T22:19:19Z`. Rocky mtimes were `15:34:52.900047894`, `15:35:03.302118333`, and `15:35:11.193171769`; Debian mtimes were `15:34:52.220664289`, `15:35:01.548728271`, and `15:35:07.832771370`, all at `-0700`. Evidence: `work/release-1.2.3-root-squash-<os>-precheck.log`, `work/release-1.2.3-root-squash-<os>-<entry>.log`, and matching `.stamp` files. |
 | Release Verification 5 | 2026-08-12T14:41:22-07:00 | Clean `release-1.2.3` tree at `5014480` | Pass | `bin/ioc-runner` line 14 declared `RUNNER_VERSION="1.2.2"` before mutation. |
 | Release Verification 6 | 2026-08-12T15:35:15-07:00 | Both fresh consumers after all three root-squash deploy entry points | Pass | Every deployed readback reported `epics-ioc-runner version 1.2.3 (b133fb9)` with commit date `2026-08-12T22:19:19Z`; the final install dates were `2026-08-12T22:35:11Z` on Rocky and `2026-08-12T22:35:07Z` on Debian. The matching stamp files are named in Release Verification 4. |
-| Release Verification 7 | Not run | GitHub | Pending | none |
-| Release Verification 8 | Not run | `alsucl-psrv3` | Pending | none |
+| Release Verification 7 | 2026-08-12T18:28:07-07:00 | Git and GitHub | Pass | Remote `master` and dereferenced tag `1.2.3` resolve to merge `4868a251d18803de34b731da63bd6cf609142666`; annotated tag object `9644eca48e976eed74bd9ae2518c661844e86d78`; published GitHub release ID `369608799`; closed GitHub milestone with 9 closed issues and 0 open issues. |
+| Release Verification 8 | 2026-08-12T18:24:51-07:00 | `alsucl-psrv3`, Rocky 8, NFS home with root_squash | Pass | From the release checkout on the NFS home, `sudo -v && make install` exited successfully and verified 3/3 deployed artifacts. `hostname -f` reported `alsucl-psrv3`; `/usr/local/bin/ioc-runner -V` reported version `1.2.3 (4868a25)`, commit date `2026-08-13T01:01:32Z`, and install date `2026-08-13T01:24:51Z`. |
 | Release Verification 9 | Not run | `origin/master` | Pending | none |
 
 #### Closure Evidence
@@ -2349,5 +2349,5 @@ Control-side evidence directory:
 Title: none
 Labels: none
 GitHub Milestone: 1.2.3
-Observed State: none
-Last Compared: 2026-07-30
+Observed State: GitHub milestone closed; 9 closed issues and 0 open issues
+Last Compared: 2026-08-12T18:28:07-07:00

@@ -6,13 +6,10 @@ Canonical path: `docs/milestone-a39623c.md`
 Canonical branch or ref: `master`
 Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
-Activation state: prepared on `release-1.2.3`; not canonical until the M3
-cycle-close commit activates it on `master`
+Activation state: active on `master` as the post-1.2.3 reset generation
 
-Next session entry point: while this generation remains prepared, continue
-release 1.2.3 in `docs/milestone.md` by reviewing and accepting the M3
-final-release plan. During the M3 cycle close, replace this entry point with
-the first master action before recording the activation commit.
+Next session entry point: open the 1.2.4 release line and transfer M13 (#143),
+including its full row and detail, into that release's canonical document.
 
 ## Milestone
 
