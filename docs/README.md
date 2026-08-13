@@ -44,13 +44,12 @@ This directory contains the complete documentation for deploying, managing, and 
 
 ### 7. Milestone Registers
 * **[milestone-1.2.4.md](milestone-1.2.4.md)**
-  Staged canonical register for the 1.2.4 bugfix line. It carries M3, M7, M6,
-  M13, and the final release plan. It becomes authoritative after the master
-  source transfer commit names its staging commit.
+  Active canonical register for the 1.2.4 bugfix line. It carries M3, M7, M6,
+  M13, and the final release plan; master source transfer commit `e357210`
+  moved authority to this branch.
 * **[milestone-a39623c.md](milestone-a39623c.md)**
-  Master source register at the 1.2.4 branch point. Its assignment history
-  keeps authority for the four staged items until the cross-branch source
-  transfer commit is recorded on master.
+  Master register at the 1.2.4 branch point. It retains the surviving Backlog
+  and the future 1.3.0 target decisions after the four bugfix rows moved.
 
 ## Upgrading from 1.0.x
 

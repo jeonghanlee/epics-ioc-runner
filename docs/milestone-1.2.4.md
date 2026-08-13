@@ -4,15 +4,14 @@ Release line: 1.2.4
 Milestone index: 1.2.4
 Canonical path: `docs/milestone-1.2.4.md`
 Canonical branch or ref: `release-1.2.4`
-Git upstream: `origin/release-1.2.4` after first push
-Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.4`
-(pending creation)
-Activation state: staged target; authority remains with
-`master`, `docs/milestone-a39623c.md` until its source transfer commit names
-this target commit and removes the four source rows and details.
+Git upstream: `origin/release-1.2.4`
+Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.2.4`,
+number 15
+Activation state: active on `release-1.2.4`; source authority moved in master
+commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: commit this staged target, then return to `master`
-and prepare the source transfer commit naming the exact target commit.
+Next session entry point: review M3 (#114) against the accepted plan, obtain
+separate implementation authorization, and begin no code change before it.
 
 ## Milestone
 
@@ -24,8 +23,8 @@ and prepare the source transfer commit naming the exact target commit.
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Not started | Yes | D1, D2 | Every file target rejects a directory impostor and the two directory targets still verify through the shipped setup path; [detail](#m7---verify_path-type-expectation) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
-| Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Open | No | | Repository owner creates the open GitHub milestone with the exact title `1.2.4`; [detail](#g1---github-milestone-1.2.4) |
-| Release | M16 | Final release 1.2.4 | Milestone | Blocked | No | M3, M7, M6, M13, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
+| Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
+| Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M6, M13, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
 
 ### Decisions
 
@@ -39,18 +38,18 @@ and prepare the source transfer commit naming the exact target commit.
 
 | Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
-| a39623c / M3 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | this synchronization commit | source transfer commit naming this target commit |
-| a39623c / M6 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | this synchronization commit | source transfer commit naming this target commit |
-| a39623c / M7 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | this synchronization commit | source transfer commit naming this target commit |
-| a39623c / M13 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | this synchronization commit | source transfer commit naming this target commit |
+| a39623c / M3 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | `e357210e5c447d5736684395cd7f5d780b9df246` |
+| a39623c / M6 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | `e357210e5c447d5736684395cd7f5d780b9df246` |
+| a39623c / M7 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | `e357210e5c447d5736684395cd7f5d780b9df246` |
+| a39623c / M13 | `master`, `docs/milestone-a39623c.md` | `release-1.2.4`, `docs/milestone-1.2.4.md` | `4bcd63847fef73833946a49a1af05d29fc65bd8d` | `e357210e5c447d5736684395cd7f5d780b9df246` |
 
 ### Milestone Details
 
 #### M3 - FATAL token boundary hygiene
 
 Origin: a39623c / M3
-Identity History: transferred unchanged from `docs/milestone-a39623c.md`;
-staged target activation requires the master source transfer commit.
+Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
+master source transfer commit `e357210`.
 GitHub Issue: 114, https://github.com/jeonghanlee/epics-ioc-runner/issues/114
 Status: Not started
 
@@ -119,15 +118,15 @@ Labels: P2-medium, area/detection
 GitHub Milestone: 1.2.4
 Observed State: open
 Observed Labels: P2-medium, area/detection
-Observed Milestone: Backlog
+Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:39Z
+Last Compared: 2026-08-13; remote updated 2026-08-13T06:59:57Z
 
 #### M7 - verify_path type expectation
 
 Origin: a39623c / M7
-Identity History: transferred unchanged from `docs/milestone-a39623c.md`;
-staged target activation requires the master source transfer commit.
+Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
+master source transfer commit `e357210`.
 GitHub Issue: 118, https://github.com/jeonghanlee/epics-ioc-runner/issues/118
 Status: Not started
 
@@ -209,15 +208,15 @@ Labels: P3-low, ops
 GitHub Milestone: 1.2.4
 Observed State: open
 Observed Labels: P3-low, ops
-Observed Milestone: Backlog
+Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:43Z
+Last Compared: 2026-08-13; remote updated 2026-08-13T07:00:02Z
 
 #### M6 - Local install ordering
 
 Origin: a39623c / M6
-Identity History: transferred unchanged from `docs/milestone-a39623c.md`;
-staged target activation requires the master source transfer commit.
+Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
+master source transfer commit `e357210`.
 GitHub Issue: 117, https://github.com/jeonghanlee/epics-ioc-runner/issues/117
 Status: Open
 
@@ -289,15 +288,15 @@ Labels: enhancement, P3-low
 GitHub Milestone: 1.2.4
 Observed State: open
 Observed Labels: enhancement, P3-low
-Observed Milestone: Backlog
+Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:42Z
+Last Compared: 2026-08-13; remote updated 2026-08-13T06:59:59Z
 
 #### M13 - Local logrotate state isolation
 
 Origin: a39623c / M13
-Identity History: transferred unchanged from `docs/milestone-a39623c.md`;
-staged target activation requires the master source transfer commit.
+Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
+master source transfer commit `e357210`.
 GitHub Issue: 143, https://github.com/jeonghanlee/epics-ioc-runner/issues/143
 Status: Not started
 
@@ -387,16 +386,16 @@ Labels: bug, ops, tests
 GitHub Milestone: 1.2.4
 Observed State: open
 Observed Labels: bug, ops, tests
-Observed Milestone: Backlog
+Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:49Z
+Last Compared: 2026-08-13; remote updated 2026-08-13T06:59:58Z
 
 #### M16 - Final release
 
 Origin: 1.2.4 / M16
 Identity History: none
 GitHub Issue: none
-Status: Blocked
+Status: Not started
 
 ##### Summary
 
@@ -424,7 +423,7 @@ future line.
 ##### Dependencies And Decisions
 
 - M3, M7, M6, and M13.
-- G1; resume as Not started after the remote milestone exists.
+- G1 is Complete; GitHub milestone 1.2.4 exists as number 15.
 - D3 defines the complete two-golden gate and release boundary.
 - The 1.3.0 target decisions remain on master and do not open that cycle.
 
@@ -526,7 +525,7 @@ Last Compared: never
 
 Origin: 1.2.4 / G1
 GitHub Issue: none
-Status: Open
+Status: Complete
 
 ##### Summary
 
@@ -541,11 +540,13 @@ four issue projections can move from Backlog and before final release closure.
 
 | Observed At | Result | Evidence |
 | --- | --- | --- |
-| Not run | Pending | GitHub milestone query after owner execution |
+| 2026-08-13T06:54:01Z | Pass | GitHub milestone 15 exists, title `1.2.4`, state open; issues #114, #118, #117, and #143 all project milestone `1.2.4` |
 
 ##### Closure Evidence
 
-- none
+- Created by the repository owner on 2026-08-13 as milestone number 15.
+- Four assigned issues were re-read after synchronization and each reported
+  milestone `1.2.4`.
 
 ## Backlog
 
