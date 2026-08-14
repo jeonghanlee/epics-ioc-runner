@@ -10,8 +10,8 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: finish the M3 (#114) review cycle against the recorded
-two-golden evidence, then prepare its implementation commit.
+Next session entry point: obtain M7 (#118) implementation authorization, then
+execute its accepted `verify_path` type-expectation plan.
 
 ## Milestone
 
@@ -19,7 +19,7 @@ two-golden evidence, then prepare its implementation commit.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | In progress | No | D1, D2, D5 | Identifier-adjacent `fatal` stays benign on either side while true fatal startup remains detected on both goldens; [detail](#m3---fatal-token-boundary-hygiene) |
+| Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Complete | No | D1, D2, D5 | Commit `fccef50` and two-golden real-path evidence satisfy T1 and T2; issue #114 is closed; [detail](#m3---fatal-token-boundary-hygiene) |
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Not started | Yes | D1, D2 | Every file target rejects a directory impostor and the two directory targets still verify through the shipped setup path; [detail](#m7---verify_path-type-expectation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Not started | Yes | D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises an overridden deployment destination through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
@@ -54,7 +54,7 @@ Origin: a39623c / M3
 Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
 master source transfer commit `e357210`.
 GitHub Issue: 114, https://github.com/jeonghanlee/epics-ioc-runner/issues/114
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -124,18 +124,24 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
-- none
+- Commit `fccef50dd5d4fdfa11a9ccb39566949f280b5311` implements the
+  token boundaries, direct subset composition, and three-case real-path matrix
+  on `release-1.2.4`; `origin/release-1.2.4` contains the commit.
+- T1 and T2 passed through the recorded real source, local lifecycle, and
+  system lifecycle paths on Debian 13 and Rocky 8.
+- GitHub issue #114 was reconciled and observed closed at
+  `2026-08-14T17:11:43Z`.
 
 ##### GitHub Projection
 
 Title: Add boundary hygiene to the FATAL crash-token subset
 Labels: P2-medium, area/detection
 GitHub Milestone: 1.2.4
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, area/detection
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-13; remote updated 2026-08-13T20:06:09Z
+Last Compared: 2026-08-14; remote updated 2026-08-14T17:11:43Z
 
 #### M7 - verify_path type expectation
 
