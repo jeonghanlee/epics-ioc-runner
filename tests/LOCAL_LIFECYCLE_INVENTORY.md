@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 126
+Fixed Total: 135
 
 ## Runner Policy
 
@@ -14,12 +14,12 @@ rejected before reporter initialization and is not part of this catalog.
 
 ## Inventory Basis
 
-The current maximum branch contains 109 assertions. The fixed catalog adds
+The current maximum branch contains 118 assertions. The fixed catalog adds
 three P00 checks and eleven prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
 camonitor availability and the S15 and S16 configuration requirements. The
-resulting catalog contains 126 identities.
+resulting catalog contains 135 identities.
 
 ## Test Method Assignment
 
@@ -197,9 +197,18 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S29.unit-journal-visible` | `BEHAVIOR` | Unit-attributed journal output is visible.
 - `local-lifecycle.S29.monitor-input-blocked` | `BEHAVIOR` | Monitor input does not reach the IOC.
 
-### S30 - Crash Detection (18)
+### S30 - Crash Detection (27)
 
 - `local-lifecycle.S30.softioc-available` | `PREREQUISITE` | `softIoc` is executable.
+- `local-lifecycle.S30.leading-boundary-identifier-adjacent-exits-zero` | `BEHAVIOR` | `fatal` preceded by an identifier character and followed by a boundary does not fail startup.
+- `local-lifecycle.S30.leading-boundary-identifier-adjacent-success-verdict` | `BEHAVIOR` | The isolated leading-boundary case reports successful startup.
+- `local-lifecycle.S30.leading-boundary-identifier-adjacent-emitted` | `BEHAVIOR` | The isolated leading-boundary fixture is present in the procServ log.
+- `local-lifecycle.S30.trailing-boundary-identifier-adjacent-exits-zero` | `BEHAVIOR` | `fatal` preceded by a boundary and followed by an identifier character does not fail startup.
+- `local-lifecycle.S30.trailing-boundary-identifier-adjacent-success-verdict` | `BEHAVIOR` | The isolated trailing-boundary case reports successful startup.
+- `local-lifecycle.S30.trailing-boundary-identifier-adjacent-emitted` | `BEHAVIOR` | The isolated trailing-boundary fixture is present in the procServ log.
+- `local-lifecycle.S30.identifier-contained-fatal-exits-zero` | `BEHAVIOR` | `fatal` adjacent to identifier characters on both sides does not fail startup.
+- `local-lifecycle.S30.identifier-contained-fatal-success-verdict` | `BEHAVIOR` | The both-sides identifier case reports successful startup.
+- `local-lifecycle.S30.identifier-contained-fatal-emitted` | `BEHAVIOR` | The both-sides identifier fixture is present in the procServ log.
 - `local-lifecycle.S30.fatal-probe-exits-one` | `BEHAVIOR` | Pre-init FATAL probe exits one.
 - `local-lifecycle.S30.fatal-probe-verdict` | `BEHAVIOR` | Pre-init FATAL probe reports failed initialization.
 - `local-lifecycle.S30.silent-loop-exits-one` | `BEHAVIOR` | Silent crash-loop probe exits one.
@@ -275,7 +284,7 @@ skips, every dependent S14 check also skips.
 
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 126 identities in this
+Every source and installed invocation declares these 135 identities in this
 order. Runner origin changes the selected binary and the SUITE `runner` field,
 not the identity set. Missing prerequisites and non-applicable permission
 branches close their declared dependent checks without changing `Total`.

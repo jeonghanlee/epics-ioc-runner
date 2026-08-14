@@ -147,10 +147,10 @@ A `start` on an IOC that is already running short-circuits to `IOC '<name>' is a
 The patterns used by the startup health check are defined as a global variable at the top of the `ioc-runner` script:
 
 ```bash
-CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
+CRASH_LOG_PATTERNS="(${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS})"
 ```
 
-This set is partitioned into two subsets (`CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, whose union is the set above): fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens never participate in a failure verdict at all — crash-loop failures are triggered by the procServ death banner alone. The only effect of an ambiguous token is the post-initialization warning on a still-alive IOC ("active but reported errors after initialization"). See Q6 for the full phase-by-phase behavior.
+The base set is composed directly from `CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, so the two subsets are its single source of truth. Fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens never participate in a failure verdict at all - crash-loop failures are triggered by the procServ death banner alone. `FATAL` requires the start or end of a line, or a non-identifier character, on each respective side. The leading-only `device_nonfatal`, trailing-only `fatalFlag`, and both-sides `device_nonfatal_state` forms are therefore not fatal tokens. The only effect of an ambiguous token is the post-initialization warning on a still-alive IOC ("active but reported errors after initialization"). See Q6 for the full phase-by-phase behavior.
 
 For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. All pattern matching — the built-in set and `CRASH_LOG_PATTERNS_EXTRA` alike — is case-insensitive, so `Bergoz link lost` also matches `BERGOZ LINK LOST`; write tokens in their natural case and do not add case variants. These per-IOC tokens are corroborating only — they raise a warning on a still-alive IOC, never a standalone startup failure:
 

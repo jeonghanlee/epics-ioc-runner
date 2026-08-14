@@ -218,8 +218,8 @@ rules and the reasons they were chosen:
   duration, and treats `activating (auto-restart)` as not-settled.
 
 - **Token partition.** `CRASH_LOG_PATTERNS` = `CRASH_LOG_PATTERNS_FATAL` (5) |
-  `CRASH_LOG_PATTERNS_AMBIGUOUS` (5); the base set is the union (set-equal,
-  guard-pinned — register CI-22). The split lets a pre-marker **fatal** token
+  `CRASH_LOG_PATTERNS_AMBIGUOUS` (5); the base set is composed directly from
+  the two subsets (guard-pinned - register CI-22). The split lets a pre-marker **fatal** token
   fail fast (exit 1) while an **ambiguous** token does not, by itself, condemn a
   start that otherwise reaches the marker.
 
@@ -249,10 +249,12 @@ rules and the reasons they were chosen:
 
 The literals (`All initialization complete`, `@@@ Child process is shutting
 down`) and the fatal/ambiguous partition must agree across `bin/ioc-runner`, the
-tests, and the docs; the agreement is **guard-pinned** (CI-22:
-`verify_base_subset_union` set-equality + `verify_match_subset` membership), not
-refactored, because the `test-error-handling.bash` scraper reads the script as
-text and cannot expand a derived form.
+tests, and the docs. The agreement is **guard-pinned** (CI-22): the base pattern
+must be the direct subset composition, and source fixtures pin membership.
+M8/#137 moved source-contract ownership from error handling to source
+regression but retained quoted-global extraction. M3 reconstructs the matcher
+from the extracted fatal and ambiguous subsets for membership checks while a
+separate declaration check pins direct composition.
 
 ---
 

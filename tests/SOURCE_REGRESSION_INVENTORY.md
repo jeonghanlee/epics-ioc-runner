@@ -206,9 +206,9 @@ S19 adds four REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S19.runner-name.max-length-64` | `REQUIRED` | `direct-inspection` | The runner IOC-name source contract retains the maximum length of 64. |
 | `source-regression.S19.runner-sudoers-name-contracts.agree` | `REQUIRED` | `direct-inspection` | After normalizing equivalent ASCII letter-range order, the setup expression exactly matches the runner character classes and derived remaining-character limit. |
 
-## Accepted M8 S20 Addition
+## S20 - Crash Pattern Source Contract
 
-S20 adds twenty-two REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in local lifecycle S30.
+S20 defines twenty-eight REQUIRED direct-inspection identities. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in the lifecycle suites.
 
 | Check ID | Kind | Test Method | Source Contract |
 | --- | --- | --- | --- |
@@ -223,13 +223,19 @@ S20 adds twenty-two REQUIRED direct-inspection identities accepted by the owner 
 | `source-regression.S20.case-insensitive-error-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `error`. |
 | `source-regression.S20.case-insensitive-fatal-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `FATAL`. |
 | `source-regression.S20.case-insensitive-fatal-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `fatal`. |
+| `source-regression.S20.negative-identifier-prefix-fatal` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` preceded by an identifier character and followed by a boundary. |
+| `source-regression.S20.negative-fatal-identifier-suffix` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` followed by an identifier character. |
+| `source-regression.S20.negative-identifier-contained-fatal` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` inside an identifier on both sides. |
 | `source-regression.S20.regression-segmentation-fault` | `REQUIRED` | `direct-inspection` | The base regex matches a segmentation-fault line. |
 | `source-regression.S20.negative-procserv-child-start-line` | `REQUIRED` | `direct-inspection` | The base regex excludes a routine procServ child line. |
 | `source-regression.S20.negative-iocinit-complete-line` | `REQUIRED` | `direct-inspection` | The base regex excludes the IOC-ready line. |
 | `source-regression.S20.negative-epics-banner` | `REQUIRED` | `direct-inspection` | The base regex excludes a normal EPICS banner. |
 | `source-regression.S20.negative-startup-banner` | `REQUIRED` | `direct-inspection` | The base regex excludes a normal startup line. |
-| `source-regression.S20.base-patterns.equal-subset-union` | `REQUIRED` | `direct-inspection` | The base token set equals the fatal and ambiguous subset union. |
+| `source-regression.S20.base-patterns.equal-subset-union` | `REQUIRED` | `direct-inspection` | The base regex is composed directly from the fatal and ambiguous subsets. |
 | `source-regression.S20.subset-fatal-is-fatal` | `REQUIRED` | `direct-inspection` | `FATAL` remains in the fatal subset. |
+| `source-regression.S20.subset-identifier-prefix-fatal-is-benign` | `REQUIRED` | `direct-inspection` | The fatal subset excludes `fatal` preceded by an identifier character and followed by a boundary. |
+| `source-regression.S20.subset-fatal-identifier-suffix-is-benign` | `REQUIRED` | `direct-inspection` | The fatal subset excludes `fatal` followed by an identifier character. |
+| `source-regression.S20.subset-identifier-contained-fatal-is-benign` | `REQUIRED` | `direct-inspection` | The fatal subset excludes `fatal` inside an identifier on both sides. |
 | `source-regression.S20.subset-undefined-symbol-is-fatal` | `REQUIRED` | `direct-inspection` | `undefined symbol` remains in the fatal subset. |
 | `source-regression.S20.subset-can-t-open-is-ambiguous` | `REQUIRED` | `direct-inspection` | `Can't open` remains in the ambiguous subset. |
 | `source-regression.S20.subset-error-is-ambiguous` | `REQUIRED` | `direct-inspection` | `ERROR` remains in the ambiguous subset. |
@@ -247,7 +253,8 @@ S21 adds five REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S21.history-write.matches-exclude-pattern` | `REQUIRED` | `direct-inspection` | The exclusion source constant recognizes the history-write diagnostic. |
 | `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The runner filters whole lines before fatal and corroborating scans consume the filtered window. |
 
-The fixed source-regression catalog contains 87 identities: the 36 accepted M9 identities plus fifty-one M8 identities.
+The fixed source-regression catalog contains 93 identities: 36 moved identities
+and 57 source-contract identities in S15 through S21.
 
 ## Move Invariants
 

@@ -97,6 +97,9 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S20.case-insensitive-error-lower"
     "${SUITE_ID}.S20.case-insensitive-fatal-upper"
     "${SUITE_ID}.S20.case-insensitive-fatal-lower"
+    "${SUITE_ID}.S20.negative-identifier-prefix-fatal"
+    "${SUITE_ID}.S20.negative-fatal-identifier-suffix"
+    "${SUITE_ID}.S20.negative-identifier-contained-fatal"
     "${SUITE_ID}.S20.regression-segmentation-fault"
     "${SUITE_ID}.S20.negative-procserv-child-start-line"
     "${SUITE_ID}.S20.negative-iocinit-complete-line"
@@ -104,6 +107,9 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S20.negative-startup-banner"
     "${SUITE_ID}.S20.base-patterns.equal-subset-union"
     "${SUITE_ID}.S20.subset-fatal-is-fatal"
+    "${SUITE_ID}.S20.subset-identifier-prefix-fatal-is-benign"
+    "${SUITE_ID}.S20.subset-fatal-identifier-suffix-is-benign"
+    "${SUITE_ID}.S20.subset-identifier-contained-fatal-is-benign"
     "${SUITE_ID}.S20.subset-undefined-symbol-is-fatal"
     "${SUITE_ID}.S20.subset-can-t-open-is-ambiguous"
     "${SUITE_ID}.S20.subset-error-is-ambiguous"
@@ -1258,7 +1264,7 @@ function _runner_quoted_global {
 
 # Evaluates an extracted regex against one contract fixture. This verifies
 # source-level pattern membership only; runtime crash behavior remains owned by
-# the local lifecycle suite's real softIoc paths.
+# the local and system lifecycle suites' real softIoc paths.
 function _verify_regex_source_fixture {
     local expected="$1"
     local regex="$2"
@@ -1280,21 +1286,21 @@ function test_crash_pattern_source_contract {
     local step="$1"
     local runner_script="${REPO_TOP}/bin/ioc-runner"
     local base_patterns=""
+    local base_declaration=""
     local fatal_patterns=""
     local ambiguous_patterns=""
-    local base_tokens=""
-    local union_state="unequal"
 
     print_divider
     _log "INFO" "STEP ${step}: Verify Crash Pattern Source Contract"
     print_sub_divider
 
-    base_patterns=$(_runner_quoted_global \
+    base_declaration=$(_runner_quoted_global \
         "CRASH_LOG_PATTERNS" "${runner_script}")
     fatal_patterns=$(_runner_quoted_global \
         "CRASH_LOG_PATTERNS_FATAL" "${runner_script}")
     ambiguous_patterns=$(_runner_quoted_global \
         "CRASH_LOG_PATTERNS_AMBIGUOUS" "${runner_script}")
+    base_patterns="(${fatal_patterns}|${ambiguous_patterns})"
 
     _verify_regex_source_fixture "match" "${base_patterns}" \
         "ERROR st.cmd line 52: Unbalanced quote." \
@@ -1329,6 +1335,15 @@ function test_crash_pattern_source_contract {
     _verify_regex_source_fixture "match" "${base_patterns}" \
         "fatal allocation failure" \
         "${SUITE_ID}.S20.case-insensitive-fatal-lower"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "device_nonfatal=ready" \
+        "${SUITE_ID}.S20.negative-identifier-prefix-fatal"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "fatalFlag=ready" \
+        "${SUITE_ID}.S20.negative-fatal-identifier-suffix"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "device_nonfatal_state=ready" \
+        "${SUITE_ID}.S20.negative-identifier-contained-fatal"
     _verify_regex_source_fixture "match" "${base_patterns}" \
         "Segmentation fault (core dumped)" \
         "${SUITE_ID}.S20.regression-segmentation-fault"
@@ -1345,19 +1360,22 @@ function test_crash_pattern_source_contract {
         "Starting iocsh.bash" \
         "${SUITE_ID}.S20.negative-startup-banner"
 
-    base_tokens="${base_patterns#\(}"
-    base_tokens="${base_tokens%\)}"
-    if [[ "$(printf '%s' "${base_tokens}" | tr '|' '\n' | sort)" \
-          == "$(printf '%s' "${fatal_patterns}|${ambiguous_patterns}" \
-              | tr '|' '\n' | sort)" ]]; then
-        union_state="equal"
-    fi
-    verify_state "equal" "${union_state}" \
+    verify_state "(\${CRASH_LOG_PATTERNS_FATAL}|\${CRASH_LOG_PATTERNS_AMBIGUOUS})" \
+        "${base_declaration}" \
         "${SUITE_ID}.S20.base-patterns.equal-subset-union"
 
     _verify_regex_source_fixture "match" "${fatal_patterns}" \
         "FATAL: aborting" \
         "${SUITE_ID}.S20.subset-fatal-is-fatal"
+    _verify_regex_source_fixture "nomatch" "${fatal_patterns}" \
+        "device_nonfatal=ready" \
+        "${SUITE_ID}.S20.subset-identifier-prefix-fatal-is-benign"
+    _verify_regex_source_fixture "nomatch" "${fatal_patterns}" \
+        "fatalFlag=ready" \
+        "${SUITE_ID}.S20.subset-fatal-identifier-suffix-is-benign"
+    _verify_regex_source_fixture "nomatch" "${fatal_patterns}" \
+        "device_nonfatal_state=ready" \
+        "${SUITE_ID}.S20.subset-identifier-contained-fatal-is-benign"
     _verify_regex_source_fixture "match" "${fatal_patterns}" \
         "undefined symbol: epicsRingNew" \
         "${SUITE_ID}.S20.subset-undefined-symbol-is-fatal"
@@ -1378,6 +1396,8 @@ function test_crash_exclusion_source_contract {
     local step="$1"
     local runner_script="${REPO_TOP}/bin/ioc-runner"
     local base_patterns=""
+    local fatal_patterns=""
+    local ambiguous_patterns=""
     local exclude_patterns=""
     local nonempty_state="empty"
     local compile_state="invalid"
@@ -1397,8 +1417,11 @@ function test_crash_exclusion_source_contract {
     _log "INFO" "STEP ${step}: Verify Crash Exclusion Source Contract"
     print_sub_divider
 
-    base_patterns=$(_runner_quoted_global \
-        "CRASH_LOG_PATTERNS" "${runner_script}")
+    fatal_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS_FATAL" "${runner_script}")
+    ambiguous_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS_AMBIGUOUS" "${runner_script}")
+    base_patterns="(${fatal_patterns}|${ambiguous_patterns})"
     exclude_patterns=$(_runner_quoted_global \
         "CRASH_LOG_EXCLUDE_PATTERNS" "${runner_script}")
 

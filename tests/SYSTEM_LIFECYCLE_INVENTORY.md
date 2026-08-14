@@ -11,15 +11,17 @@ the same identity set.
 
 ## Inventory Basis
 
-The source contains 74 verify_state call sites. Repeated pipeline functions add
-four runtime occurrences: explicit install at S06 and S12, cleanup install at
-S07, S09, and S13, and directory install at S08 and S14. The camonitor
+The source contains 77 catalog behavior assertion call sites. Repeated pipeline
+functions and the three-call boundary helper add ten runtime occurrences:
+explicit install at S06 and S12, cleanup install at S07, S09, and S13,
+directory install at S08 and S14, and six additional boundary assertions at
+S26. The camonitor
 availability assertion is currently fail-only, so the maximum successful path
-reports 77 assertions although 78 assertion branches exist.
+reports 86 assertions although 87 assertion branches exist.
 
 The fixed catalog adds four P00 checks and eleven prerequisite or required
 conditions currently represented only by early returns. The resulting catalog
-contains 93 identities. S02, S03, and S04 are setup-only STEPs and own no
+contains 102 identities. S02, S03, and S04 are setup-only STEPs and own no
 checks.
 
 ## Dependency Policy
@@ -27,7 +29,7 @@ checks.
 - The four P00 checks govern all numbered STEPs.
 - S23 camonitor availability governs the Channel Access behavior check.
 - S25 system-journal availability governs both monitor-isolation checks.
-- S26 softIoc availability governs both crash-detection checks.
+- S26 softIoc availability governs all eleven crash-detection checks.
 - S27 softIoc and probe-user-name prerequisites govern its four behavior
   checks.
 - S28 the installed policy, softIoc, and logrotate conditions govern its ten
@@ -96,6 +98,15 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S25 | `system-lifecycle.S25.journal-channel-visible-for-unit-positive-control` | `BEHAVIOR` | `real-path` | Journal channel visible for unit (positive control) |
 | S25 | `system-lifecycle.S25.input-securely-blocked-in-monitor-mode` | `BEHAVIOR` | `real-path` | Input securely blocked in monitor mode |
 | S26 | `system-lifecycle.S26.softioc-available` | `PREREQUISITE` | `direct-inspection` | softIoc is executable. |
+| S26 | `system-lifecycle.S26.leading-boundary-identifier-adjacent-exits-zero` | `BEHAVIOR` | `real-path` | `fatal` preceded by an identifier character and followed by a boundary does not fail startup. |
+| S26 | `system-lifecycle.S26.leading-boundary-identifier-adjacent-avoids-failed-verdict` | `BEHAVIOR` | `real-path` | The isolated leading-boundary case produces no failed-initialization verdict. |
+| S26 | `system-lifecycle.S26.leading-boundary-identifier-adjacent-emitted` | `BEHAVIOR` | `real-path` | The isolated leading-boundary fixture is present in the procServ log. |
+| S26 | `system-lifecycle.S26.trailing-boundary-identifier-adjacent-exits-zero` | `BEHAVIOR` | `real-path` | `fatal` preceded by a boundary and followed by an identifier character does not fail startup. |
+| S26 | `system-lifecycle.S26.trailing-boundary-identifier-adjacent-avoids-failed-verdict` | `BEHAVIOR` | `real-path` | The isolated trailing-boundary case produces no failed-initialization verdict. |
+| S26 | `system-lifecycle.S26.trailing-boundary-identifier-adjacent-emitted` | `BEHAVIOR` | `real-path` | The isolated trailing-boundary fixture is present in the procServ log. |
+| S26 | `system-lifecycle.S26.identifier-contained-fatal-exits-zero` | `BEHAVIOR` | `real-path` | `fatal` adjacent to identifier characters on both sides does not fail startup. |
+| S26 | `system-lifecycle.S26.identifier-contained-fatal-avoids-failed-verdict` | `BEHAVIOR` | `real-path` | The both-sides identifier case produces no failed-initialization verdict. |
+| S26 | `system-lifecycle.S26.identifier-contained-fatal-emitted` | `BEHAVIOR` | `real-path` | The both-sides identifier fixture is present in the procServ log. |
 | S26 | `system-lifecycle.S26.broken-softioc-fatal-pre-init-exit-1` | `BEHAVIOR` | `real-path` | Broken softIoc (FATAL pre-init) -> exit 1 |
 | S26 | `system-lifecycle.S26.broken-softioc-failed-to-initialize-verdict` | `BEHAVIOR` | `real-path` | Broken softIoc -> failed-to-initialize verdict |
 | S27 | `system-lifecycle.S27.softioc-available` | `PREREQUISITE` | `direct-inspection` | softIoc is executable. |
@@ -148,12 +159,12 @@ and executable paths directly. No row uses hand-built-reproduction.
 
 | Source Shape | Count |
 | --- | ---: |
-| Static assertion call sites | 74 |
-| Repeated pipeline occurrences | 4 |
-| Current assertion branches | 78 |
+| Static assertion call sites | 77 |
+| Repeated pipeline and boundary-helper occurrences | 10 |
+| Current assertion branches | 87 |
 | Added P00 checks | 4 |
 | Added prerequisite or required conditions | 11 |
-| Fixed catalog total | 93 |
+| Fixed catalog total | 102 |
 
 The mapping is complete only while every source assertion branch maps once,
 every early return maps to its governing identity, repeated functions retain

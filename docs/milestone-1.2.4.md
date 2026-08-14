@@ -10,8 +10,8 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: review M3 (#114) against the accepted plan, obtain
-separate implementation authorization, and begin no code change before it.
+Next session entry point: finish the M3 (#114) review cycle against the recorded
+two-golden evidence, then prepare its implementation commit.
 
 ## Milestone
 
@@ -19,7 +19,7 @@ separate implementation authorization, and begin no code change before it.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Not started | Yes | D1, D2 | Identifier-contained `fatal` stays benign while true fatal startup remains detected on both goldens; [detail](#m3---fatal-token-boundary-hygiene) |
+| Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | In progress | No | D1, D2, D5 | Identifier-adjacent `fatal` stays benign on either side while true fatal startup remains detected on both goldens; [detail](#m3---fatal-token-boundary-hygiene) |
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Not started | Yes | D1, D2 | Every file target rejects a directory impostor and the two directory targets still verify through the shipped setup path; [detail](#m7---verify_path-type-expectation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Not started | Yes | D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises an overridden deployment destination through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
@@ -35,6 +35,7 @@ separate implementation authorization, and begin no code change before it.
 | D2 | Run the bugfix work in the order M3, M7, M6, and M13. M3 and M7 are independent; M6 precedes M13 because both change the local install path. | Owner-accepted 1.2.4 cycle plan, 2026-08-12 |
 | D3 | Final release verification runs the complete gate on Debian 13 and Rocky 8, changes the version to 1.2.4, verifies the release objects, and verifies the documented production install path. | Owner-accepted 1.2.4 cycle plan, 2026-08-12 |
 | D4 | Run M17 after M7 and before M6. Keep the canonical installed path as the default while allowing lifecycle verification to follow `IOC_RUNNER_SCRIPT_DEST`. | Owner decision, 2026-08-13 |
+| D5 | Complete M3 with leading and trailing token boundaries. M8/#137 moved source-contract ownership but retained quoted-global extraction; M3 reconstructs membership from the extracted subsets and separately pins direct base-pattern composition. | Owner decision after conceptual-integrity review, 2026-08-13 |
 
 ### Assignment History
 
@@ -53,18 +54,19 @@ Origin: a39623c / M3
 Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
 master source transfer commit `e357210`.
 GitHub Issue: 114, https://github.com/jeonghanlee/epics-ioc-runner/issues/114
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-The case-insensitive FATAL substring match has no word boundaries, so a
-pre-marker line carrying `fatal` inside an identifier trips the standalone
+The case-insensitive FATAL substring match has no token boundaries, so a
+pre-marker line carrying `fatal` as part of an identifier trips the standalone
 exit-1 path while the IOC starts fine.
 
 ##### Scope
 
-Add a portable leading boundary to the case-insensitive FATAL subset and
-re-run the shipped benign and fatal startup paths on both golden OS families.
+Add portable leading and trailing boundaries to the case-insensitive FATAL
+subset and re-run the shipped benign and fatal startup paths on both golden OS
+families.
 
 ##### Out of Scope
 
@@ -74,7 +76,8 @@ measured startup window.
 ##### Completion Criteria
 
 - The owner assigns the detection change to a release line.
-- `fatal` inside an identifier does not produce the standalone fatal verdict.
+- `fatal` adjacent to an identifier character on either side does not produce
+  the standalone fatal verdict.
 - A true fatal startup still produces the expected failed-initialization
   verdict on both golden OS families.
 
@@ -83,31 +86,41 @@ measured startup window.
 - Pairs with M4 (#115), the later 1.3.0 end-to-end supervision probe.
 - D1 stages the cross-branch transfer.
 - D2 places this work first in the 1.2.4 cycle.
+- D5 expands the original leading-boundary plan to a complete token boundary
+  and removes the duplicated base regex. M8/#137 moved source-contract
+  ownership to source regression while retaining quoted-global extraction;
+  M3 reconstructs membership from the extracted fatal and ambiguous subsets
+  and separately checks the direct base-pattern declaration.
 
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
-Implementation Authorization: none
+Plan Acceptance: Owner accepted the 1.2.4 cycle plan on 2026-08-12 and expanded
+M3 to a complete token boundary on 2026-08-13
+Implementation Authorization: Owner explicitly authorized M3 implementation
+in chat, 2026-08-13
 Superseded Plan Artifacts: none
 
-1. Define a portable leading boundary for the FATAL subset.
-2. Apply it to the shipped crash scan without weakening true-fatal detection.
-3. Re-run benign and fatal startup cases on both golden OS families.
+1. Define portable leading and trailing boundaries for the FATAL subset.
+2. Compose the base crash pattern directly from its fatal and ambiguous subsets.
+3. Apply the boundary to the shipped crash scan without weakening true-fatal
+   detection.
+4. Run leading-only, trailing-only, and both-sides benign fixtures as separate
+   real IOCs, plus the true-fatal control, on both golden OS families.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | False-positive boundary | Start a real IOC whose pre-marker output contains `fatal` only inside an identifier | Both golden OS families | Startup succeeds without the standalone fatal verdict |
+| T1 | False-positive boundary | Start three real IOCs whose pre-marker output isolates leading-only, trailing-only, and both-sides identifier adjacency | Both golden OS families | All three startups succeed without the standalone fatal verdict |
 | T2 | Detection sensitivity | Start the shipped fatal softIoc fixture through the real runner path | Both golden OS families | The true fatal token still produces the expected failed-initialization verdict |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Both golden OS families | Pending | none |
-| T2 | Not run | Both golden OS families | Pending | none |
+| T1 | 2026-08-13 | Debian 13 and Rocky 8 | Pass | Source regression passed 93/93 on both hosts with S20 at 28/28. Local lifecycle passed 135/135 on Debian and 131 pass with 4 NA on Rocky; S30 passed 27/27 on both. System lifecycle passed 102/102 on both; S26 passed 12/12. All nine real-path boundary checks passed in each lifecycle suite. Evidence: `work/m3-token-check-20260813/{debian13,rocky8}-{source-regression,local-lifecycle,system-lifecycle}.log`. |
+| T2 | 2026-08-13 | Debian 13 and Rocky 8 | Pass | The two true-FATAL checks passed in each local and system lifecycle suite. The first system runs preserved under `*.env-red.log` show S26 at 12/12 before two unrelated S27 checks failed because the temporary checkout root was mode 0700; reruns after correcting that test-environment permission passed 102/102. |
 
 ##### Closure Evidence
 
@@ -122,7 +135,7 @@ Observed State: open
 Observed Labels: P2-medium, area/detection
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-13; remote updated 2026-08-13T06:59:57Z
+Last Compared: 2026-08-13; remote updated 2026-08-13T20:06:09Z
 
 #### M7 - verify_path type expectation
 
