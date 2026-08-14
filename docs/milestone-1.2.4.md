@@ -10,8 +10,8 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: obtain M7 (#118) implementation authorization, then
-execute its accepted `verify_path` type-expectation plan.
+Next session entry point: review the verified M7 (#118) diff, then commit, push,
+and close the issue under their separate authorizations.
 
 ## Milestone
 
@@ -20,7 +20,7 @@ execute its accepted `verify_path` type-expectation plan.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Complete | No | D1, D2, D5 | Commit `fccef50` and two-golden real-path evidence satisfy T1 and T2; issue #114 is closed; [detail](#m3---fatal-token-boundary-hygiene) |
-| Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Not started | Yes | D1, D2 | Every file target rejects a directory impostor and the two directory targets still verify through the shipped setup path; [detail](#m7---verify_path-type-expectation) |
+| Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | In progress | No | D1, D2 | Every file target rejects a directory impostor and the two directory targets still verify through the shipped setup path; [detail](#m7---verify_path-type-expectation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Not started | Yes | D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises an overridden deployment destination through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
@@ -149,7 +149,7 @@ Origin: a39623c / M7
 Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
 master source transfer commit `e357210`.
 GitHub Issue: 118, https://github.com/jeonghanlee/epics-ioc-runner/issues/118
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -196,7 +196,8 @@ deployment mechanisms.
 
 Plan Status: accepted
 Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
-Implementation Authorization: none
+Implementation Authorization: @jeonghanlee authorized implementation and the
+mount-namespace isolation path in chat, 2026-08-14
 Superseded Plan Artifacts: none
 
 1. Define the expected type at every `verify_path` call site.
@@ -215,12 +216,15 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Isolated system setup environment | Pending | none |
-| T2 | Not run | Isolated system setup environment | Pending | none |
+| T1 | 2026-08-14 | Debian 13 and Rocky 8 private mount namespaces | Pass | Both shipped dispatcher runs passed 104/104 with S22 at 11/11. The impostor setup exited 1, omitted the final success banner, and reported all five file targets as non-regular files. Evidence: `work/m7-verify-path-type-20260814/debian13-source-regression-104.log` (SHA-256 `f4c2ab3c30b58d08b53e1356e2787dbd8491da54be9b5c9dcc8b679040b56e71`) and `rocky8-source-regression-104.log` (SHA-256 `17f97ced22f31f7536de39d85ebb3c15d7a447eecb61843d1996f090551639b6`). |
+| T2 | 2026-08-14 | Debian 13 and Rocky 8 private mount namespaces | Pass | The valid full-setup path exited 0 and explicitly accepted the configuration and log directory targets on both hosts; evidence is the same two T1 logs. |
 
 ##### Closure Evidence
 
-- none
+- Product, test, and inventory changes are verified but not yet committed;
+  issue #118 remains open.
+- `bash -n`, targeted `shellcheck`, and `git diff --check` passed on
+  2026-08-14 before the two-host run.
 
 ##### GitHub Projection
 

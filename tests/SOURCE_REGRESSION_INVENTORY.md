@@ -8,9 +8,9 @@ This document preserves the pre-move inventory for S07 through S14 in `tests/tes
 
 ## Suite Boundary
 
-The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S21 without renumbering them.
+The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S21 and M7 adds S22 without renumbering them.
 
-The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Only their outer write destinations are redirected to an invoking-user-owned temporary workspace.
+The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Earlier setup checks redirect their outer write destinations to an invoking-user-owned temporary workspace. S22 runs the full setup in a private mount namespace with root-owned scratch mounts and isolated `systemctl` and filesystem boundaries.
 
 ## STEP Inventory
 
@@ -31,6 +31,7 @@ The suite runs through `sudo bash`. Source and Git operations run as the invokin
 | S19 | `test_ioc_name_source_contract` | Runner and regex-form sudoers IOC-name source agreement | `bin/ioc-runner`, `bin/setup-system-infra.bash` | None |
 | S20 | `test_crash_pattern_source_contract` | Base crash-pattern membership and fatal/ambiguous subset agreement | `bin/ioc-runner` | None |
 | S21 | `test_crash_exclusion_source_contract` | Benign-history exclusion regex and line-filter ordering | `bin/ioc-runner` | None |
+| S22 | `test_setup_path_type_expectations` | File-target directory impostors and valid directory targets | `bin/setup-system-infra.bash` | Root-owned scratch trees bind-mounted over the system destinations in a private mount namespace |
 
 ## Current Assertion Mapping
 
@@ -253,8 +254,30 @@ S21 adds five REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S21.history-write.matches-exclude-pattern` | `REQUIRED` | `direct-inspection` | The exclusion source constant recognizes the history-write diagnostic. |
 | `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The runner filters whole lines before fatal and corroborating scans consume the filtered window. |
 
-The fixed source-regression catalog contains 93 identities: 36 moved identities
-and 57 source-contract identities in S15 through S21.
+## M7 S22 Addition
+
+S22 adds one prerequisite and ten real-path behavior identities. It invokes
+the complete shipped setup in a private mount namespace. The five file targets
+use directory impostors, while the configuration and log directory targets
+remain valid directories.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S22.isolation.prerequisites` | `PREREQUISITE` | `direct-inspection` | Required tools, identities, mount targets, and private mount capability are available. |
+| `source-regression.S22.impostor.setup-exits-one` | `BEHAVIOR` | `real-path` | The shipped full setup exits 1 when file targets are directory impostors. |
+| `source-regression.S22.impostor.success-banner-absent` | `BEHAVIOR` | `real-path` | The failed setup does not emit the final success banner. |
+| `source-regression.S22.impostor.sudoers-directory-rejected` | `BEHAVIOR` | `real-path` | The sudoers file target rejects a directory. |
+| `source-regression.S22.impostor.systemd-template-directory-rejected` | `BEHAVIOR` | `real-path` | The systemd template file target rejects a directory. |
+| `source-regression.S22.impostor.logrotate-directory-rejected` | `BEHAVIOR` | `real-path` | The logrotate file target rejects a directory. |
+| `source-regression.S22.impostor.runner-directory-rejected` | `BEHAVIOR` | `real-path` | The runner file target rejects a directory. |
+| `source-regression.S22.impostor.completion-directory-rejected` | `BEHAVIOR` | `real-path` | The completion file target rejects a directory. |
+| `source-regression.S22.valid.setup-exits-zero` | `BEHAVIOR` | `real-path` | The shipped full setup exits 0 with valid target types. |
+| `source-regression.S22.valid.configuration-directory-accepted` | `BEHAVIOR` | `real-path` | The configuration directory target passes its explicit directory check. |
+| `source-regression.S22.valid.log-directory-accepted` | `BEHAVIOR` | `real-path` | The log directory target passes its explicit directory check. |
+
+The fixed source-regression catalog contains 104 identities: 36 moved
+identities, 57 source-contract identities in S15 through S21, and 11 M7
+identities in S22.
 
 ## Move Invariants
 
@@ -271,4 +294,4 @@ and 57 source-contract identities in S15 through S21.
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the fifty-one accepted S15 through S21 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the eleven S22 identities through the shipped full setup in a private mount namespace. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.

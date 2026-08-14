@@ -119,6 +119,17 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S21.history-load.matches-base-patterns"
     "${SUITE_ID}.S21.history-write.matches-exclude-pattern"
     "${SUITE_ID}.S21.line-filter.precedes-crash-scans"
+    "${SUITE_ID}.S22.isolation.prerequisites"
+    "${SUITE_ID}.S22.impostor.setup-exits-one"
+    "${SUITE_ID}.S22.impostor.success-banner-absent"
+    "${SUITE_ID}.S22.impostor.sudoers-directory-rejected"
+    "${SUITE_ID}.S22.impostor.systemd-template-directory-rejected"
+    "${SUITE_ID}.S22.impostor.logrotate-directory-rejected"
+    "${SUITE_ID}.S22.impostor.runner-directory-rejected"
+    "${SUITE_ID}.S22.impostor.completion-directory-rejected"
+    "${SUITE_ID}.S22.valid.setup-exits-zero"
+    "${SUITE_ID}.S22.valid.configuration-directory-accepted"
+    "${SUITE_ID}.S22.valid.log-directory-accepted"
 )
 SC_PATH="${BASH_SOURCE[0]}"
 if [[ "${SC_PATH}" != /* ]]; then
@@ -170,6 +181,12 @@ function source_check_metadata {
     local method_name="$3"
     local required_direct="false"
 
+    if [[ "${check_id}" == "${SUITE_ID}.S22.isolation.prerequisites" ]]; then
+        printf -v "${kind_name}" '%s' PREREQUISITE
+        printf -v "${method_name}" '%s' direct-inspection
+        return
+    fi
+
     case "${check_id}" in
         "${SUITE_ID}.P00."*|\
         "${SUITE_ID}.S08.sudo-tests.no-canonicalization"|\
@@ -203,7 +220,7 @@ function register_reporting_catalog {
     local method=""
     local remainder=""
     local step_id=""
-    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21)
+    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22)
 
     for step_id in "${step_ids[@]}"; do
         report_register_step "${step_id}" "Source regression ${step_id}"
@@ -379,6 +396,7 @@ function test_preflight {
         "${REPO_TOP}/bin/setup-system-infra.bash" \
         "${REPO_TOP}/bin/ioc-runner" \
         "${REPO_TOP}/configure/inject-runner-version.bash" \
+        "${SC_TOP}/lib/setup-type-isolation.bash" \
         "${SC_TOP}/test-system-lifecycle.bash"; do
         if ! run_as_invoker test -f "${path}"; then
             source_layout="false"
@@ -1476,6 +1494,142 @@ function test_crash_exclusion_source_contract {
         "${SUITE_ID}.S21.line-filter.precedes-crash-scans"
 }
 
+function verify_output_contains {
+    local output="$1"
+    local needle="$2"
+    local check_id="$3"
+    local contains="false"
+
+    if [[ "${output}" == *"${needle}"* ]]; then
+        contains="true"
+    fi
+    verify_state "true" "${contains}" "${check_id}"
+}
+
+function verify_output_absent {
+    local output="$1"
+    local needle="$2"
+    local check_id="$3"
+    local absent="true"
+
+    if [[ "${output}" == *"${needle}"* ]]; then
+        absent="false"
+    fi
+    verify_state "true" "${absent}" "${check_id}"
+}
+
+# Runs the complete shipped setup in a private mount namespace. The filesystem
+# and systemctl outer boundaries are isolated while every setup function and
+# deployment branch remains the production path.
+function test_setup_path_type_expectations {
+    local step="$1"
+    local helper="${SC_TOP}/lib/setup-type-isolation.bash"
+    local system_user="${IOC_RUNNER_SYSTEM_USER:-ioc-srv}"
+    local system_group="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
+    local prerequisites="true"
+    local required_tool=""
+    local target=""
+    local work=""
+    local impostor_output=""
+    local impostor_rc=0
+    local valid_output=""
+    local valid_rc=0
+    local check_id=""
+    local -a behavior_ids=(
+        "${SUITE_ID}.S22.impostor.setup-exits-one"
+        "${SUITE_ID}.S22.impostor.success-banner-absent"
+        "${SUITE_ID}.S22.impostor.sudoers-directory-rejected"
+        "${SUITE_ID}.S22.impostor.systemd-template-directory-rejected"
+        "${SUITE_ID}.S22.impostor.logrotate-directory-rejected"
+        "${SUITE_ID}.S22.impostor.runner-directory-rejected"
+        "${SUITE_ID}.S22.impostor.completion-directory-rejected"
+        "${SUITE_ID}.S22.valid.setup-exits-zero"
+        "${SUITE_ID}.S22.valid.configuration-directory-accepted"
+        "${SUITE_ID}.S22.valid.log-directory-accepted"
+    )
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Setup Path Type Expectations"
+    print_sub_divider
+
+    for required_tool in unshare mount findmnt visudo logrotate setfacl getfacl sudo; do
+        if [[ ! -x "$(command -v "${required_tool}" 2>/dev/null)" ]]; then
+            _log "WARN" "Required S22 tool is unavailable: ${required_tool}"
+            prerequisites="false"
+        fi
+    done
+    for target in /etc/procServ.d /etc/sudoers.d /etc/systemd/system /etc/logrotate.d; do
+        if [[ ! -d "${target}" || -L "${target}" ]]; then
+            _log "WARN" "Required S22 mount target is unavailable: ${target}"
+            prerequisites="false"
+        fi
+    done
+    if [[ ! -x /usr/bin/systemctl ]] || ! id -u "${system_user}" >/dev/null 2>&1 ||
+       ! getent group "${system_group}" >/dev/null 2>&1; then
+        _log "WARN" "Required S22 system identity or systemctl path is unavailable."
+        prerequisites="false"
+    fi
+    if [[ "${prerequisites}" == "true" ]] &&
+       ! unshare --mount --propagation private -- mount --bind /tmp /tmp; then
+        _log "WARN" "A private mount namespace cannot be created."
+        prerequisites="false"
+    fi
+
+    verify_state "true" "${prerequisites}" \
+        "${SUITE_ID}.S22.isolation.prerequisites"
+    if [[ "${prerequisites}" != "true" ]]; then
+        for check_id in "${behavior_ids[@]}"; do
+            printf "%b[ SKIP ]%b %s\n" "${YELLOW}" "${NC}" "${check_id}"
+            report_record "${check_id}" SKIP \
+                "requires ${SUITE_ID}.S22.isolation.prerequisites"
+        done
+        return
+    fi
+
+    work=$(mktemp -d /tmp/ioc-runner-setup-type.XXXXXX)
+    impostor_output=$(unshare --mount --propagation private -- /bin/bash -p \
+        "${helper}" "${REPO_TOP}" "${work}/impostor" impostor \
+        "${INVOKING_USER}" 2>&1) || impostor_rc=$?
+
+    verify_state "1" "${impostor_rc}" \
+        "${SUITE_ID}.S22.impostor.setup-exits-one"
+    verify_output_absent "${impostor_output}" \
+        "Secure system infrastructure setup completed." \
+        "${SUITE_ID}.S22.impostor.success-banner-absent"
+    verify_output_contains "${impostor_output}" \
+        "Verify FAILED : /etc/sudoers.d/10-epics-ioc is not a regular file" \
+        "${SUITE_ID}.S22.impostor.sudoers-directory-rejected"
+    verify_output_contains "${impostor_output}" \
+        "Verify FAILED : /etc/systemd/system/epics-@.service is not a regular file" \
+        "${SUITE_ID}.S22.impostor.systemd-template-directory-rejected"
+    verify_output_contains "${impostor_output}" \
+        "Verify FAILED : /etc/logrotate.d/procserv is not a regular file" \
+        "${SUITE_ID}.S22.impostor.logrotate-directory-rejected"
+    verify_output_contains "${impostor_output}" \
+        "Verify FAILED : ${work}/impostor/targets/ioc-runner is not a regular file" \
+        "${SUITE_ID}.S22.impostor.runner-directory-rejected"
+    verify_output_contains "${impostor_output}" \
+        "Verify FAILED : ${work}/impostor/targets/ioc-runner-completion is not a regular file" \
+        "${SUITE_ID}.S22.impostor.completion-directory-rejected"
+
+    valid_output=$(unshare --mount --propagation private -- /bin/bash -p \
+        "${helper}" "${REPO_TOP}" "${work}/valid" valid \
+        "${INVOKING_USER}" 2>&1) || valid_rc=$?
+    verify_state "0" "${valid_rc}" \
+        "${SUITE_ID}.S22.valid.setup-exits-zero"
+    verify_output_contains "${valid_output}" \
+        "Verify PASSED : /etc/procServ.d (" \
+        "${SUITE_ID}.S22.valid.configuration-directory-accepted"
+    verify_output_contains "${valid_output}" \
+        "Verify PASSED : ${work}/valid/targets/procserv-log (" \
+        "${SUITE_ID}.S22.valid.log-directory-accepted"
+
+    case "${work}" in
+        /tmp/ioc-runner-setup-type.*) rm -rf -- "${work}" ;;
+        *) _log "ERROR" "Refusing to remove unexpected S22 workspace: ${work}" ;;
+    esac
+}
+
 function run_all_tests {
     initialize_reporting
     if ! test_preflight; then
@@ -1496,6 +1650,7 @@ function run_all_tests {
     test_ioc_name_source_contract "S19"
     test_crash_pattern_source_contract "S20"
     test_crash_exclusion_source_contract "S21"
+    test_setup_path_type_expectations "S22"
 }
 
 run_all_tests
