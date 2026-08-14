@@ -240,7 +240,7 @@ Observed State: closed
 Observed Labels: P3-low, ops
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-14; remote updated 2026-08-14T19:20:50Z
+Last Compared: 2026-08-14; remote updated 2026-08-14T19:25:48Z
 
 #### M17 - Installed runner destination
 
