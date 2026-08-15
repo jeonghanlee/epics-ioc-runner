@@ -10,8 +10,10 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: review and accept the M17 (#145) draft implementation
-plan, then obtain implementation authorization.
+Next session entry point: complete external gate G2 in
+[ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
+then review and accept the M17 (#145) draft implementation plan and obtain
+implementation authorization.
 
 ## Milestone
 
@@ -21,7 +23,8 @@ plan, then obtain implementation authorization.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Complete | No | D1, D2, D5 | Commit `fccef50` and two-golden real-path evidence satisfy T1 and T2; issue #114 is closed; [detail](#m3---fatal-token-boundary-hygiene) |
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Complete | No | D1, D2 | Commit `50f27b2`, two-host shipped-path verification, and closed issue #118 satisfy T1 and T2; [detail](#m7---verify_path-type-expectation) |
-| Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Not started | Yes | D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises an overridden deployment destination through both lifecycle suites; [detail](#m17---installed-runner-destination) |
+| Integration | G2 | ([ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Open | No | | The real `app_ioc_runner` role deploys and verifies default and alternate destinations on both golden OS families; [detail](#g2---ansible-installed-runner-destination-propagation) |
+| Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Blocked | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
@@ -247,7 +250,7 @@ Last Compared: 2026-08-14; remote updated 2026-08-14T19:25:48Z
 Origin: 1.2.4 / M17
 Identity History: none
 GitHub Issue: 145, https://github.com/jeonghanlee/epics-ioc-runner/issues/145
-Status: Not started
+Status: Blocked
 
 ##### Summary
 
@@ -260,27 +263,37 @@ cannot currently follow a deployment to that alternate destination.
 
 Resolve the installed runner from `IOC_RUNNER_SCRIPT_DEST` with
 `/usr/local/bin/ioc-runner` as the default in both lifecycle suites, preserve
-the value through the dispatcher's clean local environment, and document the
-selection contract.
+the value through the dispatcher's clean local environment, and verify the
+selected executable after the real `ansible-provision` role deploys it.
 
 ##### Out of Scope
 
-Changing the default production path, changing setup deployment semantics, or
-adding another installed-runner environment variable.
+Changing the default production path, changing setup deployment semantics,
+adding another installed-runner environment variable, or changing
+`cloud-provision` validation behavior.
 
 ##### Completion Criteria
 
 - Installed mode still selects `/usr/local/bin/ioc-runner` when
   `IOC_RUNNER_SCRIPT_DEST` is unset.
+- G2 completes after the real `app_ioc_runner` role deploys and verifies the
+  default and alternate destinations on Debian 13 and Rocky 8.
 - Both local and system lifecycle suites select an executable destination set
   through `IOC_RUNNER_SCRIPT_DEST`.
 - `run-all-tests.bash` preserves the override across its clean local
   privilege-drop environment.
-- Captured lifecycle output identifies the selected path and its real `-V`
-  output.
+- Captured Ansible and lifecycle output identifies the selected path and its
+  real `-V` identity.
+- `gate/RUNBOOK.md` records the paired cross-repository procedure and keeps its
+  disposable consumers separate from the canonical default-path gate.
 
 ##### Dependencies And Decisions
 
+- G2 is Open and blocks M17. Its external implementation is tracked by
+  [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13).
+- G2 and M17 form one cross-repository verification path: Ansible deploys and
+  verifies the configured executable, then the consumer suites select and
+  execute that same path.
 - D4 places this work after M7 and before M6.
 - The canonical `/usr/local/bin/ioc-runner` default remains unchanged.
 
@@ -291,27 +304,39 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Derive installed mode from `IOC_RUNNER_SCRIPT_DEST` with the current
-   canonical path as its default in both lifecycle suites.
-2. Preserve the variable through the dispatcher's explicit clean environment.
-3. Add selection regression coverage and update the runner-selection
-   documentation.
+1. Keep source mode bound to `bin/ioc-runner`; derive only installed mode from
+   `IOC_RUNNER_SCRIPT_DEST`, with the current canonical path as its default, in
+   both lifecycle suites.
+2. Preserve `IOC_RUNNER_SCRIPT_DEST` through the dispatcher's normal local and
+   `sudo -E` system routes and its explicit `env -i` local privilege-drop
+   environment.
+3. Add cataloged preflight checks in both lifecycle suites that require the
+   selected path to equal the mode-specific expected path and require the real
+   selected runner's `-V` command to exit zero and emit its identity before the
+   numbered lifecycle steps begin.
+4. Complete G2 through the real `app_ioc_runner` role on Debian 13 and Rocky 8,
+   verifying both the default destination and an alternate
+   `path_ioc_runner_bin` through the installed runner's real `-V` identity.
+5. Run default installed, Ansible-deployed overridden installed, and
+   source-with-override regression coverage. Reconcile the lifecycle
+   inventories and fixed reporting totals from the implemented check set, and
+   update the runner-selection documentation and `gate/RUNBOOK.md`.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Default installed selection | Run the shipped dispatcher in installed mode with `IOC_RUNNER_SCRIPT_DEST` unset | Debian 13 and Rocky 8 goldens | Both lifecycle suites report and execute `/usr/local/bin/ioc-runner` |
-| T2 | Overridden installed selection | Run the shipped dispatcher against a real executable runner at an alternate `IOC_RUNNER_SCRIPT_DEST`, including the clean local privilege-drop path | Debian 13 and Rocky 8 goldens | Both lifecycle suites report and execute the alternate path and its `-V` identity |
-| T3 | Source selection | Run the shipped source mode and source-regression suite after the resolver change | Source checkout | Source mode still selects `bin/ioc-runner` and every source contract passes |
+| T1 | Default installed selection | Run the real `app_ioc_runner` role with its default `path_ioc_runner_bin`, then run the shipped dispatcher in installed mode with `IOC_RUNNER_SCRIPT_DEST` unset | Disposable Debian 13 and Rocky 8 consumers | Ansible and both lifecycle suites record, verify, and execute `/usr/local/bin/ioc-runner`; the real `-V` identity matches the retained checkout |
+| T2 | Overridden installed selection | Run the real `app_ioc_runner` role with an alternate `path_ioc_runner_bin`, then run both lifecycle suites through the shipped dispatcher with the matching `IOC_RUNNER_SCRIPT_DEST`, including the clean local privilege-drop path | Same disposable Debian 13 and Rocky 8 consumers | Ansible installs and verifies the alternate path without a staged substitute; both lifecycle suites record and execute it, and the real `-V` identity matches the retained checkout |
+| T3 | Source selection precedence | Keep the alternate `IOC_RUNNER_SCRIPT_DEST` set, select source mode, run both lifecycle suites through the shipped dispatcher, and run the source-regression suite | Same disposable consumers and source checkout | Both lifecycle suites ignore the installed override, record and execute `bin/ioc-runner`, and pass the real `-V` checks; every source contract passes |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
-| T2 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
-| T3 | Not run | Source checkout | Pending | none |
+| T1 | Not run | Disposable Debian 13 and Rocky 8 consumers | Pending | none |
+| T2 | Not run | Disposable Debian 13 and Rocky 8 consumers | Pending | none |
+| T3 | Not run | Same disposable consumers and source checkout | Pending | none |
 
 ##### Closure Evidence
 
@@ -326,7 +351,7 @@ Observed State: open
 Observed Labels: P3-low, tests
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-13; remote updated 2026-08-13T07:34:24Z
+Last Compared: 2026-08-15; remote updated 2026-08-15T08:53:55Z
 
 #### M6 - Local install ordering
 
@@ -666,6 +691,46 @@ closure.
 - Created by the repository owner on 2026-08-13 as milestone number 15.
 - Four assigned issues were re-read after synchronization and each reported
   milestone `1.2.4`.
+
+#### G2 - Ansible installed runner destination propagation
+
+Origin: 1.2.4 / G2
+External GitHub Issue: 13,
+https://github.com/jeonghanlee/ansible-provision/issues/13
+Status: Open
+
+##### Summary
+
+The `app_ioc_runner` role must pass its configured `path_ioc_runner_bin` to
+the shipped setup path as `IOC_RUNNER_SCRIPT_DEST` so its installation and
+identity checks address the same executable.
+
+##### Completion Criteria
+
+- The default inventory value still deploys and verifies
+  `/usr/local/bin/ioc-runner` on Debian 13 and Rocky 8.
+- An alternate `path_ioc_runner_bin` deploys through the real shipped setup
+  path on both OS families, and the installed runner's real `-V` identity
+  matches the retained checkout.
+- The external issue is observed closed after its Ansible and paired consumer
+  verification evidence is recorded.
+
+##### Dependencies And Decisions
+
+- G2 blocks M17.
+- The paired consumer verification belongs to M17 / T1-T3 and
+  `gate/RUNBOOK.md`; no copied or staged runner may replace the shipped setup
+  path.
+
+##### Verification Results
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| 2026-08-15 | Pending | [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13) is open; the current role checks `path_ioc_runner_bin` but does not pass it to `setup-system-infra.bash --full` |
+
+##### Closure Evidence
+
+- none
 
 ## Backlog
 

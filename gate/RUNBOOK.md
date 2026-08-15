@@ -200,6 +200,65 @@ of its rules matter enough to name: a slow boot is not a failure while the
 package manager is still working, and a bake that stopped leaves the build VM
 running and half-provisioned, so a clean retry destroys it first.
 
+### Configured installed-runner destination
+
+When the current release register includes work linked to
+[ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
+its change-specific check spans the real Ansible role and the consumer
+lifecycle suites. Run it on a disposable Debian 13 and Rocky 8 consumer pair
+before creating the canonical pair in the next section. The names and
+addresses are deterministic, so the disposable and canonical pairs cannot
+coexist.
+
+Create the disposable pair from the newly published images with the two
+targets in the next section. Before changing either host, run the Golden
+acceptance checks below. Then push the candidate tree to the
+`path_ioc_runner_src` location with `gate/drivers/push.bash` and resolve the
+EPICS environment by the later procedure.
+
+From the `ansible-provision` checkout, use a runtime inventory that places each
+host in its normal `ioc_nodes` OS group. Run the real `app_ioc_runner` path once
+with the default inventory value and once with an alternate absolute
+destination:
+
+```bash
+ansible-playbook -i <base-inventory> -i <runtime-inventory> playbooks/03_epics.yml --limit <host>
+ansible-playbook -i <base-inventory> -i <runtime-inventory> playbooks/03_epics.yml --limit <host> -e path_ioc_runner_bin=<alternate>
+```
+
+Do not stage or copy a runner into the alternate destination. The Ansible role
+must invoke the shipped `setup-system-infra.bash --full` path. Record the
+`ansible-provision` commit, the consumer commit, both resolved destination
+paths, and each installed runner's real `-V` output. The default path must be
+`/usr/local/bin/ioc-runner`; the alternate path must equal
+`path_ioc_runner_bin`; both identities must match the retained checkout used by
+the role.
+
+With the resolved EPICS environment active, run the consumer side against the
+same alternate executable:
+
+```bash
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --local --installed
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --system --installed
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --local --source
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --system --source
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --source-regression
+```
+
+The installed runs must record the alternate path and its `-V` identity. The
+source runs must ignore the installed override, record `bin/ioc-runner`, and
+pass the source-regression contracts. Preserve the Ansible and consumer logs
+as one evidence set.
+
+From the `cloud-provision` checkout, remove only these two disposable
+consumers. Then continue with the next section to create the canonical fresh
+pair:
+
+```bash
+make rocky8-iocrunner.server.clean
+make debian13-iocrunner.server.clean
+```
+
 ### Freshly created consumer VMs
 
 Create them from the images just published. Never reuse a test bed: it
