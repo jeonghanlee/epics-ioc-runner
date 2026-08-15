@@ -10,10 +10,11 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: complete external gate G2 in
-[ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
-then review and accept the M17 (#145) draft implementation plan and obtain
-implementation authorization.
+Next session entry point: complete external gate G2 by recording the
+`ansible-provision` implementation commit and the real `app_ioc_runner`
+default and alternate destination results on Debian 13 and Rocky 8, then review
+and accept the M17 (#145) draft implementation plan and obtain implementation
+authorization.
 
 ## Milestone
 
@@ -276,8 +277,9 @@ adding another installed-runner environment variable, or changing
 
 - Installed mode still selects `/usr/local/bin/ioc-runner` when
   `IOC_RUNNER_SCRIPT_DEST` is unset.
-- G2 completes after the real `app_ioc_runner` role deploys and verifies the
-  default and alternate destinations on Debian 13 and Rocky 8.
+- G2 completes after an `ansible-provision` implementation commit passes the
+  real `app_ioc_runner` default and alternate destination checks on Debian 13
+  and Rocky 8.
 - Both local and system lifecycle suites select an executable destination set
   through `IOC_RUNNER_SCRIPT_DEST`.
 - `run-all-tests.bash` preserves the override across its clean local
@@ -289,8 +291,11 @@ adding another installed-runner environment variable, or changing
 
 ##### Dependencies And Decisions
 
-- G2 is Open and blocks M17. Its external implementation is tracked by
-  [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13).
+- G2 is Open and blocks M17; M17 resumes as Not started after G2 completes.
+- G2 is the implementation checkpoint tracked by
+  [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
+  not an issue-closure gate. The external issue may remain open for M17's
+  downstream consumer evidence.
 - G2 and M17 form one cross-repository verification path: Ansible deploys and
   verifies the configured executable, then the consumer suites select and
   execute that same path.
@@ -351,7 +356,7 @@ Observed State: open
 Observed Labels: P3-low, tests
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-15; remote updated 2026-08-15T08:53:55Z
+Last Compared: 2026-08-15; remote updated 2026-08-15T09:21:21Z
 
 #### M6 - Local install ordering
 
@@ -707,17 +712,20 @@ identity checks address the same executable.
 
 ##### Completion Criteria
 
-- The default inventory value still deploys and verifies
-  `/usr/local/bin/ioc-runner` on Debian 13 and Rocky 8.
-- An alternate `path_ioc_runner_bin` deploys through the real shipped setup
-  path on both OS families, and the installed runner's real `-V` identity
-  matches the retained checkout.
-- The external issue is observed closed after its Ansible and paired consumer
-  verification evidence is recorded.
+- An `ansible-provision` implementation commit passes the configured
+  `path_ioc_runner_bin` to the shipped setup path as
+  `IOC_RUNNER_SCRIPT_DEST`.
+- The default inventory value and an alternate `path_ioc_runner_bin` deploy
+  and verify through the real `app_ioc_runner` role on Debian 13 and Rocky 8.
+- Evidence names the implementation commit, both host results, both selected
+  paths, and each installed runner's real `-V` identity.
 
 ##### Dependencies And Decisions
 
-- G2 blocks M17.
+- G2 blocks M17; M17 resumes as Not started when G2 is Complete.
+- Closing [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)
+  is not required for G2. The issue remains available for M17's downstream
+  consumer evidence.
 - The paired consumer verification belongs to M17 / T1-T3 and
   `gate/RUNBOOK.md`; no copied or staged runner may replace the shipped setup
   path.
