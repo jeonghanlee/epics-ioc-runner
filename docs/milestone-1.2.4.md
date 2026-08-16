@@ -10,11 +10,10 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: complete external gate G2 by recording the
-`ansible-provision` implementation commit and the real `app_ioc_runner`
-default and alternate destination results on Debian 13 and Rocky 8, then review
-and accept the M17 (#145) draft implementation plan and obtain implementation
-authorization.
+Next session entry point: G2 is Complete (`ansible-provision` implementation
+commit `5a7d2aa`, #13 closed). Review and accept the M17 (#145) draft
+implementation plan and obtain implementation authorization, then carry the
+remaining 1.2.4 work (M6, M13, M19) toward the M16 release gate.
 
 ## Milestone
 
@@ -24,8 +23,8 @@ authorization.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Complete | No | D1, D2, D5 | Commit `fccef50` and two-golden real-path evidence satisfy T1 and T2; issue #114 is closed; [detail](#m3---fatal-token-boundary-hygiene) |
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Complete | No | D1, D2 | Commit `50f27b2`, two-host shipped-path verification, and closed issue #118 satisfy T1 and T2; [detail](#m7---verify_path-type-expectation) |
-| Integration | G2 | ([ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Open | No | | The real `app_ioc_runner` role deploys and verifies default and alternate destinations on both golden OS families; [detail](#g2---ansible-installed-runner-destination-propagation) |
-| Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Blocked | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
+| Integration | G2 | ([ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Complete | No | | Implementation commit `5a7d2aa` and the real `app_ioc_runner` role verify default and alternate destinations on Debian 13 and Rocky 8; [detail](#g2---ansible-installed-runner-destination-propagation) |
+| Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Not started | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Not started | No | | The shipped setup deploys the CLI to a non-default `IOC_RUNNER_SCRIPT_DEST` whose parent is absent on both goldens, and the default path stays unchanged; [detail](#m19---setup-destination-parent-creation) |
@@ -43,6 +42,7 @@ authorization.
 | D5 | Complete M3 with leading and trailing token boundaries. M8/#137 moved source-contract ownership but retained quoted-global extraction; M3 reconstructs membership from the extracted subsets and separately pins direct base-pattern composition. | Owner decision after conceptual-integrity review, 2026-08-13 |
 | D6 | Retire the obsolete `cloud-provision` 2026-06-03 Rocky golden target without claiming its downstream check passed. Carry validation of the current image-workflow Rocky golden as independent Backlog work in this repository; it does not block `cloud-provision` closure or the 1.2.4 release. | Owner selection of the Backlog carry-forward and repository boundary, 2026-08-16 |
 | D7 | Enter #147 as its own 1.2.4 milestone row (M19) rather than folding it into M17, and include M19 in the M16 release gate. The setup-side parent creation is independent of the G2 and M17 destination work but ships in the same cycle as part of non-default destination support. | Owner decision, 2026-08-16 |
+| D8 | Accept the real `app_ioc_runner` verification on Debian 13 and Rocky 8 base VMs (implementation commit `5a7d2aa`, `ansible-provision#13`) as completing G2. The golden-level default and alternate destination integration is verified under M17/T1-T3, not re-run in G2. Reconcile the G2 Work-row wording from "golden OS families" to "Debian 13 and Rocky 8" to match the detail criteria. | Owner decision, 2026-08-16 |
 
 ### Assignment History
 
@@ -254,7 +254,7 @@ Last Compared: 2026-08-14; remote updated 2026-08-14T19:25:48Z
 Origin: 1.2.4 / M17
 Identity History: none
 GitHub Issue: 145, https://github.com/jeonghanlee/epics-ioc-runner/issues/145
-Status: Blocked
+Status: Not started
 
 ##### Summary
 
@@ -294,7 +294,8 @@ adding another installed-runner environment variable, or changing
 
 ##### Dependencies And Decisions
 
-- G2 is Open and blocks M17; M17 resumes as Not started after G2 completes.
+- G2 is Complete (`ansible-provision` commit `5a7d2aa`, #13 closed); M17 is Not
+  started and ready to plan.
 - G2 is the implementation checkpoint tracked by
   [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
   not an issue-closure gate. The external issue may remain open for M17's
@@ -799,7 +800,7 @@ closure.
 Origin: 1.2.4 / G2
 External GitHub Issue: 13,
 https://github.com/jeonghanlee/ansible-provision/issues/13
-Status: Open
+Status: Complete
 
 ##### Summary
 
@@ -831,11 +832,13 @@ identity checks address the same executable.
 
 | Observed At | Result | Evidence |
 | --- | --- | --- |
-| 2026-08-15 | Pending | [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13) is open; the current role checks `path_ioc_runner_bin` but does not pass it to `setup-system-infra.bash --full` |
+| 2026-08-16 | Pass | Implementation commit `5a7d2aa` on `ansible-provision` master (`Closes #13`) passes `IOC_RUNNER_SCRIPT_DEST="${bin}"` to the shipped setup and creates the destination parent with `install -d`. The real `app_ioc_runner` role verified the default `/usr/local/bin/ioc-runner` and the alternate `/opt/tools/bin/ioc-runner` on Debian 13 and Rocky 8 at tag `1.2.3` (`4868a25`); each installed runner's real `-V` reports `1.2.3 (4868a25)`. Evidence: `ansible-provision` `docs/milestone-a519802.md` M5 (commit `a815962`). Per D8, base-VM verification completes G2 and the golden-level integration is verified under M17. |
 
 ##### Closure Evidence
 
-- none
+- Implementation commit `5a7d2aa` on `ansible-provision` master; `ansible-provision#13` closed 2026-08-16T16:29:09Z via a `Closes #13` footer.
+- The default and alternate destinations deploy and verify through the real `app_ioc_runner` role on Debian 13 and Rocky 8; evidence is recorded in `ansible-provision` `docs/milestone-a519802.md` M5.
+- D8 records that this base-VM verification completes G2 and that the golden-level default and alternate destination integration belongs to M17.
 
 ## Backlog
 
