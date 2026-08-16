@@ -28,8 +28,9 @@ authorization.
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Blocked | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
+| Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Not started | No | | The shipped setup deploys the CLI to a non-default `IOC_RUNNER_SCRIPT_DEST` whose parent is absent on both goldens, and the default path stays unchanged; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
-| Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M17, M6, M13, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
+| Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M17, M6, M13, M19, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
 
 ### Decisions
 
@@ -41,6 +42,7 @@ authorization.
 | D4 | Run M17 after M7 and before M6. Keep the canonical installed path as the default while allowing lifecycle verification to follow `IOC_RUNNER_SCRIPT_DEST`. | Owner decision, 2026-08-13 |
 | D5 | Complete M3 with leading and trailing token boundaries. M8/#137 moved source-contract ownership but retained quoted-global extraction; M3 reconstructs membership from the extracted subsets and separately pins direct base-pattern composition. | Owner decision after conceptual-integrity review, 2026-08-13 |
 | D6 | Retire the obsolete `cloud-provision` 2026-06-03 Rocky golden target without claiming its downstream check passed. Carry validation of the current image-workflow Rocky golden as independent Backlog work in this repository; it does not block `cloud-provision` closure or the 1.2.4 release. | Owner selection of the Backlog carry-forward and repository boundary, 2026-08-16 |
+| D7 | Enter #147 as its own 1.2.4 milestone row (M19) rather than folding it into M17, and include M19 in the M16 release gate. The setup-side parent creation is independent of the G2 and M17 destination work but ships in the same cycle as part of non-default destination support. | Owner decision, 2026-08-16 |
 
 ### Assignment History
 
@@ -537,6 +539,99 @@ Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-13; remote updated 2026-08-13T06:59:58Z
 
+#### M19 - Setup destination parent creation
+
+Origin: 1.2.4 / M19
+Identity History: none
+GitHub Issue: 147, https://github.com/jeonghanlee/epics-ioc-runner/issues/147
+Status: Not started
+
+##### Summary
+
+`setup-system-infra.bash --full` fails when `IOC_RUNNER_SCRIPT_DEST` names a path
+whose parent directory does not yet exist. STEP 7 runs
+`mktemp "${RUNNER_SCRIPT_DEST}.XXXXXX"`, which cannot create the staging file
+without an existing parent. The default `/usr/local/bin/ioc-runner` always has a
+parent, so the failure only surfaces for a non-default destination.
+
+##### Scope
+
+Ensure the parent directory of `RUNNER_SCRIPT_DEST` exists before the STEP 7
+staged deploy, and apply the same to `RUNNER_SCRIPT_SYMLINK` when its parent can
+be redirected off `/usr/bin`. Cover the fix with a real setup-path regression on
+both golden OS families.
+
+##### Out of Scope
+
+Changing the default destination, changing the ownership or mode contracts of the
+deployed CLI, changing the symlink target policy, or altering the consumer-side
+parent creation in `ansible-provision`.
+
+##### Completion Criteria
+
+- The shipped `setup-system-infra.bash --full` deploys the CLI to a non-default
+  `IOC_RUNNER_SCRIPT_DEST` whose parent directory is absent.
+- The default destination path still deploys unchanged.
+- A regression check drives the real setup path against an absent parent and
+  would fail on the un-fixed code.
+
+##### Dependencies And Decisions
+
+- D7 enters #147 as its own milestone row and includes it in the M16 release
+  gate.
+- Independent of G2 and M17: the parent-creation fix touches the setup deploy
+  path, while G2 touches the Ansible role and M17 touches the lifecycle suites.
+  The `ansible-provision` consumer already creates the destination parent before
+  invoking setup, so M17's verification path does not exercise this defect.
+- The caller-side parent creation stays regardless; a consumer may pin a setup
+  version predating this fix. Both are idempotent `install -d` no-ops and compose
+  without conflict.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Create the parent of `RUNNER_SCRIPT_DEST` with `install -d` before the STEP 7
+   `mktemp`/`mv` staged deploy.
+2. Apply the same parent creation to `RUNNER_SCRIPT_SYMLINK` when it is
+   redirected off `/usr/bin`.
+3. Add a real setup-path regression that deploys to a non-default destination
+   with an absent parent and would go red on the un-fixed code.
+4. Run the affected setup and source-regression suites on both golden OS
+   families.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Absent-parent deploy | Run the shipped `setup-system-infra.bash --full` with `IOC_RUNNER_SCRIPT_DEST` set to a path whose parent is absent | Isolated system setup environment on both goldens | Setup creates the parent, deploys the CLI, and reports success |
+| T2 | Default destination | Run the same shipped setup with `IOC_RUNNER_SCRIPT_DEST` unset | Same environment | The default `/usr/local/bin/ioc-runner` deploys unchanged |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Both goldens | Pending | none |
+| T2 | Not run | Both goldens | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: setup-system-infra.bash: create the parent directory of IOC_RUNNER_SCRIPT_DEST before deploying the CLI
+Labels: enhancement
+GitHub Milestone: 1.2.4
+Observed State: open
+Observed Labels: enhancement
+Observed Milestone: 1.2.4
+Observed Assignee: none
+Last Compared: 2026-08-16; remote updated 2026-08-16T10:37:31Z
+
 #### M16 - Final release
 
 Origin: 1.2.4 / M16
@@ -546,7 +641,7 @@ Status: Not started
 
 ##### Summary
 
-Release 1.2.4 after the five assigned work units complete and the combined
+Release 1.2.4 after the six assigned work units complete and the combined
 candidate passes the standing release gate on Debian 13 and Rocky 8.
 
 ##### Scope
@@ -561,7 +656,7 @@ future line.
 
 ##### Completion Criteria
 
-- M3, M7, M17, M6, and M13 are Complete with reachable real-path evidence.
+- M3, M7, M17, M6, M13, and M19 are Complete with reachable real-path evidence.
 - Every Release Verification row records Pass with reachable evidence.
 - Tag `1.2.4`, the GitHub release, and the closed remote milestone agree on
   the released commit.
@@ -569,7 +664,7 @@ future line.
 
 ##### Dependencies And Decisions
 
-- M3, M7, M17, M6, and M13.
+- M3, M7, M17, M6, M13, and M19.
 - G1 is Complete; GitHub milestone 1.2.4 exists as number 15.
 - D3 defines the complete two-golden gate and release boundary.
 - The 1.3.0 target decisions remain on master and do not open that cycle.
@@ -582,7 +677,7 @@ M17 to the pre-release sequence on 2026-08-13
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Confirm the five assigned work rows are Complete and review their recorded
+1. Confirm the six assigned work rows are Complete and review their recorded
    evidence against the combined candidate.
 2. Bake or accept clean Debian 13 and Rocky 8 goldens according to
    `gate/RUNBOOK.md`, recording Release Verification 1.
@@ -604,6 +699,7 @@ Superseded Plan Artifacts: none
 | M17 / T1, T2, T3 | Later test-driver changes may alter runner selection or environment propagation | Lifecycle runner selection and dispatcher environment | Release Verification 2 | Default, override, and source selections execute the intended real runner in the final candidate | pending |
 | M6 / T1, T2 | M13 later changes the same local install path | Local install ordering | Release Verification 2 | Abort integrity and accepted deployment both hold after M13 | pending |
 | M13 / T1, T2, T3 | Final candidate and repeated host execution may expose state coupling | Local logrotate validation and suite driver | Release Verification 2 | Both consecutive host runs pass and default state-file metadata is unchanged | pending |
+| M19 / T1, T2 | Later setup changes may alter destination staging | Setup deploy path | Release Verification 2 | A non-default destination with an absent parent still deploys and the default path stays unchanged in the final candidate | pending |
 
 ##### Production Environment Tests
 
