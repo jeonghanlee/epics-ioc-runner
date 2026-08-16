@@ -40,6 +40,7 @@ authorization.
 | D3 | Final release verification runs the complete gate on Debian 13 and Rocky 8, changes the version to 1.2.4, verifies the release objects, and verifies the documented production install path. | Owner-accepted 1.2.4 cycle plan, 2026-08-12 |
 | D4 | Run M17 after M7 and before M6. Keep the canonical installed path as the default while allowing lifecycle verification to follow `IOC_RUNNER_SCRIPT_DEST`. | Owner decision, 2026-08-13 |
 | D5 | Complete M3 with leading and trailing token boundaries. M8/#137 moved source-contract ownership but retained quoted-global extraction; M3 reconstructs membership from the extracted subsets and separately pins direct base-pattern composition. | Owner decision after conceptual-integrity review, 2026-08-13 |
+| D6 | Retire the obsolete `cloud-provision` 2026-06-03 Rocky golden target without claiming its downstream check passed. Carry validation of the current image-workflow Rocky golden as independent Backlog work in this repository; it does not block `cloud-provision` closure or the 1.2.4 release. | Owner selection of the Backlog carry-forward and repository boundary, 2026-08-16 |
 
 ### Assignment History
 
@@ -746,10 +747,83 @@ identity checks address the same executable.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-
-No backlog work is carried on the 1.2.4 release branch. The active master
-register retains the conditional Backlog and the work targeted for 1.3.0.
+| Runtime acceptance | M18 | Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Deferred | No | D6 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m18---current-rocky-golden-downstream-validation) |
 
 ### Backlog Details
 
-No backlog details are carried on the 1.2.4 release branch.
+#### M18 - Current Rocky golden downstream validation
+
+Origin: 1.2.4 / M18
+Identity History: none
+GitHub Issue: 146, https://github.com/jeonghanlee/epics-ioc-runner/issues/146
+Status: Deferred
+
+##### Summary
+
+The 2026-06-03 Rocky golden named by jeonghanlee/cloud-provision#4 is obsolete after the copy-based image workflow shipped in jeonghanlee/cloud-provision#30. The current workflow has real bake, provenance, publication, and fresh-consumer acceptance, but the downstream system-infrastructure and system-lifecycle suites have not run against that current Rocky image. This row carries only that remaining verification.
+
+##### Scope
+
+- Boot a fresh Rocky 8 consumer from a current run-specific image and matching creation record produced by the shipped `cloud-provision` image workflow.
+- Record the exact `cloud-provision`, `ansible-provision`, and installed `epics-ioc-runner` identities before the test.
+- Run the shipped system-infrastructure and system-lifecycle suites through the real installed-runner path without replacing the setup, sudo, systemd, or IOC paths.
+- Record the complete suite results and the current sudoers-policy observations.
+
+##### Out of Scope
+
+- Re-running the retired 2026-06-03 Rocky golden.
+- Treating the 2026-08-12 pre-#30 Rocky gate as verification of the current image-workflow artifact.
+- Rebuilding the current golden unless provenance is invalid or the downstream run exposes a defect.
+- Blocking jeonghanlee/cloud-provision#4 or the 1.2.4 release on this independent Backlog check.
+
+##### Completion Criteria
+
+- A fresh consumer selects one exact current Rocky image and matching creation record and reaches `READY`.
+- The image manifest records the exact clean supplier identities and the installed runner reports the expected identity.
+- `tests/test-system-infra.bash` and `tests/test-system-lifecycle.bash` run through the shipped installed path and both finish with final PASS suite records.
+- Evidence records the image name, creation record, supplier commits, runner identity, commands, suite counts, final states, and log hashes.
+
+##### Dependencies And Decisions
+
+- D6
+- jeonghanlee/cloud-provision#30 supplies the current copy-based image workflow and its accepted Rocky image format.
+- jeonghanlee/cloud-provision#4 closes by owner-approved retirement of its exact historical target; this row does not retroactively satisfy that issue's original T1.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Select or bake a current Rocky golden through the shipped `cloud-provision` image workflow and boot a fresh consumer.
+2. Capture the selected image, creation record, manifest, supplier commits, and installed runner identity.
+3. Run the shipped system-infrastructure and system-lifecycle suites through the installed-runner path.
+4. Record complete results and reconcile this detail and its GitHub issue.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| M18 / T1 | Runtime acceptance | Run the shipped system-only installed suite selection on a fresh current Rocky consumer after recording its image and software identities | Rocky 8 consumer from the current copy-based image workflow | The real system-infrastructure and system-lifecycle suites both emit complete final PASS records |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| M18 / T1 | Not run | Fresh current-image Rocky 8 consumer | Pending | The 2026-08-12 Rocky gate predates jeonghanlee/cloud-provision#30 and is supporting history, not M18 verification |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Validate the current Rocky 8 golden through downstream runner suites
+Labels: tests
+GitHub Milestone: Backlog
+Observed State: open
+Observed Labels: tests
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-16; remote updated 2026-08-16T08:24:10Z
