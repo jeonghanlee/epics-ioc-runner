@@ -971,6 +971,7 @@ identity checks address the same executable.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Runtime acceptance | M18 | Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Deferred | No | D6 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m18---current-rocky-golden-downstream-validation) |
+| Coherence | M20 | Guard suite check-count coherence: fail when a suite's actual emission differs from its declared inventory total | Coherence finding | Deferred | No | | A test asserts each suite's real check count equals its `*_INVENTORY.md` / `REPORTING_INVENTORY.md` total and goes red on drift; [detail](#m20---suite-count-coherence-guard) |
 
 ### Backlog Details
 
@@ -1050,3 +1051,46 @@ Observed Labels: tests
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-16; remote updated 2026-08-16T08:24:10Z
+
+#### M20 - Suite count coherence guard
+
+Origin: 1.2.4 conceptual-integrity sweep (2026-08-17)
+
+##### Summary
+
+One concept — a suite's check count — is encoded in five independent places with
+nothing enforcing agreement: the suite's runtime emission, `REPORTING_INVENTORY.md`,
+each `*_INVENTORY.md`, the gate driver's `want[]`/`want_step[]`
+(`gate/drivers/control/suites.bash`), and `gate/RUNBOOK.md`. The driver copy is
+self-enforcing (a gate run compares it to reality and caught the drift), but the
+inventory and runbook copies are checked by nobody. They drifted silently for the
+whole 1.2.4 cycle (the driver expected 614 while the suites emitted 688) and were
+re-synced by hand during M13. The fifth fate: a seam that leaves no hole.
+
+##### Scope
+
+Add a test that reads each suite's real emitted check count and fails when it
+differs from that suite's declared inventory total, so the un-enforced copies can
+no longer drift silently. Owner chose this guard (option 2) over making the
+runtime the single source (option 3), because the driver's expected count must
+stay independent to catch a suite silently gaining or losing checks.
+
+##### Out of Scope
+
+Auto-generating the per-check identity listings or M8 migration prose (not
+mechanically derivable); changing the gate driver's independent `want[]` (it is
+already enforced and is the release-critical guard).
+
+##### Dependencies And Decisions
+
+- Deferred out of 1.2.4: the counts are correct now (re-synced during M13), so
+  M16 is unaffected; adding a guard mid-release-gate is scope creep (the
+  ALL_THE_RUNNING lens).
+- Apply the repository's four-gate promotion test (`docs/CLOSED_DOORS.md`) before
+  guarding, and try elimination first.
+- Contrast recorded as CI-33 (the logrotate directive seam is self-enforcing and
+  needs no guard); this count seam is the un-enforced case that does.
+
+##### Status
+
+Deferred to a later cycle (1.3.0 or a coherence pass). Not started.
