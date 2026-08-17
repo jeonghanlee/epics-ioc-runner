@@ -190,6 +190,17 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S35|local-lifecycle.S35.unified-log-path-baked-into-unit|BEHAVIOR"
     "S35|local-lifecycle.S35.xdg-state-home-unset-log-path-baked-into-unit|BEHAVIOR"
     "S35|local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit|BEHAVIOR"
+    "S36|local-lifecycle.S36.absent-template-deployed|BEHAVIOR"
+    "S36|local-lifecycle.S36.absent-deploy-message|BEHAVIOR"
+    "S36|local-lifecycle.S36.identical-template-kept|BEHAVIOR"
+    "S36|local-lifecycle.S36.identical-no-backup|BEHAVIOR"
+    "S36|local-lifecycle.S36.identical-no-update-message|BEHAVIOR"
+    "S36|local-lifecycle.S36.different-noninteractive-kept|BEHAVIOR"
+    "S36|local-lifecycle.S36.different-keep-message|BEHAVIOR"
+    "S36|local-lifecycle.S36.force-updated|BEHAVIOR"
+    "S36|local-lifecycle.S36.force-backup-created|BEHAVIOR"
+    "S36|local-lifecycle.S36.abort-nonzero|BEHAVIOR"
+    "S36|local-lifecycle.S36.abort-template-unchanged|BEHAVIOR"
 )
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -283,7 +294,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 35; index += 1)); do
+    for ((index = 1; index <= 36; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -1956,6 +1967,88 @@ function test_local_install_path_resolution {
         "XDG_STATE_HOME reaches the installed unit logfile path"
 }
 
+# M6 (#117): the local shared-asset (systemd template) refresh contract.
+# Reorder puts deployment after the abort gates; the diff-aware policy keeps an
+# identical asset untouched and, on a difference, defaults to keep unless the
+# invoker forces the update. Template-only so the check is independent of the
+# M13 logrotate-validation state-file issue. verify_state pulls the S36 catalog
+# rows in this emission order.
+function test_m6_shared_asset_refresh {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: M6 Shared-Asset Refresh (reorder + diff-aware keep/update/--force)"
+    print_sub_divider
+
+    local tpl="${SYSTEMD_USER_DIR}/epics-@.service"
+    local root_dir probe_dir conf out a h1 h2 ht rc
+    root_dir=$(mktemp -d /tmp/ioc-runner-m6probe.XXXXXX)
+    probe_dir="${root_dir}/m6probe"
+    mkdir -p "${probe_dir}"
+    printf '#!/bin/bash\necho hi\n' > "${probe_dir}/st.cmd"
+    chmod +x "${probe_dir}/st.cmd"
+    conf="${probe_dir}/m6probe.conf"
+    cat > "${conf}" <<EOF
+IOC_NAME="m6probe"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${probe_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" --local remove m6probe >/dev/null 2>&1 || true
+    rm -f "${tpl}" "${tpl}".bak.* 2>/dev/null
+
+    # T2: absent -> deploy.
+    out=$(bash "${RUNNER_SCRIPT}" --local install "${conf}" 2>&1)
+    a="false"; [[ -f "${tpl}" ]] && a="true"
+    verify_state "true" "${a}" "T2: absent template deployed"
+    a="false"; printf '%s\n' "${out}" | grep -q "Deployed user-level systemd template" && a="true"
+    verify_state "true" "${a}" "T2: deploy message emitted"
+
+    # T3: identical -> keep untouched, no backup, no update message. The 'y'
+    # accepts the per-IOC .conf overwrite prompt (out of M6 scope); a non-TTY
+    # stdin then keeps the identical shared asset without prompting.
+    h1=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    out=$(printf 'y\n' | bash "${RUNNER_SCRIPT}" --local install "${conf}" 2>&1)
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    verify_state "${h1}" "${h2}" "T3: identical template kept unchanged"
+    a="true"; ls "${tpl}".bak.* >/dev/null 2>&1 && a="false"
+    verify_state "true" "${a}" "T3: identical install made no backup"
+    a="true"; printf '%s\n' "${out}" | grep -qE "Updated user-level|Backed up" && a="false"
+    verify_state "true" "${a}" "T3: identical install emitted no update message"
+
+    # T4: different + non-interactive + no --force -> keep, report, no overwrite.
+    printf '\n# m6 tamper\n' >> "${tpl}"
+    ht=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    out=$(printf 'y\n' | bash "${RUNNER_SCRIPT}" --local install "${conf}" 2>&1)
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    verify_state "${ht}" "${h2}" "T4: differing template kept non-interactively"
+    a="false"; printf '%s\n' "${out}" | grep -qi "keeping the existing" && a="true"
+    verify_state "true" "${a}" "T4: keep message emitted"
+
+    # T5: different + --force -> update + backup.
+    out=$(printf 'y\n' | bash "${RUNNER_SCRIPT}" --local -f install "${conf}" 2>&1)
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    a="false"; [[ "${h2}" != "${ht}" ]] && a="true"
+    verify_state "true" "${a}" "T5: force updated the differing template"
+    a="false"; ls "${tpl}".bak.* >/dev/null 2>&1 && a="true"
+    verify_state "true" "${a}" "T5: force update created a backup"
+
+    # T1: abort integrity -- a declined reinstall returns nonzero and leaves the
+    # shared template unchanged (deployment now follows the abort gates).
+    h1=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    rc=0
+    printf 'n\n' | bash "${RUNNER_SCRIPT}" --local install "${conf}" >/dev/null 2>&1 || rc=$?
+    a="false"; [[ "${rc}" -ne 0 ]] && a="true"
+    verify_state "true" "${a}" "T1: declined reinstall returns nonzero"
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    verify_state "${h1}" "${h2}" "T1: template unchanged on abort"
+
+    bash "${RUNNER_SCRIPT}" --local remove m6probe >/dev/null 2>&1 || true
+    rm -rf "${root_dir}"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -1993,6 +2086,7 @@ function run_all_tests {
         "test_remove"
         "test_logrotate_teardown"
         "test_local_install_path_resolution"
+        "test_m6_shared_asset_refresh"
     )
 
     local step=1

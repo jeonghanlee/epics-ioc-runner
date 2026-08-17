@@ -10,10 +10,11 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: G2, M17, and M19 are Complete (M19 verified by real-path
-S23 on both fresh gate goldens, 2026-08-17). M6 is Ready — its refresh policy is
-settled (D10, diff-aware keep/update/`--force`) and re-scoped; its re-scoped plan
-needs owner acceptance before implementation. Then M13, toward the M16 release gate.
+Next session entry point: G2, M17, M19, and M6 are Complete (M6 verified by
+automated S36 on both fresh gate goldens, 2026-08-17). M13 is now Ready — it
+fixes the local logrotate validation's dependence on the system state file
+(`/var/lib/logrotate/logrotate.status`), the interference cleared by hand during
+M6 verification. Then M13 unblocks the M16 release gate.
 
 ## Milestone
 
@@ -25,8 +26,8 @@ needs owner acceptance before implementation. Then M13, toward the M16 release g
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Complete | No | D1, D2 | Commit `50f27b2`, two-host shipped-path verification, and closed issue #118 satisfy T1 and T2; [detail](#m7---verify_path-type-expectation) |
 | Integration | G2 | ([jeonghanlee/ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Complete | No | | Implementation commit `5a7d2aa` and the real `app_ioc_runner` role verify default and alternate destinations on Debian 13 and Rocky 8; [detail](#g2---ansible-installed-runner-destination-propagation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Complete | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
-| Local install | M6 | (#117) Reorder local install after the abort gates and make the shared-asset refresh diff-aware | Milestone | Not started | Yes | D1, D2, D10 | Deployment follows the abort gates, and the accepted install deploys-when-absent, keeps-when-identical, and decides keep-vs-update on a difference (non-interactive default keep, `--force` update); [detail](#m6---local-install-ordering) |
-| Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
+| Local install | M6 | (#117) Reorder local install after the abort gates and make the shared-asset refresh diff-aware | Milestone | Complete | No | D1, D2, D10, D11 | Automated S36 on both fresh gate goldens (2026-08-17) verifies reorder + diff-aware keep/update/`--force`; issue #117 close pending owner; [detail](#m6---local-install-ordering) |
+| Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | Yes | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Complete | No | | Real-path S23 on both fresh gate goldens (2026-08-17) verifies non-default absent-parent deploy and default-path invariance; issue #147 closed 2026-08-17; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
 | Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M17, M6, M13, M19, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
@@ -391,7 +392,7 @@ Origin: a39623c / M6
 Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
 master source transfer commit `e357210`.
 GitHub Issue: 117, https://github.com/jeonghanlee/epics-ioc-runner/issues/117
-Status: Open
+Status: Complete
 
 ##### Summary
 
@@ -461,7 +462,7 @@ Plan Status: accepted
 Plan Acceptance: Owner refined the concretized plan through the 2026-08-17 design
 conversation and third-person code review, and chose `--force` option (a) — reuse
 the existing `FORCE_OVERWRITE` (D10, D11)
-Implementation Authorization: none
+Implementation Authorization: Owner authorized implementation, 2026-08-17
 Superseded Plan Artifacts: the 2026-08-12 ordering-only plan; the pre-review
 2026-08-17 concretization
 
@@ -509,15 +510,18 @@ Superseded Plan Artifacts: the 2026-08-12 ordering-only plan; the pre-review
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Local lifecycle environment | Pending | none |
-| T2 | Not run | Local lifecycle environment | Pending | none |
-| T3 | Not run | Local lifecycle environment | Pending | none |
-| T4 | Not run | Local lifecycle environment | Pending | none |
-| T5 | Not run | Local lifecycle environment | Pending | none |
+| T1 | 2026-08-17 | Fresh `rocky8` (.150) and `debian13` (.50) gate goldens (iocrunner-gate-1.0.0) | Pass | `S36.abort-nonzero` and `S36.abort-template-unchanged`: a declined reinstall returns nonzero and the shared template is byte-identical before and after, on both hosts. |
+| T2 | 2026-08-17 | Same goldens | Pass | `S36.absent-template-deployed` and `S36.absent-deploy-message`: an absent template is deployed after the abort gates on both hosts. |
+| T3 | 2026-08-17 | Same goldens | Pass | `S36.identical-template-kept`, `identical-no-backup`, `identical-no-update-message`: a reinstall with an identical template leaves it byte-identical, creates no backup, and emits no update message. |
+| T4 | 2026-08-17 | Same goldens | Pass | `S36.different-noninteractive-kept` and `different-keep-message`: a differing template run non-interactively without `--force` is kept and the keep is reported. |
+| T5 | 2026-08-17 | Same goldens | Pass | `S36.force-updated` and `force-backup-created`: `--force` updates the differing template after the abort gates and backs up the prior version. |
+
+The five criteria run as automated `test-local-lifecycle` step S36 (11 real-path checks, template-only so it is independent of the M13 logrotate state-file issue). Suite `PASS` on both: rocky8 146 total (142 pass, 4 NA) with S36 11/11, debian13 146/146 with S36 11/11. The M13/#143 logrotate-validation state-file interference was cleared on rocky8 before the run (documented pre-existing workaround); it does not touch the template path S36 verifies. Evidence: `work/m6-suite-{rocky8,debian13}` suite logs and the S36 STEP records.
 
 ##### Closure Evidence
 
-- none
+- Automated S36 verification on both fresh gate goldens, 2026-08-17 (test-local-lifecycle `PASS`, S36 11/11 on each). Diagnostic: the initial 6 local-lifecycle failures were the unfixed M13/#143 logrotate state-file dependency, confirmed by an A/B run of the baked pre-M6 runner (e357210) failing identically; not an M6 regression.
+- Third-person supplementary verification on both goldens, 2026-08-17: the logrotate difference-decision path (keep non-interactively, `--force` updates) passed on each, and system mode was unregressed by the shared `do_install` change (setup `--full` and system-lifecycle 102/102 on each).
 
 ##### GitHub Projection
 
