@@ -472,6 +472,38 @@ ssh vmadmin@192.168.122.150 'cd ~/gitsrc/epics-ioc-runner && sudo -nE bash bin/s
 
 Repeat both for `192.168.122.50`.
 
+### System mode and the engineer home
+
+The goldens ship each interactive home at mode `0700` (`HOME_MODE 0700` in
+`/etc/login.defs`), so the `ioc-srv` service account cannot traverse it. The
+suite matrix runs every system-mode suite against the installed runner at
+`/usr/local/bin/ioc-runner`, which is world-readable, and runs the source-mode
+suites as the owning user; the standard run therefore never needs the home
+opened.
+
+A run that must reach a source tree under such a home *as the system service
+account* — a source-mode system lifecycle for identity verification, or any
+scenario where `ioc-srv` reads a clone beneath an engineer's `0700` home — fails
+first at the traverse, surfacing as `test-system-lifecycle` S22 (UDS listening)
+and S27 (journal-less crash/init) rather than as a fault in the code. Grant the
+one directory bit before that run:
+
+```bash
+ssh vmadmin@<host> 'chmod o+x ~'
+```
+
+Restore `0700` after that run. The root_squash reproduction and the multi-user
+peer scenarios below depend on the closed home; a home left open silently masks
+the very barrier they assert.
+
+```bash
+ssh vmadmin@<host> 'chmod 0700 ~'
+```
+
+Install mode (the world-readable `/usr/local/bin/ioc-runner`) and local mode
+(the user runs its own IOCs) are unaffected. The user-facing form of this same
+prerequisite is `docs/INSTALL.md` section 4.1.
+
 ### The EPICS environment
 
 On the Rocky 8 golden the environment is on the invoking user's PATH before any

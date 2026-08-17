@@ -284,3 +284,24 @@ Example for opening permissions on a local user's EPICS build:
 chmod o+x /home/username
 chmod -R o+rx /home/username/epics
 ```
+
+The same traverse requirement applies to the IOC or `ioc-runner` **source tree**
+when it is run in system mode from under a restricted home. Because the
+`procServ` daemon runs as `ioc-srv`, a clone kept beneath a `0700` home is
+unreachable by the service account. The failure is a plain `Permission denied`
+on the path under the home — the account is stopped at the home's traverse bit,
+not at the code — and a shell exec of the runner returns exit code `126`
+(distinct from the `127` shared-library (`ld.so`) case above). On a distribution
+that defaults
+interactive homes to `0700` (`HOME_MODE 0700` in `/etc/login.defs`) this is the
+default state. Open the parent the same way:
+
+```bash
+chmod o+x /home/username
+```
+
+Install mode (the world-readable `/usr/local/bin/ioc-runner`) and local mode
+(each user runs its own IOCs, traversing its own home as owner) do not need
+this. The gate reproduces this condition on its `0700`-home goldens; maintainers
+see the matching prerequisite in `gate/RUNBOOK.md` ("System mode and the
+engineer home").
