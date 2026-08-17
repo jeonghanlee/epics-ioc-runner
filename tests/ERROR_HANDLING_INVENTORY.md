@@ -13,15 +13,15 @@ runner=source. Its primary category is error-contract.
 
 ## Inventory Basis
 
-The source pipeline contains S01 through S36. Its full non-root branch contains
-139 current assertion calls. Source review adds seven result-producing
+The source pipeline contains S01 through S37. Its full non-root branch contains
+143 current assertion calls. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 146 identities. S01, S12, S13, S14, S15,
+The fixed catalog therefore contains 150 identities. S01, S12, S13, S14, S15,
 S16, S18, S20, S22, S33, and S34 are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
@@ -343,6 +343,10 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S36 | `error-handling.S36.home-bin-procserv-resolves-without-an-override` | `BEHAVIOR` | `real-path` | Home-bin procServ resolves without an override |
 | S36 | `error-handling.S36.template-execstart-references-the-home-bin-binary` | `BEHAVIOR` | `real-path` | Template ExecStart references the home-bin binary |
 | S36 | `error-handling.S36.con-search-path-prepends-home-bin-when-home-is-trusted` | `BEHAVIOR` | `real-path` | con search path prepends home-bin when HOME is trusted |
+| S37 | `error-handling.S37.install-proceeds-with-logrotate-boundary` | `BEHAVIOR` | `real-path` | Install proceeds with the mock logrotate boundary (M13/#143) |
+| S37 | `error-handling.S37.rotation-cfg-deployed` | `BEHAVIOR` | `real-path` | Rotation config is deployed after validation |
+| S37 | `error-handling.S37.debug-validation-passes-explicit-state` | `BEHAVIOR` | `real-path` | Debug validation passes an explicit --state |
+| S37 | `error-handling.S37.state-off-system-default` | `BEHAVIOR` | `real-path` | Validation state is off the system default |
 
 ## Completeness Cross-check
 
@@ -352,8 +356,8 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 146 |
+| Fixed catalog total | 150 |
 
-The mapping is complete only while all 139 current assertion descriptions map
+The mapping is complete only while all 143 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,
-and the source pipeline remains S01 through S36.
+and the source pipeline remains S01 through S37.

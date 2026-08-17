@@ -15,7 +15,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin"
 unset BASH_ENV ENV CDPATH
 umask 077
 
-readonly EXPECTED_IDENTITY_SHA256="fcfdabf99fb5cfdc897b318afb4df79d611119eca719e96eca803d74422351a7"
+readonly EXPECTED_IDENTITY_SHA256="bbbc445888fce6e31ec01badab78d88df53ce81a796ed119a265a2ad139c135c"
 readonly REMOTE_REPO="\${HOME}/gitsrc/epics-ioc-runner"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly SCRIPT_DIR
@@ -400,17 +400,17 @@ function matrix_verdict {
             run_suite[run] = suite
         }
         BEGIN {
-            want["error-handling/none/source"] = 146
-            want_step["error-handling/none/source"] = 37
-            want["source-regression/system/source"] = 87
-            want_step["source-regression/system/source"] = 16
-            want["local-lifecycle/local/source"] = 126
-            want_step["local-lifecycle/local/source"] = 36
-            want["local-lifecycle/local/installed"] = 126
-            want_step["local-lifecycle/local/installed"] = 36
+            want["error-handling/none/source"] = 150
+            want_step["error-handling/none/source"] = 38
+            want["source-regression/system/source"] = 108
+            want_step["source-regression/system/source"] = 18
+            want["local-lifecycle/local/source"] = 146
+            want_step["local-lifecycle/local/source"] = 37
+            want["local-lifecycle/local/installed"] = 146
+            want_step["local-lifecycle/local/installed"] = 37
             want["system-infra/system/none"] = 36
             want_step["system-infra/system/none"] = 7
-            want["system-lifecycle/system/installed"] = 93
+            want["system-lifecycle/system/installed"] = 102
             want_step["system-lifecycle/system/installed"] = 33
         }
         $1 == "TEST" {
@@ -580,9 +580,9 @@ function matrix_verdict {
             for (i = 1; i <= exceptions; i++) {
                 print exception_line[i] " runner=" run_runner[exception_run[i]]
             }
-            if (blocks == 6 && checks == 614 && steps == 165 &&
+            if (blocks == 6 && checks == 688 && steps == 170 &&
                 skip == 0 && fail == 0 && errors == 0 && bad == 0) {
-                print "SUITES OK (6 blocks, 614 checks, na=" na_total ")"
+                print "SUITES OK (6 blocks, 688 checks, na=" na_total ")"
                 exit 0
             }
             printf "SUITES FAIL blocks=%d checks=%d steps=%d skip=%d fail=%d na=%d err=%d invalid=%d\n", blocks + 0, checks + 0, steps + 0, skip + 0, fail + 0, na_total + 0, errors + 0, bad + 0

@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 135
+Fixed Total: 146
 
 ## Runner Policy
 
@@ -19,7 +19,7 @@ three P00 checks and eleven prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
 camonitor availability and the S15 and S16 configuration requirements. The
-resulting catalog contains 135 identities.
+resulting catalog contains 146 identities.
 
 ## Test Method Assignment
 
@@ -282,9 +282,23 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S35.xdg-state-home-unset-log-path-baked-into-unit` | `BEHAVIOR` | With log overrides and `XDG_STATE_HOME` unset, the real install emits a unit using `HOME/.local/state/procserv`.
 - `local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit` | `BEHAVIOR` | With log overrides unset, the real install emits a unit using `XDG_STATE_HOME/procserv`.
 
+### S36 - M6 Shared-Asset Refresh (11)
+
+- `local-lifecycle.S36.absent-template-deployed` | `BEHAVIOR` | An absent shared template is deployed after the abort gates.
+- `local-lifecycle.S36.absent-deploy-message` | `BEHAVIOR` | The absent-template deploy emits its message.
+- `local-lifecycle.S36.identical-template-kept` | `BEHAVIOR` | A reinstall with an identical template leaves it byte-identical.
+- `local-lifecycle.S36.identical-no-backup` | `BEHAVIOR` | An identical reinstall creates no template backup.
+- `local-lifecycle.S36.identical-no-update-message` | `BEHAVIOR` | An identical reinstall emits no update message.
+- `local-lifecycle.S36.different-noninteractive-kept` | `BEHAVIOR` | A differing template run non-interactively without --force is kept.
+- `local-lifecycle.S36.different-keep-message` | `BEHAVIOR` | The non-interactive keep is reported.
+- `local-lifecycle.S36.force-updated` | `BEHAVIOR` | --force updates a differing template after the abort gates.
+- `local-lifecycle.S36.force-backup-created` | `BEHAVIOR` | A --force update backs up the prior template.
+- `local-lifecycle.S36.abort-nonzero` | `BEHAVIOR` | A declined reinstall returns nonzero.
+- `local-lifecycle.S36.abort-template-unchanged` | `BEHAVIOR` | The shared template is unchanged on abort.
+
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 135 identities in this
+Every source and installed invocation declares these 146 identities in this
 order. Runner origin changes the selected binary and the SUITE `runner` field,
 not the identity set. Missing prerequisites and non-applicable permission
 branches close their declared dependent checks without changing `Total`.

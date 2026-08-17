@@ -8,7 +8,7 @@ This document preserves the pre-move inventory for S07 through S14 in `tests/tes
 
 ## Suite Boundary
 
-The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S21 and M7 adds S22 without renumbering them.
+The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S21, M7 adds S22, and M19 adds S23 without renumbering them.
 
 The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Earlier setup checks redirect their outer write destinations to an invoking-user-owned temporary workspace. S22 runs the full setup in a private mount namespace with root-owned scratch mounts and isolated `systemctl` and filesystem boundaries.
 
@@ -275,9 +275,23 @@ remain valid directories.
 | `source-regression.S22.valid.configuration-directory-accepted` | `BEHAVIOR` | `real-path` | The configuration directory target passes its explicit directory check. |
 | `source-regression.S22.valid.log-directory-accepted` | `BEHAVIOR` | `real-path` | The log directory target passes its explicit directory check. |
 
-The fixed source-regression catalog contains 104 identities: 36 moved
-identities, 57 source-contract identities in S15 through S21, and 11 M7
-identities in S22.
+The fixed source-regression catalog contains 108 identities: 36 moved
+identities, 57 source-contract identities in S15 through S21, 11 M7
+identities in S22, and 4 M19 identities in S23.
+
+## M19 S23 Addition
+
+S23 adds four real-path behavior identities. It drives the shipped
+`setup-system-infra.bash` against an absent `IOC_RUNNER_SCRIPT_DEST` parent and
+verifies destination-parent creation without disturbing the default path
+(M19/#147). The symlink identity runs on RHEL-family setup and is NA elsewhere.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S23.absent-parent.setup-exits-zero` | `BEHAVIOR` | `real-path` | The shipped setup exits 0 deploying to a destination whose parent is absent. |
+| `source-regression.S23.absent-parent.runner-deployed` | `BEHAVIOR` | `real-path` | The runner is deployed at the non-default destination. |
+| `source-regression.S23.default.parent-unchanged` | `BEHAVIOR` | `real-path` | An existing destination parent keeps its mode (the guard skips install -d). |
+| `source-regression.S23.symlink.absent-parent-created` | `BEHAVIOR` | `real-path` | On RHEL-family setup the redirected symlink parent is created; NA elsewhere. |
 
 ## Move Invariants
 
@@ -294,4 +308,4 @@ identities in S22.
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the eleven S22 identities through the shipped full setup in a private mount namespace. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the eleven S22 identities through the shipped full setup in a private mount namespace. M19 adds the four S23 identities through the shipped setup deploying to an absent destination parent. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
