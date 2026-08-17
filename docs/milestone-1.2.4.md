@@ -45,6 +45,7 @@ needs owner acceptance before implementation. Then M13, toward the M16 release g
 | D8 | Accept the real `app_ioc_runner` verification on Debian 13 and Rocky 8 base VMs (implementation commit `5a7d2aa`, jeonghanlee/ansible-provision#13) as completing G2. The golden-level default and alternate destination integration is verified under M17/T1-T3, not re-run in G2. Reconcile the G2 Work-row wording from "golden OS families" to "Debian 13 and Rocky 8" to match the detail criteria. | Owner decision, 2026-08-16 |
 | D9 | Carry the paired G2/M17 `IOC_RUNNER_SCRIPT_DEST` runner-selection documentation — the `gate/RUNBOOK.md` cross-repository procedure and the runner-selection doc — into M16 rather than M17. M17's deliverable (both lifecycle suites honor the override, verified on both goldens) is complete without it; the RUNBOOK procedure belongs with the release gate where G2 and M17 run together. | Owner decision, 2026-08-16 |
 | D10 | Fold the diff-aware local shared-asset refresh policy into M6 (owner chose M6 re-scope over a separate follow-up). Policy: absent deploys; present-and-identical keeps the asset untouched with no reload; present-and-different reports the affected running `epics-@<ioc>.service` instances and takes a keep-vs-update decision — interactive prompt, non-interactive default keep, `--force` updates without a prompt in either mode. | Owner decision, 2026-08-17 |
+| D11 | For the M6 shared-asset keep/update decision, reuse the existing `FORCE_OVERWRITE` (`-f/--force`) rather than adding a separate shared-asset flag (option (a) over (b)). The non-interactive default keep already guards the accidental reinstall path, `--force` is the explicit opt-in, and the three-deep template backup preserves the prior version; the `-f/--force` help text broadens to state it also updates shared assets. | Owner decision after third-person code review, 2026-08-17 |
 
 ### Assignment History
 
@@ -451,25 +452,48 @@ replaced, never what the deployed artifact contains.
 - D2 places this work before M13 because both change local install.
 - D10 settles the accepted-install refresh policy and folds the diff-aware
   keep/update/`--force` behavior into this milestone.
+- D11 reuses the existing `FORCE_OVERWRITE` for the shared-asset keep/update
+  decision rather than a separate flag.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none (re-scoped 2026-08-17 per D10; the 2026-08-12 ordering-only
-acceptance no longer covers the plan)
+Plan Status: accepted
+Plan Acceptance: Owner refined the concretized plan through the 2026-08-17 design
+conversation and third-person code review, and chose `--force` option (a) — reuse
+the existing `FORCE_OVERWRITE` (D10, D11)
 Implementation Authorization: none
-Superseded Plan Artifacts: the 2026-08-12 ordering-only plan
+Superseded Plan Artifacts: the 2026-08-12 ordering-only plan; the pre-review
+2026-08-17 concretization
 
-1. Move shared-asset deployment and daemon reload after the running-service and
-   overwrite-abort gates.
-2. Add a content diff (stamp-filtered, as system-mode setup already does) so an
-   identical shared asset is kept untouched with no daemon reload.
-3. On a difference, enumerate the affected running `epics-@<ioc>.service`
-   instances and take the keep-vs-update decision: interactive prompt,
-   non-interactive default keep, `--force` update.
-4. Add the `--force` flag to the local install path and document it.
-5. Verify the four states (absent, identical, different-keep, different-update),
-   the non-interactive default, and both abort paths on both goldens.
+1. Reorder: move the shared-asset block (`install -d LOG_DIR`,
+   `deploy_local_template`, `deploy_local_logrotate`) from before the abort gates
+   to after both — the running-service guard and the config overwrite-abort
+   prompt — and before the final `daemon-reload`. Nothing between depends on the
+   template, and `do_install` does not start the service.
+2. Make `deploy_local_template` diff-aware (it is the only always-emit path):
+   render to a same-directory temp, then absent deploys, identical (`cmp`) keeps
+   with no backup or reload, different takes the keep/update decision. Remove its
+   unconditional `daemon-reload`.
+3. `deploy_local_logrotate` already does `cmp`-based skip-identical and
+   reload-only-when-changed; add only the difference-case keep/update decision
+   before each difference branch (each per-file `mv`), leaving its existing
+   idempotence and conditional reload.
+4. The keep/update decision, shared by both assets: `FORCE_OVERWRITE`
+   (the existing `-f/--force`, per D11) updates; an interactive TTY prompts keep
+   versus update; non-interactive input (a non-TTY stdin or a `read` EOF)
+   defaults to keep and reports the affected running instances. Do not copy the
+   `.conf` overwrite prompt's EOF-aborts behavior, which is the opposite of the
+   shared-asset default.
+5. Reconcile reloads to exactly one, only when a unit changed: drop the
+   template's unconditional reload and gate the final `do_install` reload on any
+   unit file changing (the `.conf` is an `EnvironmentFile`, not a unit, so it
+   needs no reload).
+6. Add a helper listing active local instances
+   (`run_systemctl list-units --state=active 'epics-@*.service'`) for the
+   difference-case report, and extend the `-f/--force` help to state it also
+   updates shared assets.
+7. Verify T1-T5 on both goldens, plus the single conditional reload and the
+   non-interactive default keep with the affected-instance report.
 
 ##### Test Plan
 
