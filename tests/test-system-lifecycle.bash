@@ -163,7 +163,9 @@ declare -g RUNNER_SCRIPT
 function resolve_runner_script {
     local mode="${IOC_RUNNER_TEST_MODE:-}"
     local source_bin="${SC_TOP}/../bin/ioc-runner"
-    local installed_bin="/usr/local/bin/ioc-runner"
+    # Installed mode follows IOC_RUNNER_SCRIPT_DEST (setup's deploy target),
+    # defaulting to the canonical path; source mode ignores the override. (#145)
+    local installed_bin="${IOC_RUNNER_SCRIPT_DEST:-/usr/local/bin/ioc-runner}"
     case "${mode}" in
         ""|source)
             RUNNER_SCRIPT="${source_bin}"

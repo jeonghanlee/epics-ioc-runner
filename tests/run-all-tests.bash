@@ -355,6 +355,12 @@ fi
 # privilege-drop path below re-adds it explicitly because `env -i` clears it.
 export IOC_RUNNER_TEST_MODE="${TEST_MODE}"
 
+# Installed-mode tests resolve the runner from this override (the resolver
+# applies the canonical default); export so the non-root local and `sudo -E`
+# system routes inherit it, and the `env -i` privilege-drop path below re-adds
+# it explicitly. An empty value when unset keeps the resolver's default. (#145)
+export IOC_RUNNER_SCRIPT_DEST="${IOC_RUNNER_SCRIPT_DEST:-}"
+
 if [[ ${RUN_SYSTEM} -eq 1 ]]; then
     # Cache sudo credentials upfront for uninterrupted system-wide execution
     printf "%s\n" "Caching sudo credentials for system infrastructure tests..."
@@ -392,6 +398,7 @@ if [[ ${RUN_LOCAL} -eq 1 ]]; then
             "EPICS_MODULES=${EPICS_MODULES:-}"
             "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
             "IOC_RUNNER_TEST_MODE=${TEST_MODE}"
+            "IOC_RUNNER_SCRIPT_DEST=${IOC_RUNNER_SCRIPT_DEST:-}"
         )
         _run_test "Local Lifecycle" local-lifecycle \
             sudo -u "${SUDO_USER}" env -i "${LOCAL_PHASE_ENV[@]}" \

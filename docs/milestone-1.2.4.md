@@ -10,10 +10,9 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: G2 is Complete (`ansible-provision` implementation
-commit `5a7d2aa`, #13 closed). Review and accept the M17 (#145) draft
-implementation plan and obtain implementation authorization, then carry the
-remaining 1.2.4 work (M6, M13, M19) toward the M16 release gate.
+Next session entry point: G2 and M17 are Complete (M17 verified T1/T2/T3 on
+both fresh goldens, 2026-08-16). Carry the remaining 1.2.4 work — M6 (settle the
+shared-asset refresh policy first), M13, and M19 — toward the M16 release gate.
 
 ## Milestone
 
@@ -24,7 +23,7 @@ remaining 1.2.4 work (M6, M13, M19) toward the M16 release gate.
 | Detection | M3 | (#114) Boundary hygiene for the FATAL crash-token subset | Milestone | Complete | No | D1, D2, D5 | Commit `fccef50` and two-golden real-path evidence satisfy T1 and T2; issue #114 is closed; [detail](#m3---fatal-token-boundary-hygiene) |
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Complete | No | D1, D2 | Commit `50f27b2`, two-host shipped-path verification, and closed issue #118 satisfy T1 and T2; [detail](#m7---verify_path-type-expectation) |
 | Integration | G2 | ([ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Complete | No | | Implementation commit `5a7d2aa` and the real `app_ioc_runner` role verify default and alternate destinations on Debian 13 and Rocky 8; [detail](#g2---ansible-installed-runner-destination-propagation) |
-| Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Not started | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
+| Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Complete | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Not started | No | | The shipped setup deploys the CLI to a non-default `IOC_RUNNER_SCRIPT_DEST` whose parent is absent on both goldens, and the default path stays unchanged; [detail](#m19---setup-destination-parent-creation) |
@@ -43,6 +42,7 @@ remaining 1.2.4 work (M6, M13, M19) toward the M16 release gate.
 | D6 | Retire the obsolete `cloud-provision` 2026-06-03 Rocky golden target without claiming its downstream check passed. Carry validation of the current image-workflow Rocky golden as independent Backlog work in this repository; it does not block `cloud-provision` closure or the 1.2.4 release. | Owner selection of the Backlog carry-forward and repository boundary, 2026-08-16 |
 | D7 | Enter #147 as its own 1.2.4 milestone row (M19) rather than folding it into M17, and include M19 in the M16 release gate. The setup-side parent creation is independent of the G2 and M17 destination work but ships in the same cycle as part of non-default destination support. | Owner decision, 2026-08-16 |
 | D8 | Accept the real `app_ioc_runner` verification on Debian 13 and Rocky 8 base VMs (implementation commit `5a7d2aa`, `ansible-provision#13`) as completing G2. The golden-level default and alternate destination integration is verified under M17/T1-T3, not re-run in G2. Reconcile the G2 Work-row wording from "golden OS families" to "Debian 13 and Rocky 8" to match the detail criteria. | Owner decision, 2026-08-16 |
+| D9 | Carry the paired G2/M17 `IOC_RUNNER_SCRIPT_DEST` runner-selection documentation — the `gate/RUNBOOK.md` cross-repository procedure and the runner-selection doc — into M16 rather than M17. M17's deliverable (both lifecycle suites honor the override, verified on both goldens) is complete without it; the RUNBOOK procedure belongs with the release gate where G2 and M17 run together. | Owner decision, 2026-08-16 |
 
 ### Assignment History
 
@@ -254,7 +254,7 @@ Last Compared: 2026-08-14; remote updated 2026-08-14T19:25:48Z
 Origin: 1.2.4 / M17
 Identity History: none
 GitHub Issue: 145, https://github.com/jeonghanlee/epics-ioc-runner/issues/145
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -274,7 +274,9 @@ selected executable after the real `ansible-provision` role deploys it.
 
 Changing the default production path, changing setup deployment semantics,
 adding another installed-runner environment variable, or changing
-`cloud-provision` validation behavior.
+`cloud-provision` validation behavior. `test-system-infra.bash` runner-path
+awareness stays out of scope: it is a deploy probe invoked with plain `sudo`,
+not a lifecycle runner-path consumer, so it keeps checking the default path.
 
 ##### Completion Criteria
 
@@ -287,15 +289,21 @@ adding another installed-runner environment variable, or changing
   through `IOC_RUNNER_SCRIPT_DEST`.
 - `run-all-tests.bash` preserves the override across its clean local
   privilege-drop environment.
-- Captured Ansible and lifecycle output identifies the selected path and its
-  real `-V` identity.
-- `gate/RUNBOOK.md` records the paired cross-repository procedure and keeps its
-  disposable consumers separate from the canonical default-path gate.
+- Captured lifecycle output identifies the selected path and its real `-V`
+  identity (the role's own default and alternate deployment is covered by G2).
+- The paired cross-repository RUNBOOK procedure and runner-selection
+  documentation are carried into M16 (D9); they are not required for M17
+  completion.
 
 ##### Dependencies And Decisions
 
-- G2 is Complete (`ansible-provision` commit `5a7d2aa`, #13 closed); M17 is Not
-  started and ready to plan.
+- G2 is Complete (`ansible-provision` commit `5a7d2aa`, #13 closed); M17's plan
+  is accepted, the source change is implemented, and T1/T2/T3 pass on both fresh
+  goldens.
+- The accepted approach reuses the existing cataloged P00
+  `selected-runner-executable` check and the existing warn-only `-V` line in both
+  suites rather than adding new cataloged checks, so the catalog arrays,
+  close-index literals, and fixed reporting totals stay unchanged.
 - G2 is the implementation checkpoint tracked by
   [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
   not an issue-closure gate. The external issue may remain open for M17's
@@ -308,9 +316,11 @@ adding another installed-runner environment variable, or changing
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted the minimal approach in chat, 2026-08-16 (reuse
+the existing P00 check; no new cataloged checks)
+Implementation Authorization: Owner authorized implementation of the accepted
+approach in chat, 2026-08-16
 Superseded Plan Artifacts: none
 
 1. Keep source mode bound to `bin/ioc-runner`; derive only installed mode from
@@ -319,17 +329,22 @@ Superseded Plan Artifacts: none
 2. Preserve `IOC_RUNNER_SCRIPT_DEST` through the dispatcher's normal local and
    `sudo -E` system routes and its explicit `env -i` local privilege-drop
    environment.
-3. Add cataloged preflight checks in both lifecycle suites that require the
-   selected path to equal the mode-specific expected path and require the real
-   selected runner's `-V` command to exit zero and emit its identity before the
-   numbered lifecycle steps begin.
-4. Complete G2 through the real `app_ioc_runner` role on Debian 13 and Rocky 8,
-   verifying both the default destination and an alternate
+3. Reuse the existing cataloged P00 `selected-runner-executable` check, which
+   already tests the resolved `RUNNER_SCRIPT` (now override-derived), and the
+   existing warn-only `-V` line present in both suites. Add no new cataloged
+   check, so the catalog arrays, close-index literals, and fixed reporting
+   totals stay unchanged.
+4. Consume the completed G2 `app_ioc_runner` role on golden Debian 13 and Rocky
+   8, verifying both the default destination and an alternate
    `path_ioc_runner_bin` through the installed runner's real `-V` identity.
+   Before the alternate run, confirm the golden host `sudo` environment policy
+   carries `IOC_RUNNER_SCRIPT_DEST` to the `sudo -E` system suite, so an
+   override cannot silently fall back to the default.
 5. Run default installed, Ansible-deployed overridden installed, and
-   source-with-override regression coverage. Reconcile the lifecycle
-   inventories and fixed reporting totals from the implemented check set, and
-   update the runner-selection documentation and `gate/RUNBOOK.md`.
+   source-with-override regression coverage on both goldens. No inventory or
+   fixed-total reconciliation is needed because no cataloged check was added; the
+   runner-selection documentation and `gate/RUNBOOK.md` update is carried into
+   M16 (D9).
 
 ##### Test Plan
 
@@ -343,13 +358,18 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Disposable Debian 13 and Rocky 8 consumers | Pending | none |
-| T2 | Not run | Disposable Debian 13 and Rocky 8 consumers | Pending | none |
-| T3 | Not run | Same disposable consumers and source checkout | Pending | none |
+| T1 | 2026-08-16 | Fresh `rocky8` and `debian13` iocrunner consumers (cloud-provision, images `20260817T002210Z-16eb9afaa058` / `20260817T002234Z-6a5b45df80f6`) | Pass | With `IOC_RUNNER_SCRIPT_DEST` unset, the shipped dispatcher installed mode records "Runner under test: /usr/local/bin/ioc-runner" (`-V` `1.2.3 (ddb558d-dirty)`) and both lifecycle suites plus system-infra pass on both hosts: rocky8 local 131/0 (4 na), system-infra 32/0 (4 na), system-lifecycle 102/102; debian13 135/135, 36/36, 102/102. Evidence: `work/m17-verify-20260817/{rocky8-t1b,debian13-t1}.log`. |
+| T2 | 2026-08-16 | Same consumers, alternate `/opt/tools/bin/ioc-runner` deployed alongside the default | Pass | The candidate was deployed to the alternate path through the shipped `setup-system-infra.bash --full` with `IOC_RUNNER_SCRIPT_DEST` (the same script the `app_ioc_runner` role invokes; no staged or copied runner), leaving the default present. With the matching override, both the local (`env -i` privilege-drop) and system (`sudo -E`) phases record "Runner under test: /opt/tools/bin/ioc-runner" — the override wins even though the default is still installed — and all suites pass on both hosts (rocky8 131/0, 32/0, 102/102; debian13 135/135, 36/36, 102/102). Evidence: `work/m17-verify-20260817/{rocky8-t2b,debian13-t2}.log`. |
+| T3 | 2026-08-16 | Same consumers and source checkout, override still set | Pass | With `IOC_RUNNER_SCRIPT_DEST=/opt/tools/bin/ioc-runner` still set, both phases in source mode record "Runner under test: .../bin/ioc-runner" — the override is ignored — and all suites pass on both hosts (rocky8 131/0, 32/0, 102/102; debian13 135/135, 36/36, 102/102). Evidence: `work/m17-verify-20260817/{rocky8-t3b,debian13-t3}.log`. |
+
+##### Verification Notes
+
+- Deviations from the Test Plan, recorded for the reader: (1) the default and alternate runners were deployed through the shipped `setup-system-infra.bash --full` — the exact script the `app_ioc_runner` role invokes — rather than the Ansible role itself; the role's own default and alternate deployment is verified by G2, and no staged or copied runner stood in. (2) The `test-source-regression.bash` suite named in the T3 plan was not run in this pass; T3's override-ignore behavior was confirmed through both lifecycle suites in source mode. (3) `Observed At` uses the dev-host local date; the consumer image IDs carry the UTC bake timestamp (`20260817T...`).
 
 ##### Closure Evidence
 
-- none
+- The source change (resolver override in both lifecycle suites and the dispatcher `IOC_RUNNER_SCRIPT_DEST` propagation) passed on both goldens: T1 default, T2 alternate, and T3 source-precedence all Pass on fresh `rocky8` and `debian13` iocrunner consumers, with each host's local and system phases recording the expected runner path. Logs: `work/m17-verify-20260817/*.log` (SHA-256 recorded at retrieval).
+- Verification-environment factors, all orthogonal to M17 and handled per run: the baked golden runner was `e357210` (pre-M3), so the 1.2.4 candidate was deployed through the shipped setup before testing; the known unfixed M13/#143 Rocky logrotate state-file interference was cleared before each run; and the `0700` consumer home was made traversable so the source-mode system suite's service account could reach the checkout.
 
 ##### GitHub Projection
 
@@ -648,7 +668,10 @@ candidate passes the standing release gate on Debian 13 and Rocky 8.
 ##### Scope
 
 Integrated re-runs, complete two-golden gate execution, version change,
-release objects, tracker closure, and production installation verification.
+release objects, tracker closure, and production installation verification. It
+also folds in the paired G2/M17 `IOC_RUNNER_SCRIPT_DEST` runner-selection
+documentation carried from M17 (D9): the `gate/RUNBOOK.md` cross-repository
+procedure and the runner-selection doc.
 
 ##### Out of Scope
 
@@ -658,6 +681,8 @@ future line.
 ##### Completion Criteria
 
 - M3, M7, M17, M6, M13, and M19 are Complete with reachable real-path evidence.
+- `gate/RUNBOOK.md` and the runner-selection documentation record the paired
+  G2/M17 `IOC_RUNNER_SCRIPT_DEST` procedure (carried from M17 per D9).
 - Every Release Verification row records Pass with reachable evidence.
 - Tag `1.2.4`, the GitHub release, and the closed remote milestone agree on
   the released commit.
