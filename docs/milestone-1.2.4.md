@@ -27,7 +27,7 @@ verification, production install, version bump to 1.2.4, tag, release, close.
 | Integration | G2 | ([jeonghanlee/ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Complete | No | | Implementation commit `5a7d2aa` and the real `app_ioc_runner` role verify default and alternate destinations on Debian 13 and Rocky 8; [detail](#g2---ansible-installed-runner-destination-propagation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Complete | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install after the abort gates and make the shared-asset refresh diff-aware | Milestone | Complete | No | D1, D2, D10, D11 | Automated S36 on both fresh gate goldens (2026-08-17) verifies reorder + diff-aware keep/update/`--force`; issue #117 closed 2026-08-17; [detail](#m6---local-install-ordering) |
-| Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Complete | No | M6, D1, D2, D12 | `--state` isolation verified end-to-end on both goldens at `0600` (2026-08-17) + error-handling S37; two consecutive gate-driver `GATE SUITES PASS`; issue #143 close pending owner; [detail](#m13---local-logrotate-state-isolation) |
+| Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Complete | No | M6, D1, D2, D12 | `--state` isolation verified end-to-end on both goldens at `0600` (2026-08-17) + error-handling S37; two consecutive gate-driver `GATE SUITES PASS`; issue #143 closed 2026-08-17; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Complete | No | | Real-path S23 on both fresh gate goldens (2026-08-17) verifies non-default absent-parent deploy and default-path invariance; issue #147 closed 2026-08-17; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
 | Release | M16 | Final release 1.2.4 | Milestone | Not started | Yes | M3, M7, M17, M6, M13, M19, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
@@ -639,11 +639,11 @@ Superseded Plan Artifacts: the 2026-08-12 high-level plan
 Title: Make local logrotate validation independent of the system state file
 Labels: bug, ops, tests
 GitHub Milestone: 1.2.4
-Observed State: open
+Observed State: closed
 Observed Labels: bug, ops, tests
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-13; remote updated 2026-08-13T06:59:58Z
+Last Compared: 2026-08-17; closed 2026-08-17 with verification comment
 
 #### M19 - Setup destination parent creation
 
