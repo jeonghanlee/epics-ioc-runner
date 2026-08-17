@@ -396,6 +396,24 @@ Local-mode `do_install` replaces the shared user template and reloads systemd
 before the running-service guard and the overwrite prompt, so an aborted
 install still leaves durable changes affecting every local IOC.
 
+##### Shared Assets Defined
+
+Local mode is per-user and needs no privilege: it deploys under the invoking
+user's `~/.config` (`~/.config/procServ.d` for IOC configs and
+`~/.config/systemd/user` for units). A *shared asset* is a single-instance file
+or systemd-manager state in that home that every IOC the user runs depends on,
+as opposed to a per-IOC artifact.
+
+- Shared (one per user): the systemd template `epics-@.service`; the logrotate
+  units `epics-logrotate.service` and `epics-logrotate.timer` with their
+  `logrotate.conf`; and the user systemd manager state that `daemon-reload`
+  mutates.
+- Per-IOC (not shared): each IOC's own `<ioc>.conf` and its service instance
+  `epics-@<ioc>.service`.
+
+"Shared" is across one user's own IOCs, never across users, and nothing here
+touches system-wide (`/etc`, `ioc-srv`) state.
+
 ##### Scope
 
 Settle whether accepted local installs refresh shared assets, then place every
