@@ -502,7 +502,9 @@ ssh vmadmin@<host> 'chmod 0700 ~'
 
 Install mode (the world-readable `/usr/local/bin/ioc-runner`) and local mode
 (the user runs its own IOCs) are unaffected. The user-facing form of this same
-prerequisite is `docs/INSTALL.md` section 4.1.
+prerequisite is `docs/INSTALL.md` section 4.1. The condition originates in the
+golden's baked home mode, not in this repository; `cloud-provision` records the
+closed investigation in its `docs/CLOSED_DOORS.md` (commit `a27a3c4`).
 
 ### The EPICS environment
 
