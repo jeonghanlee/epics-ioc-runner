@@ -26,7 +26,7 @@ M6 verification. Then M13 unblocks the M16 release gate.
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Complete | No | D1, D2 | Commit `50f27b2`, two-host shipped-path verification, and closed issue #118 satisfy T1 and T2; [detail](#m7---verify_path-type-expectation) |
 | Integration | G2 | ([jeonghanlee/ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Complete | No | | Implementation commit `5a7d2aa` and the real `app_ioc_runner` role verify default and alternate destinations on Debian 13 and Rocky 8; [detail](#g2---ansible-installed-runner-destination-propagation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Complete | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
-| Local install | M6 | (#117) Reorder local install after the abort gates and make the shared-asset refresh diff-aware | Milestone | Complete | No | D1, D2, D10, D11 | Automated S36 on both fresh gate goldens (2026-08-17) verifies reorder + diff-aware keep/update/`--force`; issue #117 close pending owner; [detail](#m6---local-install-ordering) |
+| Local install | M6 | (#117) Reorder local install after the abort gates and make the shared-asset refresh diff-aware | Milestone | Complete | No | D1, D2, D10, D11 | Automated S36 on both fresh gate goldens (2026-08-17) verifies reorder + diff-aware keep/update/`--force`; issue #117 closed 2026-08-17; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | Yes | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Complete | No | | Real-path S23 on both fresh gate goldens (2026-08-17) verifies non-default absent-parent deploy and default-path invariance; issue #147 closed 2026-08-17; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
@@ -528,11 +528,11 @@ The five criteria run as automated `test-local-lifecycle` step S36 (11 real-path
 Title: Reorder local install after the abort gates and make the shared-asset refresh diff-aware
 Labels: enhancement, P3-low
 GitHub Milestone: 1.2.4
-Observed State: open
+Observed State: closed
 Observed Labels: enhancement, P3-low
 Observed Milestone: 1.2.4
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-13; remote updated 2026-08-13T06:59:59Z
+Last Compared: 2026-08-17; closed 2026-08-17 with verification comment
 
 #### M13 - Local logrotate state isolation
 
