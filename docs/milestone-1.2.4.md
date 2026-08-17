@@ -10,11 +10,11 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: G2, M17, M19, and M6 are Complete (M6 verified by
-automated S36 on both fresh gate goldens, 2026-08-17). M13 is now Ready — it
-fixes the local logrotate validation's dependence on the system state file
-(`/var/lib/logrotate/logrotate.status`), the interference cleared by hand during
-M6 verification. Then M13 unblocks the M16 release gate.
+Next session entry point: every bugfix milestone (M3, M7, M17, M19, M6, M13) is
+Complete. M16 (final release 1.2.4) is the only remaining work: its dependencies
+are all met, and the two-host gate driver was calibrated and confirmed green
+(`GATE SUITES PASS`, 688 checks) during M13. Run the release-cycle: integrated
+verification, production install, version bump to 1.2.4, tag, release, close.
 
 ## Milestone
 
@@ -27,10 +27,10 @@ M6 verification. Then M13 unblocks the M16 release gate.
 | Integration | G2 | ([jeonghanlee/ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Complete | No | | Implementation commit `5a7d2aa` and the real `app_ioc_runner` role verify default and alternate destinations on Debian 13 and Rocky 8; [detail](#g2---ansible-installed-runner-destination-propagation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Complete | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install after the abort gates and make the shared-asset refresh diff-aware | Milestone | Complete | No | D1, D2, D10, D11 | Automated S36 on both fresh gate goldens (2026-08-17) verifies reorder + diff-aware keep/update/`--force`; issue #117 closed 2026-08-17; [detail](#m6---local-install-ordering) |
-| Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | Yes | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
+| Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Complete | No | M6, D1, D2, D12 | `--state` isolation verified end-to-end on both goldens at `0600` (2026-08-17) + error-handling S37; two consecutive gate-driver `GATE SUITES PASS`; issue #143 close pending owner; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Complete | No | | Real-path S23 on both fresh gate goldens (2026-08-17) verifies non-default absent-parent deploy and default-path invariance; issue #147 closed 2026-08-17; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
-| Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M17, M6, M13, M19, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
+| Release | M16 | Final release 1.2.4 | Milestone | Not started | Yes | M3, M7, M17, M6, M13, M19, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
 
 ### Decisions
 
@@ -47,6 +47,7 @@ M6 verification. Then M13 unblocks the M16 release gate.
 | D9 | Carry the paired G2/M17 `IOC_RUNNER_SCRIPT_DEST` runner-selection documentation — the `gate/RUNBOOK.md` cross-repository procedure and the runner-selection doc — into M16 rather than M17. M17's deliverable (both lifecycle suites honor the override, verified on both goldens) is complete without it; the RUNBOOK procedure belongs with the release gate where G2 and M17 run together. | Owner decision, 2026-08-16 |
 | D10 | Fold the diff-aware local shared-asset refresh policy into M6 (owner chose M6 re-scope over a separate follow-up). Policy: absent deploys; present-and-identical keeps the asset untouched with no reload; present-and-different reports the affected running `epics-@<ioc>.service` instances and takes a keep-vs-update decision — interactive prompt, non-interactive default keep, `--force` updates without a prompt in either mode. | Owner decision, 2026-08-17 |
 | D11 | For the M6 shared-asset keep/update decision, reuse the existing `FORCE_OVERWRITE` (`-f/--force`) rather than adding a separate shared-asset flag (option (a) over (b)). The non-interactive default keep already guards the accidental reinstall path, `--force` is the explicit opt-in, and the three-deep template backup preserves the prior version; the `-f/--force` help text broadens to state it also updates shared assets. | Owner decision after third-person code review, 2026-08-17 |
+| D12 | For M13, isolate the local logrotate debug validation with a mktemp throwaway `--state` file (option (a)) rather than `/dev/null`. It is non-persistent and user-owned, guaranteed writable, and removed after validation; `/dev/null` was rejected for relying on logrotate accepting it as a state file. | Owner decision, 2026-08-17 |
 
 ### Assignment History
 
@@ -540,7 +541,7 @@ Origin: a39623c / M13
 Identity History: transferred unchanged from `docs/milestone-a39623c.md` at
 master source transfer commit `e357210`.
 GitHub Issue: 143, https://github.com/jeonghanlee/epics-ioc-runner/issues/143
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -578,8 +579,10 @@ logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
 ##### Dependencies And Decisions
 
 - M6 completes first because it changes the same local install path.
+- M6 is Complete (2026-08-17), so this dependency is satisfied.
 - D1 stages the cross-branch transfer.
 - D2 places this work last in the bugfix sequence.
+- D12 selects a mktemp throwaway `--state` file for the debug validation.
 - The defect was observed during a repeated Rocky M11 gate after an earlier
   system run had created a `root:root 0600` default state file.
 - The final 1.2.3 two-host gate passed without changing either default state
@@ -591,15 +594,24 @@ logrotate policy, or changing the 1.2.3 M11 journal applicability decision.
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Acceptance: Owner accepted the 1.2.4 cycle plan (2026-08-12) and the
+2026-08-17 concretization with `--state` option (a) per D12
+Implementation Authorization: Owner authorized implementation, 2026-08-17
+Superseded Plan Artifacts: the 2026-08-12 high-level plan
 
-1. Select an explicit non-persistent state target for local debug validation.
-2. Add a real install-path regression check at the external logrotate boundary.
-3. Update maintained inventories, driver expectations, and runbook counts.
-4. Run the shipped two-host suite driver consecutively and compare the complete
-   state vectors and default state-file metadata.
+1. In `deploy_local_logrotate`, pass `--state <mktemp throwaway>` to the
+   `logrotate -d` debug validation so it never reads the system default
+   `/var/lib/logrotate/logrotate.status`; remove the temp state file after (D12).
+2. Add a `test-error-handling` step that injects a recording mock via
+   `IOC_RUNNER_LOGROTATE_TOOL`, drives a real `--local install`, and asserts the
+   `-d` invocation carried `--state` pointing off the system default and that
+   rotation deployed. The mock is the outermost tool boundary; no internal path
+   is stubbed.
+3. Update `tests/ERROR_HANDLING_INVENTORY.md`, the run-all driver expectations,
+   and any runbook counts for the new step.
+4. Run the shipped two-host suite driver consecutively on both goldens and
+   confirm complete PASS vectors and that the system default state-file owner,
+   group, and mode are unchanged.
 
 ##### Test Plan
 
@@ -613,13 +625,14 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Source tree | Pending | none |
-| T2 | Not run | 1.2.4 goldens | Pending | none |
-| T3 | Not run | 1.2.4 goldens | Pending | none |
+| T1 | 2026-08-17 | Fresh `rocky8` (.150) and `debian13` (.50) gate goldens | Pass | `test-error-handling` S37: a recording mock via `IOC_RUNNER_LOGROTATE_TOOL` shows the real `--local install` passes `--state` off the system default and deploys rotation. S37 4/4 on both hosts (suite `PASS`: 150/150 each). Evidence: `work/m13-eh-rocky8`, `work/m13-debian13`. |
+| T2 | 2026-08-17 | Both goldens, with the system default state file at root-owned `0600` | Pass | End-to-end: with the state file unreadable, `test-local-lifecycle` deploys and validates rotation with no workaround (rocky8 142/0/4 NA, debian13 146/146). The shipped two-host gate driver (`gate/drivers/control/suites.bash`) then ran twice consecutively: `GATE SUITES PASS hosts=2`, `688 checks`/`170 steps` each. Evidence: `work/m13-e2e2-rocky8`, `work/gate-suites-20260817T230425Z-*`, `...T230955Z-*`. |
+| T3 | 2026-08-17 | Both goldens | Pass | The system default state file stays `root:root 0600` on each host before and after the consecutive gate runs (`/var/lib/logrotate/logrotate.status` on rocky8, `/var/lib/logrotate/status` on debian13). |
 
 ##### Closure Evidence
 
-- none
+- Fix + regression + end-to-end verification on both fresh gate goldens, 2026-08-17. The `logrotate -d` debug validation (runner and the suite's own re-validation) now passes a mktemp throwaway `--state`, so it never reads the system default state file. Diagnostic: an A/B run of the baked pre-fix runner (e357210) failed identically under the `0600` condition, confirming the defect predates and is independent of the fix.
+- Gate-driver calibration (M16 prerequisite surfaced here): the two-host suite driver's expected vector was stale for the whole 1.2.4 cycle. Updated to the measured `688` checks / `170` steps, the per-suite `want`/`want_step` table, and the canonical identity SHA-256; two consecutive `GATE SUITES PASS` confirm it.
 
 ##### GitHub Projection
 

@@ -181,6 +181,10 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S36|error-handling.S36.home-bin-procserv-resolves-without-an-override|BEHAVIOR|real-path"
     "S36|error-handling.S36.template-execstart-references-the-home-bin-binary|BEHAVIOR|real-path"
     "S36|error-handling.S36.con-search-path-prepends-home-bin-when-home-is-trusted|BEHAVIOR|real-path"
+    "S37|error-handling.S37.install-proceeds-with-logrotate-boundary|BEHAVIOR|real-path"
+    "S37|error-handling.S37.rotation-cfg-deployed|BEHAVIOR|real-path"
+    "S37|error-handling.S37.debug-validation-passes-explicit-state|BEHAVIOR|real-path"
+    "S37|error-handling.S37.state-off-system-default|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -245,7 +249,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 36; index += 1)); do
+    for ((index = 1; index <= 37; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -1763,6 +1767,64 @@ function test_install_local_perm_hint {
     verify_state "false" "${asks_group}" "Local install drops the ioc group question"
 }
 
+# M13/#143: the local logrotate debug validation must isolate itself from the
+# system default state file. This pins the runner's behavior at the outermost
+# tool boundary -- a recording mock via IOC_RUNNER_LOGROTATE_TOOL -- so a
+# regression to the default /var/lib/logrotate/logrotate.status goes red. Only
+# the external logrotate binary is mocked; the whole local install path runs.
+# verify_state pulls the S37 catalog rows in this emission order.
+function test_logrotate_debug_state_isolation {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Logrotate Debug State Isolation (M13/#143)"
+    print_sub_divider
+
+    local w="${TEST_TMPDIR}/lr_state"
+    mkdir -p "${w}/boot" "${w}/conf" "${w}/sysd" "${w}/run" "${w}/log"
+    touch "${w}/boot/st.cmd"
+    chmod +x "${w}/boot/st.cmd"
+    cat <<EOF > "${w}/boot/lrs.conf"
+IOC_NAME="lrs"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${w}/boot"
+IOC_CMD="st.cmd"
+EOF
+
+    # Recording mock at the outermost tool boundary: append argv, accept.
+    local mock="${w}/mock-logrotate"
+    local argv="${w}/argv"
+    cat <<'MOCK' > "${mock}"
+#!/bin/bash
+printf '%s\n' "$*" >> "${IOC_RUNNER_MOCK_LOGROTATE_ARGV}"
+exit 0
+MOCK
+    chmod +x "${mock}"
+
+    local ec=0
+    IOC_RUNNER_MOCK_LOGROTATE_ARGV="${argv}" \
+    IOC_RUNNER_LOGROTATE_TOOL="${mock}" \
+    IOC_RUNNER_LOCAL_CONF_DIR="${w}/conf" IOC_RUNNER_LOCAL_SYSTEMD_DIR="${w}/sysd" \
+    IOC_RUNNER_LOCAL_RUN_DIR="${w}/run" IOC_RUNNER_LOCAL_LOG_DIR="${w}/log" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${w}/boot/lrs.conf" >/dev/null 2>&1 || ec=$?
+    verify_exit_code "0" "${ec}" "install proceeds with the mock logrotate boundary"
+
+    # cfg_dir resolves to "${CONF_DIR%/*}/ioc-runner"; CONF_DIR is the override.
+    local cfg_deployed="false"
+    [[ -f "${w}/ioc-runner/logrotate.conf" ]] && cfg_deployed="true"
+    verify_state "true" "${cfg_deployed}" "rotation config is deployed after validation"
+
+    # The -d validation must carry an explicit --state (the only invocation with
+    # one), and that state must not be the system default.
+    local has_state="false"
+    grep -q -- "--state" "${argv}" 2>/dev/null && has_state="true"
+    verify_state "true" "${has_state}" "debug validation passes an explicit --state"
+
+    local off_default="true"
+    grep -q "/var/lib/logrotate/logrotate.status" "${argv}" 2>/dev/null && off_default="false"
+    verify_state "true" "${off_default}" "validation state is off the system default"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup"
@@ -1801,6 +1863,7 @@ function run_all_tests {
         "no_error_contract_checks"
         "test_crash_pattern_extra"
         "test_tool_resolution"
+        "test_logrotate_debug_state_isolation"
     )
     local step=1
     local func

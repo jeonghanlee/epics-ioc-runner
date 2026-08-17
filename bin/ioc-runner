@@ -629,14 +629,26 @@ EOF
     # Syntax-gate the generated config (dry run; writes no state). A failure here
     # warns and skips the deploy without aborting the IOC install -- unlike
     # system mode, which exits. Distinct from the binary-absent branch above.
-    if ! "${LOGROTATE_TOOL_PATH}" -d "${tmp_cfg}" >/dev/null 2>&1; then
+    #
+    # M13/#143: pass an explicit throwaway --state so the debug run never opens
+    # the system default /var/lib/logrotate/logrotate.status. logrotate reads the
+    # state file at startup even under -d; a root-owned default left by an earlier
+    # system run is then unreadable to this unprivileged user and fails an
+    # otherwise valid config. The temp state is non-persistent and removed below.
+    local tmp_state=""
+    if ! tmp_state=$(mktemp "${cfg_dir}/.logrotate-validate-state.XXXXXX" 2>/dev/null); then
+        tmp_state="$(mktemp 2>/dev/null || printf '%s' /dev/null)"
+    fi
+    if ! "${LOGROTATE_TOOL_PATH}" -d --state "${tmp_state}" "${tmp_cfg}" >/dev/null 2>&1; then
         print_divider >&2
         printf "Warning: generated logrotate config failed validation; rotation NOT installed.\n" >&2
         printf "         logrotate: %s (maxsize requires logrotate >= 3.8.1).\n" "${LOGROTATE_TOOL_PATH}" >&2
         print_divider >&2
+        [[ "${tmp_state}" != /dev/null ]] && rm -f "${tmp_state}"
         rm -f "${tmp_cfg}" "${tmp_svc}" "${tmp_tmr}"
         return 0
     fi
+    [[ "${tmp_state}" != /dev/null ]] && rm -f "${tmp_state}"
 
     # Install only on content difference (idempotent across repeat per-IOC
     # installs and self-healing across an ioc-runner upgrade). Absent and

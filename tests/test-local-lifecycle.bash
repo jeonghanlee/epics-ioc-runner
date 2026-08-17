@@ -1619,7 +1619,12 @@ function test_local_logrotate {
         local su_absent="true"; grep -qE '^[[:space:]]*su ' "${cfg}" && su_absent="false"
         verify_state "true" "${su_absent}" "M19.T1: no 'su' directive (single-user dir)"
 
-        local validate_ok="true"; "${LOGROTATE_BIN}" -d "${cfg}" >/dev/null 2>&1 || validate_ok="false"
+        # M13/#143: pass a throwaway --state so this debug validation does not
+        # read the root-owned system default state file (mirrors the runner fix).
+        local vstate; vstate=$(mktemp /tmp/ioc-runner-lrvalidate.XXXXXX)
+        local validate_ok="true"
+        "${LOGROTATE_BIN}" -d --state "${vstate}" "${cfg}" >/dev/null 2>&1 || validate_ok="false"
+        rm -f "${vstate}"
         verify_state "true" "${validate_ok}" "M19.T1: logrotate -d validates the config"
     else
         record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-config-exists"
