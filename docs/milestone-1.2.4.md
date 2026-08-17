@@ -10,9 +10,9 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: G2 and M17 are Complete (M17 verified T1/T2/T3 on
-both fresh goldens, 2026-08-16). Carry the remaining 1.2.4 work — M6 (settle the
-shared-asset refresh policy first), M13, and M19 — toward the M16 release gate.
+Next session entry point: G2, M17, and M19 are Complete (M19 verified by real-path
+S23 on both fresh gate goldens, 2026-08-17). Carry the remaining 1.2.4 work — M6
+(settle the shared-asset refresh policy first) and M13 — toward the M16 release gate.
 
 ## Milestone
 
@@ -26,7 +26,7 @@ shared-asset refresh policy first), M13, and M19 — toward the M16 release gate
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Complete | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
 | Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
-| Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Not started | No | | The shipped setup deploys the CLI to a non-default `IOC_RUNNER_SCRIPT_DEST` whose parent is absent on both goldens, and the default path stays unchanged; [detail](#m19---setup-destination-parent-creation) |
+| Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Complete | No | | Real-path S23 on both fresh gate goldens (2026-08-17) verifies non-default absent-parent deploy and default-path invariance; issue #147 close pending owner; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
 | Release | M16 | Final release 1.2.4 | Milestone | Not started | No | M3, M7, M17, M6, M13, M19, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
 
@@ -610,17 +610,23 @@ parent creation in `ansible-provision`.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted the detailed M19 plan, 2026-08-17
+Implementation Authorization: Owner authorized implementation, 2026-08-17
 Superseded Plan Artifacts: none
 
 1. Create the parent of `RUNNER_SCRIPT_DEST` with `install -d` before the STEP 7
-   `mktemp`/`mv` staged deploy.
-2. Apply the same parent creation to `RUNNER_SCRIPT_SYMLINK` when it is
-   redirected off `/usr/bin`.
-3. Add a real setup-path regression that deploys to a non-default destination
-   with an absent parent and would go red on the un-fixed code.
+   `mktemp`/`mv` staged deploy, guarded on `[[ ! -d ]]` so an existing parent
+   keeps its ownership and mode. Owner decision 2026-08-17: do not add a
+   `verify_path` contract check on the created parent (Out of Scope covers
+   ownership and mode contracts).
+2. Apply the same guarded parent creation to `RUNNER_SCRIPT_SYMLINK` inside the
+   RHEL-family symlink branch, where it is redirected off `/usr/bin`.
+3. Add a real setup-path regression (S23) that deploys to a non-default
+   destination with an absent parent and would go red on the un-fixed code
+   (`mktemp` aborts under `set -e`, so no runner is deployed). S23 also verifies
+   the symlink parent is created on RHEL-family setup (not applicable on other
+   families).
 4. Run the affected setup and source-regression suites on both golden OS
    families.
 
@@ -635,12 +641,12 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Both goldens | Pending | none |
-| T2 | Not run | Both goldens | Pending | none |
+| T1 | 2026-08-17 | Fresh `rocky8` (.150) and `debian13` (.50) iocrunner goldens (bake run-ids `20260817T181936Z-5024907e941b` / `20260817T182713Z-dbad913106d7`, gate tag `iocrunner-gate-1.0.0`) | Pass | S23 drives the shipped setup path against an absent destination parent: `S23.absent-parent.setup-exits-zero` and `S23.absent-parent.runner-deployed` pass on both hosts, and `S23.symlink.absent-parent-created` passes on rocky8 (RHEL branch) and is NA on debian13. Source-regression suite `PASS` on both: rocky8 108/108, debian13 107 pass + 1 NA. Evidence: `/tmp/gate-s23-rocky8.log`, `/tmp/gate-s23-debian13.log`. |
+| T2 | 2026-08-17 | Same fresh goldens | Pass | `S23.default.parent-unchanged` passes on both hosts: a pre-existing destination parent at mode 0700 keeps its mode through setup, so the guard skips `install -d` on an existing parent and the default path deploys unchanged. Same suite logs as T1. |
 
 ##### Closure Evidence
 
-- none
+- Real-path S23 verification on both fresh gate goldens, 2026-08-17 (source-regression `PASS`: rocky8 108/108, debian13 107 + 1 NA). The catalog-only S23 registration initially aborted the suite with an undeclared-STEP error; adding `S23` to the `step_ids` registration cleared it, and both hosts then passed.
 
 ##### GitHub Projection
 

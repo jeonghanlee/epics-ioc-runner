@@ -130,6 +130,10 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S22.valid.setup-exits-zero"
     "${SUITE_ID}.S22.valid.configuration-directory-accepted"
     "${SUITE_ID}.S22.valid.log-directory-accepted"
+    "${SUITE_ID}.S23.absent-parent.setup-exits-zero"
+    "${SUITE_ID}.S23.absent-parent.runner-deployed"
+    "${SUITE_ID}.S23.default.parent-unchanged"
+    "${SUITE_ID}.S23.symlink.absent-parent-created"
 )
 SC_PATH="${BASH_SOURCE[0]}"
 if [[ "${SC_PATH}" != /* ]]; then
@@ -220,7 +224,7 @@ function register_reporting_catalog {
     local method=""
     local remainder=""
     local step_id=""
-    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22)
+    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22 S23)
 
     for step_id in "${step_ids[@]}"; do
         report_register_step "${step_id}" "Source regression ${step_id}"
@@ -1630,6 +1634,80 @@ function test_setup_path_type_expectations {
     esac
 }
 
+# S23 pins the destination-parent creation (#147). STEP 7 stages the runner
+# with mktemp under RUNNER_SCRIPT_DEST's directory, which fails when that
+# parent is absent. The fix must create an absent parent while leaving an
+# existing parent's mode untouched; this drives both through the real setup
+# path and goes red on the un-fixed code (mktemp aborts under set -e, so no
+# runner is deployed).
+function test_setup_destination_parent {
+    local step="$1"
+    local work
+    local absent_rc=0
+    local absent_deployed="false"
+    local preexisting_mode=""
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Destination Parent Creation"
+    print_sub_divider
+
+    work=$(run_as_invoker mktemp -d /tmp/ioc-runner-source-regression.XXXXXX)
+
+    # Absent parent: the intermediate directory does not exist before setup.
+    run_setup_at "/tmp" "${REPO_TOP}/bin/setup-system-infra.bash" \
+        "${work}/absent-parent/nested/dest" >/dev/null 2>&1 || absent_rc=$?
+    verify_state "0" "${absent_rc}" \
+        "${SUITE_ID}.S23.absent-parent.setup-exits-zero"
+    [[ -s "${work}/absent-parent/nested/dest.runner" ]] && absent_deployed="true"
+    verify_state "true" "${absent_deployed}" \
+        "${SUITE_ID}.S23.absent-parent.runner-deployed"
+
+    # Pre-existing parent: a non-default mode must survive the guard, proving
+    # the fix skips install -d rather than rewriting an existing directory.
+    mkdir -p "${work}/preexisting"
+    chmod 0700 "${work}/preexisting"
+    run_setup_at "/tmp" "${REPO_TOP}/bin/setup-system-infra.bash" \
+        "${work}/preexisting/dest" >/dev/null 2>&1 || true
+    preexisting_mode=$(stat -c '%a' "${work}/preexisting")
+    verify_state "700" "${preexisting_mode}" \
+        "${SUITE_ID}.S23.default.parent-unchanged"
+
+    # Symlink parent: the /usr/bin redirect exists only on RHEL-family setup, so
+    # isolate the symlink guard from the runner guard by keeping the destination
+    # parent present while the symlink parent is absent. On other families the
+    # branch never runs, so the check is not applicable.
+    local is_rhel="false"
+    if [[ -f /etc/os-release ]] && (
+            . /etc/os-release
+            [[ "${ID:-}" == "rhel" ]] && exit 0
+            case " ${ID_LIKE:-} " in *" rhel "*) exit 0 ;; esac
+            exit 1
+        ); then
+        is_rhel="true"
+    fi
+    if [[ "${is_rhel}" == "true" ]]; then
+        local symlink_ok="false"
+        mkdir -p "${work}/sym-present"
+        (
+            cd /tmp
+            env \
+                "IOC_RUNNER_SCRIPT_DEST=${work}/sym-present/dest.runner" \
+                "IOC_RUNNER_SCRIPT_SYMLINK=${work}/sym-absent/link" \
+                "IOC_RUNNER_BASH_COMP_DEST=${work}/sym-present/comp" \
+                "IOC_RUNNER_BACKUP_DIR=${work}/sym-present/bk" \
+                bash "${REPO_TOP}/bin/setup-system-infra.bash"
+        ) >/dev/null 2>&1 || true
+        [[ -d "${work}/sym-absent" && -L "${work}/sym-absent/link" ]] && symlink_ok="true"
+        verify_state "true" "${symlink_ok}" \
+            "${SUITE_ID}.S23.symlink.absent-parent-created"
+    else
+        report_record "${SUITE_ID}.S23.symlink.absent-parent-created" NA \
+            "symlink redirect off /usr/bin applies only to RHEL-family setup"
+    fi
+
+    rm -rf "${work}"
+}
+
 function run_all_tests {
     initialize_reporting
     if ! test_preflight; then
@@ -1651,6 +1729,7 @@ function run_all_tests {
     test_crash_pattern_source_contract "S20"
     test_crash_exclusion_source_contract "S21"
     test_setup_path_type_expectations "S22"
+    test_setup_destination_parent "S23"
 }
 
 run_all_tests

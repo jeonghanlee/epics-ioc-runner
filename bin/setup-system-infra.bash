@@ -641,6 +641,16 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # (#123): the three RUNNER_* stamp lines change every run (install date is
     # always fresh), so an unfiltered compare would back up on every redeploy
     # and churn the 3-slot retention out of real prior versions.
+    # Ensure the destination parent exists before staging (#147): the
+    # same-directory mktemp below cannot create the staging file under an
+    # absent parent, which only surfaces for a non-default
+    # IOC_RUNNER_SCRIPT_DEST. Guard on absence so an existing parent (the
+    # default /usr/local/bin) keeps its ownership and mode unchanged;
+    # install -d -m would otherwise rewrite an existing directory's mode.
+    runner_dest_parent=$(dirname "${RUNNER_SCRIPT_DEST}")
+    if [[ ! -d "${runner_dest_parent}" ]]; then
+        install -d -o "root" -g "root" -m "0755" "${runner_dest_parent}"
+    fi
     # Stage in the target directory (#107): the sed/chmod pipeline
     # below must never be visible under the final name, and a
     # same-directory mv is an atomic rename(2).
@@ -759,6 +769,14 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # so 'sudo ioc-runner inspect' fails to resolve the CLI. Add a symlink
     # under /usr/bin (always in secure_path) to restore the invocation path.
     if is_rhel_family; then
+        # Mirror the destination-parent guard for a redirected symlink (#147):
+        # a non-default IOC_RUNNER_SCRIPT_SYMLINK off /usr/bin may name an
+        # absent parent. The default /usr/bin already exists, so the guard is
+        # a no-op there and preserves the existing directory's mode.
+        symlink_parent=$(dirname "${RUNNER_SCRIPT_SYMLINK}")
+        if [[ ! -d "${symlink_parent}" ]]; then
+            install -d -o "root" -g "root" -m "0755" "${symlink_parent}"
+        fi
         ln -sfn "${RUNNER_SCRIPT_DEST}" "${RUNNER_SCRIPT_SYMLINK}"
         verify_symlink "${RUNNER_SCRIPT_SYMLINK}" "${RUNNER_SCRIPT_DEST}" \
             "Created ${RUNNER_SCRIPT_SYMLINK} -> ${RUNNER_SCRIPT_DEST} for sudo secure_path"
