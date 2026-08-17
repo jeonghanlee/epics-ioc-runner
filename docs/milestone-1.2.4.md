@@ -11,8 +11,9 @@ Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
 Next session entry point: G2, M17, and M19 are Complete (M19 verified by real-path
-S23 on both fresh gate goldens, 2026-08-17). Carry the remaining 1.2.4 work — M6
-(settle the shared-asset refresh policy first) and M13 — toward the M16 release gate.
+S23 on both fresh gate goldens, 2026-08-17). M6 is Ready — its refresh policy is
+settled (D10, diff-aware keep/update/`--force`) and re-scoped; its re-scoped plan
+needs owner acceptance before implementation. Then M13, toward the M16 release gate.
 
 ## Milestone
 
@@ -24,7 +25,7 @@ S23 on both fresh gate goldens, 2026-08-17). Carry the remaining 1.2.4 work — 
 | Setup | M7 | (#118) Type expectation for `verify_path` (false-green directory impostors) | Milestone | Complete | No | D1, D2 | Commit `50f27b2`, two-host shipped-path verification, and closed issue #118 satisfy T1 and T2; [detail](#m7---verify_path-type-expectation) |
 | Integration | G2 | ([jeonghanlee/ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13)) Propagate the configured installed runner destination | External gate | Complete | No | | Implementation commit `5a7d2aa` and the real `app_ioc_runner` role verify default and alternate destinations on Debian 13 and Rocky 8; [detail](#g2---ansible-installed-runner-destination-propagation) |
 | Tests | M17 | (#145) Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST` | Milestone | Complete | No | G2, D4 | Installed mode keeps `/usr/local/bin/ioc-runner` as its default and exercises the destination deployed by the real Ansible role through both lifecycle suites; [detail](#m17---installed-runner-destination) |
-| Local install | M6 | (#117) Reorder local install so deployment follows the abort gates | Milestone | Open | No | D1, D2 | Owner settles whether accepted installs refresh shared assets, then abort and accepted paths meet their ordering contracts; [detail](#m6---local-install-ordering) |
+| Local install | M6 | (#117) Reorder local install after the abort gates and make the shared-asset refresh diff-aware | Milestone | Not started | Yes | D1, D2, D10 | Deployment follows the abort gates, and the accepted install deploys-when-absent, keeps-when-identical, and decides keep-vs-update on a difference (non-interactive default keep, `--force` update); [detail](#m6---local-install-ordering) |
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Not started | No | M6, D1, D2 | Local validation avoids the system state file and consecutive two-golden runs pass without changing its metadata; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Complete | No | | Real-path S23 on both fresh gate goldens (2026-08-17) verifies non-default absent-parent deploy and default-path invariance; issue #147 closed 2026-08-17; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
@@ -43,6 +44,7 @@ S23 on both fresh gate goldens, 2026-08-17). Carry the remaining 1.2.4 work — 
 | D7 | Enter #147 as its own 1.2.4 milestone row (M19) rather than folding it into M17, and include M19 in the M16 release gate. The setup-side parent creation is independent of the G2 and M17 destination work but ships in the same cycle as part of non-default destination support. | Owner decision, 2026-08-16 |
 | D8 | Accept the real `app_ioc_runner` verification on Debian 13 and Rocky 8 base VMs (implementation commit `5a7d2aa`, jeonghanlee/ansible-provision#13) as completing G2. The golden-level default and alternate destination integration is verified under M17/T1-T3, not re-run in G2. Reconcile the G2 Work-row wording from "golden OS families" to "Debian 13 and Rocky 8" to match the detail criteria. | Owner decision, 2026-08-16 |
 | D9 | Carry the paired G2/M17 `IOC_RUNNER_SCRIPT_DEST` runner-selection documentation — the `gate/RUNBOOK.md` cross-repository procedure and the runner-selection doc — into M16 rather than M17. M17's deliverable (both lifecycle suites honor the override, verified on both goldens) is complete without it; the RUNBOOK procedure belongs with the release gate where G2 and M17 run together. | Owner decision, 2026-08-16 |
+| D10 | Fold the diff-aware local shared-asset refresh policy into M6 (owner chose M6 re-scope over a separate follow-up). Policy: absent deploys; present-and-identical keeps the asset untouched with no reload; present-and-different reports the affected running `epics-@<ioc>.service` instances and takes a keep-vs-update decision — interactive prompt, non-interactive default keep, `--force` updates without a prompt in either mode. | Owner decision, 2026-08-17 |
 
 ### Assignment History
 
@@ -416,47 +418,68 @@ touches system-wide (`/etc`, `ioc-srv`) state.
 
 ##### Scope
 
-Settle whether accepted local installs refresh shared assets, then place every
-selected deployment and daemon reload after the running-service guard and
-overwrite-abort gates.
+Place every shared-asset deployment and daemon reload after the running-service
+guard and the overwrite-abort gates, and make the accepted-install refresh
+diff-aware: deploy when a shared asset is absent, keep it untouched (no reload)
+when identical, and on a content difference report the affected running
+`epics-@<ioc>.service` instances and take a keep-vs-update decision — interactive
+prompt, non-interactive default keep, `--force` updates without a prompt in
+either mode.
 
 ##### Out of Scope
 
-Changing system-mode ordering or the content, ownership, and mode contracts
-of the deployed local artifacts.
+Changing system-mode ordering, and changing the content, ownership, or mode
+contracts of the deployed local artifacts. The `--force` flag and the
+diff/keep/update decision govern only whether an existing shared asset is
+replaced, never what the deployed artifact contains.
 
 ##### Completion Criteria
 
-- The owner assigns the ordering change and settles the refresh policy.
 - EOF and explicit decline leave the shared template, rotation units, and
   manager state unchanged.
-- An accepted install deploys the configuration and selected shared assets
-  after all abort gates pass.
+- Every selected shared-asset deployment and daemon reload runs only after the
+  running-service guard and overwrite-abort gates pass.
+- An absent shared asset is deployed; an identical one is kept untouched with no
+  daemon reload; a content difference triggers the keep-vs-update decision.
+- The difference path reports the running `epics-@<ioc>.service` instances the
+  update would affect; non-interactive install defaults to keep; `--force`
+  updates without a prompt in either mode.
 
 ##### Dependencies And Decisions
 
 - D1 stages the cross-branch transfer.
 - D2 places this work before M13 because both change local install.
-- The accepted-install shared-asset refresh policy remains an owner decision.
+- D10 settles the accepted-install refresh policy and folds the diff-aware
+  keep/update/`--force` behavior into this milestone.
 
 ##### Implementation Plan
 
-Plan Status: accepted
-Plan Acceptance: Owner accepted the 1.2.4 cycle plan, 2026-08-12
+Plan Status: draft
+Plan Acceptance: none (re-scoped 2026-08-17 per D10; the 2026-08-12 ordering-only
+acceptance no longer covers the plan)
 Implementation Authorization: none
-Superseded Plan Artifacts: none
+Superseded Plan Artifacts: the 2026-08-12 ordering-only plan
 
-1. Settle whether every accepted install refreshes the shared local assets.
-2. Move shared deployment and daemon reload after the running-service and
+1. Move shared-asset deployment and daemon reload after the running-service and
    overwrite-abort gates.
-3. Verify both abort paths and the accepted-install upgrade path.
+2. Add a content diff (stamp-filtered, as system-mode setup already does) so an
+   identical shared asset is kept untouched with no daemon reload.
+3. On a difference, enumerate the affected running `epics-@<ioc>.service`
+   instances and take the keep-vs-update decision: interactive prompt,
+   non-interactive default keep, `--force` update.
+4. Add the `--force` flag to the local install path and document it.
+5. Verify the four states (absent, identical, different-keep, different-update),
+   the non-interactive default, and both abort paths on both goldens.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | Abort integrity | Drive EOF and explicit decline through the shipped local install path and compare shared assets before and after | Local lifecycle environment | Each abort returns nonzero and leaves the template, rotation units, and manager state unchanged |
-| T2 | Accepted install | Accept the overwrite through the same shipped path | Local lifecycle environment | Configuration and shared assets deploy once after all abort gates pass |
+| T2 | Absent deploy | Run the shipped local install with the shared assets absent and accept it | Local lifecycle environment | The shared assets deploy once, only after all abort gates pass |
+| T3 | Identical keep | Run the local install again with the shared assets already identical | Local lifecycle environment | The assets are left byte-identical and no daemon reload occurs |
+| T4 | Different, non-interactive keep | Present a differing shared asset and run the install non-interactively without `--force` | Local lifecycle environment | The asset is kept, the affected running instances are reported, and the install does not overwrite |
+| T5 | Different, `--force` update | Present a differing shared asset and run the install with `--force` | Local lifecycle environment | The asset updates after the abort gates, the prior version is backed up, and the reload runs once |
 
 ##### Verification Results
 
@@ -464,6 +487,9 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Local lifecycle environment | Pending | none |
 | T2 | Not run | Local lifecycle environment | Pending | none |
+| T3 | Not run | Local lifecycle environment | Pending | none |
+| T4 | Not run | Local lifecycle environment | Pending | none |
+| T5 | Not run | Local lifecycle environment | Pending | none |
 
 ##### Closure Evidence
 
@@ -471,7 +497,7 @@ Superseded Plan Artifacts: none
 
 ##### GitHub Projection
 
-Title: Reorder local install so deployment follows the abort gates
+Title: Reorder local install after the abort gates and make the shared-asset refresh diff-aware
 Labels: enhancement, P3-low
 GitHub Milestone: 1.2.4
 Observed State: open
