@@ -695,6 +695,14 @@ future line.
 - D3 defines the complete two-golden gate and release boundary.
 - The 1.3.0 target decisions remain on master and do not open that cycle.
 
+##### Golden Consumer Verification Notes
+
+The M17 golden run surfaced these reusable factors for the M16 gate; all are environment handling, not product defects:
+
+- The baked golden runner may lag the release candidate (M17 saw `e357210`, pre-M3). Deploy the candidate through the shipped `setup-system-infra.bash --full` before testing, and confirm `-V` reports the candidate hash.
+- Clear the system default logrotate state file (`/var/lib/logrotate/logrotate.status`) before each run: a prior system run leaves it `root`-owned and blocks a later local rotation deploy (the unfixed M13/#143 defect on Rocky).
+- `debian13` lacked `rsync`; push the candidate tree with tar-over-ssh there. Detach long suite runs (`setsid` plus a VM-side wait loop) because the ssh wrapper otherwise holds the channel open.
+
 ##### Implementation Plan
 
 Plan Status: accepted
