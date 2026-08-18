@@ -10,11 +10,13 @@ number 15
 Activation state: active on `release-1.2.4`; source authority moved in master
 commit `e357210e5c447d5736684395cd7f5d780b9df246`.
 
-Next session entry point: every bugfix milestone (M3, M7, M17, M19, M6, M13) is
-Complete. M16 (final release 1.2.4) is the only remaining work: its dependencies
-are all met, and the two-host gate driver was calibrated and confirmed green
-(`GATE SUITES PASS`, 688 checks) during M13. Run the release-cycle: integrated
-verification, production install, version bump to 1.2.4, tag, release, close.
+Next session entry point: RELEASED 2026-08-17. 1.2.4 is complete — every
+milestone (M3, M7, M17, M19, M6, M13, M16) Complete, Release Verification 1-8
+all Pass, tag `1.2.4` (merge `1961fbf`) and the GitHub release published,
+milestone 15 closed. Remaining housekeeping outside this register: delete the
+two-back branch `release-1.2.2` (local + origin), and open the next cycle
+(`release-1.3.0` branch, register restart, bump to 1.3.0-dev). Backlog M18 and
+M20 (#148) carry forward.
 
 ## Milestone
 
@@ -30,7 +32,7 @@ verification, production install, version bump to 1.2.4, tag, release, close.
 | Local install | M13 | (#143) Make local logrotate validation independent of the system state file | Milestone | Complete | No | M6, D1, D2, D12 | `--state` isolation verified end-to-end on both goldens at `0600` (2026-08-17) + error-handling S37; two consecutive gate-driver `GATE SUITES PASS`; issue #143 closed 2026-08-17; [detail](#m13---local-logrotate-state-isolation) |
 | Setup | M19 | (#147) Create the parent directory of `IOC_RUNNER_SCRIPT_DEST` before deploying the CLI | Milestone | Complete | No | | Real-path S23 on both fresh gate goldens (2026-08-17) verifies non-default absent-parent deploy and default-path invariance; issue #147 closed 2026-08-17; [detail](#m19---setup-destination-parent-creation) |
 | Tracker | G1 | GitHub milestone 1.2.4 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.2.4, number 15; [detail](#g1---github-milestone-1.2.4) |
-| Release | M16 | Final release 1.2.4 | Milestone | Not started | Yes | M3, M7, M17, M6, M13, M19, G1, D3 | Tag `1.2.4`, GitHub release, milestone closed, production install verified, and every Release Verification row Pass; [detail](#m16---final-release) |
+| Release | M16 | Final release 1.2.4 | Milestone | Complete | No | M3, M7, M17, M6, M13, M19, G1, D3 | RELEASED 2026-08-17: merge `1961fbf`, tag `1.2.4`, GitHub release published, milestone 15 closed, all six issues closed, and Release Verification 1-8 all Pass (RV8 production on alsucl-psrv3 reports `1.2.4 (1961fbf)`); [detail](#m16---final-release) |
 
 ### Decisions
 
@@ -749,7 +751,7 @@ Last Compared: 2026-08-17; closed 2026-08-17 with verification comment
 Origin: 1.2.4 / M16
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -876,12 +878,13 @@ Superseded Plan Artifacts: none
 | Release Verification 4 | 2026-08-17 | Fresh consumers, release candidate `d6f9708` deployed to the `nfs4` `root_squash` mount `~/gitsrc-nfs-sim` | Pass | Denial precheck `SQUASH REPRODUCED` on both hosts (root denied where the owner is allowed, control readable); the root_squash scenarios S7-S9 in `run-all` pass on each host against the squashed-mount deployment (S7 configuration md5 unchanged before/after — only runtime state moved). The nfs-sim tree read back `d6f9708`. |
 | Release Verification 5 | 2026-08-17 | Release branch `release-1.2.4` at `035dee1` | Pass | `bin/ioc-runner` `declare -g RUNNER_VERSION="1.2.3"` — the value is 1.2.3 before the version change. |
 | Release Verification 6 | 2026-08-17 | Fresh `rocky8` and `debian13` consumers, release candidate `d6f9708` deployed via `gate/drivers/push.bash` (carrying `.git`) then `setup --full` | Pass | Deployed `/usr/local/bin/ioc-runner -V` reports `1.2.4 (d6f9708)` on both hosts — version 1.2.4 with the version commit's short hash. setup `--full` 10/10 rocky8, 9/9 debian13. |
-| Release Verification 7 | Not run | Git and GitHub | Pending | none |
-| Release Verification 8 | Not run | `alsucl-psrv3` | Pending | none |
+| Release Verification 7 | 2026-08-17 | Git and GitHub | Pass | All released objects agree: `origin/master` merge commit `1961fbf`; annotated tag `1.2.4` (tag object `ed4803e`) resolves to `1961fbf`; the GitHub release `1.2.4` targets that tag; milestone 15 (1.2.4) is `closed` with open=0, closed=6; and all six milestone issues (#114, #117, #118, #143, #145, #147) are CLOSED. |
+| Release Verification 8 | 2026-08-18 | `alsucl-psrv3` (Rocky 8, NFS home + root_squash) | Pass | Owner installed release tag `1.2.4` from the NFS-home checkout via `make setup` (Passed 10/10, "Secure system infrastructure setup completed"); the deployed `/usr/local/bin/ioc-runner -V` reports `epics-ioc-runner version 1.2.4 (1961fbf)` — the released version with the merge short hash. |
 
 ##### Closure Evidence
 
-- none
+- RELEASED 2026-08-17. Release objects: merge commit `1961fbf` (`git merge --no-ff release-1.2.4`), annotated tag `1.2.4` (tag object `ed4803e`) on `origin/master`, GitHub release https://github.com/jeonghanlee/epics-ioc-runner/releases/tag/1.2.4, milestone 15 closed. All six milestone issues (#114, #117, #118, #143, #145, #147) closed.
+- Release Verification 1-8 all Pass: pre-change golden acceptance and version 1.2.3 (RV1, RV5); post-change gate driver two consecutive `GATE SUITES PASS` at 688 checks, multi-user 14/14 and root_squash on both fresh consumers, deployed `-V` 1.2.4 (RV2, RV3, RV4, RV6); released objects agree (RV7); production install on `alsucl-psrv3` reports `1.2.4 (1961fbf)` (RV8).
 
 ##### GitHub Projection
 
