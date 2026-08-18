@@ -48,8 +48,9 @@ This directory contains the complete documentation for deploying, managing, and 
   M13, and the final release plan; master source transfer commit `e357210`
   moved authority to this branch.
 * **[milestone-a39623c.md](milestone-a39623c.md)**
-  Master register at the 1.2.4 branch point. It retains the surviving Backlog
-  and the future 1.3.0 target decisions after the four bugfix rows moved.
+  Active master register for the surviving Backlog and the future 1.3.0 target
+  decisions. Its assignment history records the transfer of M3, M7, M6, and
+  M13 to `release-1.2.4` at target commit `4bcd638`.
 
 ## Upgrading from 1.0.x
 
