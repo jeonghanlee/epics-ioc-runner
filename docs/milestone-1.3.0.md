@@ -7,15 +7,14 @@ Canonical branch or ref: `release-1.3.0`
 Git upstream: `origin/release-1.3.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.3.0` (G1,
 not yet created)
-Activation state: staged on `release-1.3.0`; activates when the master source
-transfer commit removes M4-M13 from `docs/milestone-46790f9.md` and names this
-register's carrying commit.
+Activation state: active on `release-1.3.0`; source authority moved in master
+commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: The register is staged. After activation, reconcile
-the ten issues from the GitHub `Backlog` milestone into a new `1.3.0`
-milestone (G1), settle the cycle execution order, and start with the M1
-design conversation — M1 is the largest item and its health-signal boundary
-must be designed before any code.
+Next session entry point: The 1.3.0 cycle is open at version 1.3.0-dev.
+Next: reconcile the ten issues from the GitHub `Backlog` milestone into a new
+`1.3.0` milestone (G1), settle the cycle execution order, and start with the
+M1 design conversation — M1 is the largest item and its health-signal
+boundary must be designed before any code.
 
 ## Milestone
 
