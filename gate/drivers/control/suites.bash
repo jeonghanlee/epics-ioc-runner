@@ -23,6 +23,9 @@ DRIVER_PATH="${SCRIPT_DIR}/$(basename "$0")"
 readonly DRIVER_PATH
 REPO_TOP="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 readonly REPO_TOP
+readonly REPORT_COUNTS_FILE="${REPO_TOP}/tests/reporting-counts.csv"
+# shellcheck source=tests/lib/reporting-counts.bash
+source "${REPO_TOP}/tests/lib/reporting-counts.bash"
 readonly OUTPUT_ROOT="${REPO_TOP}/work"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 readonly RUN_ID
@@ -283,11 +286,17 @@ function validate_run_statuses {
         }
         BEGIN {
             want["error-handling/none/source"] = 1
+            want_count++
             want["source-regression/system/source"] = 1
+            want_count++
             want["local-lifecycle/local/source"] = 1
+            want_count++
             want["local-lifecycle/local/installed"] = 1
+            want_count++
             want["system-infra/system/none"] = 1
+            want_count++
             want["system-lifecycle/system/installed"] = 1
+            want_count++
         }
         {
             if (NF != 6 || $1 != "RUN") {
@@ -315,7 +324,7 @@ function validate_run_statuses {
                     bad++
                 }
             }
-            if (count != 6 || failed != 0 || bad != 0) {
+            if (count != want_count || failed != 0 || bad != 0) {
                 printf "SUITES FAIL run_status blocks=%d failed=%d invalid=%d\n", count + 0, failed + 0, bad + 0
                 exit 1
             }
@@ -382,7 +391,20 @@ function validate_runner_paths {
 function matrix_verdict {
     local log="$1"
 
+    if ! reporting_counts_load "${REPORT_COUNTS_FILE}"; then
+        return 1
+    fi
     awk '
+        NR == FNR {
+            if (NF != 3 || $1 !~ /^[-A-Za-z0-9._:+]+$/ ||
+                $2 !~ /^[0-9]+$/ || $3 !~ /^[0-9]+$/ || ($1 in suite_want)) {
+                config_bad++
+                next
+            }
+            suite_want[$1] = $2 + 0
+            suite_want_step[$1] = $3 + 0
+            next
+        }
         function val(n, prefix) {
             if (index($n, prefix) != 1 || length($n) == length(prefix)) {
                 bad++
@@ -400,18 +422,12 @@ function matrix_verdict {
             run_suite[run] = suite
         }
         BEGIN {
-            want["error-handling/none/source"] = 150
-            want_step["error-handling/none/source"] = 38
-            want["source-regression/system/source"] = 108
-            want_step["source-regression/system/source"] = 18
-            want["local-lifecycle/local/source"] = 146
-            want_step["local-lifecycle/local/source"] = 37
-            want["local-lifecycle/local/installed"] = 146
-            want_step["local-lifecycle/local/installed"] = 37
-            want["system-infra/system/none"] = 36
-            want_step["system-infra/system/none"] = 7
-            want["system-lifecycle/system/installed"] = 102
-            want_step["system-lifecycle/system/installed"] = 33
+            want_run["error-handling/none/source"] = 1
+            want_run["source-regression/system/source"] = 1
+            want_run["local-lifecycle/local/source"] = 1
+            want_run["local-lifecycle/local/installed"] = 1
+            want_run["system-infra/system/none"] = 1
+            want_run["system-lifecycle/system/installed"] = 1
         }
         $1 == "TEST" {
             raw = $0
@@ -514,7 +530,8 @@ function matrix_verdict {
                 !scalar(os) || !scalar(arch) || total !~ /^[0-9]+$/ ||
                 pass_count !~ /^[0-9]+$/ || fail_count !~ /^[0-9]+$/ ||
                 skip_count !~ /^[0-9]+$/ || na_count !~ /^[0-9]+$/ ||
-                error_count !~ /^[0-9]+$/ || state !~ /^(PASS|FAIL)$/ || !(wanted_key in want)) {
+                error_count !~ /^[0-9]+$/ || state !~ /^(PASS|FAIL)$/ ||
+                !(wanted_key in want_run) || !(suite in suite_want)) {
                 bad++
             }
             own(run, suite)
@@ -552,17 +569,27 @@ function matrix_verdict {
                     bad++
                 }
             }
-            for (wanted_key in want) {
+            for (wanted_key in want_run) {
                 if (want_seen[wanted_key] != 1) {
                     bad++
+                }
+                split(wanted_key, wanted_parts, "/")
+                expected_suite = wanted_parts[1]
+                if (!(expected_suite in suite_want)) {
+                    bad++
+                } else {
+                    expected_blocks++
+                    expected_checks += suite_want[expected_suite]
+                    expected_steps += suite_want_step[expected_suite]
                 }
             }
             for (run in suite_seen) {
                 wanted_key = run_key[run]
                 checks += test_count[run]
                 steps += step_count[run]
-                if (test_count[run] != want[wanted_key] ||
-                    step_count[run] != want_step[wanted_key] ||
+                expected_suite = run_suite[run]
+                if (test_count[run] != suite_want[expected_suite] ||
+                    step_count[run] != suite_want_step[expected_suite] ||
                     suite_total[run] != test_count[run] || suite_exec[run] != "PASS") {
                     bad++
                 }
@@ -580,15 +607,17 @@ function matrix_verdict {
             for (i = 1; i <= exceptions; i++) {
                 print exception_line[i] " runner=" run_runner[exception_run[i]]
             }
-            if (blocks == 6 && checks == 688 && steps == 170 &&
-                skip == 0 && fail == 0 && errors == 0 && bad == 0) {
-                print "SUITES OK (6 blocks, 688 checks, na=" na_total ")"
+            bad += config_bad
+            if (blocks == expected_blocks && checks == expected_checks &&
+                steps == expected_steps && skip == 0 && fail == 0 &&
+                errors == 0 && bad == 0) {
+                printf "SUITES OK (%d blocks, %d checks, na=%d)\n", expected_blocks, expected_checks, na_total
                 exit 0
             }
             printf "SUITES FAIL blocks=%d checks=%d steps=%d skip=%d fail=%d na=%d err=%d invalid=%d\n", blocks + 0, checks + 0, steps + 0, skip + 0, fail + 0, na_total + 0, errors + 0, bad + 0
             exit 1
         }
-    ' "${log}"
+    ' <(reporting_counts_emit_tsv) "${log}"
 }
 
 function validate_host_log {

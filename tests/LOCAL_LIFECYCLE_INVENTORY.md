@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 146
+Expected Counts: [`reporting-counts.csv`](reporting-counts.csv)
 
 ## Runner Policy
 
@@ -19,7 +19,8 @@ three P00 checks and eleven prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
 camonitor availability and the S15 and S16 configuration requirements. The
-resulting catalog contains 146 identities.
+resulting expected check and STEP counts are owned by
+[`reporting-counts.csv`](reporting-counts.csv).
 
 ## Test Method Assignment
 
@@ -298,7 +299,8 @@ skips, every dependent S14 check also skips.
 
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 146 identities in this
-order. Runner origin changes the selected binary and the SUITE `runner` field,
-not the identity set. Missing prerequisites and non-applicable permission
-branches close their declared dependent checks without changing `Total`.
+Every source and installed invocation declares the same identities in this
+order and compares the closed catalog with `reporting-counts.csv`. Runner
+origin changes the selected binary and the SUITE `runner` field, not the
+identity set. Missing prerequisites and non-applicable permission branches
+close their declared dependent checks without changing `Total`.

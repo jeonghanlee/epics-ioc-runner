@@ -12,10 +12,10 @@ commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
 Next session entry point: The 1.3.0 cycle is open at version 1.3.0-dev, G1 is
 Complete (milestone 16), all ten issues carry the `1.3.0` milestone, and the
-execution order is settled as the local ID order (D3). Next: start M1 (#148,
-the count-coherence guard) and open the M10 (#102) health-signal design
-conversation in parallel — M10 is the largest item and its boundary must be
-designed before any code.
+execution order is settled as the local ID order (D3). Next: finish the M1
+(#148, count-coherence guard) review and prepare its commit, then open the M10
+(#102) health-signal design conversation — M10 is the largest item and its
+boundary must be designed before any code.
 
 ## Milestone
 
@@ -23,7 +23,7 @@ designed before any code.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tests | M1 | (#148) Guard suite check-count coherence against declared inventory totals | Milestone | Not started | Yes | D1, D3 | A test asserts each suite's real check count equals its declared inventory total and goes red on drift; [detail](#m1---suite-count-coherence-guard) |
+| Tests | M1 | (#148) Centralize expected reporting counts and guard runtime catalog coherence | Milestone | In progress | No | D1, D3, D4 | One CSV owns expected check and STEP counts, every suite compares its real catalog before preflight, and the gate derives totals while keeping its six-run set independent; [detail](#m1---suite-count-coherence-guard) |
 | Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Not started | Yes | D1, D3 | Every affected entry point stops nonzero at its first environment boundary with the catalog contract preserved; [detail](#m2---epics_base-entry-boundary) |
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Not started | Yes | D1, D3 | Both supported mismatch directions produce one complete diagnosis with the correct regeneration command; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Not started | Yes | D1, D3 | Killing the real softIoc child increases the child-death count and the unit recovers on both golden OS families; [detail](#m4---restart-supervision-probe) |
@@ -43,6 +43,7 @@ designed before any code.
 | D1 | Open 1.3.0 as a reliability-and-configuration-contract line carrying #102, #115, #113, #129, #142, #139, #116, #144, #148, and #132. #127 (container execution mode) is excluded to a later cycle as a standalone feature. | Owner decision, 2026-08-17; recorded as D2 in `docs/milestone-46790f9.md` |
 | D2 | Run M5 and M6 as one configuration-contract lane: M6 is the narrow two-reader case that M5's shared parse core subsumes, so M6 follows M5 and closes on the shared core's evidence plus its own reader-equivalence fixtures. | Owner-accepted lane pairing, 2026-08-17 |
 | D3 | Execute the cycle in local ID order M1 (#148), M2 (#139), M3 (#142), M4 (#115), M5+M6 (#113/#129 lane), M7 (#116), M8 (#144), M9 (#132); M10 (#102) runs its design conversation from cycle start with implementation placed after the mid-cycle. Local IDs were renumbered to match this order; each detail's Identity History records its prior ID. | Owner decision, 2026-08-18 |
+| D4 | M1 centralizes expected check and STEP counts in `tests/reporting-counts.csv`. Runtime catalogs remain the independent actual values, and the CSV is initially populated only from pre-change observations of the five real shipped suite paths. The reporter's existing five-suite set becomes a public supported-suite contract that independently validates CSV membership. Normal suite runs compare immediately after catalog close; `REPORT_CATALOG_ONLY=1` performs the same comparison and then exits through a reporter-owned cleanup state before environment preflight, emitting exactly one `CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line on success. The gate's six-run execution set remains independent and joins to the CSV for per-suite expectations and derived totals. Live expectation documents reference the CSV; historical observed counts remain unchanged. | Owner design direction, 2026-08-18; third-person and second-person review findings accepted 2026-08-18 |
 
 ### Assignment History
 
@@ -66,40 +67,85 @@ designed before any code.
 Origin: 1.3.0 / M9
 Identity History: staged from `docs/milestone-46790f9.md` M12; 1.3.0 / M9 -> 1.3.0 / M1 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 148, https://github.com/jeonghanlee/epics-ioc-runner/issues/148
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-One concept — a suite's check count — is encoded in five independent places
-with nothing enforcing agreement: the suite's runtime emission,
-`REPORTING_INVENTORY.md`, each `*_INVENTORY.md`, the gate driver's
-`want[]`/`want_step[]` (`gate/drivers/control/suites.bash`), and
-`gate/RUNBOOK.md`. The driver copy is self-enforcing (a gate run compares it
-to reality and caught the drift), but the inventory and runbook copies are
-checked by nobody. They drifted silently for the whole 1.2.4 cycle (the driver
-expected 614 while the suites emitted 688) and were re-synced by hand during
-the 1.2.4 logrotate state-isolation work.
+One concept — a suite's expected check and STEP counts — is encoded in the
+reporting inventories, the gate driver's `want[]` and `want_step[]`, and
+`gate/RUNBOOK.md`. Runtime catalog emission is the independent actual value.
+The gate compares its expected copy to real runs, but the live document copies
+have no equivalent enforcement. They drifted silently for the whole 1.2.4
+cycle: the driver expected 614 checks while the suites emitted 688, and the
+copies were re-synchronized by hand during the 1.2.4 logrotate state-isolation
+work.
 
 ##### Scope
 
-Add a test that reads each suite's real emitted check count and fails when it
-differs from that suite's declared inventory total, so the un-enforced copies
-can no longer drift silently. The owner chose this guard over making the
-runtime the single source, because the driver's expected count must stay
-independent to catch a suite silently gaining or losing checks.
+Extract the reporter's existing five suite IDs into the public contract
+`tests/lib/reporting-suites.bash`. The reporter and CSV parser consume that
+contract so the accepted suite set remains independent of the CSV being
+validated.
+
+Create `tests/reporting-counts.csv` with the exact header
+`suite,checks,steps` and one unique row for every suite in the public contract.
+Populate its initial rows only from a pre-change run of the five real shipped
+suite paths. It is the sole manually maintained source for current expected
+check and STEP counts; it contains no aggregate or gate-run rows.
+
+Each suite keeps its runtime catalog independent and compares the registered
+check and STEP counts with its CSV row immediately after `report_close_catalog`
+and before environment preflight. An absent or zero `REPORT_CATALOG_ONLY`
+continues through the normal suite path after a successful comparison. A value
+of `1` performs the same real catalog registration, close, and comparison,
+then emits exactly one
+`CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line and exits
+through a shared reporter lifecycle that cleans its workspace without
+projecting unexecuted checks as `SCRIPT_ERROR`. Any other value is rejected.
+
+The gate retains its existing independent six-run execution and run-status
+sets. Its count verdict joins each run's suite to the CSV and derives block,
+check, and STEP totals instead of carrying `want[]`, `want_step[]`, `6`, `688`,
+or `170` count literals. Live reporting inventories and `gate/RUNBOOK.md`
+reference the CSV rather than repeating current expected totals.
 
 ##### Out of Scope
 
-Auto-generating the per-check identity listings (not mechanically derivable);
-changing the gate driver's independent `want[]` (it is already enforced and is
-the release-critical guard).
+- Auto-generating per-check identity listings or their descriptions.
+- Deriving or changing the gate's independent six-run execution set.
+- Replacing `EXPECTED_IDENTITY_SHA256`, which guards identity membership rather
+  than counts.
+- Rewriting historical observed counts in release notes, changelogs, milestone
+  history, or verification evidence.
+- Changing product behavior or the meaning of any existing test identity.
 
 ##### Completion Criteria
 
-- A test asserts each suite's real check count equals its `*_INVENTORY.md` /
-  `REPORTING_INVENTORY.md` total and goes red on drift.
-- The repository's four-gate promotion test (`docs/CLOSED_DOORS.md`) is
-  applied before guarding, with elimination tried first.
+- `tests/reporting-counts.csv` is the only live expected check and STEP count
+  source, has the exact accepted schema, and has one valid row for every
+  suite in the independent public supported-suite contract.
+- The public supported-suite contract is extracted from the reporter's
+  existing five-suite set, and the reporter and CSV parser both consume it;
+  the CSV cannot authorize its own membership.
+- Every normal suite run compares its real registered catalog with the CSV
+  before environment preflight and stops nonzero without a valid `SUITE`
+  projection on mismatch.
+- `REPORT_CATALOG_ONLY=1` runs the same catalog registration, close, and
+  comparison, then cleans reporter state and exits zero without entering
+  EPICS, privilege, workspace, systemd, or IOC setup. Success emits exactly
+  one `CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line;
+  a mismatch remains nonzero.
+- The gate keeps its six-run membership independent, consumes CSV counts, and
+  derives the expected block, check, and STEP totals without duplicated count
+  literals.
+- Live inventory and runbook text references the CSV without repeating current
+  expected totals; historical observed counts remain unchanged.
+- The shipped tree passes the real catalog, parser, documentation, and full
+  two-golden gate checks, while an isolated one-row drift fails through the
+  shipped suite path.
+- The repository's four-gate promotion test (`docs/CLOSED_DOORS.md`) records
+  elimination of duplicated live expectations before the remaining
+  independent actual-versus-expected guard.
 
 ##### Dependencies And Decisions
 
@@ -107,34 +153,90 @@ the release-critical guard).
   evidence is invalidated; the guard prevents the next silent drift.
 - Contrast recorded as CI-33 (the logrotate directive seam is self-enforcing
   and needs no guard); this count seam is the un-enforced case that does.
-- D1
+- Promotion-test result: Gate A passes because actual catalog counts and
+  accepted expected counts must agree. Gate B passes because silent drift
+  changes release acceptance evidence. Gate C passes because the existing
+  two-golden gate catches drift only at the release boundary and does not
+  protect the live inventory copies or ordinary suite runs. Gate D places the
+  actual-versus-expected comparison at the reporting boundary and keeps the
+  gate-run membership check independent.
+- Elimination result: duplicated current expected values move to one CSV;
+  runtime catalogs do not consume that CSV because they must remain the
+  independent actual side of the comparison.
+- D1, D4
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner confirmed the reviewed M1 plan on 2026-08-18 ("맞아").
+Implementation Authorization: Owner explicitly authorized implementation on 2026-08-18 ("맞아").
 Superseded Plan Artifacts: none
 
-1. Apply the four-gate promotion test and attempt elimination of the
-   un-enforced copies first.
-2. Implement the count-coherence check against the declared inventory totals.
-3. Prove the check goes red on a deliberate drift and green on the shipped
-   tree.
+1. Before adding the comparison, run the five current shipped suite entry
+   points through their real normal paths: `tests/test-error-handling.bash`,
+   `tests/test-source-regression.bash`, `tests/test-local-lifecycle.bash` in
+   `IOC_RUNNER_TEST_MODE=source`, `tests/test-system-infra.bash`, and
+   `tests/test-system-lifecycle.bash` in
+   `IOC_RUNNER_TEST_MODE=installed`. Capture each command's combined output
+   separately. Read the check count from the `total=` field on the final real
+   `SUITE` record and the STEP count from the number of emitted `STEP` records,
+   even when a later environment preflight makes the suite exit nonzero; do
+   not reconstruct a catalog or copy totals from an inventory.
+2. Extract the reporter's existing five suite IDs into
+   `tests/lib/reporting-suites.bash`. Provide one public ordered suite-list
+   function and one membership predicate, then make
+   `tests/lib/test-reporting.bash` use that contract before applying its
+   existing category and scope/runner validation.
+3. Add `tests/reporting-counts.csv`, seeded only from the observations in step
+   1, with one `suite,checks,steps` row per public supported suite and no
+   persisted aggregate values.
+4. Add `tests/lib/reporting-counts.bash` as the shared CSV parser. It sources
+   the public supported-suite contract, strips
+   carriage returns, requires the exact header, rejects malformed or duplicate
+   rows, rejects missing or unknown suites against that independent contract,
+   and provides strict suite lookups to every consumer.
+5. Add the suite-owned comparison to `tests/lib/test-reporting.bash` and call
+   it after `report_close_catalog` in all five result-producing suite scripts.
+   Keep it outside the generic close operation so
+   `tests/lib/test-reporting-self-test.bash` can continue exercising
+   deliberately small catalogs.
+6. Add the shared reporter catalog-only completion state to
+   `tests/lib/test-reporting.bash`. On success it prints exactly one
+   `CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line,
+   cleans the reporter workspace, suppresses normal finalization, and is
+   honored by all five suite exit handlers.
+7. Make every normal suite path compare before environment preflight and make
+   `REPORT_CATALOG_ONLY=1` stop only after that same comparison.
+8. In `gate/drivers/control/suites.bash`, replace count literals with a join
+   from the independent six-run list to the CSV. Derive aggregate block, check,
+   and STEP totals while leaving the execution list, run-status set, and
+   identity digest independent.
+9. Remove current expected count literals from `tests/REPORTING_INVENTORY.md`,
+   the five `tests/*_INVENTORY.md` files, and `gate/RUNBOOK.md`; replace them
+   with CSV references. Preserve historical observed counts in changelogs,
+   milestone history, and verification evidence unchanged.
+10. Run the source checks, isolated honest-red mutation, documentation authority
+   check, and full two-golden gate through their shipped paths.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Count coherence | Run the new guard comparing each suite's real emitted check count with its declared inventory total | Source test environment | Every suite's counts agree and the guard passes on the shipped tree |
-| T2 | Honest red | Run the guard against a deliberately drifted declared total in an isolated copy | Source test environment | The guard fails on the drift |
+| T1 | Real catalog comparison | Run all five shipped suites with `REPORT_CATALOG_ONLY=1` | Source test environment without EPICS, root, systemd, or IOC setup | Every suite registers and closes its real catalog, matches its CSV row, emits exactly one `CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line, cleans reporter state, and exits zero without `TEST`, `STEP`, `SUITE`, or `SCRIPT_ERROR` projection |
+| T2 | Normal-path honest red | Change one suite's CSV count in an isolated repository copy and run that shipped suite without catalog-only mode | Source test environment | The suite stops nonzero after real catalog close and before environment preflight, reports the expected-versus-actual mismatch, and emits no valid `SUITE` record |
+| T3 | CSV boundary | Run the shipped parser against the committed CSV and isolated CRLF, duplicate-row, missing-suite, unknown-suite, and nonnumeric-count variants; obtain the accepted suite set only from `tests/lib/reporting-suites.bash` | Source test environment | The committed and CRLF inputs normalize and match the complete public supported-suite set; every malformed, duplicate, incomplete, unknown, or nonnumeric variant fails explicitly |
+| T4 | Gate integration | Run `gate/drivers/control/suites.bash` through its real six-run path | Both golden OS families | Each independent run key appears exactly once, real counts match the CSV, derived totals reconcile, identity digest validation passes, and both host verdicts pass |
+| T5 | Documentation authority | Search all tracked live documentation for current expected count declarations and inspect historical count occurrences | Working tree | Live inventories and RUNBOOK reference the CSV without current expected literals; changelog, release history, and observed drift evidence remain unchanged |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Source test environment | Pending | none |
-| T2 | Not run | Source test environment | Pending | none |
+| T1 | 2026-08-18 | Source test environment | Pass: all five shipped suite entry points ran their real catalog registration and emitted only the expected `CATALOG` record with the CSV check and STEP counts | Terminal observation |
+| T2 | 2026-08-18 | Isolated source-tree copy | Pass: changing the error-handling CSV row to 149 checks made the real normal suite path exit 1 after catalog close, report expected 149 versus actual 150, and emit no `SUITE` record | Terminal observation |
+| T3 | 2026-08-18 | Source test environment | Pass: the parser self-test passed 8 of 8 assertions, including the committed CSV, CRLF equality, duplicate, missing, unknown, nonnumeric, and malformed-header cases; the existing reporter self-test passed 88 of 88 assertions | Terminal observation |
+| T4 | 2026-08-18 | Debian 13 and Rocky 8 goldens | Pass: the current M1 working tree was copied to both hosts and fully deployed; both hosts completed all six real runs, each CSV-derived verdict reported 6 blocks and 688 checks, both host verdicts passed, and the final gate passed | `work/gate-suites-20260818T215458Z-847854` |
+| T5 | 2026-08-18 | Working tree | Pass: every live inventory and the gate runbook references `reporting-counts.csv`, no current expected count literal remains, and the checked historical documents are unchanged | Terminal observation |
 
 ##### Closure Evidence
 

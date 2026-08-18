@@ -281,6 +281,7 @@ function initialize_reporting {
         fi
     done
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function next_current_check_id {
@@ -381,6 +382,10 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
 
     # T5 may create a throwaway non-ioc account; remove only the one this run
     # created (a pre-existing account of the same name is left untouched).
@@ -1880,6 +1885,9 @@ function run_all_tests {
     local func=""
 
     initialize_reporting
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        return "${REPORT_FINAL_STATUS}"
+    fi
     if ! run_preflight; then
         return
     fi

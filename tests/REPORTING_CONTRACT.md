@@ -89,17 +89,39 @@ system.
 Each suite follows one ordered lifecycle:
 
 1. Declare the complete ordered STEP and check catalog.
-2. Evaluate declared applicability and prerequisite checks.
-3. Execute each permitted check through the real shipped path.
-4. Close every declared check exactly once in catalog order.
-5. Complete every producer cleanup action that can change suite status.
-6. Resolve the ledger, clean the reporter workspace, emit the projections,
+2. Close the catalog and compare its check and STEP counts with
+   `reporting-counts.csv`.
+3. Evaluate declared applicability and prerequisite checks.
+4. Execute each permitted check through the real shipped path.
+5. Close every declared check exactly once in catalog order.
+6. Complete every producer cleanup action that can change suite status.
+7. Resolve the ledger, clean the reporter workspace, emit the projections,
    and exit with the status represented by the final SUITE record.
 
 No check is created after execution begins. A missing prerequisite or an
 inapplicable boundary closes only already-declared checks according to the
 dependency rules. An unexpected exit before finalization is invalid and the
 reporter closes remaining declared checks as `SCRIPT_ERROR`.
+
+## Catalog Count Boundary
+
+`reporting-counts.csv` is the only current expected check and STEP count
+source. `lib/reporting-suites.bash` owns the supported suite set independently,
+and the CSV parser requires exactly one row for each supported suite. Runtime
+catalog registration remains the independent actual side of the comparison.
+
+Every normal suite invocation compares its closed runtime catalog before its
+environment preflight. A mismatch exits nonzero and produces no valid `SUITE`
+record. `REPORT_CATALOG_ONLY=1` performs the same registration, close, and
+comparison, cleans the reporter workspace, and exits before environment,
+privilege, systemd, or IOC setup. Its only machine record is:
+
+```text
+CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS
+```
+
+An unset or `0` value continues through normal execution. Any other value is
+invalid.
 
 ## Stable Check Catalog
 
@@ -265,15 +287,17 @@ report_init suite run scope runner os arch ledger_dir
 report_register_step step_id description
 report_register_check check_id step_id category check_kind test_method description
 report_close_catalog
+report_verify_catalog_counts
 report_record check_id state [reason]
 report_finalize original_exit_status
 ```
 
 `report_register_step` permits a declared setup-only STEP with zero checks.
 Every check references a previously declared STEP. `report_close_catalog`
-ends registration before any result event. `report_record` is the only path
-for a test-owned terminal state; `PASS` carries no reason and every other
-state requires one non-empty, single-line reason.
+ends registration before any result event. `report_verify_catalog_counts`
+enforces the Catalog Count Boundary before execution. `report_record` is the
+only path for a test-owned terminal state; `PASS` carries no reason and every
+other state requires one non-empty, single-line reason.
 
 The caller supplies a dedicated real directory for the private file-backed
 ledger. The directory must be owned by the current effective user, must not be

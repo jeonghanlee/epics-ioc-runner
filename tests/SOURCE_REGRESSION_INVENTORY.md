@@ -275,9 +275,10 @@ remain valid directories.
 | `source-regression.S22.valid.configuration-directory-accepted` | `BEHAVIOR` | `real-path` | The configuration directory target passes its explicit directory check. |
 | `source-regression.S22.valid.log-directory-accepted` | `BEHAVIOR` | `real-path` | The log directory target passes its explicit directory check. |
 
-The fixed source-regression catalog contains 108 identities: 36 moved
-identities, 57 source-contract identities in S15 through S21, 11 M7
-identities in S22, and 4 M19 identities in S23.
+The expected source-regression check and STEP counts are owned by
+[`reporting-counts.csv`](reporting-counts.csv). The catalog comprises the moved
+identities, the source-contract identities in S15 through S21, the M7
+identities in S22, and the M19 identities in S23.
 
 ## M19 S23 Addition
 

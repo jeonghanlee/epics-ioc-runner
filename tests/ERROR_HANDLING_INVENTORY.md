@@ -21,8 +21,9 @@ conditions that currently disappear from the counters:
 - one S23 required completion-script check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 150 identities. S01, S12, S13, S14, S15,
-S16, S18, S20, S22, S33, and S34 are setup-only and own no check. Each loop case has its own semantic key. The 30
+The current expected check and STEP counts are owned by
+[`reporting-counts.csv`](reporting-counts.csv). S01, S12, S13, S14, S15, S16,
+S18, S20, S22, S33, and S34 are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
 
@@ -356,7 +357,7 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 150 |
+| Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
 The mapping is complete only while all 143 current assertion descriptions map
 once, the seven added conditions map once, no STEP-local key is duplicated,

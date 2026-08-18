@@ -198,6 +198,9 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
     if ! _cleanup; then
         final_status=1
         _log "ERROR" "Failed to remove the error-handling workspace."
@@ -273,6 +276,7 @@ function initialize_reporting {
         fi
     done
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function next_current_check_id {
@@ -1876,6 +1880,9 @@ function run_all_tests {
 }
 
 initialize_reporting
+if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+    exit "${REPORT_FINAL_STATUS}"
+fi
 if ! run_preflight; then
     exit 1
 fi

@@ -20,9 +20,9 @@ availability assertion is currently fail-only, so the maximum successful path
 reports 86 assertions although 87 assertion branches exist.
 
 The fixed catalog adds four P00 checks and eleven prerequisite or required
-conditions currently represented only by early returns. The resulting catalog
-contains 102 identities. S02, S03, and S04 are setup-only STEPs and own no
-checks.
+conditions currently represented only by early returns. Its expected check and
+STEP counts are owned by [`reporting-counts.csv`](reporting-counts.csv). S02,
+S03, and S04 are setup-only STEPs and own no checks.
 
 ## Dependency Policy
 
@@ -164,7 +164,7 @@ and executable paths directly. No row uses hand-built-reproduction.
 | Current assertion branches | 87 |
 | Added P00 checks | 4 |
 | Added prerequisite or required conditions | 11 |
-| Fixed catalog total | 102 |
+| Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
 The mapping is complete only while every source assertion branch maps once,
 every early return maps to its governing identity, repeated functions retain

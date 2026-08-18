@@ -616,7 +616,8 @@ five append to it. The driver then copies the complete log into the control
 repository, compares the remote and local SHA-256 values, and validates:
 
 - exactly six successful process-status records;
-- exactly 688 TEST, 170 STEP, and six final PASS SUITE records;
+- TEST and STEP totals derived by joining the six independent run keys to
+  `tests/reporting-counts.csv`, plus one final PASS SUITE record per run key;
 - the canonical execution-identity SHA-256;
 - the source runner under the remote repository and both installed runners at
   `/usr/local/bin/ioc-runner`;

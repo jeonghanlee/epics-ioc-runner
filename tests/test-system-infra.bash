@@ -63,6 +63,9 @@ function _handle_exit {
     local final_status="${exit_code}"
 
     trap - EXIT
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
     if [[ -n "${C57_CREATED_USER:-}" ]]; then
         userdel "${C57_CREATED_USER}" 2>/dev/null || true
         C57_CREATED_USER=""
@@ -174,6 +177,7 @@ function register_reporting_catalog {
     register_catalog_check "${SUITE_ID}.S06.bad-name-denied" S06 BEHAVIOR real-path "Anchored policy denies an out-of-model service name."
     register_catalog_check "${SUITE_ID}.S06.good-name-allowed" S06 BEHAVIOR real-path "Anchored policy allows a valid service name."
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function read_os_release_value {
@@ -492,6 +496,9 @@ function run_all_tests {
     local root_invocation="false"
 
     initialize_reporting
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        return "${REPORT_FINAL_STATUS}"
+    fi
     [[ ${EUID} -eq 0 ]] && root_invocation="true"
     verify_state "true" "${root_invocation}" "${SUITE_ID}.P00.root-required"
     if [[ "${root_invocation}" != "true" ]]; then

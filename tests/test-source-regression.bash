@@ -154,6 +154,9 @@ function _handle_exit {
     local final_status="${exit_code}"
 
     trap - EXIT
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
     if (( REPORT_READY )); then
         report_finalize "${exit_code}" || final_status=1
     fi
@@ -238,6 +241,7 @@ function register_reporting_catalog {
             "${kind}" "${method}" "${description}"
     done
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function read_os_release_value {
@@ -1710,6 +1714,9 @@ function test_setup_destination_parent {
 
 function run_all_tests {
     initialize_reporting
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        return "${REPORT_FINAL_STATUS}"
+    fi
     if ! test_preflight; then
         return
     fi

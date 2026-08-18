@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory after M9 suite separation
 Source: `tests/test-system-infra.bash`
-Fixed Total: 36
+Expected Counts: [`reporting-counts.csv`](reporting-counts.csv)
 
 ## Dependency Policy
 
@@ -78,8 +78,9 @@ authorization probes use `real-path`. All other rows use
 
 ## Fixed Vector Rule
 
-Every supported installed-conformance invocation declares these 36 identities
-in this order. Missing required paths do not reduce `Total`; they close the
-existence check as `FAIL` and dependent checks as `SKIP`. A glob-form
-sudoers policy closes the S06 applicability branch as `NA`. Unexpected
-termination closes every remaining open identity as `SCRIPT_ERROR`.
+Every supported installed-conformance invocation declares the same identities
+in this order and compares the closed catalog with `reporting-counts.csv`.
+Missing required paths do not reduce `Total`; they close the existence check as
+`FAIL` and dependent checks as `SKIP`. A glob-form sudoers policy closes the
+S06 applicability branch as `NA`. Unexpected termination closes every
+remaining open identity as `SCRIPT_ERROR`.
