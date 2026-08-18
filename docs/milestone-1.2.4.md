@@ -971,7 +971,7 @@ identity checks address the same executable.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Runtime acceptance | M18 | Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Deferred | No | D6 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m18---current-rocky-golden-downstream-validation) |
-| Coherence | M20 | Guard suite check-count coherence: fail when a suite's actual emission differs from its declared inventory total | Coherence finding | Deferred | No | | A test asserts each suite's real check count equals its `*_INVENTORY.md` / `REPORTING_INVENTORY.md` total and goes red on drift; [detail](#m20---suite-count-coherence-guard) |
+| Coherence | M20 | (#148) Guard suite check-count coherence: fail when a suite's actual emission differs from its declared inventory total | Coherence finding | Deferred | No | | A test asserts each suite's real check count equals its `*_INVENTORY.md` / `REPORTING_INVENTORY.md` total and goes red on drift; [detail](#m20---suite-count-coherence-guard) |
 
 ### Backlog Details
 
@@ -1055,6 +1055,7 @@ Last Compared: 2026-08-16; remote updated 2026-08-16T08:24:10Z
 #### M20 - Suite count coherence guard
 
 Origin: 1.2.4 conceptual-integrity sweep (2026-08-17)
+GitHub Issue: 148, https://github.com/jeonghanlee/epics-ioc-runner/issues/148
 
 ##### Summary
 
