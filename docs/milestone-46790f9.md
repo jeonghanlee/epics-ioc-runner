@@ -35,8 +35,16 @@ No work is currently assigned to master.
 
 | Identity | From | To | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
-
-No assignment has moved in this generation yet.
+| 46790f9 / M4 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M5 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M6 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M7 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M8 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M9 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M10 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M11 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M12 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M13 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
 
 ## Backlog
 
