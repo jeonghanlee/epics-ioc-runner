@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.2.4 - Local Install and Setup Robustness Release
+
+Harden the local-mode install path and the setup deploy against real operator
+conditions, and tighten crash-token detection. No change to the system-mode
+runtime contract. The release gate driver and its reporting inventories are
+recalibrated to the cycle's check counts.
+
+### Fixes
+
+- Crash-token detection reconstructs the FATAL verdict from leading- and
+  trailing-boundary identifier subsets, so an identifier merely adjacent to a
+  fatal token no longer forces a false failed-initialization verdict while a
+  true fatal token still does. (#114)
+- Setup path validation expects a regular file where it deploys one: a
+  directory left at a file target now fails its explicit type check instead of
+  emitting a false-green success banner. (#118)
+- Installed lifecycle tests honor `IOC_RUNNER_SCRIPT_DEST`, keeping
+  `/usr/local/bin/ioc-runner` as the default while exercising an alternate
+  destination deployed by the real Ansible role. (#145)
+- `setup-system-infra.bash` creates the parent directory of a non-default
+  `IOC_RUNNER_SCRIPT_DEST`, and the redirected RHEL symlink parent, before the
+  staged deploy, instead of failing when the parent is absent. (#147)
+- Local `--local install` defers every shared-asset deployment and daemon
+  reload until after the running-service guard and the overwrite-abort prompt,
+  so a declined install no longer changes the systemd template every local IOC
+  shares. The template refresh is diff-aware: an identical template is kept
+  untouched, and a differing one defaults to keep unless `-f/--force` updates
+  it, reporting the running IOCs the change would affect. (#117)
+- Local logrotate validation passes an explicit throwaway `--state` to
+  `logrotate -d`, so a root-owned system default state file left by an earlier
+  system run no longer blocks an unprivileged user's rotation deploy. (#143)
+
+### Changed
+
+- The two-host gate suite driver and the reporting inventories are recalibrated
+  to the cycle's check counts (688 checks, 170 steps); the driver's expected
+  vector self-enforces on every gate run and the per-suite identity totals are
+  kept current.
+
 ## 1.2.3 - Verification Integrity Release
 
 Make the release gate complete, repeatable, and machine-checkable. This cycle
