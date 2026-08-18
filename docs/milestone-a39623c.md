@@ -8,9 +8,12 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.2.3 reset generation
 
-Next session entry point: create the GitHub milestone `1.2.4`, then reconcile
-issues #114, #118, #117, and #143 with the activated release register at
-target commit `4bcd638`.
+Next session entry point: 1.2.4 RELEASED 2026-08-17 (tag `1.2.4`, merge
+`1961fbf`, GitHub release published, milestone 15 closed; the closed release
+register is `docs/milestone-1.2.4.md`). Next: reset this master register from
+its surviving work — the M1-M15 deferred set below plus 1.2.4's carry-forward
+Backlog (M18, and M20/#148, the suite count-coherence guard) — then open
+`release-1.3.0` (branch from master, register restart, bump to 1.3.0-dev).
 
 ## Milestone
 
