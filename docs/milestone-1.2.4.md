@@ -870,11 +870,11 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
+| Release Verification 1 | 2026-08-17 | Fresh `rocky8` (.150) and `debian13` (.50) consumers from the gate goldens (iocrunner-gate-1.0.0) | Pass | Manifest `root:root 644`; remote SHA-256 equals the control-host sidecar on both (rocky8 `fa361f2…`, debian13 `f73df2f…`); `validate_iocrunner_bake.bash` reports valid; `app_ioc_runner` is clean-untagged `e357210` and the retained checkout has 0 dirty lines. Run on freshly recreated consumers — the reused testbeds gave a false `retained dirty state mismatch` from the day's `setup --full` pushes, which fresh consumers cleared. |
 | Release Verification 2 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
 | Release Verification 3 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
 | Release Verification 4 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
-| Release Verification 5 | Not run | Release branch | Pending | none |
+| Release Verification 5 | 2026-08-17 | Release branch `release-1.2.4` at `035dee1` | Pass | `bin/ioc-runner` `declare -g RUNNER_VERSION="1.2.3"` — the value is 1.2.3 before the version change. |
 | Release Verification 6 | Not run | Debian 13 and Rocky 8 goldens | Pending | none |
 | Release Verification 7 | Not run | Git and GitHub | Pending | none |
 | Release Verification 8 | Not run | `alsucl-psrv3` | Pending | none |
