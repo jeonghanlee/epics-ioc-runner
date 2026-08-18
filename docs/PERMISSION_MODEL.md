@@ -418,6 +418,6 @@ fix the log-file path — not to widen operator privilege.
   release milestone register and the 1.1.0 test plan are preserved in that
   tagged revision (`git show 1.1.0:docs/MILESTONE-1.1.0.md`,
   `git show 1.1.0:docs/TEST_PLAN-1.1.0.md`).
-- Active master register: [`milestone-a39623c.md`](milestone-a39623c.md)
+- Active master register: [`milestone-46790f9.md`](milestone-46790f9.md)
 - Tracking epic: [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7)
 - Milestone: [1.1.0](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3)

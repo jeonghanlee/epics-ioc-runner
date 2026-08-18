@@ -10,7 +10,7 @@ verified targets.
 **Out of scope:** Release-grade multi-host execution is defined in
 [`gate/RUNBOOK.md`](../gate/RUNBOOK.md). Current implementation and verification
 status is tracked in
-[`docs/milestone-a39623c.md`](../docs/milestone-a39623c.md).
+[`docs/milestone-46790f9.md`](../docs/milestone-46790f9.md).
 
 ## Test Classification
 
