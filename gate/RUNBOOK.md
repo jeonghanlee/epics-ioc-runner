@@ -200,6 +200,65 @@ of its rules matter enough to name: a slow boot is not a failure while the
 package manager is still working, and a bake that stopped leaves the build VM
 running and half-provisioned, so a clean retry destroys it first.
 
+### Configured installed-runner destination
+
+When the current release register includes work linked to
+[ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
+its change-specific check spans the real Ansible role and the consumer
+lifecycle suites. Run it on a disposable Debian 13 and Rocky 8 consumer pair
+before creating the canonical pair in the next section. The names and
+addresses are deterministic, so the disposable and canonical pairs cannot
+coexist.
+
+Create the disposable pair from the newly published images with the two
+targets in the next section. Before changing either host, run the Golden
+acceptance checks below. Then push the candidate tree to the
+`path_ioc_runner_src` location with `gate/drivers/push.bash` and resolve the
+EPICS environment by the later procedure.
+
+From the `ansible-provision` checkout, use a runtime inventory that places each
+host in its normal `ioc_nodes` OS group. Run the real `app_ioc_runner` path once
+with the default inventory value and once with an alternate absolute
+destination:
+
+```bash
+ansible-playbook -i <base-inventory> -i <runtime-inventory> playbooks/03_epics.yml --limit <host>
+ansible-playbook -i <base-inventory> -i <runtime-inventory> playbooks/03_epics.yml --limit <host> -e path_ioc_runner_bin=<alternate>
+```
+
+Do not stage or copy a runner into the alternate destination. The Ansible role
+must invoke the shipped `setup-system-infra.bash --full` path. Record the
+`ansible-provision` commit, the consumer commit, both resolved destination
+paths, and each installed runner's real `-V` output. The default path must be
+`/usr/local/bin/ioc-runner`; the alternate path must equal
+`path_ioc_runner_bin`; both identities must match the retained checkout used by
+the role.
+
+With the resolved EPICS environment active, run the consumer side against the
+same alternate executable:
+
+```bash
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --local --installed
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --system --installed
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --local --source
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --system --source
+IOC_RUNNER_SCRIPT_DEST=<alternate> bash tests/run-all-tests.bash --source-regression
+```
+
+The installed runs must record the alternate path and its `-V` identity. The
+source runs must ignore the installed override, record `bin/ioc-runner`, and
+pass the source-regression contracts. Preserve the Ansible and consumer logs
+as one evidence set.
+
+From the `cloud-provision` checkout, remove only these two disposable
+consumers. Then continue with the next section to create the canonical fresh
+pair:
+
+```bash
+make rocky8-iocrunner.server.clean
+make debian13-iocrunner.server.clean
+```
+
 ### Freshly created consumer VMs
 
 Create them from the images just published. Never reuse a test bed: it
@@ -413,6 +472,40 @@ ssh vmadmin@192.168.122.150 'cd ~/gitsrc/epics-ioc-runner && sudo -nE bash bin/s
 
 Repeat both for `192.168.122.50`.
 
+### System mode and the engineer home
+
+The goldens ship each interactive home at mode `0700` (`HOME_MODE 0700` in
+`/etc/login.defs`), so the `ioc-srv` service account cannot traverse it. The
+suite matrix runs every system-mode suite against the installed runner at
+`/usr/local/bin/ioc-runner`, which is world-readable, and runs the source-mode
+suites as the owning user; the standard run therefore never needs the home
+opened.
+
+A run that must reach a source tree under such a home *as the system service
+account* — a source-mode system lifecycle for identity verification, or any
+scenario where `ioc-srv` reads a clone beneath an engineer's `0700` home — fails
+first at the traverse, surfacing as `test-system-lifecycle` S22 (UDS listening)
+and S27 (journal-less crash/init) rather than as a fault in the code. Grant the
+one directory bit before that run:
+
+```bash
+ssh vmadmin@<host> 'chmod o+x ~'
+```
+
+Restore `0700` after that run. The root_squash reproduction and the multi-user
+peer scenarios below depend on the closed home; a home left open silently masks
+the very barrier they assert.
+
+```bash
+ssh vmadmin@<host> 'chmod 0700 ~'
+```
+
+Install mode (the world-readable `/usr/local/bin/ioc-runner`) and local mode
+(the user runs its own IOCs) are unaffected. The user-facing form of this same
+prerequisite is `docs/INSTALL.md` section 4.1. The condition originates in the
+golden's baked home mode, not in this repository; `cloud-provision` records the
+closed investigation in its `docs/CLOSED_DOORS.md` (commit `a27a3c4`).
+
 ### The EPICS environment
 
 On the Rocky 8 golden the environment is on the invoking user's PATH before any
@@ -523,7 +616,7 @@ five append to it. The driver then copies the complete log into the control
 repository, compares the remote and local SHA-256 values, and validates:
 
 - exactly six successful process-status records;
-- exactly 614 TEST, 165 STEP, and six final PASS SUITE records;
+- exactly 688 TEST, 170 STEP, and six final PASS SUITE records;
 - the canonical execution-identity SHA-256;
 - the source runner under the remote repository and both installed runners at
   `/usr/local/bin/ioc-runner`;

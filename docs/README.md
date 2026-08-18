@@ -43,6 +43,10 @@ This directory contains the complete documentation for deploying, managing, and 
   The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
 
 ### 7. Milestone Registers
+* **[milestone-1.2.4.md](milestone-1.2.4.md)**
+  Active canonical register for the 1.2.4 bugfix line. It carries M3, M7, M6,
+  M13, and the final release plan; master source transfer commit `e357210`
+  moved authority to this branch.
 * **[milestone-a39623c.md](milestone-a39623c.md)**
   Active master register for the surviving Backlog and the future 1.3.0 target
   decisions. Its assignment history records the transfer of M3, M7, M6, and

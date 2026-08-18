@@ -168,16 +168,41 @@ function verify_path {
     local path="$1"
     local expected_owner="$2"
     local expected_perm="$3"
-    local success_message="$4"
+    local expected_type="$4"
+    local success_message="$5"
 
     local actual_owner
     local actual_perm
+    local expected_description=""
+    local type_matches="false"
 
     # A missing/unreadable path is a verification FAILURE to report,
     # never a reason to abort the run mid-verify (set -e).
     if ! actual_owner=$(stat -c "%U:%G" "${path}" 2>/dev/null) ||
        ! actual_perm=$(stat -c "%a" "${path}" 2>/dev/null); then
         _log "ERROR" "Verify FAILED : ${path} missing or unreadable"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    case "${expected_type}" in
+        file)
+            expected_description="regular file"
+            [[ -f "${path}" ]] && type_matches="true"
+            ;;
+        directory)
+            expected_description="directory"
+            [[ -d "${path}" ]] && type_matches="true"
+            ;;
+        *)
+            _log "ERROR" "Verify FAILED : ${path} has unsupported expected type '${expected_type}'"
+            (( VERIFY_FAIL++ )) || true
+            return
+            ;;
+    esac
+
+    if [[ "${type_matches}" != "true" ]]; then
+        _log "ERROR" "Verify FAILED : ${path} is not a ${expected_description}"
         (( VERIFY_FAIL++ )) || true
         return
     fi
@@ -399,7 +424,8 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
     mkdir -p "${CONF_DIR}"
     chown "${OWNER_CONF_DIR}" "${CONF_DIR}"
     chmod "${PERM_CONF_DIR}" "${CONF_DIR}"
-    verify_path "${CONF_DIR}" "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}" "Configured directory: ${CONF_DIR} (${OWNER_CONF_DIR}, ${PERM_CONF_DIR})"
+    verify_path "${CONF_DIR}" "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}" directory \
+        "Configured directory: ${CONF_DIR} (${OWNER_CONF_DIR}, ${PERM_CONF_DIR})"
 
     print_divider
     _log "INFO" "STEP 3: Sudoers Configuration (Validated & Restricted)"
@@ -451,7 +477,8 @@ EOF
         backup_if_exists "${SUDOERS_FILE}" "${tmp_sudoers}"
         mv "${tmp_sudoers}" "${SUDOERS_FILE}"
         tmp_sudoers=""   # consumed by mv; keep the EXIT trap from re-acting
-        verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
+        verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" file \
+            "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
         verify_sudoers_includedir_order "/etc/sudoers"
     else
         _log "ERROR" "Sudoers syntax validation failed. Aborting to prevent system lockout."
@@ -502,7 +529,8 @@ EOF
         (( VERIFY_FAIL++ )) || true
     fi
 
-    verify_path "${SYSTEM_LOG_DIR}" "${OWNER_LOG_DIR}" "${PERM_LOG_DIR}" "System log directory ready: ${SYSTEM_LOG_DIR} (${OWNER_LOG_DIR}, ${PERM_LOG_DIR})"
+    verify_path "${SYSTEM_LOG_DIR}" "${OWNER_LOG_DIR}" "${PERM_LOG_DIR}" directory \
+        "System log directory ready: ${SYSTEM_LOG_DIR} (${OWNER_LOG_DIR}, ${PERM_LOG_DIR})"
 
     print_divider
     _log "INFO" "STEP 5: Systemd Template Unit Deployment"
@@ -554,7 +582,8 @@ EOF
     backup_if_exists "${SYSTEMD_TEMPLATE}" "${tmp_unit}"
     mv "${tmp_unit}" "${SYSTEMD_TEMPLATE}"
     tmp_unit=""   # consumed by mv; keep the EXIT trap from re-acting
-    verify_path "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" "Deployed systemd template to ${SYSTEMD_TEMPLATE} using ${RESOLVED_PROCSERV_BIN}"
+    verify_path "${SYSTEMD_TEMPLATE}" "${OWNER_SYSTEM}" "${PERM_SYSTEMD_TEMPLATE}" file \
+        "Deployed systemd template to ${SYSTEMD_TEMPLATE} using ${RESOLVED_PROCSERV_BIN}"
 
     systemctl daemon-reload
     _log "SUCCESS" "Reloaded systemd daemon."
@@ -593,7 +622,8 @@ EOF
         backup_if_exists "${LOGROTATE_FILE}" "${tmp_logrotate}"
         mv "${tmp_logrotate}" "${LOGROTATE_FILE}"
         tmp_logrotate=""   # consumed by mv; keep the EXIT trap from re-acting
-        verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
+        verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" file \
+            "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
     else
         _log "ERROR" "logrotate syntax validation failed. Skipping deployment."
         rm -f "${tmp_logrotate}"
@@ -611,6 +641,16 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # (#123): the three RUNNER_* stamp lines change every run (install date is
     # always fresh), so an unfiltered compare would back up on every redeploy
     # and churn the 3-slot retention out of real prior versions.
+    # Ensure the destination parent exists before staging (#147): the
+    # same-directory mktemp below cannot create the staging file under an
+    # absent parent, which only surfaces for a non-default
+    # IOC_RUNNER_SCRIPT_DEST. Guard on absence so an existing parent (the
+    # default /usr/local/bin) keeps its ownership and mode unchanged;
+    # install -d -m would otherwise rewrite an existing directory's mode.
+    runner_dest_parent=$(dirname "${RUNNER_SCRIPT_DEST}")
+    if [[ ! -d "${runner_dest_parent}" ]]; then
+        install -d -o "root" -g "root" -m "0755" "${runner_dest_parent}"
+    fi
     # Stage in the target directory (#107): the sed/chmod pipeline
     # below must never be visible under the final name, and a
     # same-directory mv is an atomic rename(2).
@@ -722,12 +762,21 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     chmod "${PERM_RUNNER_SCRIPT}" "${tmp_runner}"
     mv "${tmp_runner}" "${RUNNER_SCRIPT_DEST}"
     tmp_runner=""   # consumed by mv; keep the EXIT trap from re-acting
-    verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
+    verify_path "${RUNNER_SCRIPT_DEST}" "${OWNER_SYSTEM}" "${PERM_RUNNER_SCRIPT}" file \
+        "Deployed ioc-runner to ${RUNNER_SCRIPT_DEST} (${PERM_RUNNER_SCRIPT})"
 
     # On RHEL-family systems, sudo's secure_path excludes /usr/local/bin,
     # so 'sudo ioc-runner inspect' fails to resolve the CLI. Add a symlink
     # under /usr/bin (always in secure_path) to restore the invocation path.
     if is_rhel_family; then
+        # Mirror the destination-parent guard for a redirected symlink (#147):
+        # a non-default IOC_RUNNER_SCRIPT_SYMLINK off /usr/bin may name an
+        # absent parent. The default /usr/bin already exists, so the guard is
+        # a no-op there and preserves the existing directory's mode.
+        symlink_parent=$(dirname "${RUNNER_SCRIPT_SYMLINK}")
+        if [[ ! -d "${symlink_parent}" ]]; then
+            install -d -o "root" -g "root" -m "0755" "${symlink_parent}"
+        fi
         ln -sfn "${RUNNER_SCRIPT_DEST}" "${RUNNER_SCRIPT_SYMLINK}"
         verify_symlink "${RUNNER_SCRIPT_SYMLINK}" "${RUNNER_SCRIPT_DEST}" \
             "Created ${RUNNER_SCRIPT_SYMLINK} -> ${RUNNER_SCRIPT_DEST} for sudo secure_path"
@@ -748,7 +797,8 @@ if [[ -f "${BASH_COMP_SRC}" ]]; then
     chmod "${PERM_BASH_COMP}" "${tmp_comp}"
     mv "${tmp_comp}" "${BASH_COMP_DEST}"
     tmp_comp=""   # consumed by mv; keep the EXIT trap from re-acting
-    verify_path "${BASH_COMP_DEST}" "${OWNER_SYSTEM}" "${PERM_BASH_COMP}" "Deployed Bash completion to ${BASH_COMP_DEST} (${PERM_BASH_COMP})"
+    verify_path "${BASH_COMP_DEST}" "${OWNER_SYSTEM}" "${PERM_BASH_COMP}" file \
+        "Deployed Bash completion to ${BASH_COMP_DEST} (${PERM_BASH_COMP})"
 else
     _log "INFO" "Bash completion source not found at ${BASH_COMP_SRC}. Skipping deployment."
 fi

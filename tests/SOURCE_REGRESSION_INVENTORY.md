@@ -8,9 +8,9 @@ This document preserves the pre-move inventory for S07 through S14 in `tests/tes
 
 ## Suite Boundary
 
-The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S21 without renumbering them.
+The destination suite ID is `source-regression`, with `scope=system` and `runner=source`. Existing moved STEP identities remain S07 through S14 as required by `REPORTING_CONTRACT.md`; M8 extends the pipeline through S21, M7 adds S22, and M19 adds S23 without renumbering them.
 
-The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Only their outer write destinations are redirected to an invoking-user-owned temporary workspace.
+The suite runs through `sudo bash`. Source and Git operations run as the invoking identity retained in `SUDO_USER`. Product scripts are executed from their real shipped paths. Earlier setup checks redirect their outer write destinations to an invoking-user-owned temporary workspace. S22 runs the full setup in a private mount namespace with root-owned scratch mounts and isolated `systemctl` and filesystem boundaries.
 
 ## STEP Inventory
 
@@ -31,6 +31,7 @@ The suite runs through `sudo bash`. Source and Git operations run as the invokin
 | S19 | `test_ioc_name_source_contract` | Runner and regex-form sudoers IOC-name source agreement | `bin/ioc-runner`, `bin/setup-system-infra.bash` | None |
 | S20 | `test_crash_pattern_source_contract` | Base crash-pattern membership and fatal/ambiguous subset agreement | `bin/ioc-runner` | None |
 | S21 | `test_crash_exclusion_source_contract` | Benign-history exclusion regex and line-filter ordering | `bin/ioc-runner` | None |
+| S22 | `test_setup_path_type_expectations` | File-target directory impostors and valid directory targets | `bin/setup-system-infra.bash` | Root-owned scratch trees bind-mounted over the system destinations in a private mount namespace |
 
 ## Current Assertion Mapping
 
@@ -206,9 +207,9 @@ S19 adds four REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S19.runner-name.max-length-64` | `REQUIRED` | `direct-inspection` | The runner IOC-name source contract retains the maximum length of 64. |
 | `source-regression.S19.runner-sudoers-name-contracts.agree` | `REQUIRED` | `direct-inspection` | After normalizing equivalent ASCII letter-range order, the setup expression exactly matches the runner character classes and derived remaining-character limit. |
 
-## Accepted M8 S20 Addition
+## S20 - Crash Pattern Source Contract
 
-S20 adds twenty-two REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in local lifecycle S30.
+S20 defines twenty-eight REQUIRED direct-inspection identities. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in the lifecycle suites.
 
 | Check ID | Kind | Test Method | Source Contract |
 | --- | --- | --- | --- |
@@ -223,13 +224,19 @@ S20 adds twenty-two REQUIRED direct-inspection identities accepted by the owner 
 | `source-regression.S20.case-insensitive-error-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `error`. |
 | `source-regression.S20.case-insensitive-fatal-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `FATAL`. |
 | `source-regression.S20.case-insensitive-fatal-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `fatal`. |
+| `source-regression.S20.negative-identifier-prefix-fatal` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` preceded by an identifier character and followed by a boundary. |
+| `source-regression.S20.negative-fatal-identifier-suffix` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` followed by an identifier character. |
+| `source-regression.S20.negative-identifier-contained-fatal` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` inside an identifier on both sides. |
 | `source-regression.S20.regression-segmentation-fault` | `REQUIRED` | `direct-inspection` | The base regex matches a segmentation-fault line. |
 | `source-regression.S20.negative-procserv-child-start-line` | `REQUIRED` | `direct-inspection` | The base regex excludes a routine procServ child line. |
 | `source-regression.S20.negative-iocinit-complete-line` | `REQUIRED` | `direct-inspection` | The base regex excludes the IOC-ready line. |
 | `source-regression.S20.negative-epics-banner` | `REQUIRED` | `direct-inspection` | The base regex excludes a normal EPICS banner. |
 | `source-regression.S20.negative-startup-banner` | `REQUIRED` | `direct-inspection` | The base regex excludes a normal startup line. |
-| `source-regression.S20.base-patterns.equal-subset-union` | `REQUIRED` | `direct-inspection` | The base token set equals the fatal and ambiguous subset union. |
+| `source-regression.S20.base-patterns.equal-subset-union` | `REQUIRED` | `direct-inspection` | The base regex is composed directly from the fatal and ambiguous subsets. |
 | `source-regression.S20.subset-fatal-is-fatal` | `REQUIRED` | `direct-inspection` | `FATAL` remains in the fatal subset. |
+| `source-regression.S20.subset-identifier-prefix-fatal-is-benign` | `REQUIRED` | `direct-inspection` | The fatal subset excludes `fatal` preceded by an identifier character and followed by a boundary. |
+| `source-regression.S20.subset-fatal-identifier-suffix-is-benign` | `REQUIRED` | `direct-inspection` | The fatal subset excludes `fatal` followed by an identifier character. |
+| `source-regression.S20.subset-identifier-contained-fatal-is-benign` | `REQUIRED` | `direct-inspection` | The fatal subset excludes `fatal` inside an identifier on both sides. |
 | `source-regression.S20.subset-undefined-symbol-is-fatal` | `REQUIRED` | `direct-inspection` | `undefined symbol` remains in the fatal subset. |
 | `source-regression.S20.subset-can-t-open-is-ambiguous` | `REQUIRED` | `direct-inspection` | `Can't open` remains in the ambiguous subset. |
 | `source-regression.S20.subset-error-is-ambiguous` | `REQUIRED` | `direct-inspection` | `ERROR` remains in the ambiguous subset. |
@@ -247,7 +254,44 @@ S21 adds five REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S21.history-write.matches-exclude-pattern` | `REQUIRED` | `direct-inspection` | The exclusion source constant recognizes the history-write diagnostic. |
 | `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The runner filters whole lines before fatal and corroborating scans consume the filtered window. |
 
-The fixed source-regression catalog contains 87 identities: the 36 accepted M9 identities plus fifty-one M8 identities.
+## M7 S22 Addition
+
+S22 adds one prerequisite and ten real-path behavior identities. It invokes
+the complete shipped setup in a private mount namespace. The five file targets
+use directory impostors, while the configuration and log directory targets
+remain valid directories.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S22.isolation.prerequisites` | `PREREQUISITE` | `direct-inspection` | Required tools, identities, mount targets, and private mount capability are available. |
+| `source-regression.S22.impostor.setup-exits-one` | `BEHAVIOR` | `real-path` | The shipped full setup exits 1 when file targets are directory impostors. |
+| `source-regression.S22.impostor.success-banner-absent` | `BEHAVIOR` | `real-path` | The failed setup does not emit the final success banner. |
+| `source-regression.S22.impostor.sudoers-directory-rejected` | `BEHAVIOR` | `real-path` | The sudoers file target rejects a directory. |
+| `source-regression.S22.impostor.systemd-template-directory-rejected` | `BEHAVIOR` | `real-path` | The systemd template file target rejects a directory. |
+| `source-regression.S22.impostor.logrotate-directory-rejected` | `BEHAVIOR` | `real-path` | The logrotate file target rejects a directory. |
+| `source-regression.S22.impostor.runner-directory-rejected` | `BEHAVIOR` | `real-path` | The runner file target rejects a directory. |
+| `source-regression.S22.impostor.completion-directory-rejected` | `BEHAVIOR` | `real-path` | The completion file target rejects a directory. |
+| `source-regression.S22.valid.setup-exits-zero` | `BEHAVIOR` | `real-path` | The shipped full setup exits 0 with valid target types. |
+| `source-regression.S22.valid.configuration-directory-accepted` | `BEHAVIOR` | `real-path` | The configuration directory target passes its explicit directory check. |
+| `source-regression.S22.valid.log-directory-accepted` | `BEHAVIOR` | `real-path` | The log directory target passes its explicit directory check. |
+
+The fixed source-regression catalog contains 108 identities: 36 moved
+identities, 57 source-contract identities in S15 through S21, 11 M7
+identities in S22, and 4 M19 identities in S23.
+
+## M19 S23 Addition
+
+S23 adds four real-path behavior identities. It drives the shipped
+`setup-system-infra.bash` against an absent `IOC_RUNNER_SCRIPT_DEST` parent and
+verifies destination-parent creation without disturbing the default path
+(M19/#147). The symlink identity runs on RHEL-family setup and is NA elsewhere.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S23.absent-parent.setup-exits-zero` | `BEHAVIOR` | `real-path` | The shipped setup exits 0 deploying to a destination whose parent is absent. |
+| `source-regression.S23.absent-parent.runner-deployed` | `BEHAVIOR` | `real-path` | The runner is deployed at the non-default destination. |
+| `source-regression.S23.default.parent-unchanged` | `BEHAVIOR` | `real-path` | An existing destination parent keeps its mode (the guard skips install -d). |
+| `source-regression.S23.symlink.absent-parent-created` | `BEHAVIOR` | `real-path` | On RHEL-family setup the redirected symlink parent is created; NA elsewhere. |
 
 ## Move Invariants
 
@@ -264,4 +308,4 @@ The fixed source-regression catalog contains 87 identities: the 36 accepted M9 i
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the fifty-one accepted S15 through S21 identities without changing the original move dispositions. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S06. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the eleven S22 identities through the shipped full setup in a private mount namespace. M19 adds the four S23 identities through the shipped setup deploying to an absent destination parent. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.

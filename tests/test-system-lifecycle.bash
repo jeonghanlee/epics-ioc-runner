@@ -92,6 +92,15 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S25|system-lifecycle.S25.journal-channel-visible-for-unit-positive-control|BEHAVIOR|real-path"
     "S25|system-lifecycle.S25.input-securely-blocked-in-monitor-mode|BEHAVIOR|real-path"
     "S26|system-lifecycle.S26.softioc-available|PREREQUISITE|direct-inspection"
+    "S26|system-lifecycle.S26.leading-boundary-identifier-adjacent-exits-zero|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.leading-boundary-identifier-adjacent-avoids-failed-verdict|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.leading-boundary-identifier-adjacent-emitted|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.trailing-boundary-identifier-adjacent-exits-zero|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.trailing-boundary-identifier-adjacent-avoids-failed-verdict|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.trailing-boundary-identifier-adjacent-emitted|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.identifier-contained-fatal-exits-zero|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.identifier-contained-fatal-avoids-failed-verdict|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.identifier-contained-fatal-emitted|BEHAVIOR|real-path"
     "S26|system-lifecycle.S26.broken-softioc-fatal-pre-init-exit-1|BEHAVIOR|real-path"
     "S26|system-lifecycle.S26.broken-softioc-failed-to-initialize-verdict|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.softioc-available|PREREQUISITE|direct-inspection"
@@ -154,7 +163,9 @@ declare -g RUNNER_SCRIPT
 function resolve_runner_script {
     local mode="${IOC_RUNNER_TEST_MODE:-}"
     local source_bin="${SC_TOP}/../bin/ioc-runner"
-    local installed_bin="/usr/local/bin/ioc-runner"
+    # Installed mode follows IOC_RUNNER_SCRIPT_DEST (setup's deploy target),
+    # defaulting to the canonical path; source mode ignores the override. (#145)
+    local installed_bin="${IOC_RUNNER_SCRIPT_DEST:-/usr/local/bin/ioc-runner}"
     case "${mode}" in
         ""|source)
             RUNNER_SCRIPT="${source_bin}"
@@ -1004,17 +1015,76 @@ function test_monitor_isolation {
 }
 
 
-# test_crash_detection: start a broken softIoc and verify the crash-loop
-# warning surfaces. Since 1.1.0 the warning comes from the inline log-file
-# scan in do_start_restart, run under the invoking engineer's UID, not the
-# system journal -- so no 'systemd-journal' or 'adm' group membership is needed.
+# Runs one benign FATAL token-boundary case through the installed system unit,
+# then verifies the start result, operator verdict, and emitted fixture.
+function _run_system_fatal_boundary_probe {
+    local softioc_bin="$1"
+    local ioc_name="$2"
+    local ioc_dir="$3"
+    local fixture="$4"
+    local assertion_name="$5"
+    local log_file="${SYSTEM_LOG_DIR}/${ioc_name}.log"
+    local output=""
+    local rc=0
+    local rc_ok="false"
+    local msg_ok="true"
+    local emitted="false"
+
+    mkdir -p "${ioc_dir}"
+    chown "${OWNER_WORKSPACE}" "${ioc_dir}"
+    chmod 2775 "${ioc_dir}"
+
+    cat << EOF > "${ioc_dir}/st.cmd"
+#!${softioc_bin}
+system "echo '${fixture}'"
+iocInit()
+EOF
+    chown "${OWNER_WORKSPACE}" "${ioc_dir}/st.cmd"
+    chmod 0750 "${ioc_dir}/st.cmd"
+
+    cat << EOF > "${WORKSPACE}/${ioc_name}.conf"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${ioc_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${ioc_name}.conf" >/dev/null
+    output=$(bash "${RUNNER_SCRIPT}" start "${ioc_name}" 2>&1) || rc=$?
+    bash "${RUNNER_SCRIPT}" remove "${ioc_name}" >/dev/null 2>&1 || true
+
+    if [[ "${rc}" == "0" ]]; then
+        rc_ok="true"
+    fi
+    if printf "%s" "${output}" | grep -q "failed to initialize"; then
+        msg_ok="false"
+    fi
+    if grep -qF -- "${fixture}" "${log_file}"; then
+        emitted="true"
+    fi
+    verify_state "true" "${rc_ok}" "${assertion_name}: exit 0"
+    verify_state "true" "${msg_ok}" "${assertion_name}: no failed verdict"
+    verify_state "true" "${emitted}" "${assertion_name}: fixture emitted"
+}
+
+# Exercises each benign FATAL token boundary and a true pre-init fatal token.
+# The runner reads procServ logs as the invoking engineer, independent of
+# system-journal or adm group membership.
 function test_crash_detection {
     local step="$1"
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    local bad_ioc_name="CrashTestIOC-SYS"
+    local bad_ioc_dir="${WORKSPACE}/bad_ioc"
+    local output=""
+    local rc=0
+    local rc_ok="false"
+    local msg_ok="false"
+
     print_divider
     _log "INFO" "STEP ${step}: Test Crash Detection with softIoc"
     print_sub_divider
 
-    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
     if [[ ! -x "${softioc_bin}" ]]; then
         _log "WARN" "softIoc not found at ${softioc_bin}, skipping crash detection test."
         record_current_state SKIP "softIoc is unavailable"
@@ -1023,8 +1093,25 @@ function test_crash_detection {
     fi
     record_current_state PASS
 
-    local bad_ioc_name="CrashTestIOC-SYS"
-    local bad_ioc_dir="${WORKSPACE}/bad_ioc"
+    _run_system_fatal_boundary_probe \
+        "${softioc_bin}" \
+        "CrashTestFatalLeadingBoundary-SYS" \
+        "${WORKSPACE}/crash_fatal_leading_boundary_ioc" \
+        "device_nonfatal=ready" \
+        "Leading-boundary identifier adjacency"
+    _run_system_fatal_boundary_probe \
+        "${softioc_bin}" \
+        "CrashTestFatalTrailingBoundary-SYS" \
+        "${WORKSPACE}/crash_fatal_trailing_boundary_ioc" \
+        "fatalFlag=ready" \
+        "Trailing-boundary identifier adjacency"
+    _run_system_fatal_boundary_probe \
+        "${softioc_bin}" \
+        "CrashTestFatalBoundary-SYS" \
+        "${WORKSPACE}/crash_fatal_boundary_ioc" \
+        "device_nonfatal_state=ready" \
+        "Identifier-contained fatal text"
+
     mkdir -p "${bad_ioc_dir}"
     chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}"
     chmod 2775 "${bad_ioc_dir}"
@@ -1048,14 +1135,12 @@ EOF
 
     bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
 
-    local output rc=0
     output=$(bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1) || rc=$?
 
     bash "${RUNNER_SCRIPT}" remove "${bad_ioc_name}" >/dev/null 2>&1 || true
 
     # M11/#67: a FATAL-subset token before iocInit is a hard failure (exit 1 with
     # the failed-to-initialize verdict), not the old active-IOC Warning.
-    local rc_ok="false" msg_ok="false"
     if [[ "${rc}" == "1" ]]; then rc_ok="true"; fi
     if printf "%s" "${output}" | grep -q "failed to initialize"; then msg_ok="true"; fi
     verify_state "true" "${rc_ok}" "Broken softIoc (FATAL pre-init) -> exit 1"

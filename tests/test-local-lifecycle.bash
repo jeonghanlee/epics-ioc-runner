@@ -124,6 +124,15 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S29|local-lifecycle.S29.unit-journal-visible|BEHAVIOR"
     "S29|local-lifecycle.S29.monitor-input-blocked|BEHAVIOR"
     "S30|local-lifecycle.S30.softioc-available|PREREQUISITE"
+    "S30|local-lifecycle.S30.leading-boundary-identifier-adjacent-exits-zero|BEHAVIOR"
+    "S30|local-lifecycle.S30.leading-boundary-identifier-adjacent-success-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.leading-boundary-identifier-adjacent-emitted|BEHAVIOR"
+    "S30|local-lifecycle.S30.trailing-boundary-identifier-adjacent-exits-zero|BEHAVIOR"
+    "S30|local-lifecycle.S30.trailing-boundary-identifier-adjacent-success-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.trailing-boundary-identifier-adjacent-emitted|BEHAVIOR"
+    "S30|local-lifecycle.S30.identifier-contained-fatal-exits-zero|BEHAVIOR"
+    "S30|local-lifecycle.S30.identifier-contained-fatal-success-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.identifier-contained-fatal-emitted|BEHAVIOR"
     "S30|local-lifecycle.S30.fatal-probe-exits-one|BEHAVIOR"
     "S30|local-lifecycle.S30.fatal-probe-verdict|BEHAVIOR"
     "S30|local-lifecycle.S30.silent-loop-exits-one|BEHAVIOR"
@@ -181,6 +190,17 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S35|local-lifecycle.S35.unified-log-path-baked-into-unit|BEHAVIOR"
     "S35|local-lifecycle.S35.xdg-state-home-unset-log-path-baked-into-unit|BEHAVIOR"
     "S35|local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit|BEHAVIOR"
+    "S36|local-lifecycle.S36.absent-template-deployed|BEHAVIOR"
+    "S36|local-lifecycle.S36.absent-deploy-message|BEHAVIOR"
+    "S36|local-lifecycle.S36.identical-template-kept|BEHAVIOR"
+    "S36|local-lifecycle.S36.identical-no-backup|BEHAVIOR"
+    "S36|local-lifecycle.S36.identical-no-update-message|BEHAVIOR"
+    "S36|local-lifecycle.S36.different-noninteractive-kept|BEHAVIOR"
+    "S36|local-lifecycle.S36.different-keep-message|BEHAVIOR"
+    "S36|local-lifecycle.S36.force-updated|BEHAVIOR"
+    "S36|local-lifecycle.S36.force-backup-created|BEHAVIOR"
+    "S36|local-lifecycle.S36.abort-nonzero|BEHAVIOR"
+    "S36|local-lifecycle.S36.abort-template-unchanged|BEHAVIOR"
 )
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -195,7 +215,9 @@ declare -g RUNNER_SCRIPT
 function resolve_runner_script {
     local mode="${IOC_RUNNER_TEST_MODE:-}"
     local source_bin="${SC_TOP}/../bin/ioc-runner"
-    local installed_bin="/usr/local/bin/ioc-runner"
+    # Installed mode follows IOC_RUNNER_SCRIPT_DEST (setup's deploy target),
+    # defaulting to the canonical path; source mode ignores the override. (#145)
+    local installed_bin="${IOC_RUNNER_SCRIPT_DEST:-/usr/local/bin/ioc-runner}"
     case "${mode}" in
         ""|source)
             RUNNER_SCRIPT="${source_bin}"
@@ -272,7 +294,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 35; index += 1)); do
+    for ((index = 1; index <= 36; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -1193,6 +1215,33 @@ function _run_crash_probe {
     fi
 }
 
+# Runs one benign FATAL token-boundary case through the installed local unit,
+# then verifies the start result, operator verdict, and emitted fixture.
+function _run_local_fatal_boundary_probe {
+    local softioc_bin="$1"
+    local ioc_name="$2"
+    local ioc_dir="$3"
+    local log_file="$4"
+    local fixture="$5"
+    local assertion_name="$6"
+    local emitted="false"
+
+    mkdir -p "${ioc_dir}"
+    cat << EOF > "${ioc_dir}/st.cmd"
+#!${softioc_bin}
+system "echo '${fixture}'"
+iocInit()
+EOF
+    chmod +x "${ioc_dir}/st.cmd"
+
+    _install_crash_probe "${ioc_name}" "${ioc_dir}"
+    _run_crash_probe "${ioc_name}" "healthy" "${assertion_name}"
+    if grep -qF -- "${fixture}" "${log_file}"; then
+        emitted="true"
+    fi
+    verify_state "true" "${emitted}" "${assertion_name}: fixture emitted"
+}
+
 # Exercise the runtime CRASH_LOG_PATTERNS_EXTRA gate with an in-place edit of
 # the DEPLOYED conf. Install validates the copy it makes, so appending the value
 # afterwards reproduces an operator editing the installed file with an editor;
@@ -1328,6 +1377,29 @@ function test_crash_detection {
     local local_log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
     local fatal_ioc_name="CrashTestFatal"
     local fatal_ioc_dir="${WORKSPACE}/crash_fatal_ioc"
+
+    _run_local_fatal_boundary_probe \
+        "${softioc_bin}" \
+        "CrashTestFatalLeadingBoundary" \
+        "${WORKSPACE}/crash_fatal_leading_boundary_ioc" \
+        "${local_log_dir}/CrashTestFatalLeadingBoundary.log" \
+        "device_nonfatal=ready" \
+        "Crash detection: leading-boundary identifier adjacency remains benign"
+    _run_local_fatal_boundary_probe \
+        "${softioc_bin}" \
+        "CrashTestFatalTrailingBoundary" \
+        "${WORKSPACE}/crash_fatal_trailing_boundary_ioc" \
+        "${local_log_dir}/CrashTestFatalTrailingBoundary.log" \
+        "fatalFlag=ready" \
+        "Crash detection: trailing-boundary identifier adjacency remains benign"
+    _run_local_fatal_boundary_probe \
+        "${softioc_bin}" \
+        "CrashTestFatalBoundary" \
+        "${WORKSPACE}/crash_fatal_boundary_ioc" \
+        "${local_log_dir}/CrashTestFatalBoundary.log" \
+        "device_nonfatal_state=ready" \
+        "Crash detection: identifier-contained fatal text remains benign"
+
     mkdir -p "${fatal_ioc_dir}"
 
     cat << EOF > "${fatal_ioc_dir}/st.cmd"
@@ -1547,7 +1619,12 @@ function test_local_logrotate {
         local su_absent="true"; grep -qE '^[[:space:]]*su ' "${cfg}" && su_absent="false"
         verify_state "true" "${su_absent}" "M19.T1: no 'su' directive (single-user dir)"
 
-        local validate_ok="true"; "${LOGROTATE_BIN}" -d "${cfg}" >/dev/null 2>&1 || validate_ok="false"
+        # M13/#143: pass a throwaway --state so this debug validation does not
+        # read the root-owned system default state file (mirrors the runner fix).
+        local vstate; vstate=$(mktemp /tmp/ioc-runner-lrvalidate.XXXXXX)
+        local validate_ok="true"
+        "${LOGROTATE_BIN}" -d --state "${vstate}" "${cfg}" >/dev/null 2>&1 || validate_ok="false"
+        rm -f "${vstate}"
         verify_state "true" "${validate_ok}" "M19.T1: logrotate -d validates the config"
     else
         record_current_state SKIP "requires ${SUITE_ID}.S14.rotation-config-exists"
@@ -1895,6 +1972,88 @@ function test_local_install_path_resolution {
         "XDG_STATE_HOME reaches the installed unit logfile path"
 }
 
+# M6 (#117): the local shared-asset (systemd template) refresh contract.
+# Reorder puts deployment after the abort gates; the diff-aware policy keeps an
+# identical asset untouched and, on a difference, defaults to keep unless the
+# invoker forces the update. Template-only so the check is independent of the
+# M13 logrotate-validation state-file issue. verify_state pulls the S36 catalog
+# rows in this emission order.
+function test_m6_shared_asset_refresh {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: M6 Shared-Asset Refresh (reorder + diff-aware keep/update/--force)"
+    print_sub_divider
+
+    local tpl="${SYSTEMD_USER_DIR}/epics-@.service"
+    local root_dir probe_dir conf out a h1 h2 ht rc
+    root_dir=$(mktemp -d /tmp/ioc-runner-m6probe.XXXXXX)
+    probe_dir="${root_dir}/m6probe"
+    mkdir -p "${probe_dir}"
+    printf '#!/bin/bash\necho hi\n' > "${probe_dir}/st.cmd"
+    chmod +x "${probe_dir}/st.cmd"
+    conf="${probe_dir}/m6probe.conf"
+    cat > "${conf}" <<EOF
+IOC_NAME="m6probe"
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="${probe_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    bash "${RUNNER_SCRIPT}" --local remove m6probe >/dev/null 2>&1 || true
+    rm -f "${tpl}" "${tpl}".bak.* 2>/dev/null
+
+    # T2: absent -> deploy.
+    out=$(bash "${RUNNER_SCRIPT}" --local install "${conf}" 2>&1)
+    a="false"; [[ -f "${tpl}" ]] && a="true"
+    verify_state "true" "${a}" "T2: absent template deployed"
+    a="false"; printf '%s\n' "${out}" | grep -q "Deployed user-level systemd template" && a="true"
+    verify_state "true" "${a}" "T2: deploy message emitted"
+
+    # T3: identical -> keep untouched, no backup, no update message. The 'y'
+    # accepts the per-IOC .conf overwrite prompt (out of M6 scope); a non-TTY
+    # stdin then keeps the identical shared asset without prompting.
+    h1=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    out=$(printf 'y\n' | bash "${RUNNER_SCRIPT}" --local install "${conf}" 2>&1)
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    verify_state "${h1}" "${h2}" "T3: identical template kept unchanged"
+    a="true"; ls "${tpl}".bak.* >/dev/null 2>&1 && a="false"
+    verify_state "true" "${a}" "T3: identical install made no backup"
+    a="true"; printf '%s\n' "${out}" | grep -qE "Updated user-level|Backed up" && a="false"
+    verify_state "true" "${a}" "T3: identical install emitted no update message"
+
+    # T4: different + non-interactive + no --force -> keep, report, no overwrite.
+    printf '\n# m6 tamper\n' >> "${tpl}"
+    ht=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    out=$(printf 'y\n' | bash "${RUNNER_SCRIPT}" --local install "${conf}" 2>&1)
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    verify_state "${ht}" "${h2}" "T4: differing template kept non-interactively"
+    a="false"; printf '%s\n' "${out}" | grep -qi "keeping the existing" && a="true"
+    verify_state "true" "${a}" "T4: keep message emitted"
+
+    # T5: different + --force -> update + backup.
+    out=$(printf 'y\n' | bash "${RUNNER_SCRIPT}" --local -f install "${conf}" 2>&1)
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    a="false"; [[ "${h2}" != "${ht}" ]] && a="true"
+    verify_state "true" "${a}" "T5: force updated the differing template"
+    a="false"; ls "${tpl}".bak.* >/dev/null 2>&1 && a="true"
+    verify_state "true" "${a}" "T5: force update created a backup"
+
+    # T1: abort integrity -- a declined reinstall returns nonzero and leaves the
+    # shared template unchanged (deployment now follows the abort gates).
+    h1=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    rc=0
+    printf 'n\n' | bash "${RUNNER_SCRIPT}" --local install "${conf}" >/dev/null 2>&1 || rc=$?
+    a="false"; [[ "${rc}" -ne 0 ]] && a="true"
+    verify_state "true" "${a}" "T1: declined reinstall returns nonzero"
+    h2=$(sha256sum "${tpl}" | cut -d' ' -f1)
+    verify_state "${h1}" "${h2}" "T1: template unchanged on abort"
+
+    bash "${RUNNER_SCRIPT}" --local remove m6probe >/dev/null 2>&1 || true
+    rm -rf "${root_dir}"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -1932,6 +2091,7 @@ function run_all_tests {
         "test_remove"
         "test_logrotate_teardown"
         "test_local_install_path_resolution"
+        "test_m6_shared_asset_refresh"
     )
 
     local step=1

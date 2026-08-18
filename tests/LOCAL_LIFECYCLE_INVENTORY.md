@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 126
+Fixed Total: 146
 
 ## Runner Policy
 
@@ -14,12 +14,12 @@ rejected before reporter initialization and is not part of this catalog.
 
 ## Inventory Basis
 
-The current maximum branch contains 109 assertions. The fixed catalog adds
+The current maximum branch contains 118 assertions. The fixed catalog adds
 three P00 checks and eleven prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
 camonitor availability and the S15 and S16 configuration requirements. The
-resulting catalog contains 126 identities.
+resulting catalog contains 146 identities.
 
 ## Test Method Assignment
 
@@ -197,9 +197,18 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S29.unit-journal-visible` | `BEHAVIOR` | Unit-attributed journal output is visible.
 - `local-lifecycle.S29.monitor-input-blocked` | `BEHAVIOR` | Monitor input does not reach the IOC.
 
-### S30 - Crash Detection (18)
+### S30 - Crash Detection (27)
 
 - `local-lifecycle.S30.softioc-available` | `PREREQUISITE` | `softIoc` is executable.
+- `local-lifecycle.S30.leading-boundary-identifier-adjacent-exits-zero` | `BEHAVIOR` | `fatal` preceded by an identifier character and followed by a boundary does not fail startup.
+- `local-lifecycle.S30.leading-boundary-identifier-adjacent-success-verdict` | `BEHAVIOR` | The isolated leading-boundary case reports successful startup.
+- `local-lifecycle.S30.leading-boundary-identifier-adjacent-emitted` | `BEHAVIOR` | The isolated leading-boundary fixture is present in the procServ log.
+- `local-lifecycle.S30.trailing-boundary-identifier-adjacent-exits-zero` | `BEHAVIOR` | `fatal` preceded by a boundary and followed by an identifier character does not fail startup.
+- `local-lifecycle.S30.trailing-boundary-identifier-adjacent-success-verdict` | `BEHAVIOR` | The isolated trailing-boundary case reports successful startup.
+- `local-lifecycle.S30.trailing-boundary-identifier-adjacent-emitted` | `BEHAVIOR` | The isolated trailing-boundary fixture is present in the procServ log.
+- `local-lifecycle.S30.identifier-contained-fatal-exits-zero` | `BEHAVIOR` | `fatal` adjacent to identifier characters on both sides does not fail startup.
+- `local-lifecycle.S30.identifier-contained-fatal-success-verdict` | `BEHAVIOR` | The both-sides identifier case reports successful startup.
+- `local-lifecycle.S30.identifier-contained-fatal-emitted` | `BEHAVIOR` | The both-sides identifier fixture is present in the procServ log.
 - `local-lifecycle.S30.fatal-probe-exits-one` | `BEHAVIOR` | Pre-init FATAL probe exits one.
 - `local-lifecycle.S30.fatal-probe-verdict` | `BEHAVIOR` | Pre-init FATAL probe reports failed initialization.
 - `local-lifecycle.S30.silent-loop-exits-one` | `BEHAVIOR` | Silent crash-loop probe exits one.
@@ -273,9 +282,23 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S35.xdg-state-home-unset-log-path-baked-into-unit` | `BEHAVIOR` | With log overrides and `XDG_STATE_HOME` unset, the real install emits a unit using `HOME/.local/state/procserv`.
 - `local-lifecycle.S35.xdg-state-home-log-path-baked-into-unit` | `BEHAVIOR` | With log overrides unset, the real install emits a unit using `XDG_STATE_HOME/procserv`.
 
+### S36 - M6 Shared-Asset Refresh (11)
+
+- `local-lifecycle.S36.absent-template-deployed` | `BEHAVIOR` | An absent shared template is deployed after the abort gates.
+- `local-lifecycle.S36.absent-deploy-message` | `BEHAVIOR` | The absent-template deploy emits its message.
+- `local-lifecycle.S36.identical-template-kept` | `BEHAVIOR` | A reinstall with an identical template leaves it byte-identical.
+- `local-lifecycle.S36.identical-no-backup` | `BEHAVIOR` | An identical reinstall creates no template backup.
+- `local-lifecycle.S36.identical-no-update-message` | `BEHAVIOR` | An identical reinstall emits no update message.
+- `local-lifecycle.S36.different-noninteractive-kept` | `BEHAVIOR` | A differing template run non-interactively without --force is kept.
+- `local-lifecycle.S36.different-keep-message` | `BEHAVIOR` | The non-interactive keep is reported.
+- `local-lifecycle.S36.force-updated` | `BEHAVIOR` | --force updates a differing template after the abort gates.
+- `local-lifecycle.S36.force-backup-created` | `BEHAVIOR` | A --force update backs up the prior template.
+- `local-lifecycle.S36.abort-nonzero` | `BEHAVIOR` | A declined reinstall returns nonzero.
+- `local-lifecycle.S36.abort-template-unchanged` | `BEHAVIOR` | The shared template is unchanged on abort.
+
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 126 identities in this
+Every source and installed invocation declares these 146 identities in this
 order. Runner origin changes the selected binary and the SUITE `runner` field,
 not the identity set. Missing prerequisites and non-applicable permission
 branches close their declared dependent checks without changing `Total`.

@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.2.3"
+declare -g RUNNER_VERSION="1.2.4"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
@@ -80,6 +80,10 @@ declare -g LOG_DIR="${IOC_RUNNER_LOG_DIR:-${SYSTEM_LOG_DIR}}"
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
+# M6: set by the local shared-asset deploy helpers when a unit file actually
+# changed, so do_install issues exactly one daemon-reload only when needed.
+declare -g TEMPLATE_CHANGED=0
+declare -g LOGROTATE_UNITS_CHANGED=0
 
 # --- Target Identity Settings ---
 # Single configurable source for the system-mode service identity (#87).
@@ -91,15 +95,13 @@ declare -g TARGET_SYSTEM_GROUP="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
 
 # --- Health Check Configuration ---
 # Crash/fatal detection tokens for procServ startup logs (M11/#67). The detection
-# set is split into two subsets; the base CRASH_LOG_PATTERNS below is their union.
-# A static guard test (tests/test-source-regression.bash) asserts the union holds, so
-# the subsets remain the single source of truth even though the base is spelled out
-# as a literal (the source-regression extractor reads the base line as text and
-# cannot expand a derived form).
+# set is split into two subsets; the base CRASH_LOG_PATTERNS below is composed
+# directly from them so the subsets remain the single source of truth.
 #
 # Fatal subset: a standalone pre-marker exit-1 trigger (failed-to-init). These name
-# a process that cannot run, not a transient that may recover.
-declare -g CRASH_LOG_PATTERNS_FATAL="FATAL|Segmentation fault|undefined symbol|error while loading|Unbalanced quote"
+# a process that cannot run, not a transient that may recover. FATAL requires
+# non-identifier boundaries on both sides so identifier fragments remain benign.
+declare -g CRASH_LOG_PATTERNS_FATAL="(^|[^[:alnum:]_])FATAL([^[:alnum:]_]|$)|Segmentation fault|undefined symbol|error while loading|Unbalanced quote"
 # Ambiguous subset: corroborating only, NEVER a standalone trigger. A benign
 # first-boot IOC may print these (a missing optional .sav, an absent optional
 # include) and still reach iocInit a moment later. 'Invalid directory path' lives
@@ -107,10 +109,10 @@ declare -g CRASH_LOG_PATTERNS_FATAL="FATAL|Segmentation fault|undefined symbol|e
 # as a benign pre-iocInit warning (the path is skipped and startup continues), so a
 # standalone pre-marker exit-1 on it false-fails a healthy IOC (golden-confirmed).
 declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="ERROR|Can't open|cannot open|No such file or directory|Invalid directory path"
-# Base detection set = the union of the two subsets above. Per-IOC custom strings
-# go in the CRASH_LOG_PATTERNS_EXTRA .conf key (issue #25); those are corroborating
-# only, never a standalone trigger.
-declare -g CRASH_LOG_PATTERNS="(error while loading|FATAL|Segmentation fault|ERROR|Unbalanced quote|Invalid directory path|Can't open|cannot open|undefined symbol|No such file or directory)"
+# Base detection set = the union of the two subsets above. Per-IOC custom
+# strings go in the CRASH_LOG_PATTERNS_EXTRA .conf key (issue #25); those are
+# corroborating only, never a standalone trigger.
+declare -g CRASH_LOG_PATTERNS="(${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS})"
 # Benign startup lines removed from the scan input before pattern matching (issue #92).
 # The iocsh history load/save failure is emitted with ANSI escapes around 'ERROR'
 # (EPICS Base iocsh.cpp via ERL_ERROR), so the regex anchors on the escape-free message
@@ -164,7 +166,8 @@ Usage: ${prog_name} [OPTIONS] COMMAND [TARGET]
 
 Options:
   --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d). Alias: --user
-  -f, --force    Force overwrite of existing configuration files without prompting
+  -f, --force    Force overwrite without prompting: the configuration file and,
+                 in local mode, a differing shared systemd template or logrotate unit
   -v, -vv        Verbose output (supported only for 'list' command)
   -V, --version  Show version, git hash, commit date, and install date
   -h, --help     Show this help message and exit
@@ -411,41 +414,71 @@ function run_systemctl {
     fi
 }
 
+# M6/D10/D11: decide whether to replace an EXISTING, DIFFERING shared local asset
+# (systemd template or logrotate unit). Absent and identical cases are handled by
+# the caller; this decides only the content-difference case. --force
+# (FORCE_OVERWRITE, D11) updates; an interactive TTY prompts keep vs update; a
+# non-interactive stdin (or a read EOF) defaults to keep so a running IOC's unit
+# is never changed silently. Returns 0 to update, 1 to keep. This deliberately
+# does NOT copy do_install's .conf prompt, whose EOF aborts -- here EOF keeps.
+function decide_shared_asset_update {
+    local label="$1"
+    local ans=""
+
+    if [[ "${FORCE_OVERWRITE}" == "1" ]]; then
+        printf "Info: Updating %s (--force).\n" "${label}" >&2
+        return 0
+    fi
+
+    printf "Notice: the installed %s differs from the shipped version.\n" "${label}" >&2
+    local -a running=()
+    mapfile -t running < <(run_systemctl list-units --no-legend --state=active "epics-@*.service" 2>/dev/null | awk '{print $1}')
+    if (( ${#running[@]} )); then
+        printf "  Updating it changes the unit shared by these running IOC services:\n" >&2
+        printf "    %s\n" "${running[*]}" >&2
+    fi
+
+    if [[ -t 0 ]]; then
+        printf "  Update it now? [y/N]: " >&2
+        if ! read -r ans; then
+            printf "\n  Input stream closed; keeping the existing %s.\n" "${label}" >&2
+            return 1
+        fi
+        if [[ "${ans}" =~ ^[Yy]$ ]]; then
+            return 0
+        fi
+        printf "  Keeping the existing %s.\n" "${label}" >&2
+        return 1
+    fi
+
+    printf "  Non-interactive; keeping the existing %s (use --force to update).\n" "${label}" >&2
+    return 1
+}
+
 function deploy_local_template {
     local template_path="${SYSTEMD_DIR}/epics-@.service"
     local backup_path=""
+    local tmp_tpl=""
 
     resolve_procserv_tool
     local procserv_bin="${PROCSERV_TOOL_PATH}"
 
     mkdir -p "${SYSTEMD_DIR}"
 
-    # Always emit the template. Back up any prior file atomically via
-    # mktemp so repeated installs in the same second do not collide,
-    # including on shared (NFS-backed) home directories. mktemp creates
-    # an empty placeholder at a unique path; the subsequent mv -f swaps
-    # in the prior template.
-    if [[ -f "${template_path}" ]]; then
-        if ! backup_path=$(mktemp "${template_path}.bak.XXXXXXXX" 2>/dev/null); then
-            printf "Error: Unable to create backup of existing user template.\n" >&2
-            printf "  template: %s\n" "${template_path}" >&2
-            printf "  Possible causes: %s is read-only, the home directory is\n" "${SYSTEMD_DIR}" >&2
-            printf "    full, or the filesystem does not allow file creation here.\n" >&2
-            printf "  Resolve the underlying condition and re-run 'ioc-runner --local install'.\n" >&2
-            exit 1
-        fi
-        mv -f "${template_path}" "${backup_path}"
-        printf "Backed up existing user template to %s\n" "${backup_path}"
-        # Prune old template backups, keeping the 3 most recent.
-        local -a old_backups=()
-        mapfile -t old_backups < <(ls -1t "${template_path}".bak.* 2>/dev/null)
-        if (( ${#old_backups[@]} > 3 )); then
-            rm -f -- "${old_backups[@]:3}"
-        fi
+    # Render to a same-directory temp so the later mv is a true atomic rename,
+    # then decide by content (M6): absent deploys, identical is kept untouched
+    # with no reload, a difference takes the keep/update decision. A same-second
+    # repeat install no longer rewrites an unchanged template.
+    if ! tmp_tpl=$(mktemp "${template_path}.XXXXXX" 2>/dev/null); then
+        printf "Error: Unable to stage the user systemd template.\n" >&2
+        printf "  template dir: %s\n" "${SYSTEMD_DIR}" >&2
+        printf "  Possible causes: the directory is read-only, the home directory is\n" >&2
+        printf "    full, or the filesystem does not allow file creation here.\n" >&2
+        printf "  Resolve the underlying condition and re-run 'ioc-runner --local install'.\n" >&2
+        exit 1
     fi
 
-    printf "Deploying user-level systemd template to %s...\n" "${template_path}"
-    cat > "${template_path}" <<EOF
+    cat > "${tmp_tpl}" <<EOF
 [Unit]
 Description=procServ for %i (Local User)
 AssertFileNotEmpty=${CONF_DIR}/%i.conf
@@ -472,7 +505,43 @@ SyslogIdentifier=epics-%i
 [Install]
 WantedBy=default.target
 EOF
-    run_systemctl daemon-reload
+
+    if [[ ! -f "${template_path}" ]]; then
+        mv -f "${tmp_tpl}" "${template_path}"
+        printf "Deployed user-level systemd template to %s.\n" "${template_path}"
+        TEMPLATE_CHANGED=1
+        return 0
+    fi
+
+    if cmp -s "${tmp_tpl}" "${template_path}"; then
+        rm -f "${tmp_tpl}"
+        return 0
+    fi
+
+    if ! decide_shared_asset_update "user systemd template"; then
+        rm -f "${tmp_tpl}"
+        return 0
+    fi
+
+    # Update path: back up the prior template atomically (mktemp avoids a
+    # same-second collision on NFS-backed homes), keeping the 3 most recent.
+    if ! backup_path=$(mktemp "${template_path}.bak.XXXXXXXX" 2>/dev/null); then
+        printf "Error: Unable to create backup of existing user template.\n" >&2
+        printf "  template: %s\n" "${template_path}" >&2
+        printf "  Resolve the underlying condition and re-run 'ioc-runner --local install'.\n" >&2
+        rm -f "${tmp_tpl}"
+        exit 1
+    fi
+    mv -f "${template_path}" "${backup_path}"
+    printf "Backed up existing user template to %s\n" "${backup_path}"
+    local -a old_backups=()
+    mapfile -t old_backups < <(ls -1t "${template_path}".bak.* 2>/dev/null)
+    if (( ${#old_backups[@]} > 3 )); then
+        rm -f -- "${old_backups[@]:3}"
+    fi
+    mv -f "${tmp_tpl}" "${template_path}"
+    printf "Updated user-level systemd template at %s.\n" "${template_path}"
+    TEMPLATE_CHANGED=1
 }
 
 # Deploy best-effort per-user procServ log rotation (U003/M19, issue #103).
@@ -560,27 +629,62 @@ EOF
     # Syntax-gate the generated config (dry run; writes no state). A failure here
     # warns and skips the deploy without aborting the IOC install -- unlike
     # system mode, which exits. Distinct from the binary-absent branch above.
-    if ! "${LOGROTATE_TOOL_PATH}" -d "${tmp_cfg}" >/dev/null 2>&1; then
+    #
+    # M13/#143: pass an explicit throwaway --state so the debug run never opens
+    # the system default /var/lib/logrotate/logrotate.status. logrotate reads the
+    # state file at startup even under -d; a root-owned default left by an earlier
+    # system run is then unreadable to this unprivileged user and fails an
+    # otherwise valid config. The temp state is non-persistent and removed below.
+    local tmp_state=""
+    if ! tmp_state=$(mktemp "${cfg_dir}/.logrotate-validate-state.XXXXXX" 2>/dev/null); then
+        tmp_state="$(mktemp 2>/dev/null || printf '%s' /dev/null)"
+    fi
+    if ! "${LOGROTATE_TOOL_PATH}" -d --state "${tmp_state}" "${tmp_cfg}" >/dev/null 2>&1; then
         print_divider >&2
         printf "Warning: generated logrotate config failed validation; rotation NOT installed.\n" >&2
         printf "         logrotate: %s (maxsize requires logrotate >= 3.8.1).\n" "${LOGROTATE_TOOL_PATH}" >&2
         print_divider >&2
+        [[ "${tmp_state}" != /dev/null ]] && rm -f "${tmp_state}"
         rm -f "${tmp_cfg}" "${tmp_svc}" "${tmp_tmr}"
         return 0
     fi
+    [[ "${tmp_state}" != /dev/null ]] && rm -f "${tmp_state}"
 
     # Install only on content difference (idempotent across repeat per-IOC
-    # installs and self-healing across an ioc-runner upgrade); track unit changes
-    # so daemon-reload runs only when a unit file actually changed.
+    # installs and self-healing across an ioc-runner upgrade). Absent and
+    # identical files are handled without a prompt; an existing file that
+    # DIFFERS goes to a single keep/update decision for the logrotate set
+    # (M6/D10), because replacing it changes a unit shared by the user's other
+    # IOCs. The daemon-reload is handed to do_install so exactly one runs.
     local units_changed=0
-    if cmp -s "${tmp_cfg}" "${cfg_path}"; then rm -f "${tmp_cfg}"; else mv -f "${tmp_cfg}" "${cfg_path}"; fi
-    if cmp -s "${tmp_svc}" "${svc_path}"; then rm -f "${tmp_svc}"; else mv -f "${tmp_svc}" "${svc_path}"; units_changed=1; fi
-    if cmp -s "${tmp_tmr}" "${tmr_path}"; then rm -f "${tmp_tmr}"; else mv -f "${tmp_tmr}" "${tmr_path}"; units_changed=1; fi
+    local -a diff_tmp=() diff_dst=() diff_unit=()
+
+    if [[ ! -f "${cfg_path}" ]]; then mv -f "${tmp_cfg}" "${cfg_path}"
+    elif cmp -s "${tmp_cfg}" "${cfg_path}"; then rm -f "${tmp_cfg}"
+    else diff_tmp+=("${tmp_cfg}"); diff_dst+=("${cfg_path}"); diff_unit+=(0); fi
+
+    if [[ ! -f "${svc_path}" ]]; then mv -f "${tmp_svc}" "${svc_path}"; units_changed=1
+    elif cmp -s "${tmp_svc}" "${svc_path}"; then rm -f "${tmp_svc}"
+    else diff_tmp+=("${tmp_svc}"); diff_dst+=("${svc_path}"); diff_unit+=(1); fi
+
+    if [[ ! -f "${tmr_path}" ]]; then mv -f "${tmp_tmr}" "${tmr_path}"; units_changed=1
+    elif cmp -s "${tmp_tmr}" "${tmr_path}"; then rm -f "${tmp_tmr}"
+    else diff_tmp+=("${tmp_tmr}"); diff_dst+=("${tmr_path}"); diff_unit+=(1); fi
+
+    if (( ${#diff_dst[@]} )); then
+        if decide_shared_asset_update "logrotate configuration and units"; then
+            local i
+            for i in "${!diff_dst[@]}"; do
+                mv -f "${diff_tmp[$i]}" "${diff_dst[$i]}"
+                [[ "${diff_unit[$i]}" == 1 ]] && units_changed=1
+            done
+        else
+            rm -f "${diff_tmp[@]}"
+        fi
+    fi
 
     if (( units_changed )); then
-        # || true keeps a no-user-bus host from aborting the IOC install here
-        # (best-effort contract); deploy_local_template already reloaded.
-        run_systemctl daemon-reload || true
+        LOGROTATE_UNITS_CHANGED=1
     fi
 
     # Arm the timer (enabled survives a manager restart). Guard on is-enabled so
@@ -1550,14 +1654,11 @@ function do_install {
             exit 1
         fi
 
-        # Ensure the resolved local log directory (LOG_DIR, which honors
-        # IOC_RUNNER_LOG_DIR / IOC_RUNNER_LOCAL_LOG_DIR) exists before the
-        # template is emitted, so the
-        # rendered ExecStart= --logfile= path is valid on the first
-        # systemctl --user start.
-        install -d -m 0750 "${LOG_DIR}"
-        deploy_local_template
-        deploy_local_logrotate
+        # The shared-asset deployment (log dir, template, logrotate) is
+        # deferred to AFTER the abort gates below (M6): the running-service
+        # guard and the config overwrite-abort prompt must be able to abort
+        # without having touched any asset the user's other local IOCs share.
+        :
     fi
 
     local state
@@ -1622,7 +1723,23 @@ function do_install {
     mv -f "${tmp}" "${target_conf}"
     trap - EXIT
 
-    run_systemctl daemon-reload
+    # Deploy the shared local assets now that every abort gate has passed
+    # (M6): an EOF or a decline above returns nonzero without having touched
+    # the template, rotation units, or manager state.
+    if [[ "${EXEC_MODE}" != "system" ]]; then
+        install -d -m 0750 "${LOG_DIR}"
+        deploy_local_template
+        deploy_local_logrotate
+    fi
+
+    # Exactly one daemon-reload. System mode keeps its unconditional reload;
+    # local mode reloads only when a unit file actually changed (the .conf is
+    # an EnvironmentFile read at service start, not a unit, so it needs none).
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        run_systemctl daemon-reload
+    elif (( TEMPLATE_CHANGED || LOGROTATE_UNITS_CHANGED )); then
+        run_systemctl daemon-reload || true
+    fi
 
     printf "IOC %s installed in %s mode. Use 'start' command to run it.\n" "${IOC_NAME}" "${EXEC_MODE}"
 }
