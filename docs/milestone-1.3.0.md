@@ -5,16 +5,16 @@ Milestone index: 1.3.0
 Canonical path: `docs/milestone-1.3.0.md`
 Canonical branch or ref: `release-1.3.0`
 Git upstream: `origin/release-1.3.0`
-Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.3.0` (G1,
-not yet created)
+Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.3.0`,
+number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: The 1.3.0 cycle is open at version 1.3.0-dev.
-Next: reconcile the ten issues from the GitHub `Backlog` milestone into a new
-`1.3.0` milestone (G1), settle the cycle execution order, and start with the
-M1 design conversation — M1 is the largest item and its health-signal
-boundary must be designed before any code.
+Next session entry point: The 1.3.0 cycle is open at version 1.3.0-dev, G1 is
+Complete (milestone 16), and all ten issues carry the `1.3.0` milestone.
+Next: settle the cycle execution order, then start with the M1 design
+conversation — M1 is the largest item and its health-signal boundary must be
+designed before any code.
 
 ## Milestone
 
@@ -33,7 +33,7 @@ boundary must be designed before any code.
 | Tests | M9 | (#148) Guard suite check-count coherence against declared inventory totals | Milestone | Not started | Yes | D1 | A test asserts each suite's real check count equals its declared inventory total and goes red on drift; [detail](#m9---suite-count-coherence-guard) |
 | Docs | M10 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1 | One fate is chosen and applied with every live reference resolvable; [detail](#m10---milestone-procedure-draft-fate) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
-| Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Open | No | | The repository owner creates an open GitHub milestone named 1.3.0; [detail](#g1---github-milestone-1.3.0) |
+| Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
 
@@ -139,9 +139,9 @@ Labels: enhancement, P3-low, ops, area/architecture
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: enhancement, P3-low, ops, area/architecture
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:37Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
 
 #### M2 - Restart supervision probe
 
@@ -210,9 +210,9 @@ Labels: P2-medium, tests
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P2-medium, tests
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:40Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
 
 #### M3 - Conf parser unification
 
@@ -286,9 +286,9 @@ Labels: P2-medium, refactor, area/architecture
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P2-medium, refactor, area/architecture
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:37Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
 
 #### M4 - Conf value normalization
 
@@ -364,9 +364,9 @@ Labels: bug, P3-low, area/architecture
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: bug, P3-low, area/architecture
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:46Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
 
 #### M5 - Conf mode mismatch diagnosis
 
@@ -449,9 +449,9 @@ Labels: enhancement, P2-medium, area/install
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: enhancement, P2-medium, area/install
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:51Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
 
 #### M6 - EPICS_BASE entry boundary
 
@@ -535,9 +535,9 @@ Labels: P3-low, tests
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P3-low, tests
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:50Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
 
 #### M7 - Suite integrity
 
@@ -622,9 +622,9 @@ Labels: P3-low, tests
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P3-low, tests
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:41Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
 
 #### M8 - Human and machine output separation
 
@@ -713,9 +713,9 @@ Labels: tests
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: tests
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:48Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
 
 #### M9 - Suite count coherence guard
 
@@ -803,9 +803,9 @@ Labels: P3-low, tests
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P3-low, tests
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: none
-Last Compared: 2026-08-17; remote updated 2026-08-17T23:57:12Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
 
 #### M10 - Milestone procedure draft fate
 
@@ -884,9 +884,9 @@ Labels: P3-low, docs
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P3-low, docs
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-12; remote updated 2026-08-13T05:52:47Z
+Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
 
 #### M11 - Final release
 
@@ -978,7 +978,7 @@ Not yet run.
 
 Origin: 1.3.0 / G1
 Identity History: none
-Status: Open
+Status: Complete
 
 ##### Condition
 
@@ -1001,11 +1001,15 @@ milestone titled `1.3.0`.
 
 ##### Observed Result
 
-Not yet observed.
+Observed 2026-08-18: `gh api -X POST repos/jeonghanlee/epics-ioc-runner/milestones`
+returned milestone number 16, title `1.3.0`, state `open`, created
+2026-08-18T07:38:43Z. Recheck with
+`gh api repos/jeonghanlee/epics-ioc-runner/milestones --jq '.[] | "\(.number)\t\(.state)\t\(.title)"'`.
 
 ##### Closure Evidence
 
-- none
+- Open GitHub milestone `1.3.0`, number 16, created by the repository owner
+  on 2026-08-18 (creation response recorded above).
 
 ## Backlog
 
