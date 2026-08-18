@@ -10,12 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: The 1.3.0 cycle is open at version 1.3.0-dev, G1 is
-Complete (milestone 16), all ten issues carry the `1.3.0` milestone, and the
-execution order is settled as the local ID order (D3). Next: finish the M1
-(#148, count-coherence guard) review and prepare its commit, then open the M10
-(#102) health-signal design conversation — M10 is the largest item and its
-boundary must be designed before any code.
+Next session entry point: M1 is Complete at commit `f7ba3c9`; M2 is the nearest
+Ready row in the 1.3.0 execution order. Next: start M2 (#139, EPICS_BASE entry
+boundary) and open the M10 (#102) health-signal design conversation in
+parallel — M10 is the largest item and its boundary must be designed before
+any code.
 
 ## Milestone
 
@@ -23,7 +22,7 @@ boundary must be designed before any code.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tests | M1 | (#148) Centralize expected reporting counts and guard runtime catalog coherence | Milestone | In progress | No | D1, D3, D4 | One CSV owns expected check and STEP counts, every suite compares its real catalog before preflight, and the gate derives totals while keeping its six-run set independent; [detail](#m1---suite-count-coherence-guard) |
+| Tests | M1 | (#148) Centralize expected reporting counts and guard runtime catalog coherence | Milestone | Complete | No | D1, D3, D4 | Complete in `f7ba3c9`; T1-T5 Pass, including the current-tree two-golden gate; [detail](#m1---suite-count-coherence-guard) |
 | Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Not started | Yes | D1, D3 | Every affected entry point stops nonzero at its first environment boundary with the catalog contract preserved; [detail](#m2---epics_base-entry-boundary) |
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Not started | Yes | D1, D3 | Both supported mismatch directions produce one complete diagnosis with the correct regeneration command; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Not started | Yes | D1, D3 | Killing the real softIoc child increases the child-death count and the unit recovers on both golden OS families; [detail](#m4---restart-supervision-probe) |
@@ -67,7 +66,7 @@ boundary must be designed before any code.
 Origin: 1.3.0 / M9
 Identity History: staged from `docs/milestone-46790f9.md` M12; 1.3.0 / M9 -> 1.3.0 / M1 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 148, https://github.com/jeonghanlee/epics-ioc-runner/issues/148
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -240,7 +239,18 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
-- none
+- Implementation commit `f7ba3c97602a561a9238b4c7ec6d7f6df7bf4ef0` is
+  pushed to `origin/release-1.3.0`.
+- M1 / T1-T5 are Pass. The current working tree was copied and fully deployed
+  to both golden hosts before the final gate evidence at
+  `work/gate-suites-20260818T215458Z-847854` was recorded.
+- The third-person review finding about the stale remote tree was fixed by the
+  current-tree rerun; the corrected implementation passed third-person and
+  second-person review with no remaining finding.
+- Linked issue #148 remains open during the release branch. Its closure is
+  deferred to the active 1.3.0 release-cycle final default-branch push through
+  the exact `Closes #148` footer in the implementation commit; M11 records the
+  required phase 12 confirmation.
 
 ##### GitHub Projection
 
@@ -1062,7 +1072,12 @@ To be populated by the release-cycle final phase.
 
 ##### Release Execution
 
-To be populated by the release-cycle final phase.
+- Deferred issue closure: the final default-branch push must carry commit
+  `f7ba3c97602a561a9238b4c7ec6d7f6df7bf4ef0`, whose exact `Closes #148`
+  footer is intended to close issue #148. Phase 12 must observe the issue
+  closed.
+- Remaining release actions will be populated by the release-cycle final
+  phase.
 
 ##### Release Verification Plan
 
