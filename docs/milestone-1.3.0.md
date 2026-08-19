@@ -10,11 +10,10 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: M2 (#139, EPICS_BASE entry boundary) is In progress;
-its implementation and T1-T5 verification are complete in the working tree.
-Next: commit M2 and record its closure, and continue the M10 (#102)
-health-signal design conversation in parallel - M10 is the largest item and
-its boundary must be designed before any code.
+Next session entry point: review the M3 (#142, conf mode mismatch diagnosis)
+plan before implementation. M1 and M2 are Complete and their linked issues are
+closed. Continue the M10 (#102) health-signal design conversation in parallel -
+M10 is the largest item and its boundary must be designed before any code.
 
 ## Milestone
 
@@ -23,7 +22,7 @@ its boundary must be designed before any code.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Tests | M1 | (#148) Centralize expected reporting counts and guard runtime catalog coherence | Milestone | Complete | No | D1, D3, D4 | Complete in `f7ba3c9`; T1-T5 Pass, including the current-tree two-golden gate; [detail](#m1---suite-count-coherence-guard) |
-| Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | In progress | No | D1, D3 | Every affected entry point stops nonzero at its first environment boundary with the catalog contract preserved; [detail](#m2---epics_base-entry-boundary) |
+| Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Complete | No | D1, D3 | Complete in `df30423`; T1-T5 Pass, including the canonical two-golden gate; [detail](#m2---epics_base-entry-boundary) |
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Not started | Yes | D1, D3 | Both supported mismatch directions produce one complete diagnosis with the correct regeneration command; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Not started | Yes | D1, D3 | Killing the real softIoc child increases the child-death count and the unit recovers on both golden OS families; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Not started | Yes | D1, D2, D3 | Every divergence fixture resolves identically through install-time, runtime, and systemd consumers; [detail](#m5---conf-parser-unification) |
@@ -247,28 +246,28 @@ Superseded Plan Artifacts: none
 - The third-person review finding about the stale remote tree was fixed by the
   current-tree rerun; the corrected implementation passed third-person and
   second-person review with no remaining finding.
-- Linked issue #148 remains open during the release branch. Its closure is
-  deferred to the active 1.3.0 release-cycle final default-branch push through
-  the exact `Closes #148` footer in the implementation commit; M11 records the
-  required phase 12 confirmation.
+- Linked issue #148 was manually closed after its canonical body was projected
+  to GitHub, observed at 2026-08-19T08:05:10Z. The implementation commit keeps
+  its exact `Closes #148` footer; it becomes a no-op when the release branch
+  reaches the default branch.
 
 ##### GitHub Projection
 
 Title: Guard suite check-count coherence: fail on inventory vs actual drift
 Labels: P3-low, tests
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: P3-low, tests
 Observed Milestone: 1.3.0
-Observed Assignee: none
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-19; remote updated 2026-08-19T08:05:10Z
 
 #### M2 - EPICS_BASE entry boundary
 
 Origin: 1.3.0 / M6
 Identity History: staged from `docs/milestone-46790f9.md` M9; 1.3.0 / M6 -> 1.3.0 / M2 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 139, https://github.com/jeonghanlee/epics-ioc-runner/issues/139
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -374,18 +373,26 @@ Follow-up Note: On the next canonical two-host gate run, record whether Rocky
 
 ##### Closure Evidence
 
-- none
+- Implementation commit `df30423331639080b3ff290bbb00fc0d5ff011b8` is
+  pushed to `origin/release-1.3.0`.
+- M2 / T1-T5 are Pass. The final canonical two-host gate ran the real six-suite
+  matrix and finished with 688 checks per host at
+  `work/gate-suites-20260819T034301Z-1099453/`.
+- Linked issue #139 was manually closed after this canonical result was
+  projected to GitHub, observed at 2026-08-19T08:05:20Z. The implementation
+  commit keeps its exact `Closes #139` footer; it becomes a no-op when the
+  release branch reaches the default branch.
 
 ##### GitHub Projection
 
 Title: Stop EPICS-dependent test scripts before setup when EPICS_BASE is unset
 Labels: P3-low, tests
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: P3-low, tests
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
+Last Compared: 2026-08-19; remote updated 2026-08-19T08:05:20Z
 
 #### M3 - Conf mode mismatch diagnosis
 
@@ -1110,10 +1117,9 @@ To be populated by the release-cycle final phase.
 
 ##### Release Execution
 
-- Deferred issue closure: the final default-branch push must carry commit
-  `f7ba3c97602a561a9238b4c7ec6d7f6df7bf4ef0`, whose exact `Closes #148`
-  footer is intended to close issue #148. Phase 12 must observe the issue
-  closed.
+- Issues #148 and #139 were manually closed after verification on 2026-08-19.
+  Their implementation commits retain exact `Closes` footers, which become
+  no-ops when the release branch reaches the default branch.
 - Remaining release actions will be populated by the release-cycle final
   phase.
 
