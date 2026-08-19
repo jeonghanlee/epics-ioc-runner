@@ -375,15 +375,18 @@ function close_current_remaining {
     done
 }
 
-function close_local_catalog_after_preflight {
+function close_local_catalog_from_index {
+    local start_index="$1"
+    local state="$2"
+    local reason="$3"
     local row=""
     local step_id=""
     local check_id=""
     local check_kind=""
 
-    for row in "${LOCAL_CATALOG_ROWS[@]:3}"; do
+    for row in "${LOCAL_CATALOG_ROWS[@]:${start_index}}"; do
         IFS='|' read -r step_id check_id check_kind <<< "${row}"
-        report_record "${check_id}" SKIP "requires local lifecycle P00"
+        report_record "${check_id}" "${state}" "${reason}"
     done
 }
 
@@ -395,14 +398,19 @@ function run_preflight {
     CURRENT_STEP_ID=P00
     CURRENT_STEP_CHECK_INDEX=0
     [[ -n "${EPICS_BASE:-}" ]] && epics_base_set="true"
+    verify_state true "${epics_base_set}" "EPICS_BASE is set"
+    if [[ "${epics_base_set}" != "true" ]]; then
+        close_local_catalog_from_index 1 SKIP \
+            "requires ${SUITE_ID}.P00.epics-base-set"
+        return 1
+    fi
+
     command -v lsof >/dev/null 2>&1 && lsof_available="true"
     [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
-    verify_state true "${epics_base_set}" "EPICS_BASE is set"
     verify_state true "${lsof_available}" "lsof is available"
     verify_state true "${runner_executable}" "Selected runner is executable"
-    if [[ "${epics_base_set}" != "true" || "${lsof_available}" != "true" ||
-          "${runner_executable}" != "true" ]]; then
-        close_local_catalog_after_preflight
+    if [[ "${lsof_available}" != "true" || "${runner_executable}" != "true" ]]; then
+        close_local_catalog_from_index 3 SKIP "requires local lifecycle P00"
         return 1
     fi
 }
@@ -448,20 +456,19 @@ function _handle_exit {
         exit "${REPORT_FINAL_STATUS}"
     fi
 
-    # U003/M19: unconditionally disarm the user log-rotation timer on every exit
-    # path (success, assertion-fail, set -e abort, SIGINT). The pipeline arms a
-    # real ~/.config/systemd/user timer at the first --local install; an aborted
-    # run must not leave it enabled, or it would later fail hourly against the
-    # removed workspace config. Runs even under KEEP_WORKSPACE=1 (re-arm by
-    # re-running install). SYSTEMD_USER_DIR is declared unconditionally above.
-    systemctl --user disable --now epics-logrotate.timer >/dev/null 2>&1 || true
-    if ! "${REPORT_RM_BIN:-/bin/rm}" -f -- \
-        "${SYSTEMD_USER_DIR}/epics-logrotate.service" \
-        "${SYSTEMD_USER_DIR}/epics-logrotate.timer"; then
-        final_status=1
-        _log "ERROR" "Failed to remove local log-rotation units."
+    # Workspace setup precedes every lifecycle action that can arm the user
+    # log-rotation timer. Preflight exits leave WORKSPACE empty and finalize
+    # reporting without touching user systemd state.
+    if [[ -n "${WORKSPACE}" ]]; then
+        systemctl --user disable --now epics-logrotate.timer >/dev/null 2>&1 || true
+        if ! "${REPORT_RM_BIN:-/bin/rm}" -f -- \
+            "${SYSTEMD_USER_DIR}/epics-logrotate.service" \
+            "${SYSTEMD_USER_DIR}/epics-logrotate.timer"; then
+            final_status=1
+            _log "ERROR" "Failed to remove local log-rotation units."
+        fi
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
     fi
-    systemctl --user daemon-reload >/dev/null 2>&1 || true
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
         if [[ ${exit_code} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then

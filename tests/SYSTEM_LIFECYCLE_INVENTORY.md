@@ -26,7 +26,12 @@ S03, and S04 are setup-only STEPs and own no checks.
 
 ## Dependency Policy
 
-- The four P00 checks govern all numbered STEPs.
+- The `EPICS_BASE` P00 check is the first environment boundary after catalog
+  close and expected-count comparison. If it fails, the remaining P00 checks
+  and every numbered STEP check are `SKIP`; `lsof`, root invocation, and
+  runner executability are not evaluated.
+- After `EPICS_BASE` passes, the remaining three P00 checks govern all numbered
+  STEPs.
 - S23 camonitor availability governs the Channel Access behavior check.
 - S25 system-journal availability governs both monitor-isolation checks.
 - S26 softIoc availability governs all eleven crash-detection checks.

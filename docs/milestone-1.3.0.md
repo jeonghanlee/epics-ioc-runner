@@ -10,11 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: M1 is Complete at commit `f7ba3c9`; M2 is the nearest
-Ready row in the 1.3.0 execution order. Next: start M2 (#139, EPICS_BASE entry
-boundary) and open the M10 (#102) health-signal design conversation in
-parallel — M10 is the largest item and its boundary must be designed before
-any code.
+Next session entry point: M2 (#139, EPICS_BASE entry boundary) is In progress;
+its implementation and T1-T5 verification are complete in the working tree.
+Next: commit M2 and record its closure, and continue the M10 (#102)
+health-signal design conversation in parallel - M10 is the largest item and
+its boundary must be designed before any code.
 
 ## Milestone
 
@@ -23,7 +23,7 @@ any code.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Tests | M1 | (#148) Centralize expected reporting counts and guard runtime catalog coherence | Milestone | Complete | No | D1, D3, D4 | Complete in `f7ba3c9`; T1-T5 Pass, including the current-tree two-golden gate; [detail](#m1---suite-count-coherence-guard) |
-| Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Not started | Yes | D1, D3 | Every affected entry point stops nonzero at its first environment boundary with the catalog contract preserved; [detail](#m2---epics_base-entry-boundary) |
+| Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | In progress | No | D1, D3 | Every affected entry point stops nonzero at its first environment boundary with the catalog contract preserved; [detail](#m2---epics_base-entry-boundary) |
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Not started | Yes | D1, D3 | Both supported mismatch directions produce one complete diagnosis with the correct regeneration command; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Not started | Yes | D1, D3 | Killing the real softIoc child increases the child-death count and the unit recovers on both golden OS families; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Not started | Yes | D1, D2, D3 | Every divergence fixture resolves identically through install-time, runtime, and systemd consumers; [detail](#m5---conf-parser-unification) |
@@ -268,23 +268,27 @@ Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
 Origin: 1.3.0 / M6
 Identity History: staged from `docs/milestone-46790f9.md` M9; 1.3.0 / M6 -> 1.3.0 / M2 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 139, https://github.com/jeonghanlee/epics-ioc-runner/issues/139
-Status: Not started
+Status: In progress
 
 ##### Summary
 
 The dispatcher checks `EPICS_BASE` before launching an EPICS-dependent suite.
-The direct local and system lifecycle suites instead initialize the reporter,
-evaluate all P00 prerequisites, record the missing environment as FAIL, and
-close the remaining catalog as SKIP. They do not enter workspace setup or
-lifecycle execution, so this is an inconsistent entry boundary rather than a
-false green.
+The direct local and system lifecycle suites initialize and close the real
+reporter catalog, compare its expected counts, honor catalog-only mode, and
+then evaluate `EPICS_BASE` as the first P00 environment boundary. A missing
+value records only `epics-base-set` as FAIL, closes every later identity as
+SKIP, and exits without later P00 probes, workspace or lifecycle work, or local
+systemd cleanup.
 
 ##### Scope
 
-Inventory every shipped test entry point that consumes `EPICS_BASE`, make the
-missing variable its first environment boundary, and preserve the complete
-catalog reporter contract without later dependency, privilege, workspace,
-compilation, systemd, or IOC work.
+Inventory every shipped test entry point that consumes `EPICS_BASE` and
+classify its input contract. For the lifecycle dispatcher and direct lifecycle
+suites, make the missing variable the first environment boundary after the
+required reporter catalog work, without later lifecycle prerequisite,
+privilege, workspace, compilation, systemd, or IOC work. Gate drivers that
+source an operator-supplied environment file are inventory-only because their
+entry contract supplies the environment before launching a suite.
 
 ##### Out of Scope
 
@@ -304,35 +308,69 @@ complete-state contract.
 
 - The 1.2.3 gate ran with the declared EPICS environment on both goldens, so
   this inconsistency does not invalidate its evidence.
+- The owner selected the existing nonempty `WORKSPACE` state as the local
+  lifecycle cleanup threshold instead of adding another lifecycle-state
+  variable (conversation, 2026-08-18).
 - D1
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner approved the reviewed M2 plan on 2026-08-18 ("승인").
+Implementation Authorization: Owner explicitly authorized implementation of the accepted M2 plan on 2026-08-18 ("승인").
 Superseded Plan Artifacts: none
 
-1. Inventory the EPICS-dependent entry points and pin that set.
-2. Define the first-boundary reporter result for each direct suite.
-3. Move the environment stop ahead of every unrelated probe and side effect.
-4. Re-run the missing-environment and real lifecycle paths.
+1. Pin the affected entry points as the lifecycle selections of
+   `tests/run-all-tests.bash` and direct execution of
+   `tests/test-local-lifecycle.bash` and
+   `tests/test-system-lifecycle.bash`. Record source regression and system
+   infrastructure as EPICS-independent. Record the host gate drivers as
+   inspected but unaffected because they source their required environment
+   path before launching a suite.
+2. Preserve each direct suite's real reporting sequence through
+   `initialize_reporting`, `report_close_catalog`, expected-count comparison,
+   and the `REPORT_CATALOG_ONLY=1` return before evaluating `EPICS_BASE`.
+3. Split direct-suite P00 evaluation at the first check. When `EPICS_BASE` is
+   absent, record `epics-base-set` as FAIL, close every later identity as SKIP
+   with that check as the reason, and return without evaluating `lsof`, root
+   invocation, or runner executability. The local P00 vector is
+   `FAIL, SKIP, SKIP`; the system P00 vector is
+   `FAIL, SKIP, SKIP, SKIP`.
+4. Keep the dispatcher's existing environment stop before exports, `sudo`,
+   collector initialization, and suite launch.
+5. In the local exit handler, perform systemd timer and unit cleanup only when
+   `WORKSPACE` is nonempty. Always finalize an initialized reporter. Preserve
+   the existing cleanup after workspace setup begins.
+6. Preserve the current remaining P00 evaluation and lifecycle execution when
+   `EPICS_BASE` is present, and update the local and system lifecycle
+   inventories with the boundary dependency.
+7. Run the missing-environment, catalog-only, and independent
+   source-regression paths, then run the canonical six-suite gate driver with
+   the declared EPICS environment on both golden OS families.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Entry contract | Run every EPICS-dependent entry point with `EPICS_BASE` unset | Debian 13 | Nonzero at the first boundary, no later work, complete catalog, no `SCRIPT_ERROR` |
-| T2 | Independent path | Run `tests/run-all-tests.bash --source-regression` without `EPICS_BASE` | Debian 13 | Source regression executes normally |
-| T3 | Positive path | Run both real lifecycle suites with the declared EPICS environment | Both golden OS families | Existing shipped paths and fixtures complete normally |
+| T1 | Dispatcher boundary | Run the default, local, and system lifecycle selections of `tests/run-all-tests.bash` with `EPICS_BASE` unset and `bash -x`; inspect each shell trace | Debian 13 | Each exits nonzero, and its trace contains no `initialize_collector`, `sudo`, or `_run_test` execution |
+| T2 | Direct-suite boundary | Run both lifecycle suites without privilege elevation, with `EPICS_BASE` unset and `bash -x`; inspect their real reporter output and shell trace | Debian 13 | Exact P00 vectors are emitted, every later identity is SKIP exactly once, and no `SCRIPT_ERROR` occurs; the trace shows reporter setup but no `lsof`, root-condition, runner-executable, optional-dependency, workspace, systemd, or IOC evaluation |
+| T3 | Catalog-only precedence | Run both direct lifecycle suites with `REPORT_CATALOG_ONLY=1` and `EPICS_BASE` unset | Debian 13 | Each real catalog registers, closes, matches `reporting-counts.csv`, and exits successfully before the environment boundary |
+| T4 | Independent path | Run `tests/run-all-tests.bash --source-regression` without `EPICS_BASE` | Debian 13 | Source regression executes normally |
+| T5 | Positive path | Run `gate/drivers/control/suites.bash` with each golden host and its resolved absolute EPICS environment path | Both golden OS families | The real six-suite matrix and shipped fixtures finish with `GATE SUITES PASS hosts=2` |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 | Pending | none |
-| T2 | Not run | Debian 13 | Pending | none |
-| T3 | Not run | Both golden OS families | Pending | none |
+| T1 | 2026-08-18 19:04 PDT | Debian 13 control host | Pass | All three dispatcher selections exited 1; each trace recorded zero `initialize_collector`, `sudo`, and `_run_test` calls; `work/m2-entry-20260819T020417Z-rerun/` |
+| T2 | 2026-08-18 19:05 PDT | Debian 13 control host | Pass | The real local and system reporters emitted the planned P00 vectors, closed 146 and 102 unique checks once, and traced no prohibited later work or `SCRIPT_ERROR`; `work/m2-entry-20260819T020417Z-rerun/` |
+| T3 | 2026-08-18 19:05 PDT | Debian 13 control host | Pass | The real suites emitted `CATALOG` PASS with local 146/37 and system 102/33; `work/m2-entry-20260819T020417Z-rerun/` |
+| T4 | 2026-08-18 19:06 PDT | Debian 13 golden | Pass | The real dispatcher completed source regression without `EPICS_BASE`: 108 total, 107 PASS, 1 NA, 0 errors; `work/m2-entry-20260819T020417Z-rerun/t4-source-regression-debian13-golden.log` |
+| T5 | 2026-08-18 20:47 PDT | Debian 13 and Rocky 8 goldens | Pass | The first canonical run failed only Rocky `system-lifecycle.S22.uds-socket-is-in-listening-state`; its bounded real-suite retry passed 102/102, and the canonical rerun finished `GATE SUITES PASS hosts=2` with six runs and 688 checks per host; `work/gate-suites-20260819T020635Z-1067055/`, `work/m2-entry-20260819T020417Z-rerun/t5-rocky-system-lifecycle-retry.log`, and `work/gate-suites-20260819T034301Z-1099453/` |
+
+Follow-up Note: On the next canonical two-host gate run, record whether Rocky
+`system-lifecycle.S22.uds-socket-is-in-listening-state` repeats. The failing
+2026-08-18 run did not retain its raw `ss -lx` snapshot.
 
 ##### Closure Evidence
 

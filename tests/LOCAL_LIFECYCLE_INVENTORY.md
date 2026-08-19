@@ -38,6 +38,11 @@ uses hand-built-reproduction.
 - `local-lifecycle.P00.lsof-available` | `REQUIRED` | `lsof` is available.
 - `local-lifecycle.P00.selected-runner-executable` | `REQUIRED` | The selected runner path is executable.
 
+The `EPICS_BASE` check is the first environment boundary after catalog close
+and expected-count comparison. If it fails, the remaining P00 checks and every
+numbered STEP check are `SKIP`; `lsof` and runner executability are not
+evaluated.
+
 ### S01 - Setup Test Workspace (0)
 
 Setup-only STEP.

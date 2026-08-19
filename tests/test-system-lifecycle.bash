@@ -351,15 +351,21 @@ function run_preflight {
     CURRENT_STEP_ID=P00
     CURRENT_STEP_CHECK_INDEX=0
     [[ -n "${EPICS_BASE:-}" ]] && epics_base_set="true"
+    verify_state true "${epics_base_set}" "EPICS_BASE is set"
+    if [[ "${epics_base_set}" != "true" ]]; then
+        close_catalog_from_index 1 SKIP \
+            "requires ${SUITE_ID}.P00.epics-base-set"
+        return 1
+    fi
+
     command -v lsof >/dev/null 2>&1 && lsof_available="true"
     [[ "${EUID}" -eq 0 ]] && root_invocation="true"
     [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
-    verify_state true "${epics_base_set}" "EPICS_BASE is set"
     verify_state true "${lsof_available}" "lsof is available"
     verify_state true "${root_invocation}" "Effective user is root"
     verify_state true "${runner_executable}" "Selected runner is executable"
-    if [[ "${epics_base_set}" != "true" || "${lsof_available}" != "true" ||
-          "${root_invocation}" != "true" || "${runner_executable}" != "true" ]]; then
+    if [[ "${lsof_available}" != "true" || "${root_invocation}" != "true" ||
+          "${runner_executable}" != "true" ]]; then
         close_catalog_from_index 4 SKIP "requires system lifecycle P00"
         return 1
     fi
