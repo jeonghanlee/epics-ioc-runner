@@ -619,8 +619,11 @@ repository, compares the remote and local SHA-256 values, and validates:
 - TEST and STEP totals derived by joining the six independent run keys to
   `tests/reporting-counts.csv`, plus one final PASS SUITE record per run key;
 - the canonical execution-identity SHA-256;
-- the source runner under the remote repository and both installed runners at
-  `/usr/local/bin/ioc-runner`;
+- the source runner under each remote repository and its installed runner at
+  `/usr/local/bin/ioc-runner`: their SHA-256 values must match after excluding
+  exactly the `RUNNER_GIT_HASH`, `RUNNER_COMMIT_DATE`, and
+  `RUNNER_INSTALL_DATE` declarations that setup stamps, and the installed
+  runner's `-V` hash must match that repository's HEAD and dirty state;
 - the canonical state-vector verdict; and
 - the complete normalized TEST and STEP difference between the two hosts.
 
@@ -635,17 +638,53 @@ binary mismatch, `SKIP`, `FAIL`, or `SCRIPT_ERROR` makes the host verdict
 and the final driver result fail. `NA` remains visible but is nonfatal because
 it records an examined applicability boundary.
 
-`CROSS_HOST rc=1` means the normalized host records differ and
-`cross-host.diff` contains the full enumeration. It is not a separate
-failure when both host verdicts pass. The final `GATE SUITES` line is the
-driver verdict.
+#### Reading the cross-host result
+
+The cross-host comparison preserves OS-specific differences instead of
+requiring Debian and Rocky to produce identical normalized records. This is
+necessary because a check can be applicable and report `PASS` on one OS while
+being inapplicable and reporting `NA` on the other. The comparison makes every
+such difference reviewable; it does not approve or suppress the difference.
+
+Read the result in this order:
+
+1. Each `VERDICT host=... rc=...` line states whether that host passed its own
+   complete six-run matrix. A nonzero host code is a gate failure.
+2. `CROSS_HOST rc=0` means the normalized TEST and STEP records are identical.
+   `CROSS_HOST rc=1` means they differ, and `cross-host.diff` contains the full
+   enumeration. Status 1 is the normal `diff` result for different files and
+   is nonfatal by itself. A status greater than 1 means the comparison could
+   not complete and is a gate failure.
+3. The final `GATE SUITES PASS` or `GATE SUITES FAIL` line is the authoritative
+   driver result.
+
+If the final line reports `FAIL` while both host codes are 0 and the cross-host
+status is 0 or 1, inspect the preceding `gate suites:` diagnostic. In that
+case, a control-side finalization check failed: the live control driver or its
+evidence snapshot changed during the run, or its final hash could not be read.
+
+For example, this is a passing gate with visible OS-specific differences:
+
+```
+VERDICT host=debian rc=0 file=<debian-verdict>
+VERDICT host=rocky rc=0 file=<rocky-verdict>
+CROSS_HOST rc=1 lines=<count> file=<cross-host-diff>
+GATE SUITES PASS hosts=2 evidence=<evidence-directory>
+```
+
+By contrast, `GATE SUITES FAIL host_one=1 host_two=1 diff=1 ...` means the host
+verdicts caused the failure. The repeated `diff=1` records that differences
+were found; it is not an additional failure code. Review `cross-host.diff` to
+confirm that every enumerated difference is an accepted applicability boundary
+such as a `PASS` versus `NA` result. An unexpected difference remains a review
+finding even when the driver returns success.
 
 The evidence directory is on the control host under `work/`, not only in
 remote `/tmp`. It contains `control.meta`, `control.status`, and the exact
 `control-driver.bash` snapshot; per host, the complete `.log`, six-run
-`.status`, host `.meta`, canonical `.verdict`, and `.normalized` files; and one
-`cross-host.diff`. Keep the directory together when handing the gate to another
-control host.
+`.status`, runner `.runner`, host `.meta`, canonical `.verdict`, and
+`.normalized` files; and one `cross-host.diff`. Keep the directory together
+when handing the gate to another control host.
 
 ### 3. The root_squash deployment path
 

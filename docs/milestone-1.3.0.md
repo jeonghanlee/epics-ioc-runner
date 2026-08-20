@@ -10,10 +10,12 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review the M3 (#142, conf mode mismatch diagnosis)
-plan before implementation. M1 and M2 are Complete and their linked issues are
-closed. Continue the M10 (#102) health-signal design conversation in parallel -
-M10 is the largest item and its boundary must be designed before any code.
+Next session entry point: review and commit the verified M3 (#142, conf mode
+mismatch diagnosis) implementation, then project its result and close the
+linked issue under separate authority. M1 and M2 are Complete and their linked
+issues are closed. Continue the M10 (#102) health-signal design conversation in
+parallel - M10 is the largest item and its boundary must be designed before any
+code.
 
 ## Milestone
 
@@ -367,9 +369,11 @@ Superseded Plan Artifacts: none
 | T4 | 2026-08-18 19:06 PDT | Debian 13 golden | Pass | The real dispatcher completed source regression without `EPICS_BASE`: 108 total, 107 PASS, 1 NA, 0 errors; `work/m2-entry-20260819T020417Z-rerun/t4-source-regression-debian13-golden.log` |
 | T5 | 2026-08-18 20:47 PDT | Debian 13 and Rocky 8 goldens | Pass | The first canonical run failed only Rocky `system-lifecycle.S22.uds-socket-is-in-listening-state`; its bounded real-suite retry passed 102/102, and the canonical rerun finished `GATE SUITES PASS hosts=2` with six runs and 688 checks per host; `work/gate-suites-20260819T020635Z-1067055/`, `work/m2-entry-20260819T020417Z-rerun/t5-rocky-system-lifecycle-retry.log`, and `work/gate-suites-20260819T034301Z-1099453/` |
 
-Follow-up Note: On the next canonical two-host gate run, record whether Rocky
-`system-lifecycle.S22.uds-socket-is-in-listening-state` repeats. The failing
-2026-08-18 run did not retain its raw `ss -lx` snapshot.
+Follow-up Result: Rocky
+`system-lifecycle.S22.uds-socket-is-in-listening-state` repeated once during
+the M3 post-style-cleanup gate. All later Rocky lifecycle checks passed, and
+the unchanged-tree canonical rerun passed. Neither failed run retained its raw
+`ss -lx` snapshot.
 
 ##### Closure Evidence
 
@@ -399,7 +403,7 @@ Last Compared: 2026-08-19; remote updated 2026-08-19T08:05:20Z
 Origin: 1.3.0 / M5
 Identity History: staged from `docs/milestone-46790f9.md` M8; 1.3.0 / M5 -> 1.3.0 / M3 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 142, https://github.com/jeonghanlee/epics-ioc-runner/issues/142
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -411,11 +415,38 @@ command.
 
 ##### Scope
 
-When both identity fields support the diagnosis, emit one found-versus-needed
-mode-mismatch message with the configuration path and correct `generate`
-command. A third-account configuration receives the comparison and remedy
-without an unsupported mode claim. System mode remains the unflagged default;
-there is no `--system` option.
+When `IOC_USER` and `IOC_GROUP` are both nonempty, both pass the existing
+critical-variable whitelist, both differ from the selected mode, and
+`IOC_CHDIR` is an absolute, existing, executable, and writable `generate`
+target, count one found-versus-required mode-mismatch error. Derive the system
+pair from `TARGET_SYSTEM_USER` and `TARGET_SYSTEM_GROUP`, including their
+supported environment overrides. Derive the local pair once from the invoking
+user's `id -un` and `id -gn` values even when system mode is selected.
+
+An exact opposite supported pair names its source mode. Any other complete
+pair receives the same comparison and remedy without a source-mode claim. A
+one-field mismatch, an identity value that fails the whitelist, or an unusable
+`IOC_CHDIR` retains the existing field-level identity errors instead of
+presenting an incomplete mode diagnosis. Writability affects only whether the
+combined remedy is available; M3 does not add a general `IOC_CHDIR`
+writability error to `validate_conf`.
+
+Emit one aligned diagnostic block with fixed label width:
+
+```text
+Error: Configuration mode mismatch
+       Config     : /path/ioc.conf
+       Found      : IOC_USER=ioc-srv, IOC_GROUP=ioc (system mode)
+       Required   : IOC_USER=alice, IOC_GROUP=alice (local mode)
+       Regenerate : ioc-runner --local generate /path/iocBoot/ioc
+```
+
+Use the operator-facing `display_name` for `Config`. Render every dynamic value
+in the block with Bash `printf %q`: `display_name`, the found and required
+user/group values, and the `IOC_CHDIR` command argument. Local mode uses
+`--local`; system mode remains the unflagged default and has no `--system`
+option. The final validation summary uses `error` for a count of one and
+`errors` for every other nonzero count.
 
 ##### Out of Scope
 
@@ -424,45 +455,151 @@ Rewriting the configuration during install, switching modes, adding a
 
 ##### Completion Criteria
 
-- Both supported mismatch directions produce one complete diagnosis and the
-  correct regeneration command.
-- A third-account case does not claim either supported source mode.
-- Invalid identity values still abort without rewriting the configuration.
-- Tests update the error-count and message contract deliberately.
+- Both supported mismatch directions produce one aligned diagnosis, count one
+  error, and provide the correct mode-specific regeneration command.
+- A third-account case produces the same aligned comparison without claiming
+  either supported source mode.
+- A one-field mismatch remains a field-level error. A pair mismatch with an
+  invalid `IOC_CHDIR` retains the field-level and existing path errors and
+  provides no invalid regeneration command. A non-writable `IOC_CHDIR` retains
+  the field-level errors without adding a new path-validation error.
+- An identity value that fails the whitelist cannot select the combined
+  diagnosis, and its raw value does not appear in the new diagnostic block.
+- Every dynamic value in a combined block is shell-safe. Ordinary values keep
+  the documented readable form, while whitespace and other shell-sensitive
+  characters are escaped.
+- Each complete-pair diagnosis case aborts without changing its source
+  configuration or creating an installed configuration. The existing
+  one-field exit identity continues to pin the non-aggregated abort path.
+- Singular and plural validation summaries are both pinned through real
+  install paths.
+- The reporting catalog, inventory, CSV count, and gate identity digest agree
+  on the new fixed identity set.
 
 ##### Dependencies And Decisions
 
 - This is an operator-message improvement, not a validation bypass. The hard
   failure behaved correctly during the 1.2.3 verification.
+- The owner selected pair-level aggregation only when both identity fields
+  differ; one-field mismatches retain the existing field error (2026-08-19).
+- The owner selected one aligned multi-line diagnostic, inline implementation
+  inside `validate_conf`, singular/plural summary grammar, and a dedicated
+  S38 test step with independent semantic identities (2026-08-19).
+- The owner selected existing field and path errors when `IOC_CHDIR` cannot
+  supply a correct `generate` target (2026-08-19).
+- The owner selected whitelist eligibility plus `%q` rendering for every
+  dynamic diagnostic value, and required a writable `IOC_CHDIR` before showing
+  a regeneration command (2026-08-19).
+- The strengthened plan incorporates the third-person findings to classify
+  `IOC_CHDIR` once, pin supported-pair sources, enumerate the count change,
+  deploy the current tree to both goldens, verify shell escaping, and reconcile
+  the gate identity digest across both hosts (2026-08-19).
+- The owner accepted the implementation after third-person and second-person
+  review on 2026-08-19. T6 completed before M3 closure.
+- The owner selected permanent gate enforcement for deployed-runner
+  provenance on 2026-08-19. The comparison excludes only the three metadata
+  declarations that setup intentionally stamps and verifies their installed
+  identity separately through `-V`.
+- Existing gate history confirms that `CROSS_HOST rc=1` preserves visible,
+  nonfatal OS applicability differences when both host verdicts pass. M3 T6
+  accepts only the reviewed S23, S29, and S06 difference classes rather than
+  requiring identical normalized records.
 - D1
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner approved the reviewed M3 plan on 2026-08-19
+("계획승인").
+Implementation Authorization: Owner explicitly authorized M3 implementation
+on 2026-08-19 ("구현승인").
 Superseded Plan Artifacts: none
 
-1. Classify the two supported opposite-mode pairs and the third-account case.
-2. Render one diagnosis from the selected and found identities.
-3. Update the validation count and message tests.
-4. Run the real install validation paths in both modes.
+1. In `validate_conf`, resolve `IOC_USER`, `IOC_GROUP`, `IOC_CHDIR`, the
+   invoking local user/group pair, and the configured system user/group pair
+   once. Record whether each identity value passes the existing whitelist.
+   Classify `IOC_CHDIR` once as relative, missing, non-executable,
+   non-writable, or ready. Reuse that state in the existing path-error branch,
+   but treat non-writable only as a combined-diagnosis guard so M3 does not
+   introduce a new general path-validation rule.
+2. Select the required pair from `EXEC_MODE` and the supported opposite pair
+   from the other mode. Aggregate only a complete, whitelist-valid two-field
+   mismatch with a ready `IOC_CHDIR`. Name the source mode only when the found
+   pair exactly matches the supported opposite pair; otherwise omit the
+   source-mode suffix.
+3. Print the fixed-width `Config`, `Found`, `Required`, and `Regenerate` rows
+   inside `validate_conf`. Use `printf -v ... '%q'` to prepare every dynamic
+   value before rendering, `--local` only for a local remedy, and one increment
+   of `error_count` for the complete pair diagnosis. Preserve the current
+   per-field increments for every non-aggregated case.
+4. Select `error` when `error_count` is one and `errors` otherwise, preserving
+   the numeric count and abort result.
+5. Add 26 fixed check identities: five each for the local mismatch, system
+   mismatch, and third-account cases; two for the one-field regression; three
+   for the relative-`IOC_CHDIR` boundary; three for the non-writable-
+   `IOC_CHDIR` boundary; and three for the invalid-identity boundary. Each main
+   case separately checks nonzero exit, the exact diagnostic block, the
+   singular count, source preservation, and absence of an installed
+   configuration. The boundary identities separately pin non-aggregation,
+   retained errors and summary count, or absence of the raw invalid value. Pin
+   the one-field case to `1 error`, the relative-path pair to `3 errors`, the
+   non-writable pair to `2 errors`, and the single-whitelist-error pair to
+   `3 errors`.
+6. Keep the existing one-field exit identity in S25, isolate its fixture from
+   unrelated command errors, and add its field-message and singular-summary
+   identities there. Add S38 for the remaining 24 identities. Exercise a
+   whitelist-valid system pair containing whitespace as `Found` in T1 and as
+   `Required` in T2. Exercise a configuration path and `IOC_CHDIR` containing
+   whitespace in T3. These three exact diagnostic cases make every dynamic
+   field's `printf %q` behavior observable.
+7. Extend reporter STEP registration through S38 and update
+   `tests/ERROR_HANDLING_INVENTORY.md` with the same ordered identities. Change
+   the sole current expected-count row to `error-handling,176,39` in
+   `tests/reporting-counts.csv`; do not add count literals to live inventory or
+   runbook text.
+8. Run `bash -n` and repository-standard `shellcheck -S warning` checks for
+   every changed Bash file. Then run the real catalog-only and error-handling
+   paths, followed by `tests/lib/reporting-counts-self-test.bash` and
+   `tests/lib/test-reporting-self-test.bash`.
+9. Before either canonical gate, use `gate/drivers/push.bash` to synchronize the
+   current tree to both goldens and run `setup-system-infra.bash --full` on each
+   host. Require matching source commits and identical control/remote
+   `git status` output. In the permanent gate driver, compare each pushed
+   source runner with its installed runner after excluding exactly the
+   `RUNNER_GIT_HASH`, `RUNNER_COMMIT_DATE`, and `RUNNER_INSTALL_DATE`
+   declarations that setup stamps. Require the remaining content SHA-256 and
+   the installed `-V` identity to match the remote HEAD and dirty state.
+10. Leave `EXPECTED_IDENTITY_SHA256` unchanged for the initial canonical
+   two-host gate and require it to fail only on the identity digest. Require
+   both host verdicts to print the same candidate derived by the shipped gate
+   from their real TEST records. Reconcile that common candidate with the
+   accepted catalog and inventory, update the digest, and rerun `bash -n` and
+   repository-standard `shellcheck -S warning` on
+   `gate/drivers/control/suites.bash`. Then rerun the full canonical gate to
+   PASS. Expected CSV-derived totals are six blocks, 714 checks, and 171 steps;
+   the driver must derive them rather than store new aggregate literals.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Local mismatch | Install a system-mode conf with `--local` through the shipped install path | Debian 13 | One complete diagnosis and `generate --local` remedy; install aborts |
-| T2 | System mismatch | Install a local-mode conf in default system mode through the shipped path | Debian 13 | Mirror diagnosis and unflagged `generate` remedy; install aborts |
-| T3 | Unknown account | Install a conf naming neither supported identity | Debian 13 | Found-versus-needed output without a source-mode claim; install aborts |
+| T1 | Local mismatch | Install an exact configured-system identity pair containing whitelist-valid whitespace with `--local` through the shipped file-direct install path | Debian 13 | Exit 1; one exact aligned block names system mode, renders the whitespace-bearing pair safely as `Found`, names the local required pair, and provides `ioc-runner --local generate <IOC_CHDIR>`; summary is `1 error`; source is unchanged and no target conf exists |
+| T2 | System mismatch | Install the invoking local identity pair in default system mode with the same whitespace-bearing configured-system pair as `Required`, using the shipped file-direct install path with only the outer conf directory redirected | Debian 13 | Exit 1 after reaching `validate_conf`; one exact aligned block names local mode, renders the required pair safely, and provides an unflagged `ioc-runner generate <IOC_CHDIR>` remedy; summary is `1 error`; source is unchanged and no target conf exists |
+| T3 | Unknown account and escaping | Install a complete third-account pair from a configuration path and valid `IOC_CHDIR` containing whitespace through the shipped local install path | Debian 13 | Exit 1; the exact aligned block has no source-mode suffix, every dynamic value is shell-safe, summary is `1 error`, source is unchanged, and no target conf exists |
+| T4 | Non-aggregation boundaries | Run one-field, relative-`IOC_CHDIR`, non-writable-`IOC_CHDIR`, and single-whitelist-error identity cases through the shipped local install path | Debian 13 | No boundary case emits a combined block or regeneration command; the one-field case reports `1 error`, the relative-path pair reports `3 errors`, the non-writable pair reports `2 errors`, and the whitelist-invalid pair reports `3 errors` without exposing its raw invalid value |
+| T5 | Source verification | Run `bash -n` and repository-standard `shellcheck -S warning` checks on changed Bash files, then catalog-only, the full error-handling suite, `tests/lib/reporting-counts-self-test.bash`, and `tests/lib/test-reporting-self-test.bash` | Source environment | Static checks pass; catalog reports 176 checks and 39 steps; the suite passes all 176 fixed identities; both named self-tests pass |
+| T6 | Golden deployment and gate | Synchronize the current tree with `gate/drivers/push.bash`, run full system setup, verify source and installed runner provenance, then run the canonical two-host gate before and after the accepted identity-digest update | Debian 13 and Rocky 8 goldens | Both remote trees match the control-tree status; each installed runner matches its pushed source after excluding only the three stamped metadata declarations, and its `-V` identity matches the remote HEAD and dirty state; the first gate fails only on one common real identity digest; the updated gate driver passes `bash -n` and `shellcheck -S warning`; both hosts then pass six runs, 714 checks, and 171 steps; `cross-host.diff` contains only the accepted S23, S29, and S06 OS applicability differences, with nonfatal `CROSS_HOST rc=1` |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 | Pending | none |
-| T2 | Not run | Debian 13 | Pending | none |
-| T3 | Not run | Debian 13 | Pending | none |
+| T1 | 2026-08-19 16:31 PDT | Debian 13 source environment | Pass | The shipped file-direct local install path exited 1, emitted the exact escaped system-to-local diagnostic and singular summary, preserved the source, and created no target configuration; all five S38 identities passed in the full suite |
+| T2 | 2026-08-19 16:31 PDT | Debian 13 source environment | Pass | The shipped file-direct system install path reached `validate_conf`, exited 1, emitted the exact escaped local-to-system diagnostic and singular summary, preserved the source, and created no target configuration; all five S38 identities passed in the full suite |
+| T3 | 2026-08-19 16:31 PDT | Debian 13 source environment | Pass | The shipped file-direct local install path escaped the whitespace-bearing source and `IOC_CHDIR`, omitted a source-mode claim for the third-account pair, exited 1, preserved the source, and created no target configuration; all five S38 identities passed in the full suite |
+| T4 | 2026-08-19 16:31 PDT | Debian 13 source environment | Pass | The real install paths retained the one-field, relative-path, non-writable-path, and whitelist errors without a combined diagnostic; the planned 1, 3, 2, and 3 error summaries and all 12 boundary identities passed |
+| T5 | 2026-08-19 16:32 PDT | Source environment | Pass | `bash -n` and `shellcheck -S warning` passed; catalog-only reported 176 checks and 39 steps; the full suite passed 176 of 176 identities; reporting-counts and reporter self-tests passed 8 of 8 and 88 of 88 assertions |
+| T6 | 2026-08-19 19:58 PDT | Debian 13 and Rocky 8 goldens | Pass | Both remote status listings matched the control tree; full setup passed 9 of 9 checks on Debian and 10 of 10 on Rocky; source and installed runner bodies matched on both hosts and both installed identities matched `2640dfb-dirty`; the initial gate failed only on the common real identity digest `2d73f006c5ffc7c37bea4bc21c438d6f3473f63d2ca55930641ccdcef1a87e5e`; after accepting that digest, both hosts passed six runs, 714 TEST records, and 171 STEP records; the post-style-cleanup gate repeated the existing Rocky `system-lifecycle.S22.uds-socket-is-in-listening-state` timing failure while all later checks passed, and the unchanged-tree rerun passed; Debian reported one NA and Rocky reported 12 NA; `CROSS_HOST rc=1` enumerated 77 lines containing only source-regression S23, local-lifecycle S29, and system-infra S06 applicability differences; the final gate passed | Initial digest evidence: `work/gate-suites-20260820T003541Z-33257`; accepted gate evidence: `work/gate-suites-20260820T011725Z-42855`; post-style-cleanup timing evidence: `work/gate-suites-20260820T024956Z-48794`; final accepted gate evidence: `work/gate-suites-20260820T025805Z-49933` |
 
 ##### Closure Evidence
 

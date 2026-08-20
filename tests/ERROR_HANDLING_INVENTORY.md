@@ -13,8 +13,8 @@ runner=source. Its primary category is error-contract.
 
 ## Inventory Basis
 
-The source pipeline contains S01 through S37. Its full non-root branch contains
-143 current assertion calls. Source review adds seven result-producing
+The source pipeline contains S01 through S38. Its full non-root branch contains
+169 current behavior identities. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
@@ -36,6 +36,9 @@ are not separate catalog identities.
 - Each nonroot-permission-probes-applicable check governs only the permission
   branch in its own STEP. Under effective UID 0, that applicability check and
   its dependent behavior checks are NA.
+- The three S38 non-writable-`IOC_CHDIR` behavior identities are NA under
+  effective UID 0 because Bash `-w` cannot reproduce the non-root permission
+  boundary there; the remaining S38 identities still execute.
 - An unexpected abort preserves closed states and closes every remaining open
   identity as SCRIPT_ERROR.
 
@@ -284,6 +287,8 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S24 | `error-handling.S24.view-bad-name-produces-invalid-ioc-name-error-message` | `BEHAVIOR` | `real-path` | view 'bad@name' produces 'Invalid IOC name' error message |
 | S25 | `error-handling.S25.install-with-illegal-characters-in-cmd-exits-1` | `BEHAVIOR` | `real-path` | Install with illegal characters in CMD exits 1 |
 | S25 | `error-handling.S25.install-with-wrong-local-user-exits-1` | `BEHAVIOR` | `real-path` | Install with wrong local user exits 1 |
+| S25 | `error-handling.S25.wrong-local-user-field-error-retained` | `BEHAVIOR` | `real-path` | Wrong local user retains the field-level error |
+| S25 | `error-handling.S25.wrong-local-user-summary-singular` | `BEHAVIOR` | `real-path` | Wrong local user reports the singular validation summary |
 | S25 | `error-handling.S25.install-without-directory-execute-permission-exits-1` | `BEHAVIOR` | `real-path` | Install without directory execute permission exits 1 |
 | S25 | `error-handling.S25.install-with-missing-required-key-ioc-cmd-exits-1` | `BEHAVIOR` | `real-path` | Install with missing required key (IOC_CMD) exits 1 |
 | S25 | `error-handling.S25.install-with-in-system-ioc-chdir-exits-1` | `BEHAVIOR` | `real-path` | Install with '..' in system IOC_CHDIR exits 1 |
@@ -348,17 +353,41 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S37 | `error-handling.S37.rotation-cfg-deployed` | `BEHAVIOR` | `real-path` | Rotation config is deployed after validation |
 | S37 | `error-handling.S37.debug-validation-passes-explicit-state` | `BEHAVIOR` | `real-path` | Debug validation passes an explicit --state |
 | S37 | `error-handling.S37.state-off-system-default` | `BEHAVIOR` | `real-path` | Validation state is off the system default |
+| S38 | `error-handling.S38.local-mode-mismatch-exits-1` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch exits 1 |
+| S38 | `error-handling.S38.local-mode-mismatch-diagnostic-exact` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch diagnostic is exact |
+| S38 | `error-handling.S38.local-mode-mismatch-summary-singular` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch reports the singular summary |
+| S38 | `error-handling.S38.local-mode-mismatch-source-preserved` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch preserves its source configuration |
+| S38 | `error-handling.S38.local-mode-mismatch-target-absent` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch creates no installed configuration |
+| S38 | `error-handling.S38.system-mode-mismatch-exits-1` | `BEHAVIOR` | `real-path` | System-mode pair mismatch exits 1 |
+| S38 | `error-handling.S38.system-mode-mismatch-diagnostic-exact` | `BEHAVIOR` | `real-path` | System-mode pair mismatch diagnostic is exact |
+| S38 | `error-handling.S38.system-mode-mismatch-summary-singular` | `BEHAVIOR` | `real-path` | System-mode pair mismatch reports the singular summary |
+| S38 | `error-handling.S38.system-mode-mismatch-source-preserved` | `BEHAVIOR` | `real-path` | System-mode pair mismatch preserves its source configuration |
+| S38 | `error-handling.S38.system-mode-mismatch-target-absent` | `BEHAVIOR` | `real-path` | System-mode pair mismatch creates no installed configuration |
+| S38 | `error-handling.S38.third-account-mismatch-exits-1` | `BEHAVIOR` | `real-path` | Third-account pair mismatch exits 1 |
+| S38 | `error-handling.S38.third-account-mismatch-diagnostic-exact` | `BEHAVIOR` | `real-path` | Third-account pair mismatch diagnostic is exact |
+| S38 | `error-handling.S38.third-account-mismatch-summary-singular` | `BEHAVIOR` | `real-path` | Third-account pair mismatch reports the singular summary |
+| S38 | `error-handling.S38.third-account-mismatch-source-preserved` | `BEHAVIOR` | `real-path` | Third-account pair mismatch preserves its source configuration |
+| S38 | `error-handling.S38.third-account-mismatch-target-absent` | `BEHAVIOR` | `real-path` | Third-account pair mismatch creates no installed configuration |
+| S38 | `error-handling.S38.relative-chdir-pair-not-aggregated` | `BEHAVIOR` | `real-path` | Relative IOC_CHDIR pair mismatch is not aggregated |
+| S38 | `error-handling.S38.relative-chdir-pair-retains-field-and-path-errors` | `BEHAVIOR` | `real-path` | Relative IOC_CHDIR pair mismatch retains field and path errors |
+| S38 | `error-handling.S38.relative-chdir-pair-summary-three-errors` | `BEHAVIOR` | `real-path` | Relative IOC_CHDIR pair mismatch reports three errors |
+| S38 | `error-handling.S38.non-writable-chdir-pair-not-aggregated` | `BEHAVIOR` | `real-path` | Non-writable IOC_CHDIR pair mismatch is not aggregated |
+| S38 | `error-handling.S38.non-writable-chdir-pair-retains-field-errors` | `BEHAVIOR` | `real-path` | Non-writable IOC_CHDIR pair mismatch retains field errors |
+| S38 | `error-handling.S38.non-writable-chdir-pair-summary-two-errors` | `BEHAVIOR` | `real-path` | Non-writable IOC_CHDIR pair mismatch reports two errors |
+| S38 | `error-handling.S38.invalid-identity-whitelist-error-retained` | `BEHAVIOR` | `real-path` | Invalid identity retains its whitelist error |
+| S38 | `error-handling.S38.invalid-identity-not-rendered` | `BEHAVIOR` | `real-path` | Invalid identity is not rendered in a combined diagnostic |
+| S38 | `error-handling.S38.invalid-identity-summary-three-errors` | `BEHAVIOR` | `real-path` | Invalid identity pair mismatch reports three errors |
 
 ## Completeness Cross-check
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 139 |
+| Current BEHAVIOR identities | 169 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
 | Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
-The mapping is complete only while all 143 current assertion descriptions map
+The mapping is complete only while all 169 current behavior identities map
 once, the seven added conditions map once, no STEP-local key is duplicated,
-and the source pipeline remains S01 through S37.
+and the source pipeline remains S01 through S38.

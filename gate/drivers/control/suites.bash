@@ -15,7 +15,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin"
 unset BASH_ENV ENV CDPATH
 umask 077
 
-readonly EXPECTED_IDENTITY_SHA256="bbbc445888fce6e31ec01badab78d88df53ce81a796ed119a265a2ad139c135c"
+readonly EXPECTED_IDENTITY_SHA256="2d73f006c5ffc7c37bea4bc21c438d6f3473f63d2ca55930641ccdcef1a87e5e"
 readonly REMOTE_REPO="\${HOME}/gitsrc/epics-ioc-runner"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly SCRIPT_DIR
@@ -113,6 +113,39 @@ function preflight_host {
     HOST_HEAD["${token}"]="${head}"
     HOST_REPO["${token}"]="${repo}"
     printf 'PREFLIGHT host=%s env=%s head=%s repo=%s\n' "${host}" "${env_path}" "${head}" "${repo}"
+}
+
+function verify_remote_runner_provenance {
+    local host="$1"
+    local token="$2"
+    local repo="${HOST_REPO[${token}]}"
+    local evidence_file="${RUN_DIR}/${token}.runner"
+    local remote_command=""
+    local output=""
+
+    remote_command="source_file='${repo}/bin/ioc-runner'; "
+    remote_command+="installed_file='/usr/local/bin/ioc-runner'; "
+    remote_command+="test -r \"\${source_file}\" && test -r \"\${installed_file}\"; "
+    remote_command+="source_sha=\$(awk '\$0 !~ /^declare -g RUNNER_(GIT_HASH|COMMIT_DATE|INSTALL_DATE)=/' \"\${source_file}\" | sha256sum | awk '{print \$1}'); "
+    remote_command+="installed_sha=\$(awk '\$0 !~ /^declare -g RUNNER_(GIT_HASH|COMMIT_DATE|INSTALL_DATE)=/' \"\${installed_file}\" | sha256sum | awk '{print \$1}'); "
+    remote_command+="expected_identity=\$(git -C '${repo}' rev-parse --short HEAD); "
+    remote_command+="if ! git -C '${repo}' diff --quiet HEAD --; then expected_identity=\"\${expected_identity}-dirty\"; fi; "
+    remote_command+="actual_identity=\$(\"\${installed_file}\" -V | awk 'NR == 1 { value=\$0; sub(/^.*\\(/, \"\", value); sub(/\\).*$/, \"\", value); print value }'); "
+    remote_command+="state=PASS; if [ \"\${source_sha}\" != \"\${installed_sha}\" ] || [ \"\${actual_identity}\" != \"\${expected_identity}\" ]; then state=FAIL; fi; "
+    remote_command+="printf 'RUNNER_PROVENANCE host=${host} source_body_sha256=%s installed_body_sha256=%s identity=%s expected_identity=%s state=%s\\n' \"\${source_sha}\" \"\${installed_sha}\" \"\${actual_identity}\" \"\${expected_identity}\" \"\${state}\"; "
+    remote_command+="test \"\${state}\" = PASS"
+
+    if ! output="$("${SSH_CMD[@]}" "${host}" "${remote_command}")"; then
+        printf '%s\n' "${output}" > "${evidence_file}"
+        printf 'gate suites: runner provenance check failed: %s\n' "${host}" >&2
+        return 1
+    fi
+    if [[ ! "${output}" =~ ^RUNNER_PROVENANCE[[:space:]]host=[A-Za-z0-9._@:-]+[[:space:]]source_body_sha256=[0-9a-f]{64}[[:space:]]installed_body_sha256=[0-9a-f]{64}[[:space:]]identity=[0-9a-f]+(-dirty)?[[:space:]]expected_identity=[0-9a-f]+(-dirty)?[[:space:]]state=PASS$ ]]; then
+        printf '%s\n' "${output}" > "${evidence_file}"
+        printf 'gate suites: runner provenance returned an invalid record: %s\n' "${host}" >&2
+        return 1
+    fi
+    printf '%s\n' "${output}" | tee "${evidence_file}"
 }
 
 function capture_control_provenance {
@@ -748,6 +781,10 @@ function main {
     if [[ "${HOST_HEAD[${token_one}]}" != "${HOST_HEAD[${token_two}]}" ]]; then
         die "the two host repositories must resolve to the same commit"
     fi
+    verify_remote_runner_provenance "${host_one}" "${token_one}" || \
+        die "runner provenance failed: ${host_one}"
+    verify_remote_runner_provenance "${host_two}" "${token_two}" || \
+        die "runner provenance failed: ${host_two}"
 
     drive_one="${RUN_DIR}/${token_one}.drive"
     drive_two="${RUN_DIR}/${token_two}.drive"

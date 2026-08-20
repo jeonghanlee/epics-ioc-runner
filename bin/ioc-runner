@@ -985,6 +985,17 @@ function validate_conf {
     local display_name="${3:-$1}"
     local error_count=0
     local current_user current_group exec_bin
+    local found_user found_group chdir cmd
+    local required_user required_group required_mode
+    local opposite_user opposite_group opposite_mode
+    local found_user_valid=1
+    local found_group_valid=1
+    local chdir_state="ready"
+    local display_q found_user_q found_group_q
+    local required_user_q required_group_q chdir_q
+    local found_mode_suffix=""
+    local regenerate_command="ioc-runner generate"
+    local error_word="errors"
 
     printf "Validating configuration file: %s...\n" "${display_name}"
 
@@ -994,6 +1005,13 @@ function validate_conf {
     fi
 
     read_conf_all "${conf_file}" conf_vars
+
+    found_user="${conf_vars[IOC_USER]:-}"
+    found_group="${conf_vars[IOC_GROUP]:-}"
+    chdir="${conf_vars[IOC_CHDIR]:-}"
+    cmd="${conf_vars[IOC_CMD]:-}"
+    current_user=$(id -un)
+    current_group=$(id -gn)
 
     # Required keys must be present and non-empty. The empty-string check
     # below intentionally conflates missing key and empty value: both
@@ -1015,6 +1033,10 @@ function validate_conf {
         if [[ -n "${val}" && ! "${val}" =~ ^[a-zA-Z0-9_./:\ -]+$ ]]; then
             printf "Error: Illegal characters detected in variable %s\n" "${key}" >&2
             error_count=$((error_count + 1))
+            case "${key}" in
+                IOC_USER) found_user_valid=0 ;;
+                IOC_GROUP) found_group_valid=0 ;;
+            esac
         fi
     done
 
@@ -1057,63 +1079,125 @@ function validate_conf {
         fi
     fi
 
-    # Identity validation checks
-    if [[ "${EXEC_MODE}" == "system" ]]; then
-        if [[ "${conf_vars[IOC_USER]:-}" != "${TARGET_SYSTEM_USER}" ]]; then
-            printf "Error: System IOCs must run as %s\n" "${TARGET_SYSTEM_USER}" >&2
-            error_count=$((error_count + 1))
-        fi
-        if [[ "${conf_vars[IOC_GROUP]:-}" != "${TARGET_SYSTEM_GROUP}" ]]; then
-            printf "Error: System IOCs must run under group %s\n" "${TARGET_SYSTEM_GROUP}" >&2
-            error_count=$((error_count + 1))
-        fi
-    else
-        current_user=$(id -un)
-        current_group=$(id -gn)
-
-        if [[ "${conf_vars[IOC_USER]:-}" != "${current_user}" ]]; then
-            printf "Error: Local IOCs must run as %s\n" "${current_user}" >&2
-            error_count=$((error_count + 1))
-        fi
-        if [[ "${conf_vars[IOC_GROUP]:-}" != "${current_group}" ]]; then
-            printf "Error: Local IOCs must run under group %s\n" "${current_group}" >&2
-            error_count=$((error_count + 1))
-        fi
-    fi
-
-    # Path and execution permission validation checks
-    local chdir="${conf_vars[IOC_CHDIR]:-}"
-    local cmd="${conf_vars[IOC_CMD]:-}"
-
+    # Classify IOC_CHDIR once. Non-writable remains valid for the existing
+    # install path, but cannot support a regeneration command.
     if [[ -n "${chdir}" && "${chdir}" != /* ]]; then
-        printf "Error: IOC_CHDIR must be an absolute path: %s\n" "${chdir}" >&2
-        error_count=$((error_count + 1))
+        chdir_state="relative"
     elif [[ -z "${chdir}" || ! -d "${chdir}" ]]; then
-        printf "Error: Invalid or missing directory: %s\n" "${chdir}" >&2
-        error_count=$((error_count + 1))
+        chdir_state="missing"
     elif [[ ! -x "${chdir}" ]]; then
-        printf "Error: Execute permission denied for directory: %s\n" "${chdir}" >&2
+        chdir_state="non-executable"
+    elif [[ ! -w "${chdir}" ]]; then
+        chdir_state="non-writable"
+    fi
+
+    # Resolve both supported identity pairs once, regardless of selected mode.
+    if [[ "${EXEC_MODE}" == "system" ]]; then
+        required_user="${TARGET_SYSTEM_USER}"
+        required_group="${TARGET_SYSTEM_GROUP}"
+        required_mode="system"
+        opposite_user="${current_user}"
+        opposite_group="${current_group}"
+        opposite_mode="local"
+    else
+        required_user="${current_user}"
+        required_group="${current_group}"
+        required_mode="local"
+        opposite_user="${TARGET_SYSTEM_USER}"
+        opposite_group="${TARGET_SYSTEM_GROUP}"
+        opposite_mode="system"
+    fi
+
+    # Aggregate only a complete, whitelist-valid pair mismatch for which the
+    # displayed generate command can create its staged configuration.
+    if [[ -n "${found_user}" && -n "${found_group}" \
+       && ${found_user_valid} -eq 1 && ${found_group_valid} -eq 1 \
+       && "${found_user}" != "${required_user}" \
+       && "${found_group}" != "${required_group}" \
+       && "${chdir_state}" == "ready" ]]; then
+        printf -v display_q '%q' "${display_name}"
+        printf -v found_user_q '%q' "${found_user}"
+        printf -v found_group_q '%q' "${found_group}"
+        printf -v required_user_q '%q' "${required_user}"
+        printf -v required_group_q '%q' "${required_group}"
+        printf -v chdir_q '%q' "${chdir}"
+
+        if [[ "${found_user}" == "${opposite_user}" \
+           && "${found_group}" == "${opposite_group}" ]]; then
+            found_mode_suffix=" (${opposite_mode} mode)"
+        fi
+        if [[ "${required_mode}" == "local" ]]; then
+            regenerate_command="ioc-runner --local generate"
+        fi
+
+        printf "Error: Configuration mode mismatch\n" >&2
+        printf "       %-10s : %s\n" "Config" "${display_q}" >&2
+        printf "       %-10s : IOC_USER=%s, IOC_GROUP=%s%s\n" \
+            "Found" "${found_user_q}" "${found_group_q}" "${found_mode_suffix}" >&2
+        printf "       %-10s : IOC_USER=%s, IOC_GROUP=%s (%s mode)\n" \
+            "Required" "${required_user_q}" "${required_group_q}" "${required_mode}" >&2
+        printf "       %-10s : %s %s\n" \
+            "Regenerate" "${regenerate_command}" "${chdir_q}" >&2
         error_count=$((error_count + 1))
     else
-        if [[ -n "${cmd}" && "${cmd}" == *[[:space:]]* ]]; then
-            printf "Error: IOC_CMD must be a single word: '%s'\n" "${cmd}" >&2
-            printf "  Hint: systemd expands \${IOC_CMD} as ONE argument; put arguments in a launcher script (e.g. st.cmd).\n" >&2
-            error_count=$((error_count + 1))
-        elif [[ -n "${cmd}" ]]; then
-            read -r exec_bin _ <<< "${cmd}"
-
-            # Verify if the binary is executable in the target directory or available in the system PATH
-            if [[ ! -x "${chdir}/${exec_bin}" ]] && ! command -v "${exec_bin}" >/dev/null 2>&1; then
-                printf "Error: Command not executable or not found: %s\n" "${exec_bin}" >&2
-                printf "  Hint: Did you forget 'chmod +x %s'?\n" "${exec_bin}" >&2
-                printf "  Hint: Is it a valid system command in your PATH?\n" >&2
-                error_count=$((error_count + 1))
+        if [[ "${found_user}" != "${required_user}" ]]; then
+            if [[ "${required_mode}" == "system" ]]; then
+                printf "Error: System IOCs must run as %s\n" "${required_user}" >&2
+            else
+                printf "Error: Local IOCs must run as %s\n" "${required_user}" >&2
             fi
+            error_count=$((error_count + 1))
+        fi
+        if [[ "${found_group}" != "${required_group}" ]]; then
+            if [[ "${required_mode}" == "system" ]]; then
+                printf "Error: System IOCs must run under group %s\n" "${required_group}" >&2
+            else
+                printf "Error: Local IOCs must run under group %s\n" "${required_group}" >&2
+            fi
+            error_count=$((error_count + 1))
         fi
     fi
+
+    # Path and execution permission validation checks reuse the classification
+    # above. Non-writable continues through the existing command validation.
+    case "${chdir_state}" in
+        relative)
+            printf "Error: IOC_CHDIR must be an absolute path: %s\n" "${chdir}" >&2
+            error_count=$((error_count + 1))
+            ;;
+        missing)
+            printf "Error: Invalid or missing directory: %s\n" "${chdir}" >&2
+            error_count=$((error_count + 1))
+            ;;
+        non-executable)
+            printf "Error: Execute permission denied for directory: %s\n" "${chdir}" >&2
+            error_count=$((error_count + 1))
+            ;;
+        non-writable|ready)
+            if [[ -n "${cmd}" && "${cmd}" == *[[:space:]]* ]]; then
+                printf "Error: IOC_CMD must be a single word: '%s'\n" "${cmd}" >&2
+                printf "  Hint: systemd expands \${IOC_CMD} as ONE argument; put arguments in a launcher script (e.g. st.cmd).\n" >&2
+                error_count=$((error_count + 1))
+            elif [[ -n "${cmd}" ]]; then
+                read -r exec_bin _ <<< "${cmd}"
+
+                # Verify if the binary is executable in the target directory or available in the system PATH
+                if [[ ! -x "${chdir}/${exec_bin}" ]] && ! command -v "${exec_bin}" >/dev/null 2>&1; then
+                    printf "Error: Command not executable or not found: %s\n" "${exec_bin}" >&2
+                    printf "  Hint: Did you forget 'chmod +x %s'?\n" "${exec_bin}" >&2
+                    printf "  Hint: Is it a valid system command in your PATH?\n" >&2
+                    error_count=$((error_count + 1))
+                fi
+            fi
+            ;;
+    esac
 
     if [[ ${error_count} -ne 0 ]]; then
-        printf "Validation failed with %d errors. Installation aborted.\n" "${error_count}" >&2
+        if [[ ${error_count} -eq 1 ]]; then
+            error_word="error"
+        fi
+        printf "Validation failed with %d %s. Installation aborted.\n" \
+            "${error_count}" "${error_word}" >&2
         return 1
     fi
 
@@ -2507,11 +2591,11 @@ function do_start_restart {
     # (D021/D027). The ONLY standalone exit-1 trigger here is a post-marker death
     # banner; crash patterns / re-init markers / _EXTRA are corroborating only.
     local dwell_deadline=$((SECONDS + CONFIRM_DWELL))
-    local p_off p_sig p_marker p_banner p_fatal p_corro
+    local p_off p_sig p_banner p_corro
     while [[ ${SECONDS} -lt ${dwell_deadline} ]]; do
         p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "${marker_inode}" "${marker_tailhash}")
         p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
-        read -r p_marker p_banner p_fatal p_corro <<< "${p_sig}"
+        read -r _ p_banner _ p_corro <<< "${p_sig}"
         if (( p_banner >= 1 )); then
             printf "\nError: IOC '%s' is crash-looping.\n" "${IOC_NAME}" >&2
             print_log_file_hint "${log_file}"
@@ -2525,7 +2609,7 @@ function do_start_restart {
     # (D027/D033).
     p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "${marker_inode}" "${marker_tailhash}")
     p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
-    read -r p_marker p_banner p_fatal p_corro <<< "${p_sig}"
+    read -r _ p_banner _ p_corro <<< "${p_sig}"
     # A death banner landing between the last dwell pass and this
     # final scan is still a failure (#108) — success must not be
     # printed for a just-died IOC.
