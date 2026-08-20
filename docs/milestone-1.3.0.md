@@ -10,12 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: restore GitHub CLI authentication, replace the M3
-(#142, conf mode mismatch diagnosis) issue body with the verified result, and
-close the issue citing `b6547bd`. M1, M2, and M3 are Complete; the linked M1
-and M2 issues are closed. After the M3 projection, review the M4 (#115) plan.
-Continue the M10 (#102) health-signal design conversation in parallel - M10 is
-the largest item and its boundary must be designed before any code.
+Next session entry point: review the M4 (#115) draft plan against the real
+systemd, procServ, and golden paths, then obtain owner acceptance before
+implementation. M1, M2, and M3 are Complete and their linked issues are
+closed. Continue the M10 (#102) health-signal design conversation in parallel
+- M10 is the largest item and its boundary must be designed before any code.
 
 ## Milestone
 
@@ -608,23 +607,21 @@ Superseded Plan Artifacts: none
 - M3 / T1-T6 are Pass. The final canonical two-host gate ran the real six-suite
   matrix with 714 TEST records and 171 STEP records per host and finished at
   `work/gate-suites-20260820T025805Z-49933/`.
-- Linked issue #142 remains open. Restore GitHub CLI authentication, replace
-  its body with the checked completion and verification results, and close it
-  manually citing `b6547bd`; the implementation commit retains its exact
-  `Closes #142` footer for the later default-branch merge.
+- Linked issue #142 was manually closed after its canonical body was projected
+  to GitHub, observed at 2026-08-20T03:44:27Z. The close comment cites
+  `b6547bd`; the implementation commit retains its exact `Closes #142` footer
+  for the later default-branch merge.
 
 ##### GitHub Projection
 
 Title: Diagnose conf/mode mismatch in one message
 Labels: enhancement, P2-medium, area/install
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: enhancement, P2-medium, area/install
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Pending Action: restore GitHub CLI authentication, replace the issue body, and
-close issue #142 citing `b6547bd`
-Last Compared: 2026-08-19; remote updated 2026-08-18T07:39:23Z
+Last Compared: 2026-08-19; remote updated 2026-08-20T03:44:27Z
 
 #### M4 - Restart supervision probe
 
