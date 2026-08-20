@@ -10,12 +10,12 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review and commit the verified M3 (#142, conf mode
-mismatch diagnosis) implementation, then project its result and close the
-linked issue under separate authority. M1 and M2 are Complete and their linked
-issues are closed. Continue the M10 (#102) health-signal design conversation in
-parallel - M10 is the largest item and its boundary must be designed before any
-code.
+Next session entry point: restore GitHub CLI authentication, replace the M3
+(#142, conf mode mismatch diagnosis) issue body with the verified result, and
+close the issue citing `b6547bd`. M1, M2, and M3 are Complete; the linked M1
+and M2 issues are closed. After the M3 projection, review the M4 (#115) plan.
+Continue the M10 (#102) health-signal design conversation in parallel - M10 is
+the largest item and its boundary must be designed before any code.
 
 ## Milestone
 
@@ -25,7 +25,7 @@ code.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Tests | M1 | (#148) Centralize expected reporting counts and guard runtime catalog coherence | Milestone | Complete | No | D1, D3, D4 | Complete in `f7ba3c9`; T1-T5 Pass, including the current-tree two-golden gate; [detail](#m1---suite-count-coherence-guard) |
 | Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Complete | No | D1, D3 | Complete in `df30423`; T1-T5 Pass, including the canonical two-golden gate; [detail](#m2---epics_base-entry-boundary) |
-| Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Not started | Yes | D1, D3 | Both supported mismatch directions produce one complete diagnosis with the correct regeneration command; [detail](#m3---conf-mode-mismatch-diagnosis) |
+| Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Complete | No | D1, D3 | Complete in `b6547bd`; T1-T6 Pass, including the canonical two-golden gate; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Not started | Yes | D1, D3 | Killing the real softIoc child increases the child-death count and the unit recovers on both golden OS families; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Not started | Yes | D1, D2, D3 | Every divergence fixture resolves identically through install-time, runtime, and systemd consumers; [detail](#m5---conf-parser-unification) |
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Not started | No | M5, D1, D2, D3 | Both readers return the identical string for every whitespace- and quote-bearing fixture; [detail](#m6---conf-value-normalization) |
@@ -403,7 +403,7 @@ Last Compared: 2026-08-19; remote updated 2026-08-19T08:05:20Z
 Origin: 1.3.0 / M5
 Identity History: staged from `docs/milestone-46790f9.md` M8; 1.3.0 / M5 -> 1.3.0 / M3 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 142, https://github.com/jeonghanlee/epics-ioc-runner/issues/142
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -603,7 +603,15 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
-- none
+- Implementation commit `b6547bd5aa962a665f62990cdb4b41e1cc2bf4cf` is
+  pushed to `origin/release-1.3.0`.
+- M3 / T1-T6 are Pass. The final canonical two-host gate ran the real six-suite
+  matrix with 714 TEST records and 171 STEP records per host and finished at
+  `work/gate-suites-20260820T025805Z-49933/`.
+- Linked issue #142 remains open. Restore GitHub CLI authentication, replace
+  its body with the checked completion and verification results, and close it
+  manually citing `b6547bd`; the implementation commit retains its exact
+  `Closes #142` footer for the later default-branch merge.
 
 ##### GitHub Projection
 
@@ -614,7 +622,9 @@ Observed State: open
 Observed Labels: enhancement, P2-medium, area/install
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
+Pending Action: restore GitHub CLI authentication, replace the issue body, and
+close issue #142 citing `b6547bd`
+Last Compared: 2026-08-19; remote updated 2026-08-18T07:39:23Z
 
 #### M4 - Restart supervision probe
 
