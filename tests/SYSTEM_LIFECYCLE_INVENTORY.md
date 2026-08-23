@@ -11,13 +11,13 @@ the same identity set.
 
 ## Inventory Basis
 
-The source contains 77 catalog behavior assertion call sites. Repeated pipeline
+The source contains 85 catalog result assertion call sites. Repeated pipeline
 functions and the three-call boundary helper add ten runtime occurrences:
 explicit install at S06 and S12, cleanup install at S07, S09, and S13,
 directory install at S08 and S14, and six additional boundary assertions at
 S26. The camonitor
 availability assertion is currently fail-only, so the maximum successful path
-reports 86 assertions although 87 assertion branches exist.
+reports 94 assertions although 95 assertion branches exist.
 
 The fixed catalog adds four P00 checks and eleven prerequisite or required
 conditions currently represented only by early returns. Its expected check and
@@ -34,7 +34,9 @@ S03, and S04 are setup-only STEPs and own no checks.
   STEPs.
 - S23 camonitor availability governs the Channel Access behavior check.
 - S25 system-journal availability governs both monitor-isolation checks.
-- S26 softIoc availability governs all eleven crash-detection checks.
+- S26 softIoc availability governs all nineteen crash-detection and
+  restart-supervision checks. The verified-child SIGKILL condition governs the
+  seven recovery observations that follow it.
 - S27 softIoc and probe-user-name prerequisites govern its four behavior
   checks.
 - S28 the installed policy, softIoc, and logrotate conditions govern its ten
@@ -114,6 +116,14 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S26 | `system-lifecycle.S26.identifier-contained-fatal-emitted` | `BEHAVIOR` | `real-path` | The both-sides identifier fixture is present in the procServ log. |
 | S26 | `system-lifecycle.S26.broken-softioc-fatal-pre-init-exit-1` | `BEHAVIOR` | `real-path` | Broken softIoc (FATAL pre-init) -> exit 1 |
 | S26 | `system-lifecycle.S26.broken-softioc-failed-to-initialize-verdict` | `BEHAVIOR` | `real-path` | Broken softIoc -> failed-to-initialize verdict |
+| S26 | `system-lifecycle.S26.restart-probe-verified-softioc-child-sigkill-delivered` | `REQUIRED` | `real-path` | The installed healthy probe starts successfully, resolves one verified direct softIoc child, revalidates its identity, and delivers `SIGKILL` only to that child. |
+| S26 | `system-lifecycle.S26.restart-probe-child-death-banner-count-increases-once` | `BEHAVIOR` | `real-path` | Exactly one child-death banner appears after the rotation-safe pre-signal log boundary. |
+| S26 | `system-lifecycle.S26.restart-probe-replacement-child-has-new-identity` | `BEHAVIOR` | `real-path` | procServ creates a verified direct softIoc child with a new `PID:starttime` identity. |
+| S26 | `system-lifecycle.S26.restart-probe-replacement-child-reaches-readiness-after-death` | `BEHAVIOR` | `real-path` | A new readiness marker appears after the child-death banner. |
+| S26 | `system-lifecycle.S26.restart-probe-unit-remains-active` | `BEHAVIOR` | `real-path` | The systemd unit remains active throughout child recovery. |
+| S26 | `system-lifecycle.S26.restart-probe-procserv-mainpid-remains-unchanged` | `BEHAVIOR` | `real-path` | The procServ `MainPID:starttime` identity remains unchanged throughout child recovery. |
+| S26 | `system-lifecycle.S26.restart-probe-systemd-nrestarts-remains-unchanged` | `BEHAVIOR` | `real-path` | systemd `NRestarts` remains unchanged, proving that systemd did not replace procServ. |
+| S26 | `system-lifecycle.S26.restart-probe-recovery-remains-stable-for-three-seconds` | `BEHAVIOR` | `real-path` | The replacement child, unit state, procServ identity, `NRestarts`, and one-banner boundary remain stable for three seconds. |
 | S27 | `system-lifecycle.S27.softioc-available` | `PREREQUISITE` | `direct-inspection` | softIoc is executable. |
 | S27 | `system-lifecycle.S27.probe-user-name-available` | `PREREQUISITE` | `direct-inspection` | The journal-less probe user name is not already in use. |
 | S27 | `system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable` | `BEHAVIOR` | `real-path` | Operator is an ioc-group member (sudoers gate reachable) |
@@ -164,9 +174,9 @@ and executable paths directly. No row uses hand-built-reproduction.
 
 | Source Shape | Count |
 | --- | ---: |
-| Static assertion call sites | 77 |
+| Static assertion call sites | 85 |
 | Repeated pipeline and boundary-helper occurrences | 10 |
-| Current assertion branches | 87 |
+| Current assertion branches | 95 |
 | Added P00 checks | 4 |
 | Added prerequisite or required conditions | 11 |
 | Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |

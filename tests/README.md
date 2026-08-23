@@ -245,6 +245,11 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **EPICS Functionality**: Live PV reads via `caget` ensuring actual Channel Access (CA) broadcasting.
 * **Teardown**: Verifies `enable`/`disable` persistence in systemd `.wants` and complete `remove` cleanup.
 
+The system lifecycle suite also installs a dedicated healthy `softIoc`, sends
+`SIGKILL` only to its verified child, and proves procServ recovery through a
+new ready child while the unit remains active and the procServ `MainPID` and
+systemd `NRestarts` remain unchanged.
+
 ### 3. Error Handling (`test-error-handling.bash`)
 * **Interactive Protections**: Verifies safe aborts and infinite-loop prevention (EOF handling) during non-interactive piping (`< /dev/null`).
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.

@@ -10,11 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review the M4 (#115) draft plan against the real
-systemd, procServ, and golden paths, then obtain owner acceptance before
-implementation. M1, M2, and M3 are Complete and their linked issues are
-closed. Continue the M10 (#102) health-signal design conversation in parallel
-- M10 is the largest item and its boundary must be designed before any code.
+Next session entry point: project the completed M4 (#115) Check evidence after
+the implementation commit, then begin the M5 (#113) parser-unification plan.
+M1 through M4 are Complete. Continue the M10 (#102) health-signal design
+conversation in parallel - M10 is the largest item and its boundary must be
+designed before any code.
 
 ## Milestone
 
@@ -25,7 +25,7 @@ closed. Continue the M10 (#102) health-signal design conversation in parallel
 | Tests | M1 | (#148) Centralize expected reporting counts and guard runtime catalog coherence | Milestone | Complete | No | D1, D3, D4 | Complete in `f7ba3c9`; T1-T5 Pass, including the current-tree two-golden gate; [detail](#m1---suite-count-coherence-guard) |
 | Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Complete | No | D1, D3 | Complete in `df30423`; T1-T5 Pass, including the canonical two-golden gate; [detail](#m2---epics_base-entry-boundary) |
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Complete | No | D1, D3 | Complete in `b6547bd`; T1-T6 Pass, including the canonical two-golden gate; [detail](#m3---conf-mode-mismatch-diagnosis) |
-| Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Not started | Yes | D1, D3 | Killing the real softIoc child increases the child-death count and the unit recovers on both golden OS families; [detail](#m4---restart-supervision-probe) |
+| Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Not started | Yes | D1, D2, D3 | Every divergence fixture resolves identically through install-time, runtime, and systemd consumers; [detail](#m5---conf-parser-unification) |
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Not started | No | M5, D1, D2, D3 | Both readers return the identical string for every whitespace- and quote-bearing fixture; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Not started | Yes | D1, D3 | The deployed oneshot completes through the real user manager on both applicable goldens and a broken `ExecStart` fails; [detail](#m7---suite-integrity) |
@@ -628,7 +628,7 @@ Last Compared: 2026-08-19; remote updated 2026-08-20T03:44:27Z
 Origin: 1.3.0 / M2
 Identity History: staged from `docs/milestone-46790f9.md` M5; 1.3.0 / M2 -> 1.3.0 / M4 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 115, https://github.com/jeonghanlee/epics-ioc-runner/issues/115
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -637,8 +637,10 @@ promise is pinned only by static directive-row guards.
 
 ##### Scope
 
-An automated golden-VM probe that starts a healthy managed softIoc, kills the
-child with `SIGKILL`, and observes systemd and procServ recovery.
+An automated golden-VM probe in system-lifecycle S26 that starts a dedicated
+healthy managed softIoc through the installed runner, kills only its child
+with `SIGKILL`, and observes procServ recovery while systemd keeps supervising
+the same procServ process.
 
 ##### Out of Scope
 
@@ -647,8 +649,12 @@ guards.
 
 ##### Completion Criteria
 
-- Killing the child increases the child-death banner count and the unit
-  returns to active with a new child on both golden OS families.
+- Killing the verified softIoc child increases the child-death banner count
+  after the recorded log boundary and produces a new ready softIoc child on
+  both golden OS families.
+- The unit remains active, the procServ `MainPID` and systemd `NRestarts`
+  remain unchanged, and the replacement child remains stable for the
+  observation interval.
 
 ##### Dependencies And Decisions
 
@@ -658,30 +664,59 @@ guards.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner accepted option 2 and the detailed plan in chat,
+2026-08-19
+Implementation Authorization: owner authorized implementation in chat,
+2026-08-19
 Superseded Plan Artifacts: none
 
-1. Start the healthy softIoc fixture through the shipped systemd path.
-2. Kill the softIoc child with `SIGKILL` while leaving supervision active.
-3. Poll for recovery and compare the procServ child-death banner count.
+1. Extend system-lifecycle S26 with a dedicated healthy softIoc fixture that
+   the installed runner installs and starts through the shipped systemd path.
+   Remove the fixture during normal and failure cleanup.
+2. Before signalling, require an active unit, identify the procServ
+   `MainPID` and its direct softIoc child, and record systemd `NRestarts`, the
+   child identity, and a rotation-safe procServ log boundary.
+3. Send `SIGKILL` only to the verified softIoc child. Poll for at most 30
+   seconds for a new child-death banner after the boundary, a replacement
+   child with a different identity, and a new readiness marker after the
+   death banner.
+4. Require the unit to remain active, the procServ `MainPID` and systemd
+   `NRestarts` to remain unchanged, and the replacement child to remain
+   stable for three seconds.
+5. Keep the S26 STEP identity stable. Add distinct check identities and update
+   the system-lifecycle inventory, reporting count, behavior documentation,
+   and gate identity digest together.
+6. Run an honest-red check with the shipped unit path changed to procServ
+   `--oneshot`; the unchanged-`MainPID` assertion must fail. Restore the
+   shipped configuration before running the final real two-golden gate.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Restart supervision | Kill the real softIoc child of a healthy managed IOC and observe the unit and log | Both golden OS families | The child-death count increases and the unit returns to active with a new child |
+| T1 | Restart supervision | Kill the verified child of a dedicated healthy softIoc installed through the shipped system path | Both golden OS families | A new ready child appears after a new death banner while the unit remains active and procServ `MainPID` and `NRestarts` remain unchanged |
+| T2 | Honest-red discrimination | Deploy the same shipped path with procServ `--oneshot` and run the unchanged restart-supervision check | One disposable golden VM, followed by restoration | The check fails because systemd replaces procServ and changes its `MainPID` |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Both golden OS families | Pending | none |
+| T1 | 2026-08-23 02:18 PDT | Fresh Debian 13 and Rocky 8 consumers from the 2026-08-22 proxy-clean ioc-runner images; installed candidate `0c7b7a8-dirty` | Pass | `work/gate-suites-20260823T091343Z-845266`: both hosts completed all six runs with `rc=0`; each verdict accepted 722 checks with no FAIL, SKIP, or SCRIPT_ERROR state; the final driver reported `GATE SUITES PASS hosts=2` |
+| T2 | 2026-08-23 02:03 PDT | Disposable fresh Debian 13 consumer; installed candidate `0c7b7a8-dirty`; deployed unit changed only by adding procServ `--oneshot`, then restored | Pass | `work/m4-t2-debian-20260823T090200Z.log` (`sha256:86e133e0175f0d240a42006876011ca1e13b7c17e52ff7d51d8ae017cef582e8`): the unchanged suite exited 1 with 106 PASS and the four expected S26 supervision FAIL records, including changed procServ `MainPID`; shipped full setup then restored the original unit hash with no `--oneshot` and no residual probe configuration or active unit |
 
 ##### Closure Evidence
 
-- none
+- The first two-host run completed all real suite processes successfully and
+  both hosts reported the same new catalog identity digest,
+  `7ab4641bdac721cfaa55f6cfc1d491a3a3ff62e7c69d2bcf9634cbd26bdf5e7b`;
+  only the prior expected digest was rejected.
+- After updating the fixed expected digest to that observed common value, the
+  complete two-host run passed. Its recorded OS differences are only the
+  established `PASS`/`NA` applicability boundaries for journal access,
+  sudoers regex support, and the RHEL-family setup path.
+- Both image manifests are `clean-untagged`, so this result is M4 real-path
+  Check evidence and is not a release Gate claim.
 
 ##### GitHub Projection
 
