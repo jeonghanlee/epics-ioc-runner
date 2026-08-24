@@ -10,11 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: commit the implemented, reviewed, and verified M5
-(#113) configuration contract, then update its GitHub issue. M1 through M4 are
-Complete and their linked issues are closed. Continue the M10 (#102)
-health-signal design conversation in parallel - M10 is the largest item and
-its boundary must be designed before any code.
+Next session entry point: begin M6 (#129), the reader-equivalence case that
+follows the shared M5 parser. M1 through M5 are Complete and their linked
+issues are closed. Continue the M10 (#102) health-signal design conversation
+in parallel - M10 is the largest item and its boundary must be designed before
+any code.
 
 ## Milestone
 
@@ -26,8 +26,8 @@ its boundary must be designed before any code.
 | Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Complete | No | D1, D3 | Complete in `df30423`; T1-T5 Pass, including the canonical two-golden gate; [detail](#m2---epics_base-entry-boundary) |
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Complete | No | D1, D3 | Complete in `b6547bd`; T1-T6 Pass, including the canonical two-golden gate; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
-| Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | In progress | No | D1, D2, D3 | Implementation and T1-T4 Pass; commit pending. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
-| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Not started | No | M5, D1, D2, D3 | Both readers return the identical string for every whitespace- and quote-bearing fixture; [detail](#m6---conf-value-normalization) |
+| Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
+| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Not started | Yes | M5, D1, D2, D3 | Both readers return the identical string for every whitespace- and quote-bearing fixture; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Not started | Yes | D1, D3 | The deployed oneshot completes through the real user manager on both applicable goldens and a broken `ExecStart` fails; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
@@ -740,7 +740,7 @@ Last Compared: 2026-08-23; remote updated 2026-08-23T21:59:39Z
 Origin: 1.3.0 / M3
 Identity History: staged from `docs/milestone-46790f9.md` M6; 1.3.0 / M3 -> 1.3.0 / M5 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 113, https://github.com/jeonghanlee/epics-ioc-runner/issues/113
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -841,23 +841,27 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
+- Implementation commit `c10659d8852f73f508d434ffa18bd410b8f12399` is
+  pushed to `origin/release-1.3.0`.
 - Implementation and reader-seat review are complete. Post-implementation
   review: `docs/review_sessions/20260823_192315_m5-conf-parser-contract/reviews/rev20260824_094708_codex_gpt5_post_implementation.md`.
 - The final restored-candidate gate is
   `work/gate-suites-20260824T164017Z-3835511/`.
-- Git commit: none. M5 remains In progress until the accepted tree is committed
-  and the GitHub projection is updated.
+- Linked issue #113 was manually closed after its canonical body was projected
+  to GitHub, observed at 2026-08-24T17:16:05Z. The close comment cites
+  `c10659d`; the implementation commit retains its exact `Closes #113` footer
+  for the later default-branch merge.
 
 ##### GitHub Projection
 
 Title: Unify runner conf parsing and enforce systemd agreement
 Labels: P2-medium, refactor, area/architecture
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, refactor, area/architecture
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-23; remote updated 2026-08-24T06:35:20Z
+Last Compared: 2026-08-24; remote updated 2026-08-24T17:16:05Z
 
 #### M6 - Conf value normalization
 
