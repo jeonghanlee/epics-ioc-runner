@@ -13,12 +13,13 @@ runner=source. Its primary category is error-contract.
 
 ## Inventory Basis
 
-The source pipeline contains S01 through S39. Its full non-root branch contains
-182 current behavior identities. Source review adds seven result-producing
+The source pipeline contains S01 through S40. Its full non-root branch contains
+190 current behavior identities. Source review adds eight result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
+- one S40 required exact-function extraction check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
 The current expected check and STEP counts are owned by
@@ -39,6 +40,9 @@ are not separate catalog identities.
 - The three S38 non-writable-`IOC_CHDIR` behavior identities are NA under
   effective UID 0 because Bash `-w` cannot reproduce the non-root permission
   boundary there; the remaining S38 identities still execute.
+- `error-handling.S40.reader-equivalence.exact-function-extraction` governs the
+  eight direct reader fixtures. If exact extraction fails, the required check
+  is FAIL and the dependent checks are SKIP.
 - An unexpected abort preserves closed states and closes every remaining open
   identity as SCRIPT_ERROR.
 
@@ -390,17 +394,26 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S39 | `error-handling.S39.conf-parser.unmatched-quote-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | An unmatched quote is rejected before the prior target changes. |
 | S39 | `error-handling.S39.conf-parser.continuation-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | A backslash continuation is rejected before the prior target changes. |
 | S39 | `error-handling.S39.conf-parser.multiline-quote-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | A multiline quoted value is rejected before the prior target changes. |
+| S40 | `error-handling.S40.reader-equivalence.exact-function-extraction` | `REQUIRED` | `direct-inspection` | The selected runner contains exactly one complete definition of each reader function, and the generated source is nonempty and valid Bash. |
+| S40 | `error-handling.S40.reader-equivalence.surrounding-spaces` | `BEHAVIOR` | `real-path` | Both shipped reader APIs return the independent expected value for an assignment with surrounding spaces. |
+| S40 | `error-handling.S40.reader-equivalence.surrounding-tabs` | `BEHAVIOR` | `real-path` | Both shipped reader APIs return the independent expected value for an assignment with surrounding tabs. |
+| S40 | `error-handling.S40.reader-equivalence.single-quoted-interior-whitespace` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve the expected single-quoted interior whitespace. |
+| S40 | `error-handling.S40.reader-equivalence.double-quoted-interior-whitespace` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve the expected double-quoted interior whitespace. |
+| S40 | `error-handling.S40.reader-equivalence.single-quoted-whitespace-only` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve a single-quoted whitespace-only value. |
+| S40 | `error-handling.S40.reader-equivalence.double-quoted-whitespace-only` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve a double-quoted whitespace-only value. |
+| S40 | `error-handling.S40.reader-equivalence.quoted-empty-present` | `BEHAVIOR` | `real-path` | Both shipped reader APIs retain a quoted empty value as present. |
+| S40 | `error-handling.S40.reader-equivalence.missing-key-api-states` | `BEHAVIOR` | `real-path` | Full-file parsing leaves a missing key absent while the single-key reader returns 1. |
 
 ## Completeness Cross-check
 
 | Source Shape | Count |
 | --- | ---: |
-| Current BEHAVIOR identities | 182 |
+| Current BEHAVIOR identities | 190 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
 | Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
-The mapping is complete only while all 182 current behavior identities map
-once, the seven added conditions map once, no STEP-local key is duplicated,
-and the source pipeline remains S01 through S39.
+The mapping is complete only while all 190 current behavior identities map
+once, the eight added conditions map once, no STEP-local key is duplicated,
+and the source pipeline remains S01 through S40.

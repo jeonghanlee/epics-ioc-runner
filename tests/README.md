@@ -260,7 +260,7 @@ no active unit or installed configuration.
 ### 3. Error Handling (`test-error-handling.bash`)
 * **Interactive Protections**: Verifies safe aborts and infinite-loop prevention (EOF handling) during non-interactive piping (`< /dev/null`).
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
-* **Configuration Parser**: Drives spaces, tabs, matching quotes, CRLF, empty values, embedded `=`, duplicates, and double-quoted escaped regex backslashes through real file-direct installs; unsupported multiline, continuation, and unmatched-quote forms must preserve the prior target.
+* **Configuration Parser**: Drives spaces, tabs, matching quotes, CRLF, empty values, embedded `=`, duplicates, and double-quoted escaped regex backslashes through real file-direct installs; unsupported multiline, continuation, and unmatched-quote forms must preserve the prior target. A separate logic-level STEP extracts the exact shipped parser and reader definitions, requires one valid definition of each, and verifies both reader APIs against independent whitespace, quote, empty, and missing-key expectations.
 * **Diff Engine**: Evaluates ANSI-colored diff output prompting and force-overwrite (`-f`) bypass mechanisms.
 
 ### 4. Source Regression (`test-source-regression.bash`)

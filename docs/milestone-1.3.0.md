@@ -868,29 +868,37 @@ Last Compared: 2026-08-24; remote updated 2026-08-24T17:16:05Z
 Origin: 1.3.0 / M4
 Identity History: staged from `docs/milestone-46790f9.md` M7; 1.3.0 / M4 -> 1.3.0 / M6 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 129, https://github.com/jeonghanlee/epics-ioc-runner/issues/129
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-`read_conf_var` and `read_conf_all` normalize a value differently: the runtime
-reader neither trims nor applies the trim-before-unquote ordering that install
-uses, so one conf line can reach two verdicts.
+M5 routes `read_conf_var` and `read_conf_all` through one shared parser, but no
+direct fixture invokes both reader APIs and compares their resulting values.
+M6 closes that evidence gap without changing the production parser.
 
 ##### Scope
 
-One trim-before-unquote normalization step shared by `read_conf_var` and
-`read_conf_all`, covering whitespace around `=`, quoted values, and quoted
-whitespace-only values.
+A logic-level direct test reads the shipped `parse_conf_file`,
+`read_conf_var`, and `read_conf_all` function definitions from
+`bin/ioc-runner`. It compares each present value against an independent
+expected value through both reader APIs and preserves their documented empty
+and missing-key states.
 
 ##### Out of Scope
 
-The `CRASH_LOG_PATTERNS_EXTRA` call-site trim, which #122 landed.
+Changes to `bin/ioc-runner`, the bounded parser grammar, systemd
+`EnvironmentFile` behavior, or the `CRASH_LOG_PATTERNS_EXTRA` runtime policy.
 
 ##### Completion Criteria
 
-- Both readers return the identical string for every whitespace- and
-  quote-bearing fixture.
-- Maintained lifecycle and error-handling paths remain green.
+- Both reader APIs expose the same expected value for every present
+  whitespace- and quote-bearing fixture.
+- A quoted empty value remains present and empty through both APIs. A missing
+  key remains absent from the full map while `read_conf_var` returns 1.
+- An isolated runner carrying the exact pre-M5 `read_conf_var` makes the named
+  unchanged equivalence checks fail.
+- Maintained error-handling and system-lifecycle paths remain green on Debian
+  13 and Rocky 8.
 
 ##### Dependencies And Decisions
 
@@ -900,31 +908,70 @@ The `CRASH_LOG_PATTERNS_EXTRA` call-site trim, which #122 landed.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner selected the direct-function option and directed all
+third-person review findings to be applied on 2026-08-24.
+Implementation Authorization: Owner selected implementation option 1 on
+2026-08-24 ("1"): implement M6, then run the new and maintained suites in an
+isolated Rocky 8 workspace.
 Superseded Plan Artifacts: none
 
-1. Define one trim-before-unquote value-normalization function (or adopt the
-   M5 parse core directly).
-2. Route `read_conf_var` and `read_conf_all` through it and remove the local
-   #122 workaround when it becomes redundant.
-3. Pin both readers to identical results on whitespace- and quote-bearing
-   fixtures.
+1. Before test-code edits, record owner acceptance of this direct-verification
+   plan and explicit implementation authorization.
+2. Add a fail-closed test helper that reads anchored function ranges from the
+   selected `bin/ioc-runner`, requires exactly one source and generated
+   definition for each of `parse_conf_file`, `read_conf_var`, and
+   `read_conf_all`, requires nonempty output, and passes `bash -n` before the
+   generated source is loaded.
+3. Add stable reader-equivalence check identities for surrounding spaces,
+   surrounding tabs, matching single and double quotes, preserved interior
+   whitespace, quoted whitespace-only values, quoted empty values, and the
+   intentional missing-key API states according to the Direct Fixture Matrix
+   below. Compare each present reader result independently with its expected
+   value rather than comparing only the two readers with each other.
+4. After the Rocky 8 golden is free of other work, copy the full candidate
+   tree to an isolated workspace there and replace only `read_conf_var` with
+   its exact definition from
+   `a3801003f25dbadebde8da7a3e3d649fc4af4712`. Run the unchanged new test and
+   require every check marked `FAIL` in the Direct Fixture Matrix to report
+   FAIL, then discard the copy and confirm the candidate tree remains
+   unchanged.
+5. Run static checks, catalogs, reporting self-tests, both maintained affected
+   suites, and the canonical two-host gate. Update inventories, observed
+   reporting counts, gate identity, test documentation, and verification
+   records only from real results. Use `tests/README.md`, section "Test
+   Execution", for suite commands and `gate/RUNBOOK.md`, section "Gate steps",
+   for the canonical driver procedure.
+
+##### Direct Fixture Matrix
+
+| Check Identity | Input | Expected Current State | Pre-M5 `read_conf_var` Outcome |
+| --- | --- | --- | --- |
+| `error-handling.S40.reader-equivalence.exact-function-extraction` | The three anchored function ranges from the selected runner | Exactly one definition each; generated source is nonempty and passes `bash -n` | `PASS` |
+| `error-handling.S40.reader-equivalence.surrounding-spaces` | `M6_VALUE = alpha` | Full map contains `alpha`; single-key reader returns 0 and `alpha` | `FAIL` |
+| `error-handling.S40.reader-equivalence.surrounding-tabs` | `M6_VALUE\t=\tbravo` | Full map contains `bravo`; single-key reader returns 0 and `bravo` | `FAIL` |
+| `error-handling.S40.reader-equivalence.single-quoted-interior-whitespace` | `M6_VALUE = ' charlie '` | Both values are ` charlie ` with length 9 | `FAIL` |
+| `error-handling.S40.reader-equivalence.double-quoted-interior-whitespace` | `M6_VALUE = " delta "` | Both values are ` delta ` with length 7 | `FAIL` |
+| `error-handling.S40.reader-equivalence.single-quoted-whitespace-only` | `M6_VALUE = '   '` | The key is present through both APIs with three space bytes | `FAIL` |
+| `error-handling.S40.reader-equivalence.double-quoted-whitespace-only` | `M6_VALUE = "   "` | The key is present through both APIs with three space bytes | `FAIL` |
+| `error-handling.S40.reader-equivalence.quoted-empty-present` | `M6_VALUE = ""` | The key is present through both APIs with an empty value; single-key reader returns 0 | `FAIL` |
+| `error-handling.S40.reader-equivalence.missing-key-api-states` | `M6_OTHER=present` | Full-file parsing returns 0 with `M6_VALUE` absent; single-key reader returns 1 | `PASS` |
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Reader equivalence | Pass spaces around `=`, quoted values, and quoted whitespace through both shipped readers | Source test environment | Both readers return the identical normalized string for every fixture |
-| T2 | Lifecycle regression | Run the maintained error-handling and lifecycle paths with representative configuration keys | Both golden OS families | No supported key relies on preserving the divergent whitespace behavior |
+| T1 | Reader equivalence | Load the three exact function definitions from the selected runner and pass the accepted whitespace, quote, empty, and missing-key fixtures through both APIs | Debian 13 and Rocky 8 source-tree runs | Every present fixture equals its independent expected value through both APIs; empty and missing keys retain their documented states |
+| T2 | Honest red | Replace only `read_conf_var` in an isolated full-tree copy with its exact definition from `a3801003f25dbadebde8da7a3e3d649fc4af4712` and run the unchanged new test after the host is free | Rocky 8 golden, isolated source-tree copy | Every Direct Fixture Matrix row marked `FAIL` reports FAIL; the two rows marked `PASS` remain passing; the candidate tree remains unchanged |
+| T3 | Regression and identity | Run static checks, catalogs, reporting self-tests, maintained error-handling and system-lifecycle suites, inventory agreement, and the canonical gate | Source environment plus Debian 13 and Rocky 8 goldens | All maintained checks pass and counts and gate identity come only from observed real catalogs |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Source test environment | Pending | none |
-| T2 | Not run | Both golden OS families | Pending | none |
+| T1 | 2026-08-24 12:22 PDT | Debian 13 control host and Rocky 8 golden, source-tree runs | Pass: each real error-handling suite completed 198/198; S40 extracted the exact three shipped definitions and passed all nine whitespace, quote, empty, and missing-key checks | `work/m6-rocky8-s40/m6-debian13-current.log`; `work/m6-rocky8-s40/m6-rocky-current.log` |
+| T2 | 2026-08-24 12:22 PDT | Rocky 8 golden, isolated source-tree copy | Pass: replacing only `read_conf_var` with the exact `a3801003` definition made the seven matrix rows marked `FAIL` fail while extraction and missing-key states passed; the current runner was restored byte-for-byte before the isolated copy was removed | `work/m6-rocky8-s40/m6-rocky-pre-m5.log`; terminal observation |
+| T3 | 2026-08-24 12:22 PDT | Debian 13 control host and Rocky 8 golden | In progress: Bash syntax, warning-level shellcheck, diff checks, all five real catalogs, reporting self-tests at 8/8 and 88/88, and the 198-entry inventory comparison passed; a Debian 13 duplicate-definition mutation failed extraction and skipped all eight dependent checks; the canonical Rocky 8 installed system-lifecycle path passed 118/118. Debian 13 golden system-lifecycle and the canonical two-host gate remain pending | `work/m6-rocky8-s40/m6-extraction-fail-closed.log`; `work/m6-rocky8-s40/m6-rocky-system-lifecycle-installed.log`; terminal observation |
 
 ##### Closure Evidence
 

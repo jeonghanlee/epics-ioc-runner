@@ -224,6 +224,15 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S39|error-handling.S39.conf-parser.unmatched-quote-rejected-and-target-preserved|BEHAVIOR|real-path"
     "S39|error-handling.S39.conf-parser.continuation-rejected-and-target-preserved|BEHAVIOR|real-path"
     "S39|error-handling.S39.conf-parser.multiline-quote-rejected-and-target-preserved|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.exact-function-extraction|REQUIRED|direct-inspection"
+    "S40|error-handling.S40.reader-equivalence.surrounding-spaces|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.surrounding-tabs|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.single-quoted-interior-whitespace|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.double-quoted-interior-whitespace|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.single-quoted-whitespace-only|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.double-quoted-whitespace-only|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.quoted-empty-present|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.missing-key-api-states|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -291,7 +300,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 39; index += 1)); do
+    for ((index = 1; index <= 40; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2311,6 +2320,125 @@ function test_conf_parser_contract {
     done
 }
 
+function extract_reader_functions {
+    local output_file="$1"
+    local function_name=""
+    local start_line=""
+    local source_count=0
+    local generated_count=0
+    local -a function_names=(parse_conf_file read_conf_var read_conf_all)
+
+    : > "${output_file}"
+    for function_name in "${function_names[@]}"; do
+        start_line="function ${function_name} {"
+        if ! source_count=$(awk -v start="${start_line}" \
+            '$0 == start { count += 1 } END { print count + 0 }' "${RUNNER_SCRIPT}"); then
+            return 1
+        fi
+        if (( source_count != 1 )); then
+            return 1
+        fi
+        if ! awk -v start="${start_line}" '
+            $0 == start { capture = 1 }
+            capture { print }
+            capture && $0 == "}" { complete = 1; exit }
+            END { if (!complete) exit 1 }
+        ' "${RUNNER_SCRIPT}" >> "${output_file}"; then
+            return 1
+        fi
+        printf '\n' >> "${output_file}"
+    done
+
+    [[ -s "${output_file}" ]] || return 1
+    for function_name in "${function_names[@]}"; do
+        start_line="function ${function_name} {"
+        if ! generated_count=$(awk -v start="${start_line}" \
+            '$0 == start { count += 1 } END { print count + 0 }' "${output_file}"); then
+            return 1
+        fi
+        if (( generated_count != 1 )); then
+            return 1
+        fi
+    done
+    bash -n "${output_file}"
+}
+
+function verify_reader_fixture {
+    local input_line="$1"
+    local expected_value="$2"
+    local description="$3"
+    local fixture_file="${TEST_TMPDIR}/m6-reader-equivalence.conf"
+    local reader_value=""
+    local map_rc=0
+    local reader_rc=0
+    local result="false"
+    local -A values=()
+
+    printf '%s\n' "${input_line}" > "${fixture_file}"
+    read_conf_all "${fixture_file}" values || map_rc=$?
+    reader_value=$(read_conf_var "${fixture_file}" M6_VALUE) || reader_rc=$?
+    if (( map_rc == 0 && reader_rc == 0 )) \
+       && [[ -v 'values[M6_VALUE]' ]] \
+       && [[ "${values[M6_VALUE]}" == "${expected_value}" ]] \
+       && [[ "${reader_value}" == "${expected_value}" ]]; then
+        result="true"
+    fi
+    verify_state "true" "${result}" "${description}"
+}
+
+function test_reader_equivalence {
+    local step="$1"
+    local reader_source="${TEST_TMPDIR}/m6-reader-functions.bash"
+    local fixture_file="${TEST_TMPDIR}/m6-reader-equivalence.conf"
+    local extraction_ok="false"
+    local reader_value=""
+    local map_rc=0
+    local reader_rc=0
+    local missing_states_ok="false"
+    local -A values=()
+
+    print_divider
+    _log "INFO" "STEP ${step}: Configuration Reader Equivalence"
+    print_sub_divider
+
+    if extract_reader_functions "${reader_source}"; then
+        # shellcheck disable=SC1090
+        if source "${reader_source}"; then
+            extraction_ok="true"
+        fi
+    fi
+    verify_state "true" "${extraction_ok}" \
+        "Exact shipped configuration reader functions are extracted"
+    if [[ "${extraction_ok}" != "true" ]]; then
+        close_current_remaining SKIP "requires exact reader-function extraction"
+        return 0
+    fi
+
+    verify_reader_fixture 'M6_VALUE = alpha' 'alpha' \
+        "Both readers normalize surrounding spaces"
+    verify_reader_fixture $'M6_VALUE\t=\tbravo' 'bravo' \
+        "Both readers normalize surrounding tabs"
+    verify_reader_fixture "M6_VALUE = ' charlie '" ' charlie ' \
+        "Both readers preserve single-quoted interior whitespace"
+    verify_reader_fixture 'M6_VALUE = " delta "' ' delta ' \
+        "Both readers preserve double-quoted interior whitespace"
+    verify_reader_fixture "M6_VALUE = '   '" '   ' \
+        "Both readers preserve single-quoted whitespace-only values"
+    verify_reader_fixture 'M6_VALUE = "   "' '   ' \
+        "Both readers preserve double-quoted whitespace-only values"
+    verify_reader_fixture 'M6_VALUE = ""' '' \
+        "Both readers preserve a quoted empty value as present"
+
+    printf '%s\n' 'M6_OTHER=present' > "${fixture_file}"
+    read_conf_all "${fixture_file}" values || map_rc=$?
+    reader_value=$(read_conf_var "${fixture_file}" M6_VALUE) || reader_rc=$?
+    if (( map_rc == 0 && reader_rc == 1 )) && [[ ! -v 'values[M6_VALUE]' ]]; then
+        missing_states_ok="true"
+    fi
+    verify_state "true" "${missing_states_ok}" \
+        "Both readers preserve their intentional missing-key API states"
+}
+
 
 function run_all_tests {
     local -a pipeline=(
@@ -2353,6 +2481,7 @@ function run_all_tests {
         "test_logrotate_debug_state_isolation"
         "test_conf_mode_mismatch_diagnosis"
         "test_conf_parser_contract"
+        "test_reader_equivalence"
     )
     local step=1
     local func
