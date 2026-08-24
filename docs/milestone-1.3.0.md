@@ -10,11 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: begin M6 (#129), the reader-equivalence case that
-follows the shared M5 parser. M1 through M5 are Complete and their linked
-issues are closed. Continue the M10 (#102) health-signal design conversation
-in parallel - M10 is the largest item and its boundary must be designed before
-any code.
+Next session entry point: complete M6 (#129) by running the pending Debian 13
+golden system-lifecycle path and the canonical two-host gate. M1 through M5
+are Complete and their linked issues are closed. Continue the M10 (#102)
+health-signal design conversation in parallel - M10 is the largest item and
+its boundary must be designed before any code.
 
 ## Milestone
 
@@ -27,7 +27,7 @@ any code.
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Complete | No | D1, D3 | Complete in `b6547bd`; T1-T6 Pass, including the canonical two-golden gate; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
-| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Not started | Yes | M5, D1, D2, D3 | Both readers return the identical string for every whitespace- and quote-bearing fixture; [detail](#m6---conf-value-normalization) |
+| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | In progress | No | M5, D1, D2, D3 | T1-T2 Pass; T3 awaits the Debian 13 golden system-lifecycle path and canonical two-host gate; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Not started | Yes | D1, D3 | The deployed oneshot completes through the real user manager on both applicable goldens and a broken `ExecStart` fails; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
