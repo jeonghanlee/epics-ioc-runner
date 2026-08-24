@@ -10,11 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: project the completed M4 (#115) Check evidence after
-the implementation commit, then begin the M5 (#113) parser-unification plan.
-M1 through M4 are Complete. Continue the M10 (#102) health-signal design
-conversation in parallel - M10 is the largest item and its boundary must be
-designed before any code.
+Next session entry point: review and accept the M5 (#113) parser-unification
+plan before implementation. M1 through M4 are Complete and their linked
+issues are closed. Continue the M10 (#102) health-signal design conversation
+in parallel - M10 is the largest item and its boundary must be designed
+before any code.
 
 ## Milestone
 
@@ -707,6 +707,8 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
+- Implementation commit `98fafea39a74a03a663ff18f6e6d1b63aa34c29c` is
+  pushed to `origin/release-1.3.0`.
 - The first two-host run completed all real suite processes successfully and
   both hosts reported the same new catalog identity digest,
   `7ab4641bdac721cfaa55f6cfc1d491a3a3ff62e7c69d2bcf9634cbd26bdf5e7b`;
@@ -717,17 +719,21 @@ Superseded Plan Artifacts: none
   sudoers regex support, and the RHEL-family setup path.
 - Both image manifests are `clean-untagged`, so this result is M4 real-path
   Check evidence and is not a release Gate claim.
+- Linked issue #115 was manually closed after its canonical body was projected
+  to GitHub, observed at 2026-08-23T21:59:39Z. The close comment cites
+  `98fafea`; the implementation commit retains its exact `Closes #115` footer
+  for the later default-branch merge.
 
 ##### GitHub Projection
 
 Title: Exercise restart supervision end-to-end on the goldens
 Labels: P2-medium, tests
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: P2-medium, tests
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
+Last Compared: 2026-08-23; remote updated 2026-08-23T21:59:39Z
 
 #### M5 - Conf parser unification
 
