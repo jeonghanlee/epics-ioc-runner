@@ -11,13 +11,13 @@ the same identity set.
 
 ## Inventory Basis
 
-The source contains 85 catalog result assertion call sites. Repeated pipeline
+The source contains 93 catalog result assertion call sites. Repeated pipeline
 functions and the three-call boundary helper add ten runtime occurrences:
 explicit install at S06 and S12, cleanup install at S07, S09, and S13,
 directory install at S08 and S14, and six additional boundary assertions at
 S26. The camonitor
 availability assertion is currently fail-only, so the maximum successful path
-reports 94 assertions although 95 assertion branches exist.
+reports 102 assertions although 103 assertion branches exist.
 
 The fixed catalog adds four P00 checks and eleven prerequisite or required
 conditions currently represented only by early returns. Its expected check and
@@ -169,18 +169,26 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S31 | `system-lifecycle.S31.symlink-strictly-removed-disable` | `BEHAVIOR` | `real-path` | Symlink strictly removed (Disable) |
 | S32 | `system-lifecycle.S32.configuration-file-safely-removed` | `BEHAVIOR` | `real-path` | Configuration file safely removed |
 | S32 | `system-lifecycle.S32.service-completely-stopped-inactive` | `BEHAVIOR` | `real-path` | Service completely stopped (inactive) |
+| S33 | `system-lifecycle.S33.conf-parser-probe-install-selects-last-valid-chdir` | `BEHAVIOR` | `real-path` | File-direct install selects the later valid IOC_CHDIR assignment. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-deployed-file-retains-duplicate-assignments` | `BEHAVIOR` | `real-path` | The one deployed EnvironmentFile retains each duplicate pair consumed by the runner and systemd. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-service-active` | `BEHAVIOR` | `real-path` | The dedicated probe remains active under the real systemd manager. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-runtime-lookup-selects-last-valid-extra-pattern` | `BEHAVIOR` | `real-path` | Runtime lookup selects the later valid CRASH_LOG_PATTERNS_EXTRA assignment without a rejection warning. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-systemd-emits-accepted-fixture-matrix` | `BEHAVIOR` | `real-path` | systemd emits every accepted parser fixture value, including the escaped regex backslash, without value drift. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-systemd-emits-last-value-with-embedded-equals` | `BEHAVIOR` | `real-path` | The probe process receives the later systemd value with its embedded equals sign intact. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-systemd-uses-last-chdir` | `BEHAVIOR` | `real-path` | systemd starts the probe in the later IOC_CHDIR assignment. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-cleanup-complete` | `BEHAVIOR` | `real-path` | Removal leaves no probe configuration or active unit. |
 
 ## Completeness Cross-check
 
 | Source Shape | Count |
 | --- | ---: |
-| Static assertion call sites | 85 |
+| Static assertion call sites | 93 |
 | Repeated pipeline and boundary-helper occurrences | 10 |
-| Current assertion branches | 95 |
+| Current assertion branches | 103 |
 | Added P00 checks | 4 |
 | Added prerequisite or required conditions | 11 |
 | Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
 The mapping is complete only while every source assertion branch maps once,
 every early return maps to its governing identity, repeated functions retain
-their STEP-specific IDs, and the pipeline remains S01 through S32.
+their STEP-specific IDs, and the pipeline remains S01 through S33.

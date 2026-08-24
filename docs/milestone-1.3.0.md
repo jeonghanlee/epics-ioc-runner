@@ -10,11 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review and accept the M5 (#113) parser-unification
-plan before implementation. M1 through M4 are Complete and their linked
-issues are closed. Continue the M10 (#102) health-signal design conversation
-in parallel - M10 is the largest item and its boundary must be designed
-before any code.
+Next session entry point: commit the implemented, reviewed, and verified M5
+(#113) configuration contract, then update its GitHub issue. M1 through M4 are
+Complete and their linked issues are closed. Continue the M10 (#102)
+health-signal design conversation in parallel - M10 is the largest item and
+its boundary must be designed before any code.
 
 ## Milestone
 
@@ -26,7 +26,7 @@ before any code.
 | Environment | M2 | (#139) Stop EPICS-dependent test scripts before setup when `EPICS_BASE` is unset | Milestone | Complete | No | D1, D3 | Complete in `df30423`; T1-T5 Pass, including the canonical two-golden gate; [detail](#m2---epics_base-entry-boundary) |
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Complete | No | D1, D3 | Complete in `b6547bd`; T1-T6 Pass, including the canonical two-golden gate; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
-| Configuration | M5 | (#113) Unify the three conf parsers behind one shared parse core | Milestone | Not started | Yes | D1, D2, D3 | Every divergence fixture resolves identically through install-time, runtime, and systemd consumers; [detail](#m5---conf-parser-unification) |
+| Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | In progress | No | D1, D2, D3 | Implementation and T1-T4 Pass; commit pending. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Not started | No | M5, D1, D2, D3 | Both readers return the identical string for every whitespace- and quote-bearing fixture; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Not started | Yes | D1, D3 | The deployed oneshot completes through the real user manager on both applicable goldens and a broken `ExecStart` fails; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
@@ -740,76 +740,124 @@ Last Compared: 2026-08-23; remote updated 2026-08-23T21:59:39Z
 Origin: 1.3.0 / M3
 Identity History: staged from `docs/milestone-46790f9.md` M6; 1.3.0 / M3 -> 1.3.0 / M5 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 113, https://github.com/jeonghanlee/epics-ioc-runner/issues/113
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-Three conf parsers disagree on trimming, duplicate keys, and CRLF. One shared
-parse core plus divergence fixtures pinning install-time acceptance to runtime
-interpretation.
+`read_conf_var` and `read_conf_all` disagree on trimming, quote order,
+duplicate keys, and CRLF. systemd is a separate `EnvironmentFile` parser, so
+the runner needs one internal parse core plus a bounded accepted syntax whose
+deployed values are proven to agree with systemd.
 
 ##### Scope
 
-One configuration contract for trimming, quotes, duplicate keys, and CRLF,
-shared by the runner's install-time and runtime readers and constrained so the
-systemd `EnvironmentFile` interpretation agrees.
+Define one pure-Bash, non-executing full-file parser for the supported
+single-line assignment form. It owns key and value trimming, matching outer
+quotes, empty values, values containing `=`, CRLF, and last-wins duplicate
+handling. `read_conf_var`, `read_conf_all`, and install-time syntax acceptance
+delegate to that parser. systemd remains external; accepted deployed files
+must produce the same values through `EnvironmentFile`.
 
 ##### Out of Scope
 
-Changing the supported configuration keys or adding a second configuration
-format.
+Implementing full systemd `EnvironmentFile` multiline, continuation, quoting,
+or escape grammar; changing the supported configuration keys; adding a second
+configuration format; sourcing, evaluating, or executing conf content; and
+changing the #122 runtime validation policy beyond removing its redundant
+call-site trim after parser unification.
 
 ##### Completion Criteria
 
-- Every divergence fixture resolves identically through install-time, runtime,
-  and systemd consumers, or is rejected before deployment.
-- Real install and start paths agree on the accepted artifact.
+- The runner contains one assignment-parse loop, and both internal reader APIs
+  delegate to it without `source`, `eval`, or command execution.
+- Accepted fixtures trim surrounding space, tab, and line-ending CR before
+  removing one matching outer quote pair, preserve interior whitespace, and
+  resolve duplicate keys by the later assignment.
+- Unsupported fixtures fail the shipped install path before an existing target
+  configuration is replaced.
+- The shipped install and start paths produce the same observed value through
+  install validation, runtime lookup, and the real systemd manager on Debian 13
+  and Rocky 8.
+- An honest-red mutation of the real runner makes the unchanged divergence
+  assertion fail before the candidate tree is restored.
 
 ##### Dependencies And Decisions
 
-- D1, D2
+- D1, D2, D3
 - Related: M6 (#129) is the narrow two-reader case inside this general work
-  and runs in the same lane.
+  and follows M5 in the same lane.
+- #62 established acceptance of surrounding assignment whitespace. #122's
+  runtime call-site trim is removed only after the shared parser makes it
+  redundant.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted `plan20260823_192325` on 2026-08-23.
+Implementation Authorization: Owner authorized P001-P006 on 2026-08-23.
 Superseded Plan Artifacts: none
 
-1. Define one trim, quote, duplicate-key, and CRLF contract.
-2. Route the shipped configuration consumers through one parse core.
-3. Pin the contract with divergence fixtures and real install/runtime checks.
+1. Add one pure-Bash `parse_conf_file` function that clears and fills a
+   caller-owned associative map, splits at the first `=`, accepts the bounded
+   single-line grammar, trims keys and values in the required order, rejects
+   unsupported syntax, and applies last-wins duplicates.
+2. Route `read_conf_all` and `read_conf_var` through the full-file parser while
+   preserving the missing-versus-empty lookup contract. Make the shared parser
+   the install-time syntax authority and propagate rejection before target
+   replacement.
+3. Remove the #122 `CRASH_LOG_PATTERNS_EXTRA` call-site trim only after its
+   caller receives the shared normalized value.
+4. Add real file-direct install fixtures covering spaces, tabs, matching
+   quotes, CRLF, empty values, embedded `=`, duplicate keys, supported regex
+   backslashes, unmatched quotes, continuations, and multiline input.
+5. Add a probe IOC that installs the fixture through the shipped runner,
+   starts it through the real systemd manager, and exposes the resulting
+   environment while a runtime lookup observes a discriminator in the same
+   deployed file. Run it on Debian 13 and Rocky 8, then run an honest-red
+   mutation against the unchanged assertion.
+6. Update affected inventories, observed reporting counts, gate identity, and
+   operator configuration documentation from real results only. Allow the
+   canonical gate to select one shared absolute remote repository path so an
+   isolated candidate checkout can be verified without replacing the default
+   checkout.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Parser contract | Feed whitespace, quote, duplicate-key, and CRLF fixtures through every shipped configuration reader | Source test environment | Every reader resolves each fixture to the same value or the same rejection |
-| T2 | Lifecycle integration | Install and start an IOC from the accepted divergence fixtures through the shipped commands | Both golden OS families | Install-time acceptance and runtime interpretation agree |
+| T1 | Install contract | Run accepted and rejected fixtures through the shipped file-direct install path with only outer boundaries redirected | Source test environment | Accepted fixtures reach target staging with the expected value; rejected fixtures exit nonzero before replacing an existing target |
+| T2 | External consumer agreement | Install and start a probe IOC through the shipped runner and real systemd manager, then observe its environment and the runtime discriminator | Debian 13 and Rocky 8 goldens | Install validation, runtime lookup, and systemd report the same last-wins normalized value for every accepted fixture |
+| T3 | Honest red | Restore the old first-wins or trim-order defect in the real runner and run the unchanged T2 assertion before restoring the candidate | Debian 13 and Rocky 8 goldens | The exact divergence assertion fails under the mutation and passes again after restoration |
+| T4 | Regression and identity | Run static checks, catalog-only modes, maintained reporting self-tests, full affected suites, inventory agreement, and the canonical two-host gate | Source environment plus Debian 13 and Rocky 8 goldens | All maintained checks pass; counts and gate identity come only from observed real catalogs |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Source test environment | Pending | none |
-| T2 | Not run | Both golden OS families | Pending | none |
+| T1 | 2026-08-24 09:45 PDT | Source runner on Debian 13 and Rocky 8 goldens | Pass: the shipped file-direct install matrix completed 189/189 checks on each host; S39 passed all 13 accepted, rejected, preservation, duplicate, empty, embedded-`=`, CRLF, and regex-backslash assertions | `work/gate-suites-20260824T164017Z-3835511/vmadmin_192.168.122.50.log`; `work/gate-suites-20260824T164017Z-3835511/vmadmin_192.168.122.150.log` |
+| T2 | 2026-08-24 09:45 PDT | Debian 13 and Rocky 8 goldens | Pass: each real installed system-lifecycle run completed 118/118 checks; S33 passed all 8 install, deployed-file, runtime-lookup, systemd-value, working-directory, and cleanup assertions | `work/gate-suites-20260824T164017Z-3835511/vmadmin_192.168.122.50.log`; `work/gate-suites-20260824T164017Z-3835511/vmadmin_192.168.122.150.log` |
+| T3 | 2026-08-24 09:40 PDT | Debian 13 and Rocky 8 goldens | Pass: applying the first-wins defect to the real installed runner made the unchanged suite exit 1 with exactly the 8 S33 checks failing and the other 110 checks passing on each host; both installed runners were restored to SHA-256 `2f929c611d2746fc6a02c1a7be96d90038c242fec6521a87cab1309e6d5bdbb3` before T4 | `work/m5-honest-red-debian-20260824.log` (`sha256:7156851975ed2cc98ee160bc583caba78186fa6c238fe542d873dbd6ecf69560`); `work/m5-honest-red-rocky-20260824.log` (`sha256:2f88a6ebb71e5b79b224b8808ba02ef971d4522d657c48770401928d386435b7`) |
+| T4 | 2026-08-24 09:47 PDT | Source environment plus Debian 13 and Rocky 8 goldens | Pass: `bash -n`, warning-level `shellcheck`, and `git diff --check` passed; all five catalogs passed at 189/40, 108/18, 146/37, 36/7, and 118/34; reporting self-tests passed 8/8 and 88/88; the alternate-path canonical gate verified matching source and installed runner bodies, six successful runs and 743 checks per host, then reported `GATE SUITES PASS hosts=2` | `work/gate-suites-20260824T164017Z-3835511`; terminal observation for local static, catalog, and self-tests |
 
 ##### Closure Evidence
 
-- none
+- Implementation and reader-seat review are complete. Post-implementation
+  review: `docs/review_sessions/20260823_192315_m5-conf-parser-contract/reviews/rev20260824_094708_codex_gpt5_post_implementation.md`.
+- The final restored-candidate gate is
+  `work/gate-suites-20260824T164017Z-3835511/`.
+- Git commit: none. M5 remains In progress until the accepted tree is committed
+  and the GitHub projection is updated.
 
 ##### GitHub Projection
 
-Title: Unify the three conf parsers behind one shared parse core
+Title: Unify runner conf parsing and enforce systemd agreement
 Labels: P2-medium, refactor, area/architecture
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P2-medium, refactor, area/architecture
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
+Last Compared: 2026-08-23; remote updated 2026-08-24T06:35:20Z
 
 #### M6 - Conf value normalization
 
@@ -843,7 +891,7 @@ The `CRASH_LOG_PATTERNS_EXTRA` call-site trim, which #122 landed.
 ##### Dependencies And Decisions
 
 - M5, D1, D2: the shared parse core subsumes this narrow case; this row
-  follows M3 in the same lane and closes on the shared core's evidence plus
+  follows M5 in the same lane and closes on the shared core's evidence plus
   its own reader-equivalence fixtures.
 
 ##### Implementation Plan
@@ -854,7 +902,7 @@ Implementation Authorization: none
 Superseded Plan Artifacts: none
 
 1. Define one trim-before-unquote value-normalization function (or adopt the
-   M3 parse core directly).
+   M5 parse core directly).
 2. Route `read_conf_var` and `read_conf_all` through it and remove the local
    #122 workaround when it becomes redundant.
 3. Pin both readers to identical results on whitespace- and quote-bearing

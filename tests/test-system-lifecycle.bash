@@ -156,6 +156,14 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S31|system-lifecycle.S31.symlink-strictly-removed-disable|BEHAVIOR|real-path"
     "S32|system-lifecycle.S32.configuration-file-safely-removed|BEHAVIOR|real-path"
     "S32|system-lifecycle.S32.service-completely-stopped-inactive|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-install-selects-last-valid-chdir|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-deployed-file-retains-duplicate-assignments|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-service-active|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-runtime-lookup-selects-last-valid-extra-pattern|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-systemd-emits-accepted-fixture-matrix|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-systemd-emits-last-value-with-embedded-equals|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-systemd-uses-last-chdir|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-cleanup-complete|BEHAVIOR|real-path"
 )
 declare -g -A SYSTEM_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -198,10 +206,13 @@ declare -g SUDOERS_FILE_PATH="/etc/sudoers.d/10-epics-ioc"
 declare -g T5_CREATED_USER=""
 declare -g T1_CREATED_USER=""
 declare -gr RESTART_PROBE_IOC_NAME="RestartProbeIOC-SYS"
+declare -gr CONF_PARSER_PROBE_IOC_NAME="ConfParserProbeIOC-SYS"
 declare -gr IOC_READY_MARKER="All initialization complete"
 declare -gr IOC_DEATH_BANNER="@@@ Child process is shutting down"
 declare -g RESTART_PROBE_CLEANUP_REQUIRED=0
 declare -g RESTART_PROBE_CLEANUP_FAILED=0
+declare -g CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+declare -g CONF_PARSER_PROBE_CLEANUP_FAILED=0
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
@@ -263,7 +274,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 32; index += 1)); do
+    for ((index = 1; index <= 33; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -412,6 +423,12 @@ function _handle_exit {
     if (( RESTART_PROBE_CLEANUP_FAILED )); then
         final_status=1
     fi
+    if ! _cleanup_conf_parser_probe; then
+        final_status=1
+    fi
+    if (( CONF_PARSER_PROBE_CLEANUP_FAILED )); then
+        final_status=1
+    fi
 
     # T5 may create a throwaway non-ioc account; remove only the one this run
     # created (a pre-existing account of the same name is left untouched).
@@ -537,6 +554,27 @@ function _cleanup_restart_probe {
     return 1
 }
 
+# Remove the M5 parser agreement probe only when this run may have installed it.
+function _cleanup_conf_parser_probe {
+    local conf_file="${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf"
+
+    if (( CONF_PARSER_PROBE_CLEANUP_REQUIRED == 0 )); then
+        return 0
+    fi
+    if [[ ! -e "${conf_file}" && ! -L "${conf_file}" ]]; then
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+        return 0
+    fi
+    if bash "${RUNNER_SCRIPT}" remove "${CONF_PARSER_PROBE_IOC_NAME}" >/dev/null 2>&1; then
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+        return 0
+    fi
+
+    CONF_PARSER_PROBE_CLEANUP_FAILED=1
+    _log "ERROR" "Failed to remove parser agreement probe IOC ${CONF_PARSER_PROBE_IOC_NAME}."
+    return 1
+}
+
 function verify_infrastructure {
     local step="$1"
     print_divider
@@ -609,6 +647,11 @@ function cleanup_previous_state {
           -L "${CONF_DIR}/${RESTART_PROBE_IOC_NAME}.conf" ]]; then
         RESTART_PROBE_CLEANUP_REQUIRED=1
         _cleanup_restart_probe
+    fi
+    if [[ -e "${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf" ||
+          -L "${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf" ]]; then
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=1
+        _cleanup_conf_parser_probe
     fi
     _log "SUCCESS" "Cleaned up residual processes and configurations."
 }
@@ -2379,6 +2422,158 @@ function test_remove {
     verify_state "inactive" "${state}"   "Service completely stopped (inactive)"
 }
 
+# Verify that the runner and systemd select the same values from one deployed
+# configuration file. The first IOC_CHDIR is deliberately invalid, so install
+# succeeds only when the runner uses the last assignment. The probe process then
+# records the values systemd supplied from that same file.
+function test_conf_parser_systemd_agreement {
+    local step="$1"
+    local probe_dir="${WORKSPACE}/conf_parser_probe_ioc"
+    local probe_script="${probe_dir}/probe.bash"
+    local probe_output="${probe_dir}/runtime.env"
+    local probe_conf="${WORKSPACE}/${CONF_PARSER_PROBE_IOC_NAME}.conf"
+    local deployed_conf="${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf"
+    local unit="epics-@${CONF_PARSER_PROBE_IOC_NAME}.service"
+    local install_rc=0
+    local start_rc=0
+    local remove_rc=0
+    local installed="false"
+    local duplicate_assignments="false"
+    local active="false"
+    local runtime_lookup_agrees="false"
+    local fixture_matrix="false"
+    local start_output=""
+    local emitted_value=""
+    local emitted_chdir=""
+    local state=""
+    local clean="false"
+    local attempt=0
+
+    print_divider
+    _log "INFO" "STEP ${step}: Runner and systemd Configuration Parser Agreement"
+    print_sub_divider
+
+    mkdir -p "${probe_dir}"
+    chown "${OWNER_WORKSPACE}" "${probe_dir}"
+    chmod 2775 "${probe_dir}"
+cat <<'EOF' > "${probe_script}"
+#!/usr/bin/env bash
+set -eu
+{
+    printf 'M5_SPACES=%s\n' "${M5_SPACES-missing}"
+    printf 'M5_TABS=%s\n' "${M5_TABS-missing}"
+    printf 'M5_SINGLE=%s\n' "${M5_SINGLE-missing}"
+    printf 'M5_DOUBLE=%s\n' "${M5_DOUBLE-missing}"
+    printf 'M5_CRLF=%s\n' "${M5_CRLF-missing}"
+    printf 'M5_EMPTY=<%s>\n' "${M5_EMPTY-missing}"
+    printf 'M5_EQUALS=%s\n' "${M5_EQUALS-missing}"
+    printf 'M5_DUP=%s\n' "${M5_DUP-missing}"
+    printf 'M5_REGEX=%s\n' "${M5_REGEX-missing}"
+    printf 'M5_PARSER_VALUE=%s\n' "${M5_PARSER_VALUE-missing}"
+    printf 'PWD=%s\n' "${PWD}"
+} > "${M5_PROBE_OUTPUT}"
+printf 'All initialization complete\n'
+while :; do
+    sleep 60
+done
+EOF
+    chown "${OWNER_WORKSPACE}" "${probe_script}"
+    chmod 0750 "${probe_script}"
+
+    cat <<EOF > "${probe_conf}"
+IOC_NAME="${CONF_PARSER_PROBE_IOC_NAME}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="/missing/m5-first-assignment"
+IOC_CHDIR = "${probe_dir}"
+IOC_PORT=""
+IOC_CMD="./probe.bash"
+M5_PARSER_VALUE="first"
+M5_PARSER_VALUE = "final=systemd"
+M5_SPACES = "spaces"
+M5_SINGLE='single'
+M5_DOUBLE="double"
+M5_EMPTY=""
+M5_EQUALS="alpha=omega"
+M5_DUP="first"
+M5_DUP="last"
+M5_REGEX="net_ex\\\\(status\\\\)"
+M5_PROBE_OUTPUT="${probe_output}"
+CRASH_LOG_PATTERNS_EXTRA="("
+CRASH_LOG_PATTERNS_EXTRA = "Broken pipe|net_ex"
+EOF
+    printf 'M5_TABS\t=\t"tabs"\t\n' >> "${probe_conf}"
+    printf 'M5_CRLF="crlf"\r\n' >> "${probe_conf}"
+    chown "${OWNER_WORKSPACE}" "${probe_conf}"
+
+    CONF_PARSER_PROBE_CLEANUP_REQUIRED=1
+    bash "${RUNNER_SCRIPT}" -f install "${probe_conf}" >/dev/null 2>&1 || install_rc=$?
+    if (( install_rc == 0 )) && [[ -f "${deployed_conf}" ]]; then
+        installed="true"
+    fi
+    verify_state "true" "${installed}" \
+        "Parser probe install selects the last valid IOC_CHDIR assignment"
+
+    if [[ -f "${deployed_conf}" ]] &&
+       [[ $(grep -cE '^IOC_CHDIR[[:blank:]]*=' "${deployed_conf}" 2>/dev/null || true) -eq 2 ]] &&
+       [[ $(grep -cE '^M5_PARSER_VALUE[[:blank:]]*=' "${deployed_conf}" 2>/dev/null || true) -eq 2 ]] &&
+       [[ $(grep -cE '^CRASH_LOG_PATTERNS_EXTRA[[:blank:]]*=' "${deployed_conf}" 2>/dev/null || true) -eq 2 ]]; then
+        duplicate_assignments="true"
+    fi
+    verify_state "true" "${duplicate_assignments}" \
+        "Deployed parser probe file retains both duplicate assignment pairs"
+
+    if [[ "${installed}" == "true" ]]; then
+        start_output=$(bash "${RUNNER_SCRIPT}" start "${CONF_PARSER_PROBE_IOC_NAME}" 2>&1) || start_rc=$?
+        state=$(systemctl is-active "${unit}" 2>/dev/null || true)
+        if (( start_rc == 0 )) && [[ "${state}" == "active" ]]; then
+            active="true"
+        fi
+    fi
+    verify_state "true" "${active}" "Parser probe service is active"
+    if [[ "${active}" == "true" &&
+          "${start_output}" != *"CRASH_LOG_PATTERNS_EXTRA"*"ignoring it for this run"* ]]; then
+        runtime_lookup_agrees="true"
+    fi
+    verify_state "true" "${runtime_lookup_agrees}" \
+        "Runtime lookup selects the last valid CRASH_LOG_PATTERNS_EXTRA assignment"
+
+    while (( attempt < 25 )) && [[ ! -s "${probe_output}" ]]; do
+        sleep 0.2
+        attempt=$((attempt + 1))
+    done
+    if [[ -r "${probe_output}" ]]; then
+        emitted_value=$(sed -n 's/^M5_PARSER_VALUE=//p' "${probe_output}")
+        emitted_chdir=$(sed -n 's/^PWD=//p' "${probe_output}")
+        if grep -Fqx 'M5_SPACES=spaces' "${probe_output}" &&
+           grep -Fqx 'M5_TABS=tabs' "${probe_output}" &&
+           grep -Fqx 'M5_SINGLE=single' "${probe_output}" &&
+           grep -Fqx 'M5_DOUBLE=double' "${probe_output}" &&
+           grep -Fqx 'M5_CRLF=crlf' "${probe_output}" &&
+           grep -Fqx 'M5_EMPTY=<>' "${probe_output}" &&
+           grep -Fqx 'M5_EQUALS=alpha=omega' "${probe_output}" &&
+           grep -Fqx 'M5_DUP=last' "${probe_output}" &&
+           grep -Fqx 'M5_REGEX=net_ex\(status\)' "${probe_output}"; then
+            fixture_matrix="true"
+        fi
+    fi
+    verify_state "true" "${fixture_matrix}" \
+        "systemd emits the accepted parser fixture matrix without value drift"
+    verify_state "final=systemd" "${emitted_value}" \
+        "systemd emits the last parser probe value with its embedded equals sign"
+    verify_state "${probe_dir}" "${emitted_chdir}" \
+        "systemd starts the probe in the last IOC_CHDIR assignment"
+
+    bash "${RUNNER_SCRIPT}" remove "${CONF_PARSER_PROBE_IOC_NAME}" >/dev/null 2>&1 || remove_rc=$?
+    state=$(systemctl is-active "${unit}" 2>/dev/null || true)
+    if (( remove_rc == 0 )) && [[ ! -e "${deployed_conf}" && ! -L "${deployed_conf}" ]] &&
+       [[ "${state}" == "inactive" ]]; then
+        clean="true"
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+    fi
+    verify_state "true" "${clean}" "Parser agreement probe cleanup is complete"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "verify_infrastructure"
@@ -2413,6 +2608,7 @@ function run_all_tests {
         "test_chdir_precheck"
         "test_persistence"
         "test_remove"
+        "test_conf_parser_systemd_agreement"
     )
 
     local step=1

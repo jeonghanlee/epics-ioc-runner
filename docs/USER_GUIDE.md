@@ -45,6 +45,41 @@ Select either the automated generation tool or manual creation.
   ```
 *Important: Ensure your `IOC_CMD` (e.g., `st.cmd`) has execute permissions (`chmod +x st.cmd`), otherwise the installation will be strictly rejected.*
 
+### Configuration File Syntax
+
+The runner accepts a bounded, single-line subset of systemd
+`EnvironmentFile` syntax:
+
+- Each assignment is `KEY=VALUE`. A key must be an environment identifier:
+  ASCII letters or `_` first, followed by ASCII letters, digits, or `_`.
+- Spaces and tabs around the line, key, `=`, and value are ignored. CRLF line
+  endings are accepted.
+- A value may be unquoted or enclosed by one matching pair of single or double
+  quotes. The outer pair is removed after surrounding whitespace is trimmed;
+  whitespace inside the quotes is preserved.
+- A value may be empty and may contain additional `=` characters. The first
+  `=` separates the key from the value.
+- Inside a double-quoted value, `\\` produces one literal backslash. This is
+  the supported form for regular-expression backslashes.
+- Blank lines and lines whose first nonblank character is `#` are ignored.
+- If a key appears more than once, the later assignment takes effect in both
+  the runner and systemd.
+
+For example, a regular-expression value that needs literal parentheses uses
+two backslashes in the double-quoted configuration value:
+
+```bash
+CRASH_LOG_PATTERNS_EXTRA="Broken pipe|net_ex\\(status\\)"
+```
+
+Multiline quoted values, backslash continuations, unmatched or embedded quote
+forms, unquoted or single-quoted backslashes, and double-quoted escapes other
+than `\\` are rejected during `install`. A rejected file does not replace an
+existing installed configuration. Use generated files or the simple forms
+above rather than the wider systemd grammar. Every key must pass this syntax
+check; operational `IOC_*` keys and `CRASH_LOG_PATTERNS_EXTRA` also receive
+their field-specific validation.
+
 **Step 3: Install the Configuration**
 Deploy the configuration to the system manager. Pass the explicit filename or use the current directory (`.`) if generated automatically.
 ```bash

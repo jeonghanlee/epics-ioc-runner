@@ -9,14 +9,17 @@
 # $2 absolute EPICS environment path on the first host
 # $3 second host, as user@address
 # $4 absolute EPICS environment path on the second host
+# $5 optional --remote-repo flag
+# $6 optional absolute repository path shared by both hosts
 set -euo pipefail
 
 export PATH="/usr/local/bin:/usr/bin:/bin"
 unset BASH_ENV ENV CDPATH
 umask 077
 
-readonly EXPECTED_IDENTITY_SHA256="7ab4641bdac721cfaa55f6cfc1d491a3a3ff62e7c69d2bcf9634cbd26bdf5e7b"
-readonly REMOTE_REPO="\${HOME}/gitsrc/epics-ioc-runner"
+readonly EXPECTED_IDENTITY_SHA256="2eef334bae1bcc5fa8b610d4632156ac27b3486c7b8bd083b170e297bb056a8d"
+readonly DEFAULT_REMOTE_REPO="\${HOME}/gitsrc/epics-ioc-runner"
+REMOTE_REPO="${DEFAULT_REMOTE_REPO}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly SCRIPT_DIR
 DRIVER_PATH="${SCRIPT_DIR}/$(basename "$0")"
@@ -46,7 +49,7 @@ function die {
 }
 
 function usage {
-    printf 'Usage: %s <host-1> <epics-env-1> <host-2> <epics-env-2>\n' "$0"
+    printf 'Usage: %s <host-1> <epics-env-1> <host-2> <epics-env-2> [--remote-repo <absolute-path>]\n' "$0"
 }
 
 function require_command {
@@ -731,9 +734,17 @@ function main {
         usage
         return 0
     fi
-    if [[ $# -ne 4 ]]; then
+    if [[ $# -ne 4 && $# -ne 6 ]]; then
         usage >&2
         return 1
+    fi
+    if [[ $# -eq 6 ]]; then
+        if [[ "$5" != "--remote-repo" ]]; then
+            usage >&2
+            return 1
+        fi
+        REMOTE_REPO="$6"
+        validate_remote_path "${REMOTE_REPO}"
     fi
 
     host_one="$1"

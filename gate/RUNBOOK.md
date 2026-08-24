@@ -578,6 +578,9 @@ Execute everything else.
 Run the shipped control-side driver from the repository root. It takes one host
 and one resolved absolute EPICS environment path for each golden. Resolve those
 paths during the precondition checks; do not pass a glob or a relative path.
+By default, the driver uses `~/gitsrc/epics-ioc-runner` on each host. Pass one
+shared absolute path with `--remote-repo` when the candidate must remain
+separate from that checkout.
 
 ```bash
 DEBIAN_HOST="vmadmin@<debian-host>"
@@ -585,6 +588,18 @@ DEBIAN_EPICS_ENV="<absolute-debian-epics-env>"
 ROCKY_HOST="vmadmin@<rocky-host>"
 ROCKY_EPICS_ENV="<absolute-rocky-epics-env>"
 bash gate/drivers/control/suites.bash "$DEBIAN_HOST" "$DEBIAN_EPICS_ENV" "$ROCKY_HOST" "$ROCKY_EPICS_ENV"
+```
+
+For a separate candidate checkout at the same absolute path on both hosts:
+
+1. Use the alternate parent as the third argument to `push.bash` on each host.
+2. Run `setup-system-infra.bash --full` from that candidate checkout on each
+   host.
+3. Pass the resulting absolute repository path to the suite driver.
+
+```bash
+REMOTE_REPO="/home/vmadmin/gitsrc-m5/epics-ioc-runner"
+bash gate/drivers/control/suites.bash "$DEBIAN_HOST" "$DEBIAN_EPICS_ENV" "$ROCKY_HOST" "$ROCKY_EPICS_ENV" --remote-repo "$REMOTE_REPO"
 ```
 
 The driver requires non-interactive SSH and sudo on both hosts, confirms that

@@ -42,6 +42,12 @@ Prepare the configuration file for the local isolated environment.
   EOF
   ```
 
+The bounded configuration syntax, quote handling, CRLF support, and last-wins
+duplicate rule are identical in local and system mode. See
+[Configuration File Syntax](USER_GUIDE.md#configuration-file-syntax). Files
+using multiline values, continuations, or unsupported quote and escape forms
+are rejected before the installed local configuration is replaced.
+
 ## 3. Install the Configuration (Local Mode)
 Deploy the configuration to the user-level systemd directory. The wrapper automatically generates the local `epics-@.service` template if missing.
 

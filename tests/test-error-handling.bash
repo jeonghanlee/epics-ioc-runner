@@ -211,6 +211,19 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S38|error-handling.S38.invalid-identity-whitelist-error-retained|BEHAVIOR|real-path"
     "S38|error-handling.S38.invalid-identity-not-rendered|BEHAVIOR|real-path"
     "S38|error-handling.S38.invalid-identity-summary-three-errors|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.spaces-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.tabs-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.single-quotes-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.double-quotes-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.crlf-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.empty-value-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.embedded-equals-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.duplicate-last-assignment-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.regex-backslashes-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.empty-key-remains-present-at-runtime-lookup|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.unmatched-quote-rejected-and-target-preserved|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.continuation-rejected-and-target-preserved|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.multiline-quote-rejected-and-target-preserved|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -278,7 +291,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 38; index += 1)); do
+    for ((index = 1; index <= 39; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2160,6 +2173,145 @@ function test_conf_mode_mismatch_diagnosis {
 }
 
 
+# Exercise the shipped file-direct install path against the complete bounded
+# configuration grammar. Accepted fixtures must reach the deployed target;
+# rejected fixtures must leave the last accepted target intact. Local install
+# intentionally rewrites IOC_PORT, so source-to-target byte equality is not a
+# parser contract.
+function test_conf_parser_contract {
+    local step="$1"
+    local test_dir="${TEST_TMPDIR}/m5_conf_parser_ioc"
+    local mock_conf_dir="${TEST_TMPDIR}/m5_conf_parser_etc"
+    local mock_sysd_dir="${TEST_TMPDIR}/m5_conf_parser_sysd"
+    local conf_file="${test_dir}/m5_conf_parser.conf"
+    local target_conf="${mock_conf_dir}/m5_conf_parser.conf"
+    local current_user=""
+    local current_group=""
+    local fixture=""
+    local exit_code=0
+    local accepted="false"
+    local lookup_output=""
+    local lookup_present="false"
+    local before_hash=""
+    local after_hash=""
+    local rejected="false"
+    local -a accepted_fixtures=(
+        spaces
+        tabs
+        single-quotes
+        double-quotes
+        crlf
+        empty-value
+        embedded-equals
+        duplicate-last
+        regex-backslashes
+    )
+    local -a rejected_fixtures=(unmatched-quote continuation multiline-quote)
+
+    print_divider
+    _log "INFO" "STEP ${step}: Unified Configuration Parser Contract"
+    print_sub_divider
+
+    current_user=$(id -un)
+    current_group=$(id -gn)
+    mkdir -p "${test_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    for fixture in "${accepted_fixtures[@]}"; do
+        case "${fixture}" in
+            spaces)
+                printf 'IOC_USER = %s\nIOC_GROUP = %s\nIOC_CHDIR = %s\nIOC_PORT = \nIOC_CMD = ./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            tabs)
+                printf 'IOC_USER\t=\t%s\nIOC_GROUP\t=\t%s\nIOC_CHDIR\t=\t%s\nIOC_PORT\t=\t\nIOC_CMD\t=\t./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            single-quotes)
+                printf "IOC_USER='%s'\nIOC_GROUP='%s'\nIOC_CHDIR='%s'\nIOC_PORT=''\nIOC_CMD='./st.cmd'\n" \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            double-quotes)
+                printf 'IOC_USER="%s"\nIOC_GROUP="%s"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="./st.cmd"\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            crlf)
+                printf 'IOC_USER=%s\r\nIOC_GROUP=%s\r\nIOC_CHDIR=%s\r\nIOC_PORT=\r\nIOC_CMD=./st.cmd\r\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            empty-value)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_EMPTY=\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            embedded-equals)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_VALUE="alpha=omega"\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            duplicate-last)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=/missing/m5-first\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            regex-backslashes)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                printf '%s\n' 'CRASH_LOG_PATTERNS_EXTRA="Broken pipe|net_ex\\(status\\)"' >> "${conf_file}"
+                ;;
+        esac
+
+        exit_code=0
+        IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>&1 || exit_code=$?
+        accepted="false"
+        if (( exit_code == 0 )) && [[ -f "${target_conf}" ]]; then
+            accepted="true"
+        fi
+        verify_state "true" "${accepted}" \
+            "Configuration parser fixture '${fixture}' is accepted and deployed"
+    done
+
+    lookup_output=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local attach m5_conf_parser 2>&1 || true)
+    if [[ "${lookup_output}" == *"Socket file not found or invalid:"* &&
+          "${lookup_output}" != *"IOC_PORT not configured"* ]]; then
+        lookup_present="true"
+    fi
+    verify_state "true" "${lookup_present}" \
+        "An empty IOC_PORT remains present at the runtime lookup"
+
+    before_hash=$(sha256sum "${target_conf}")
+    before_hash="${before_hash%% *}"
+    for fixture in "${rejected_fixtures[@]}"; do
+        case "${fixture}" in
+            unmatched-quote)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD="./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            continuation)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_VALUE=first\\\nsecond\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            multiline-quote)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_VALUE="first\nsecond"\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+        esac
+
+        exit_code=0
+        IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>&1 || exit_code=$?
+        after_hash=$(sha256sum "${target_conf}")
+        after_hash="${after_hash%% *}"
+        rejected="false"
+        if (( exit_code != 0 )) && [[ "${after_hash}" == "${before_hash}" ]]; then
+            rejected="true"
+        fi
+        verify_state "true" "${rejected}" \
+            "Configuration parser fixture '${fixture}' is rejected before target replacement"
+    done
+}
+
+
 function run_all_tests {
     local -a pipeline=(
         "_setup"
@@ -2200,6 +2352,7 @@ function run_all_tests {
         "test_tool_resolution"
         "test_logrotate_debug_state_isolation"
         "test_conf_mode_mismatch_diagnosis"
+        "test_conf_parser_contract"
     )
     local step=1
     local func

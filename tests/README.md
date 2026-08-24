@@ -250,9 +250,17 @@ The system lifecycle suite also installs a dedicated healthy `softIoc`, sends
 new ready child while the unit remains active and the procServ `MainPID` and
 systemd `NRestarts` remain unchanged.
 
+It also installs a dedicated configuration-parser probe through the shipped
+runner. The probe proves that install validation, runtime lookup, and the real
+systemd `EnvironmentFile` consumer agree for surrounding spaces and tabs,
+single and double quotes, CRLF, empty values, embedded `=`, later duplicate
+values, and escaped regular-expression backslashes. Probe removal must leave
+no active unit or installed configuration.
+
 ### 3. Error Handling (`test-error-handling.bash`)
 * **Interactive Protections**: Verifies safe aborts and infinite-loop prevention (EOF handling) during non-interactive piping (`< /dev/null`).
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
+* **Configuration Parser**: Drives spaces, tabs, matching quotes, CRLF, empty values, embedded `=`, duplicates, and double-quoted escaped regex backslashes through real file-direct installs; unsupported multiline, continuation, and unmatched-quote forms must preserve the prior target.
 * **Diff Engine**: Evaluates ANSI-colored diff output prompting and force-overwrite (`-f`) bypass mechanisms.
 
 ### 4. Source Regression (`test-source-regression.bash`)

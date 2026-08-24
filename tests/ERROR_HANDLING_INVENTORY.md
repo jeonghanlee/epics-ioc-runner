@@ -13,8 +13,8 @@ runner=source. Its primary category is error-contract.
 
 ## Inventory Basis
 
-The source pipeline contains S01 through S38. Its full non-root branch contains
-169 current behavior identities. Source review adds seven result-producing
+The source pipeline contains S01 through S39. Its full non-root branch contains
+182 current behavior identities. Source review adds seven result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
@@ -377,17 +377,30 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S38 | `error-handling.S38.invalid-identity-whitelist-error-retained` | `BEHAVIOR` | `real-path` | Invalid identity retains its whitelist error |
 | S38 | `error-handling.S38.invalid-identity-not-rendered` | `BEHAVIOR` | `real-path` | Invalid identity is not rendered in a combined diagnostic |
 | S38 | `error-handling.S38.invalid-identity-summary-three-errors` | `BEHAVIOR` | `real-path` | Invalid identity pair mismatch reports three errors |
+| S39 | `error-handling.S39.conf-parser.spaces-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Surrounding spaces are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.tabs-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Surrounding tabs are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.single-quotes-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Matching single quotes are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.double-quotes-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Matching double quotes are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.crlf-accepted-and-deployed` | `BEHAVIOR` | `real-path` | CRLF assignments are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.empty-value-accepted-and-deployed` | `BEHAVIOR` | `real-path` | An empty optional value is accepted and deployed. |
+| S39 | `error-handling.S39.conf-parser.embedded-equals-accepted-and-deployed` | `BEHAVIOR` | `real-path` | A quoted value containing `=` is accepted and deployed. |
+| S39 | `error-handling.S39.conf-parser.duplicate-last-assignment-accepted-and-deployed` | `BEHAVIOR` | `real-path` | The later duplicate assignment supplies the valid install value. |
+| S39 | `error-handling.S39.conf-parser.regex-backslashes-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Double-quoted escaped regex backslashes are accepted and decoded consistently. |
+| S39 | `error-handling.S39.conf-parser.empty-key-remains-present-at-runtime-lookup` | `BEHAVIOR` | `real-path` | Runtime lookup distinguishes an empty IOC_PORT from a missing IOC_PORT. |
+| S39 | `error-handling.S39.conf-parser.unmatched-quote-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | An unmatched quote is rejected before the prior target changes. |
+| S39 | `error-handling.S39.conf-parser.continuation-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | A backslash continuation is rejected before the prior target changes. |
+| S39 | `error-handling.S39.conf-parser.multiline-quote-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | A multiline quoted value is rejected before the prior target changes. |
 
 ## Completeness Cross-check
 
 | Source Shape | Count |
 | --- | ---: |
-| Current BEHAVIOR identities | 169 |
+| Current BEHAVIOR identities | 182 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
 | Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
-The mapping is complete only while all 169 current behavior identities map
+The mapping is complete only while all 182 current behavior identities map
 once, the seven added conditions map once, no STEP-local key is duplicated,
-and the source pipeline remains S01 through S38.
+and the source pipeline remains S01 through S39.

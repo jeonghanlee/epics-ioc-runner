@@ -708,45 +708,144 @@ EOF
     fi
 }
 
-# Parse a specific key from a configuration file using only bash built-ins
+# Parse the bounded configuration grammar shared by validation and runtime
+# lookups. This is an EnvironmentFile-compatible subset, not shell syntax:
+# assignments are single-line KEY=VALUE pairs, comments begin with '#', keys
+# are environment identifiers, and values are unquoted or enclosed by one
+# matching pair of single or double quotes. Surrounding whitespace is removed
+# before outer quotes. Duplicate keys use the last assignment, matching
+# systemd EnvironmentFile behavior. No configuration text is ever executed.
+#
+# A doubled backslash inside double quotes is decoded to one literal backslash,
+# matching both supported systemd versions. Other backslash forms and
+# continuations are outside this subset.
+function parse_conf_file {
+    local conf_file="$1"
+    local -n result_map="$2"
+    local display_name="${3:-$1}"
+    local line=""
+    local normalized=""
+    local key=""
+    local val=""
+    local inner=""
+    local decoded=""
+    local pair=""
+    local line_number=0
+    local index=0
+
+    result_map=()
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        line_number=$((line_number + 1))
+        line="${line%$'\r'}"
+        normalized="${line#"${line%%[![:blank:]]*}"}"
+        normalized="${normalized%"${normalized##*[![:blank:]]}"}"
+
+        if [[ -z "${normalized}" || "${normalized}" == \#* ]]; then
+            continue
+        fi
+        if [[ "${normalized}" != *=* ]]; then
+            printf "Error: Unsupported configuration syntax in %s at line %d.\n" \
+                "${display_name}" "${line_number}" >&2
+            return 2
+        fi
+
+        key="${normalized%%=*}"
+        val="${normalized#*=}"
+        key="${key#"${key%%[![:blank:]]*}"}"
+        key="${key%"${key##*[![:blank:]]}"}"
+        val="${val#"${val%%[![:blank:]]*}"}"
+        val="${val%"${val##*[![:blank:]]}"}"
+
+        if [[ ! "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            printf "Error: Unsupported configuration key in %s at line %d.\n" \
+                "${display_name}" "${line_number}" >&2
+            return 2
+        fi
+
+        if [[ "${val}" == \"* || "${val}" == \'* ]]; then
+            if (( ${#val} < 2 )) || [[ "${val: -1}" != "${val:0:1}" ]]; then
+                printf "Error: Unmatched configuration quote in %s at line %d.\n" \
+                    "${display_name}" "${line_number}" >&2
+                return 2
+            fi
+            inner="${val:1:${#val}-2}"
+            if [[ "${val:0:1}" == "'" ]]; then
+                if [[ "${inner}" == *"'"* ]]; then
+                    printf "Error: Unsupported configuration quote in %s at line %d.\n" \
+                        "${display_name}" "${line_number}" >&2
+                    return 2
+                fi
+                if [[ "${inner}" == *\\* ]]; then
+                    printf "Error: Unsupported configuration escape in %s at line %d.\n" \
+                        "${display_name}" "${line_number}" >&2
+                    return 2
+                fi
+            else
+                index=0
+                decoded=""
+                while (( index < ${#inner} )); do
+                    if [[ "${inner:index:1}" == "\\" ]]; then
+                        if (( index + 1 >= ${#inner} )); then
+                            printf "Error: Unsupported configuration escape in %s at line %d.\n" \
+                                "${display_name}" "${line_number}" >&2
+                            return 2
+                        fi
+                        pair="${inner:index:2}"
+                        if [[ "${pair}" != '\\' ]]; then
+                            printf "Error: Unsupported configuration escape in %s at line %d.\n" \
+                                "${display_name}" "${line_number}" >&2
+                            return 2
+                        fi
+                        decoded+='\'
+                        index=$((index + 2))
+                        continue
+                    fi
+                    if [[ "${inner:index:1}" == '"' ]]; then
+                        printf "Error: Unsupported configuration quote in %s at line %d.\n" \
+                            "${display_name}" "${line_number}" >&2
+                        return 2
+                    fi
+                    decoded+="${inner:index:1}"
+                    index=$((index + 1))
+                done
+                inner="${decoded}"
+            fi
+            val="${inner}"
+        elif [[ "${val}" == *"'"* || "${val}" == *'"'* || "${val}" == *\\* ]]; then
+            printf "Error: Unsupported configuration value in %s at line %d.\n" \
+                "${display_name}" "${line_number}" >&2
+            return 2
+        fi
+
+        # shellcheck disable=SC2034
+        result_map["${key}"]="${val}"
+    done < "${conf_file}"
+}
+
+# Return 0 for a present key (including an empty value), 1 for a missing key,
+# and 2 for a configuration that is outside the supported grammar.
 function read_conf_var {
     local conf_file="$1"
     local target_key="$2"
-    local key
-    local val
+    local -A conf_vars=()
+    local parse_rc=0
 
-    while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
-        key="${key// /}"
-        if [[ -z "${key}" || "${key}" =~ ^# || "${key}" != "${target_key}" ]]; then
-            continue
-        fi
-        val="${val%\"}"; val="${val#\"}"
-        val="${val%\'}"; val="${val#\'}"
-        # Strip carriage returns to prevent path errors from files edited on Windows
-        val="${val%$'\r'}"
-
-        printf "%s" "${val}"
-        return 0
-    done < "${conf_file}"
-    return 1
+    parse_conf_file "${conf_file}" conf_vars || parse_rc=$?
+    if (( parse_rc != 0 )); then
+        return "${parse_rc}"
+    fi
+    if [[ ! -v 'conf_vars[$target_key]' ]]; then
+        return 1
+    fi
+    printf "%s" "${conf_vars[${target_key}]}"
 }
 
 function read_conf_all {
     local conf_file="$1"
-    local -n result_map="$2"
+    local result_name="$2"
+    local display_name="${3:-$1}"
 
-    local key val
-    while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
-        key="${key// /}"
-        [[ -z "${key}" || "${key}" =~ ^# ]] && continue
-        val="${val#"${val%%[![:space:]]*}"}"   # trim leading whitespace
-        val="${val%"${val##*[![:space:]]}"}"   # trim trailing whitespace
-        val="${val%\"}"; val="${val#\"}"
-        val="${val%\'}"; val="${val#\'}"
-        val="${val%$'\r'}"
-        # shellcheck disable=SC2034
-        result_map["${key}"]="${val}"
-    done < "${conf_file}"
+    parse_conf_file "${conf_file}" "${result_name}" "${display_name}"
 }
 
 function get_file_size {
@@ -999,12 +1098,9 @@ function validate_conf {
 
     printf "Validating configuration file: %s...\n" "${display_name}"
 
-    if ! bash -n "${conf_file}" 2>/dev/null; then
-        printf "Error: Syntax error detected in %s\n" "${display_name}" >&2
+    if ! read_conf_all "${conf_file}" conf_vars "${display_name}"; then
         return 1
     fi
-
-    read_conf_all "${conf_file}" conf_vars
 
     found_user="${conf_vars[IOC_USER]:-}"
     found_group="${conf_vars[IOC_GROUP]:-}"
@@ -2449,14 +2545,6 @@ function do_start_restart {
         extra_patterns=$(read_conf_var "${target_conf}" "CRASH_LOG_PATTERNS_EXTRA" 2>/dev/null || printf "")
     fi
     local effective_patterns="${CRASH_LOG_PATTERNS}"
-    # read_conf_var strips quotes but not surrounding whitespace, whereas install
-    # reads through read_conf_all, which trims first. Normalize the same way, and
-    # before the empty-value guard, so a whitespace-only value collapses to empty
-    # and is a silent no-op exactly as install treats it, and an identically
-    # written value classifies identically. The general read_conf_var vs
-    # read_conf_all divergence is out of scope (tracked separately).
-    extra_patterns="${extra_patterns#"${extra_patterns%%[![:space:]]*}"}"
-    extra_patterns="${extra_patterns%"${extra_patterns##*[![:space:]]}"}"
     if [[ -n "${extra_patterns}" ]]; then
         # The installed conf can be edited after install, so the value is
         # re-classified on every read against the gates install itself
