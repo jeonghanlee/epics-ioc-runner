@@ -10,11 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: complete M6 (#129) by running the pending Debian 13
-golden system-lifecycle path and the canonical two-host gate. M1 through M5
-are Complete and their linked issues are closed. Continue the M10 (#102)
-health-signal design conversation in parallel - M10 is the largest item and
-its boundary must be designed before any code.
+Next session entry point: commit the observed M6 gate identity and verification
+record, then close #129 and record M6 Complete. M1 through M5 are Complete and
+their linked issues are closed. Continue the M10 (#102) health-signal design
+conversation in parallel - M10 is the largest item and its boundary must be
+designed before any code.
 
 ## Milestone
 
@@ -27,7 +27,7 @@ its boundary must be designed before any code.
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Complete | No | D1, D3 | Complete in `b6547bd`; T1-T6 Pass, including the canonical two-golden gate; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
-| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | In progress | No | M5, D1, D2, D3 | T1-T2 Pass; T3 awaits the Debian 13 golden system-lifecycle path and canonical two-host gate; [detail](#m6---conf-value-normalization) |
+| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | In progress | No | M5, D1, D2, D3 | T1-T3 Pass on matched fresh consumers; issue #129 closure remains; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Not started | Yes | D1, D3 | The deployed oneshot completes through the real user manager on both applicable goldens and a broken `ExecStart` fails; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
@@ -971,7 +971,7 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- |
 | T1 | 2026-08-24 12:22 PDT | Debian 13 control host and Rocky 8 golden, source-tree runs | Pass: each real error-handling suite completed 198/198; S40 extracted the exact three shipped definitions and passed all nine whitespace, quote, empty, and missing-key checks | `work/m6-rocky8-s40/m6-debian13-current.log`; `work/m6-rocky8-s40/m6-rocky-current.log` |
 | T2 | 2026-08-24 12:22 PDT | Rocky 8 golden, isolated source-tree copy | Pass: replacing only `read_conf_var` with the exact `a3801003` definition made the seven matrix rows marked `FAIL` fail while extraction and missing-key states passed; the current runner was restored byte-for-byte before the isolated copy was removed | `work/m6-rocky8-s40/m6-rocky-pre-m5.log`; terminal observation |
-| T3 | 2026-08-24 12:22 PDT | Debian 13 control host and Rocky 8 golden | In progress: Bash syntax, warning-level shellcheck, diff checks, all five real catalogs, reporting self-tests at 8/8 and 88/88, and the 198-entry inventory comparison passed; a Debian 13 duplicate-definition mutation failed extraction and skipped all eight dependent checks; the canonical Rocky 8 installed system-lifecycle path passed 118/118. Debian 13 golden system-lifecycle and the canonical two-host gate remain pending | `work/m6-rocky8-s40/m6-extraction-fail-closed.log`; `work/m6-rocky8-s40/m6-rocky-system-lifecycle-installed.log`; terminal observation |
+| T3 | 2026-08-24 17:36 PDT | Fresh Debian 13 and Rocky 8 golden consumers from matched supplier commits | Pass: static checks, all five real catalogs, reporting self-tests, the 198-entry inventory comparison, maintained error-handling and system-lifecycle paths, and the canonical two-host gate passed. Each host completed six suite blocks and 752 checks; the final gate accepted the expected OS-specific NA differences and reported PASS | `work/m6-rocky8-s40/m6-extraction-fail-closed.log`; `work/m6-debian13-golden/system-lifecycle.log`; `work/gate-suites-20260825T003641Z-1024751` |
 
 ##### Closure Evidence
 

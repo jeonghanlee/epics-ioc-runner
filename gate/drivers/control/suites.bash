@@ -17,7 +17,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin"
 unset BASH_ENV ENV CDPATH
 umask 077
 
-readonly EXPECTED_IDENTITY_SHA256="2eef334bae1bcc5fa8b610d4632156ac27b3486c7b8bd083b170e297bb056a8d"
+readonly EXPECTED_IDENTITY_SHA256="702357e0b69fd3071fabbb701dc0cbb5fd5e870fceb7eaf3cbf612e66398a94d"
 readonly DEFAULT_REMOTE_REPO="\${HOME}/gitsrc/epics-ioc-runner"
 REMOTE_REPO="${DEFAULT_REMOTE_REPO}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
