@@ -36,6 +36,18 @@ declare -g JOURNAL_AVAILABLE="false"
 # than fail (deploy_local_logrotate itself warns and skips).
 declare -g LOGROTATE_AVAILABLE="false"
 declare -g LOGROTATE_BIN=""
+declare -gr LOGROTATE_RUNTIME_STATE_NAME="ioc-runner-logrotate.state"
+declare -gr LOGROTATE_PROBE_BYTES=52428801
+declare -gra SYSTEM_LOGROTATE_STATE_PATHS=(
+    "/var/lib/logrotate/status"
+    "/var/lib/logrotate/logrotate.status"
+    "/var/lib/logrotate.status"
+)
+declare -g LOGROTATE_RUNTIME_STATE_PATH=""
+declare -g LOGROTATE_RUNTIME_STATE_BACKUP=""
+declare -g LOGROTATE_RUNTIME_STATE_EXISTED=0
+declare -g LOGROTATE_EXECSTART_OVERRIDE=""
+declare -g LOGROTATE_EXECSTART_OVERRIDE_DIR_CREATED=0
 
 if [[ -z "${EPICS_HOST_ARCH:-}" ]]; then
     export EPICS_HOST_ARCH="linux-x86_64"
@@ -80,8 +92,11 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S14|local-lifecycle.S14.repeat-install-stable|BEHAVIOR"
     "S15|local-lifecycle.S15.logrotate-available|PREREQUISITE"
     "S15|local-lifecycle.S15.rotation-config-exists|REQUIRED"
+    "S15|local-lifecycle.S15.oneshot-result-success|BEHAVIOR"
     "S15|local-lifecycle.S15.compressed-archive-created|BEHAVIOR"
     "S15|local-lifecycle.S15.live-log-truncated|BEHAVIOR"
+    "S15|local-lifecycle.S15.runtime-state-created|BEHAVIOR"
+    "S15|local-lifecycle.S15.system-default-state-unchanged|BEHAVIOR"
     "S16|local-lifecycle.S16.logrotate-available|PREREQUISITE"
     "S16|local-lifecycle.S16.rotation-config-exists|REQUIRED"
     "S16|local-lifecycle.S16.maxsize-rotates-before-weekly|BEHAVIOR"
@@ -445,6 +460,115 @@ function probe_optional_dependencies {
     [[ -n "${LOGROTATE_BIN}" ]] && LOGROTATE_AVAILABLE="true"
 }
 
+function resolve_user_runtime_dir {
+    local runtime_dir="${XDG_RUNTIME_DIR:-}"
+
+    if [[ -z "${runtime_dir}" ]]; then
+        runtime_dir=$(systemd-path user-runtime 2>/dev/null || true)
+    fi
+    if [[ -z "${runtime_dir}" ]]; then
+        runtime_dir="/run/user/$(id -u)"
+    fi
+    printf '%s' "${runtime_dir}"
+}
+
+function snapshot_system_logrotate_states {
+    local path=""
+    local fingerprint=""
+
+    for path in "${SYSTEM_LOGROTATE_STATE_PATHS[@]}"; do
+        if fingerprint=$(stat -Lc '%d:%i:%s:%Y:%Z' -- "${path}" 2>/dev/null); then
+            printf '%s=%s\n' "${path}" "${fingerprint}"
+        elif [[ -e "${path}" ]]; then
+            printf '%s=%s\n' "${path}" "unreadable"
+        else
+            printf '%s=%s\n' "${path}" "absent"
+        fi
+    done
+}
+
+function prepare_logrotate_runtime_state {
+    local runtime_dir=""
+    local state_path=""
+    local backup_path="${WORKSPACE}/logrotate-runtime-state.backup"
+
+    runtime_dir=$(resolve_user_runtime_dir)
+    state_path="${runtime_dir}/${LOGROTATE_RUNTIME_STATE_NAME}"
+    if [[ -L "${state_path}" || ( -e "${state_path}" && ! -f "${state_path}" ) ]]; then
+        _log "ERROR" "Refusing to replace a non-regular logrotate runtime state path."
+        return 1
+    fi
+    if [[ -e "${state_path}" ]]; then
+        cp -p -- "${state_path}" "${backup_path}" || return 1
+        LOGROTATE_RUNTIME_STATE_EXISTED=1
+    else
+        LOGROTATE_RUNTIME_STATE_EXISTED=0
+    fi
+    LOGROTATE_RUNTIME_STATE_PATH="${state_path}"
+    LOGROTATE_RUNTIME_STATE_BACKUP="${backup_path}"
+    rm -f -- "${state_path}"
+}
+
+function restore_logrotate_runtime_state {
+    local restore_rc=0
+
+    [[ -n "${LOGROTATE_RUNTIME_STATE_PATH}" ]] || return 0
+    rm -f -- "${LOGROTATE_RUNTIME_STATE_PATH}" || restore_rc=1
+    if (( LOGROTATE_RUNTIME_STATE_EXISTED )); then
+        if [[ -f "${LOGROTATE_RUNTIME_STATE_BACKUP}" ]]; then
+            cp -p -- "${LOGROTATE_RUNTIME_STATE_BACKUP}" \
+                "${LOGROTATE_RUNTIME_STATE_PATH}" || restore_rc=1
+        else
+            restore_rc=1
+        fi
+    fi
+    rm -f -- "${LOGROTATE_RUNTIME_STATE_BACKUP}" || restore_rc=1
+    if (( restore_rc == 0 )); then
+        LOGROTATE_RUNTIME_STATE_PATH=""
+        LOGROTATE_RUNTIME_STATE_BACKUP=""
+        LOGROTATE_RUNTIME_STATE_EXISTED=0
+    fi
+    return "${restore_rc}"
+}
+
+function install_logrotate_execstart_override {
+    local override_dir="${SYSTEMD_USER_DIR}/epics-logrotate.service.d"
+    local override_file="${override_dir}/90-ioc-runner-test.conf"
+
+    if [[ -L "${override_dir}" || -L "${override_file}" || -e "${override_file}" ]]; then
+        _log "ERROR" "Refusing to replace an existing logrotate service override."
+        return 1
+    fi
+    if [[ ! -d "${override_dir}" ]]; then
+        install -d -m 0700 "${override_dir}" || return 1
+        LOGROTATE_EXECSTART_OVERRIDE_DIR_CREATED=1
+    else
+        LOGROTATE_EXECSTART_OVERRIDE_DIR_CREATED=0
+    fi
+    LOGROTATE_EXECSTART_OVERRIDE="${override_file}"
+    install -m 0600 /dev/null "${override_file}" || return 1
+    printf '%s\n' '[Service]' 'ExecStart=' 'ExecStart=/bin/false' > "${override_file}"
+    systemctl --user daemon-reload
+}
+
+function restore_logrotate_execstart_override {
+    local override_dir=""
+    local restore_rc=0
+
+    [[ -n "${LOGROTATE_EXECSTART_OVERRIDE}" ]] || return 0
+    override_dir="${LOGROTATE_EXECSTART_OVERRIDE%/*}"
+    rm -f -- "${LOGROTATE_EXECSTART_OVERRIDE}" || restore_rc=1
+    if (( LOGROTATE_EXECSTART_OVERRIDE_DIR_CREATED )); then
+        rmdir -- "${override_dir}" 2>/dev/null || true
+    fi
+    systemctl --user daemon-reload >/dev/null 2>&1 || restore_rc=1
+    if (( restore_rc == 0 )); then
+        LOGROTATE_EXECSTART_OVERRIDE=""
+        LOGROTATE_EXECSTART_OVERRIDE_DIR_CREATED=0
+    fi
+    return "${restore_rc}"
+}
+
 function _handle_exit {
     local exit_code=$?
     local final_status="${exit_code}"
@@ -454,6 +578,15 @@ function _handle_exit {
 
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
         exit "${REPORT_FINAL_STATUS}"
+    fi
+
+    if ! restore_logrotate_execstart_override; then
+        final_status=1
+        _log "ERROR" "Failed to restore the logrotate service override."
+    fi
+    if ! restore_logrotate_runtime_state; then
+        final_status=1
+        _log "ERROR" "Failed to restore the logrotate runtime state."
     fi
 
     # Workspace setup precedes every lifecycle action that can arm the user
@@ -1674,42 +1807,96 @@ function test_local_logrotate {
     fi
 }
 
-# U003/M19.T2: forced rotation via copytruncate produces a compressed archive and
-# truncates the live file in place (no IOC restart, no fd reopen).
+# The deployed user service rotates an oversized local log through its real
+# systemd ExecStart, preserves the system default state, and supports an
+# isolated broken-ExecStart run that proves the same check reports failure.
 function test_logrotate_rotation {
     local step="$1"
+    local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
+    local log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
+    local probe="${log_dir}/rotateprobe.log"
+    local break_execstart="${IOC_RUNNER_TEST_BREAK_LOGROTATE_EXECSTART:-0}"
+    local default_state_before=""
+    local default_state_after=""
+    local service_result=""
+    local service_actual=""
+    local service_ok="false"
+    local archived="false"
+    local truncated="false"
+    local runtime_state_created="false"
+    local start_rc=0
+    local cleanup_rc=0
+
     print_divider
-    _log "INFO" "STEP ${step}: Local Log Rotation copytruncate (U003/M19.T2)"
+    _log "INFO" "STEP ${step}: Local Log Rotation Through User Service"
     print_sub_divider
 
     if [[ "${LOGROTATE_AVAILABLE}" != "true" ]]; then
-        _log "WARN" "logrotate unavailable; skipping M19.T2."
+        _log "WARN" "logrotate unavailable; skipping the user-service rotation check."
         record_current_state SKIP "logrotate is unavailable"
         close_current_remaining SKIP "requires ${SUITE_ID}.S15.logrotate-available"
         return 0
     fi
     record_current_state PASS
-    local cfg="${CONF_DIR%/*}/ioc-runner/logrotate.conf"
     if [[ ! -f "${cfg}" ]]; then
-        verify_state "true" "false" "M19.T2: config present for rotation test"
+        verify_state "true" "false" "logrotate config present for user-service test"
         close_current_remaining SKIP "requires ${SUITE_ID}.S15.rotation-config-exists"
         return 0
     fi
-    verify_state "true" "true" "M19.T2: config present for rotation test"
+    verify_state "true" "true" "logrotate config present for user-service test"
 
-    local log_dir="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
     install -d -m 0750 "${log_dir}"
-    local probe="${log_dir}/rotateprobe.log"
-    printf 'seed line for copytruncate\n' > "${probe}"
-    local state; state=$(mktemp)
-    "${LOGROTATE_BIN}" -f --state "${state}" "${cfg}" >/dev/null 2>&1 || true
+    head -c "${LOGROTATE_PROBE_BYTES}" /dev/zero > "${probe}"
+    systemctl --user stop epics-logrotate.timer epics-logrotate.service >/dev/null 2>&1 || true
+    prepare_logrotate_runtime_state
+    default_state_before=$(snapshot_system_logrotate_states)
 
-    local archived="false"; [[ -f "${probe}.1.gz" ]] && archived="true"
-    verify_state "true" "${archived}" "M19.T2: copytruncate produced rotateprobe.log.1.gz"
-    local truncated="false"; [[ -f "${probe}" && ! -s "${probe}" ]] && truncated="true"
-    verify_state "true" "${truncated}" "M19.T2: live log truncated in place (copytruncate)"
+    case "${break_execstart}" in
+        0) ;;
+        1) install_logrotate_execstart_override ;;
+        *)
+            _log "ERROR" "IOC_RUNNER_TEST_BREAK_LOGROTATE_EXECSTART must be 0 or 1."
+            return 1
+            ;;
+    esac
 
-    rm -f "${probe}" "${probe}".*.gz "${state}"
+    systemctl --user reset-failed epics-logrotate.service >/dev/null 2>&1 || true
+    systemctl --user start epics-logrotate.service >/dev/null 2>&1 || start_rc=$?
+    service_result=$(systemctl --user show epics-logrotate.service \
+        --property=Result --value 2>/dev/null || true)
+    service_actual="${start_rc}-${service_result}"
+    [[ "${service_actual}" == "0-success" ]] && service_ok="true"
+
+    restore_logrotate_execstart_override || cleanup_rc=1
+    default_state_after=$(snapshot_system_logrotate_states)
+
+    verify_state "0-success" "${service_actual}" \
+        "deployed logrotate oneshot succeeds through the user manager"
+
+    if [[ "${service_ok}" == "true" ]]; then
+        [[ -f "${probe}.1.gz" ]] && archived="true"
+        verify_state "true" "${archived}" \
+            "user service produced rotateprobe.log.1.gz"
+        [[ -f "${probe}" && ! -s "${probe}" ]] && truncated="true"
+        verify_state "true" "${truncated}" \
+            "user service truncated the live log in place"
+        [[ -f "${LOGROTATE_RUNTIME_STATE_PATH}" ]] && runtime_state_created="true"
+        verify_state "true" "${runtime_state_created}" \
+            "user service created its runtime state file"
+    else
+        record_current_state SKIP "requires ${SUITE_ID}.S15.oneshot-result-success"
+        record_current_state SKIP "requires ${SUITE_ID}.S15.oneshot-result-success"
+        record_current_state SKIP "requires ${SUITE_ID}.S15.oneshot-result-success"
+    fi
+    verify_state "${default_state_before}" "${default_state_after}" \
+        "user service leaves the system default logrotate state unchanged"
+
+    rm -f "${probe}" "${probe}".*.gz
+    restore_logrotate_runtime_state || cleanup_rc=1
+    if (( cleanup_rc != 0 )); then
+        _log "ERROR" "Failed to restore logrotate test state."
+        return 1
+    fi
 }
 
 # U003/M19.T3: maxsize triggers a rotation before the weekly mark. Scaled to a

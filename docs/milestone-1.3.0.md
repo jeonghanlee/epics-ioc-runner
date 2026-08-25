@@ -10,7 +10,9 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review and accept the M7 (#116) implementation plan.
+Next session entry point: commit the verified M7 (#116) implementation, then
+project the accepted plan and T1-T3 results to GitHub and close the linked
+issue under separate authority.
 M1 through M6 are Complete and their linked issues are closed. Continue the
 M10 (#102) health-signal design conversation in parallel - M10 is the largest
 item and its boundary must be designed before any code.
@@ -27,7 +29,7 @@ item and its boundary must be designed before any code.
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
-| Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Not started | Yes | D1, D3 | The deployed oneshot completes through the real user manager on both applicable goldens and a broken `ExecStart` fails; [detail](#m7---suite-integrity) |
+| Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | In progress | No | D1, D3 | T1-T3 Pass on both goldens; the canonical gate passed 758 checks per host. Commit and issue closure remain; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
@@ -1003,16 +1005,17 @@ Last Compared: 2026-08-24; remote updated 2026-08-25T01:17:08Z
 Origin: 1.3.0 / M7
 Identity History: staged from `docs/milestone-46790f9.md` M10
 GitHub Issue: 116, https://github.com/jeonghanlee/epics-ioc-runner/issues/116
-Status: Not started
+Status: In progress
 
 ##### Summary
 
 The original issue contained two test-integrity gaps. The shared reporter now
 closes the executed-versus-counted gap: every suite declares a complete
 catalog, records one terminal state per identity, and resolves missing or
-duplicate results as `SCRIPT_ERROR`. The remaining gap is that the local
-lifecycle suite invokes logrotate directly and never starts the deployed
-`epics-logrotate.service` through the user systemd manager.
+duplicate results as `SCRIPT_ERROR`. The current M7 implementation addresses
+the remaining gap: the local lifecycle suite starts the deployed
+`epics-logrotate.service` through the user systemd manager and verifies its
+result, rotation effects, and isolated runtime state.
 
 ##### Scope
 
@@ -1043,36 +1046,54 @@ logrotate policy, or the install-time `logrotate -d` state isolation, which
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: owner accepted, 2026-08-25
+Implementation Authorization: owner authorized, 2026-08-25
 Superseded Plan Artifacts: none
 
-1. Prepare a safe local log fixture under the deployed user configuration.
-2. Start the shipped `epics-logrotate.service` through `systemctl --user`.
-3. Verify the oneshot result, rotation effect, and per-user runtime state path.
-4. Prove that a broken deployed `ExecStart` turns the real-path check red.
+1. Extend the existing S15 copytruncate check rather than adding or renumbering
+   lifecycle steps. Create a log larger than the deployed `maxsize 50M` limit
+   under the suite's isolated `IOC_RUNNER_LOCAL_LOG_DIR`.
+2. Start the deployed `epics-logrotate.service` with `systemctl --user` and
+   verify the manager reports a successful oneshot result.
+3. Verify that the deployed path creates the compressed archive, truncates the
+   live log, creates `%t/ioc-runner-logrotate.state`, and leaves the system
+   default logrotate state unchanged.
+4. Provide an isolated test mutation that replaces the deployed unit's
+   `ExecStart` with a failing command, reloads the user manager, and runs the
+   same S15 check through `systemctl --user`. The mutation run must fail, and
+   cleanup must restore the original unit and user-manager state on every exit.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Runtime unit | Start the deployed oneshot through the real user systemd manager | Debian and Rocky goldens where the user manager is available | The unit completes and produces the expected rotation effect |
-| T2 | Honest red | Install an isolated broken unit and start it through the same public systemd path | Golden VM test workspace | The check fails on the broken `ExecStart` |
-| T3 | State isolation | Inspect the resolved runtime state and the system default state before and after T1 | Both applicable goldens | The service uses `%t/ioc-runner-logrotate.state` and does not modify the system default state |
+| T1 | Runtime unit | Run the extended S15 check through the deployed user service | Debian and Rocky goldens where the user manager is available | The manager reports success, `.1.gz` is created, and the live log is empty |
+| T2 | Honest red | Run the same S15 check with only the deployed `ExecStart` changed to a failing command | Golden VM test workspace | The shipped suite exits nonzero and reports the service-path check as failed |
+| T3 | State isolation | Compare the runtime state path and system default state before and after T1 | Both applicable goldens | `%t/ioc-runner-logrotate.state` is created and the system default state is unchanged |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Both applicable goldens | Pending | none |
-| T2 | Not run | Golden VM test workspace | Pending | none |
-| T3 | Not run | Both applicable goldens | Pending | none |
+| T1 | 2026-08-25 02:06 PDT | Debian 13 and Rocky 8 goldens, source and installed runners | Pass: S15 completed 7/7 checks through the deployed user service in all four runs; each host completed six suite blocks and 758 checks | `work/m7-local-lifecycle-debian13.log`; `work/m7-local-lifecycle-rocky8.log`; `work/gate-suites-20260825T090106Z-1465094` |
+| T2 | 2026-08-25 10:00 PDT | Debian 13 and Rocky 8 golden workspaces, source runner | Pass: the temporary `ExecStart=/bin/false` drop-in made `local-lifecycle.S15.oneshot-result-success` fail and both suites exit 1; cleanup preserved a pre-existing empty override directory, and the guard refused and preserved a dangling override-file symlink | `work/m7-review-empty-dir-debian13.log`; `work/m7-review-empty-dir-rocky8.log`; `work/m7-review-dangling-symlink-debian13.log`; `work/m7-review-dangling-symlink-rocky8.log` |
+| T3 | 2026-08-25 02:06 PDT | Debian 13 and Rocky 8 goldens, source and installed runners | Pass: every S15 run created `%t/ioc-runner-logrotate.state` while the readable system default state fingerprint remained unchanged | `work/gate-suites-20260825T090106Z-1465094`; post-run state-path observations |
 
 ##### Closure Evidence
 
-- The catalog-ledger half is complete; the remaining runtime unit path has no
-  closure evidence.
+- The catalog-ledger half remains complete in `f5871c7`, `1893c6e`, and
+  `a60802b`.
+- The runtime unit path and broken-`ExecStart` discrimination passed T1-T3 on
+  2026-08-25. Static checks, all five catalogs, both reporting self-tests, and
+  the canonical two-host gate also passed; the gate recorded six blocks and
+  758 checks per host in `work/gate-suites-20260825T090106Z-1465094`.
+- On both goldens, the T2 revision ran the real source suite after preparing
+  either an empty override directory or a dangling override-file symlink. The
+  suite preserved the empty directory, refused and preserved the symlink, and
+  left no override residue after the review-owned artifacts were removed.
+- Implementation review found no blocking defect. M7 remains In progress until
+  the carrying commit exists and GitHub issue #116 is reconciled and closed.
 
 ##### GitHub Projection
 
@@ -1083,7 +1104,7 @@ Observed State: open
 Observed Labels: P3-low, tests
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
+Last Compared: 2026-08-25; remote updated 2026-08-18T07:39:23Z
 
 #### M8 - Human and machine output separation
 

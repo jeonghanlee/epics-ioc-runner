@@ -14,7 +14,7 @@ rejected before reporter initialization and is not part of this catalog.
 
 ## Inventory Basis
 
-The current maximum branch contains 118 assertions. The fixed catalog adds
+The current maximum branch contains 121 assertions. The fixed catalog adds
 three P00 checks and eleven prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
@@ -113,12 +113,22 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S14.repeat-install-succeeded` | `BEHAVIOR` | Repeated installation exits successfully.
 - `local-lifecycle.S14.repeat-install-stable` | `BEHAVIOR` | Repeated installation rewrites no rotation artifact.
 
-### S15 - Copytruncate Rotation (4)
+### S15 - User-Service Copytruncate Rotation (7)
+
+The normal path starts the deployed `epics-logrotate.service`. Setting
+`IOC_RUNNER_TEST_BREAK_LOGROTATE_EXECSTART=1` installs a temporary systemd
+drop-in with `ExecStart=/bin/false`; the same oneshot-result check must fail,
+and the suite restores the effective unit and runtime state during cleanup.
+The mutation refuses a pre-existing override file or symlink and preserves a
+pre-existing override directory.
 
 - `local-lifecycle.S15.logrotate-available` | `PREREQUISITE` | `logrotate` is available.
 - `local-lifecycle.S15.rotation-config-exists` | `REQUIRED` | User logrotate configuration exists for the probe.
-- `local-lifecycle.S15.compressed-archive-created` | `BEHAVIOR` | Forced rotation creates `.1.gz`.
-- `local-lifecycle.S15.live-log-truncated` | `BEHAVIOR` | `copytruncate` leaves the live log empty in place.
+- `local-lifecycle.S15.oneshot-result-success` | `BEHAVIOR` | The deployed oneshot succeeds through the user manager.
+- `local-lifecycle.S15.compressed-archive-created` | `BEHAVIOR` | The deployed service creates `.1.gz`.
+- `local-lifecycle.S15.live-log-truncated` | `BEHAVIOR` | The deployed service leaves the live log empty in place.
+- `local-lifecycle.S15.runtime-state-created` | `BEHAVIOR` | The deployed service creates `%t/ioc-runner-logrotate.state`.
+- `local-lifecycle.S15.system-default-state-unchanged` | `BEHAVIOR` | The deployed service leaves system logrotate state unchanged.
 
 ### S16 - Maxsize Rotation (3)
 
