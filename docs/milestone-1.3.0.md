@@ -10,11 +10,10 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: commit the observed M6 gate identity and verification
-record, then close #129 and record M6 Complete. M1 through M5 are Complete and
-their linked issues are closed. Continue the M10 (#102) health-signal design
-conversation in parallel - M10 is the largest item and its boundary must be
-designed before any code.
+Next session entry point: review and accept the M7 (#116) implementation plan.
+M1 through M6 are Complete and their linked issues are closed. Continue the
+M10 (#102) health-signal design conversation in parallel - M10 is the largest
+item and its boundary must be designed before any code.
 
 ## Milestone
 
@@ -27,7 +26,7 @@ designed before any code.
 | Diagnosis | M3 | (#142) Diagnose a conf/mode mismatch in one message | Milestone | Complete | No | D1, D3 | Complete in `b6547bd`; T1-T6 Pass, including the canonical two-golden gate; [detail](#m3---conf-mode-mismatch-diagnosis) |
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
-| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | In progress | No | M5, D1, D2, D3 | T1-T3 Pass on matched fresh consumers; issue #129 closure remains; [detail](#m6---conf-value-normalization) |
+| Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Not started | Yes | D1, D3 | The deployed oneshot completes through the real user manager on both applicable goldens and a broken `ExecStart` fails; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
@@ -868,7 +867,7 @@ Last Compared: 2026-08-24; remote updated 2026-08-24T17:16:05Z
 Origin: 1.3.0 / M4
 Identity History: staged from `docs/milestone-46790f9.md` M7; 1.3.0 / M4 -> 1.3.0 / M6 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 129, https://github.com/jeonghanlee/epics-ioc-runner/issues/129
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -975,18 +974,29 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
-- none
+- Direct reader-equivalence coverage commit
+  `9061d2e0012b1ab4fd091669f1f9489c40f018bf` is pushed to
+  `origin/release-1.3.0`.
+- Observed gate identity and matched two-host verification commit
+  `14b362fbb7a0252f430f3da53cd1b23e4ba94ef2` is pushed to
+  `origin/release-1.3.0`.
+- The final matched-consumer gate is
+  `work/gate-suites-20260825T003641Z-1024751/`.
+- Linked issue #129 was manually closed after its canonical body was projected
+  to GitHub, observed at 2026-08-25T01:17:08Z. The close comment cites
+  `9061d2e` and `14b362f`; the gate commit retains its exact `Closes #129`
+  footer for the later default-branch merge.
 
 ##### GitHub Projection
 
 Title: Unify conf-value normalization between read_conf_var and read_conf_all
 Labels: bug, P3-low, area/architecture
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: bug, P3-low, area/architecture
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
+Last Compared: 2026-08-24; remote updated 2026-08-25T01:17:08Z
 
 #### M7 - Suite integrity
 
