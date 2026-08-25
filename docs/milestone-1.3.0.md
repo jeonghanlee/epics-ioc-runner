@@ -10,10 +10,8 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: commit the verified M7 (#116) implementation, then
-project the accepted plan and T1-T3 results to GitHub and close the linked
-issue under separate authority.
-M1 through M6 are Complete and their linked issues are closed. Continue the
+Next session entry point: review and accept the M8 (#144) implementation plan.
+M1 through M7 are Complete and their linked issues are closed. Continue the
 M10 (#102) health-signal design conversation in parallel - M10 is the largest
 item and its boundary must be designed before any code.
 
@@ -29,7 +27,7 @@ item and its boundary must be designed before any code.
 | Reliability | M4 | (#115) Exercise restart supervision end-to-end on the goldens | Milestone | Complete | No | D1, D3 | T1-T2 Pass: the verified child recovers under the same procServ on both golden OS families, and the Debian `--oneshot` honest-red discriminates systemd replacement; [detail](#m4---restart-supervision-probe) |
 | Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
-| Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | In progress | No | D1, D3 | T1-T3 Pass on both goldens; the canonical gate passed 758 checks per host. Commit and issue closure remain; [detail](#m7---suite-integrity) |
+| Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
@@ -1005,7 +1003,7 @@ Last Compared: 2026-08-24; remote updated 2026-08-25T01:17:08Z
 Origin: 1.3.0 / M7
 Identity History: staged from `docs/milestone-46790f9.md` M10
 GitHub Issue: 116, https://github.com/jeonghanlee/epics-ioc-runner/issues/116
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1092,19 +1090,24 @@ Superseded Plan Artifacts: none
   either an empty override directory or a dangling override-file symlink. The
   suite preserved the empty directory, refused and preserved the symlink, and
   left no override residue after the review-owned artifacts were removed.
-- Implementation review found no blocking defect. M7 remains In progress until
-  the carrying commit exists and GitHub issue #116 is reconciled and closed.
+- Implementation commit `836311ae305370fe37d9a6980ca124ff996f0324` is
+  pushed to `origin/release-1.3.0`.
+- Implementation review found no blocking defect.
+- Linked issue #116 was manually closed after its canonical body was projected
+  to GitHub, observed at 2026-08-25T17:58:39Z. The close comment cites
+  `836311a`; the implementation commit retains its exact `Closes #116` footer
+  for the later default-branch merge.
 
 ##### GitHub Projection
 
 Title: Extend suite integrity: tripwire port and the M19 oneshot under systemd
 Labels: P3-low, tests
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: P3-low, tests
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-25; remote updated 2026-08-18T07:39:23Z
+Last Compared: 2026-08-25; remote updated 2026-08-25T17:58:39Z
 
 #### M8 - Human and machine output separation
 
