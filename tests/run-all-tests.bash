@@ -19,6 +19,9 @@ declare -g SC_TOP
 SC_RPATH="$(realpath "$0")"
 SC_TOP="${SC_RPATH%/*}"
 
+# shellcheck source=lib/test-record-validator.bash
+source "${SC_TOP}/lib/test-record-validator.bash"
+
 declare -g RUN_LOCAL=1
 declare -g RUN_SYSTEM=1
 declare -g RUN_SOURCE_REGRESSION=0
@@ -27,11 +30,38 @@ declare -g SEEN_RUNNER_SELECTOR=0
 declare -g TEST_MODE="source"
 declare -g COLLECTOR_DIR=""
 declare -g COLLECTOR_READY=0
+declare -g DISPATCHER_MACHINE_OUTPUT_ACTIVE=0
+declare -g DISPATCHER_MACHINE_OUTPUT_FD=""
 declare -g -a SELECTED_SUITE_IDS=()
 declare -g -A SELECTED_SUITE_SCOPE=()
 declare -g -A SELECTED_SUITE_RUNNER=()
 declare -g -A COLLECTED_SUITE_RECORDS=()
 declare -g -A COLLECTED_RUN_IDS=()
+declare -g -A COLLECTED_MACHINE_FILES=()
+
+function initialize_output_boundary {
+    local mode="${REPORT_MACHINE_OUTPUT:-0}"
+
+    case "${mode}" in
+        ""|0) return 0 ;;
+        1) ;;
+        *)
+            collector_error "REPORT_MACHINE_OUTPUT must be 0, 1, or unset: ${mode}"
+            return 1
+            ;;
+    esac
+    if ! exec {DISPATCHER_MACHINE_OUTPUT_FD}>&1; then
+        collector_error "Cannot reserve standard output for machine records."
+        return 1
+    fi
+    if ! exec 1>&2; then
+        exec {DISPATCHER_MACHINE_OUTPUT_FD}>&- || true
+        DISPATCHER_MACHINE_OUTPUT_FD=""
+        collector_error "Cannot route dispatcher output to standard error."
+        return 1
+    fi
+    DISPATCHER_MACHINE_OUTPUT_ACTIVE=1
+}
 
 function print_divider {
     printf "${BLUE}%s${NC}\n" "===================================================================================================="
@@ -101,120 +131,33 @@ function configure_selected_suites {
     fi
 }
 
-function validate_suite_output {
+function collect_validated_suite_output {
     local expected_suite="$1"
     local expected_scope="$2"
     local expected_runner="$3"
-    local output_file="$4"
+    local machine_file="$4"
     local producer_status="$5"
-    local line=""
-    local suite_record=""
-    local suite_id=""
-    local run_id=""
-    local scope=""
-    local runner=""
-    local total_text=""
-    local pass_text=""
-    local fail_text=""
-    local skip_text=""
-    local na_text=""
-    local err_text=""
-    local suite_state=""
-    local total=0
-    local pass_count=0
-    local fail_count=0
-    local skip_count=0
-    local na_count=0
-    local err_count=0
-    local suite_seen=0
-    local reporter_after_suite=0
-    local -a suite_records=()
+    local validated_run=""
+    local validated_suite=""
 
-    while IFS= read -r line || [[ -n "${line:-}" ]]; do
-        if (( suite_seen )) &&
-           [[ "${line}" == TEST\ * || "${line}" == STEP\ * || "${line}" == SUITE\ * ]]; then
-            reporter_after_suite=1
-        fi
-        if [[ "${line}" == SUITE\ * ]]; then
-            suite_records+=("${line}")
-            suite_seen=1
-        fi
-    done < "${output_file}"
-
-    if (( ${#suite_records[@]} == 0 )); then
-        collector_error "Missing SUITE record for ${expected_suite}."
+    if [[ -n "${COLLECTED_SUITE_RECORDS[${expected_suite}]:-}" ]]; then
+        collector_error "Duplicate collected suite: ${expected_suite}"
         return 1
     fi
-    if (( ${#suite_records[@]} > 1 )); then
-        collector_error "Duplicate SUITE records for ${expected_suite}."
+    if ! test_record_validate_file "${machine_file}" "${expected_suite}" \
+        "${expected_scope}" "${expected_runner}" "${producer_status}" \
+        validated_run validated_suite; then
+        collector_error "Machine records failed validation for ${expected_suite}."
         return 1
     fi
-    if (( reporter_after_suite )); then
-        collector_error "The SUITE record is not the final reporter record for ${expected_suite}."
+    if [[ -n "${COLLECTED_RUN_IDS[${validated_run}]:-}" ]]; then
+        collector_error "Duplicate collected run ID: ${validated_run}"
         return 1
     fi
 
-    suite_record="${suite_records[0]}"
-    if [[ ! "${suite_record}" =~ ^SUITE[[:space:]]suite=([A-Za-z0-9._:/+-]+)[[:space:]]run=([A-Za-z0-9._:/+-]+)[[:space:]]scope=([A-Za-z0-9._:/+-]+)[[:space:]]runner=([A-Za-z0-9._:/+-]+)[[:space:]]os=([A-Za-z0-9._:/+-]+)[[:space:]]arch=([A-Za-z0-9._:/+-]+)[[:space:]]total=([0-9]+)[[:space:]]pass=([0-9]+)[[:space:]]fail=([0-9]+)[[:space:]]skip=([0-9]+)[[:space:]]na=([0-9]+)[[:space:]]err=([0-9]+)[[:space:]]state=(PASS|FAIL)$ ]]; then
-        collector_error "Malformed SUITE record for ${expected_suite}."
-        return 1
-    fi
-
-    suite_id="${BASH_REMATCH[1]}"
-    run_id="${BASH_REMATCH[2]}"
-    scope="${BASH_REMATCH[3]}"
-    runner="${BASH_REMATCH[4]}"
-    total_text="${BASH_REMATCH[7]}"
-    pass_text="${BASH_REMATCH[8]}"
-    fail_text="${BASH_REMATCH[9]}"
-    skip_text="${BASH_REMATCH[10]}"
-    na_text="${BASH_REMATCH[11]}"
-    err_text="${BASH_REMATCH[12]}"
-    suite_state="${BASH_REMATCH[13]}"
-
-    if [[ "${suite_id}" != "${expected_suite}" ]]; then
-        collector_error "Unexpected suite '${suite_id}' while collecting ${expected_suite}."
-        return 1
-    fi
-    if [[ "${scope}" != "${expected_scope}" || "${runner}" != "${expected_runner}" ]]; then
-        collector_error "Unexpected scope or runner for ${expected_suite}."
-        return 1
-    fi
-    if [[ -n "${COLLECTED_SUITE_RECORDS[${suite_id}]:-}" ]]; then
-        collector_error "Duplicate collected suite: ${suite_id}"
-        return 1
-    fi
-    if [[ -n "${COLLECTED_RUN_IDS[${run_id}]:-}" ]]; then
-        collector_error "Duplicate collected run ID: ${run_id}"
-        return 1
-    fi
-
-    total=$((10#${total_text}))
-    pass_count=$((10#${pass_text}))
-    fail_count=$((10#${fail_text}))
-    skip_count=$((10#${skip_text}))
-    na_count=$((10#${na_text}))
-    err_count=$((10#${err_text}))
-    if (( total != pass_count + fail_count + skip_count + na_count + err_count )); then
-        collector_error "SUITE vector does not reconcile for ${expected_suite}."
-        return 1
-    fi
-    if [[ "${suite_state}" == "PASS" ]]; then
-        if (( producer_status != 0 )); then
-            collector_error "SUITE state PASS disagrees with producer exit status ${producer_status} for ${expected_suite}."
-            return 1
-        fi
-        if (( fail_count > 0 || err_count > 0 )); then
-            collector_error "SUITE state PASS disagrees with the failure vector for ${expected_suite}."
-            return 1
-        fi
-    elif (( producer_status == 0 )); then
-        collector_error "SUITE state FAIL disagrees with producer exit status 0 for ${expected_suite}."
-        return 1
-    fi
-
-    COLLECTED_SUITE_RECORDS["${suite_id}"]="${suite_record}"
-    COLLECTED_RUN_IDS["${run_id}"]="${suite_id}"
+    COLLECTED_SUITE_RECORDS["${expected_suite}"]="${validated_suite}"
+    COLLECTED_RUN_IDS["${validated_run}"]="${expected_suite}"
+    COLLECTED_MACHINE_FILES["${expected_suite}"]="${machine_file}"
 }
 
 function validate_selected_suite_set {
@@ -225,11 +168,30 @@ function validate_selected_suite_set {
             collector_error "Selected suite was not collected: ${suite_id}"
             return 1
         fi
+        if [[ -z "${COLLECTED_MACHINE_FILES[${suite_id}]:-}" ]]; then
+            collector_error "Selected suite has no validated machine file: ${suite_id}"
+            return 1
+        fi
     done
     if (( ${#COLLECTED_SUITE_RECORDS[@]} != ${#SELECTED_SUITE_IDS[@]} )); then
         collector_error "Collected suite set does not match the selected suite set."
         return 1
     fi
+}
+
+function emit_selected_machine_records {
+    local suite_id=""
+
+    if (( ! DISPATCHER_MACHINE_OUTPUT_ACTIVE )); then
+        return 0
+    fi
+    for suite_id in "${SELECTED_SUITE_IDS[@]}"; do
+        if ! /bin/cat -- "${COLLECTED_MACHINE_FILES[${suite_id}]}" \
+            >&"${DISPATCHER_MACHINE_OUTPUT_FD}"; then
+            collector_error "Failed to emit machine records for ${suite_id}."
+            return 1
+        fi
+    done
 }
 
 function _run_test {
@@ -238,29 +200,26 @@ function _run_test {
     local expected_scope="${SELECTED_SUITE_SCOPE[${expected_suite}]:-}"
     local expected_runner="${SELECTED_SUITE_RUNNER[${expected_suite}]:-}"
     local test_cmd=("${@:3}")
-    local output_file="${COLLECTOR_DIR}/${expected_suite}.stdout"
+    local machine_file="${COLLECTOR_DIR}/${expected_suite}.machine"
+    local human_file="${COLLECTOR_DIR}/${expected_suite}.human"
     local producer_status=0
-    local tee_status=0
     local validation_status=0
-    local -a pipeline_status=()
 
     print_divider
     printf "%b[ RUN      ] %s%b\n" "${BLUE}" "${test_name}" "${NC}"
     print_divider
 
     set +e
-    "${test_cmd[@]}" | tee "${output_file}"
-    pipeline_status=("${PIPESTATUS[@]}")
-    producer_status="${pipeline_status[0]}"
-    tee_status="${pipeline_status[1]}"
+    "${test_cmd[@]}" > "${machine_file}" 2> "${human_file}"
+    producer_status=$?
     set -e
 
-    if (( tee_status != 0 )); then
-        collector_error "Failed to capture output for ${expected_suite}."
+    if ! /bin/cat -- "${human_file}"; then
+        collector_error "Failed to display human output for ${expected_suite}."
         return 1
     fi
-    validate_suite_output "${expected_suite}" "${expected_scope}" \
-        "${expected_runner}" "${output_file}" "${producer_status}" || validation_status=$?
+    collect_validated_suite_output "${expected_suite}" "${expected_scope}" \
+        "${expected_runner}" "${machine_file}" "${producer_status}" || validation_status=$?
     if (( validation_status != 0 )); then
         return 1
     fi
@@ -275,6 +234,8 @@ function _run_test {
 
 trap handle_exit EXIT
 trap 'exit 1' SIGINT
+
+initialize_output_boundary
 
 # --- CLI Argument Parsing ---
 while [[ $# -gt 0 ]]; do
@@ -336,11 +297,12 @@ configure_selected_suites
 if [[ ${RUN_SOURCE_REGRESSION} -eq 1 ]]; then
     initialize_collector
     _run_test "Source Regression" source-regression \
-        sudo bash "${SC_TOP}/test-source-regression.bash"
+        sudo env REPORT_MACHINE_OUTPUT=1 bash "${SC_TOP}/test-source-regression.bash"
     validate_selected_suite_set
     print_divider
     printf "${GREEN}%s${NC}\n" "ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY."
     print_divider
+    emit_selected_machine_records
     exit 0
 fi
 
@@ -362,9 +324,13 @@ export IOC_RUNNER_TEST_MODE="${TEST_MODE}"
 export IOC_RUNNER_SCRIPT_DEST="${IOC_RUNNER_SCRIPT_DEST:-}"
 
 if [[ ${RUN_SYSTEM} -eq 1 ]]; then
-    # Cache sudo credentials upfront for uninterrupted system-wide execution
-    printf "%s\n" "Caching sudo credentials for system infrastructure tests..."
-    sudo -v
+    # Avoid an authentication prompt when the test account already has a
+    # non-interactive sudo route. Password-based accounts still authenticate
+    # before suite output is captured.
+    if ! sudo -n true 2>/dev/null; then
+        printf "%s\n" "Caching sudo credentials for system infrastructure tests..."
+        sudo -v
+    fi
 fi
 
 initialize_collector
@@ -399,24 +365,26 @@ if [[ ${RUN_LOCAL} -eq 1 ]]; then
             "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
             "IOC_RUNNER_TEST_MODE=${TEST_MODE}"
             "IOC_RUNNER_SCRIPT_DEST=${IOC_RUNNER_SCRIPT_DEST:-}"
+            "REPORT_MACHINE_OUTPUT=1"
         )
         _run_test "Local Lifecycle" local-lifecycle \
             sudo -u "${SUDO_USER}" env -i "${LOCAL_PHASE_ENV[@]}" \
             bash "${SC_TOP}/test-local-lifecycle.bash"
     else
         _run_test "Local Lifecycle" local-lifecycle \
-            bash "${SC_TOP}/test-local-lifecycle.bash"
+            env REPORT_MACHINE_OUTPUT=1 bash "${SC_TOP}/test-local-lifecycle.bash"
     fi
 fi
 
 if [[ ${RUN_SYSTEM} -eq 1 ]]; then
     _run_test "System Infrastructure" system-infra \
-        sudo bash "${SC_TOP}/test-system-infra.bash"
+        sudo env REPORT_MACHINE_OUTPUT=1 bash "${SC_TOP}/test-system-infra.bash"
     _run_test "System Lifecycle" system-lifecycle \
-        sudo -E bash "${SC_TOP}/test-system-lifecycle.bash"
+        sudo -E env REPORT_MACHINE_OUTPUT=1 bash "${SC_TOP}/test-system-lifecycle.bash"
 fi
 
 validate_selected_suite_set
 print_divider
 printf "${GREEN}%s${NC}\n" "ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY."
 print_divider
+emit_selected_machine_records

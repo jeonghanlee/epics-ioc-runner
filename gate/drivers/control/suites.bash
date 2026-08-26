@@ -1,9 +1,8 @@
 #!/bin/bash
-# Run the canonical six-run suite matrix on two hosts and preserve the complete
-# evidence set on the control host. Each host writes one remote log by truncating
-# it for the first suite and appending the remaining five suites. The control
-# host validates the fixed machine-record identity and state matrix, then records
-# the normalized TEST and STEP differences between the hosts.
+# Run the canonical six-run suite matrix on two hosts and preserve separate
+# machine and human evidence for every producer. The control host validates each
+# machine block before aggregation, then checks the fixed identity and state
+# matrix and records normalized cross-host differences.
 #
 # $1 first host, as user@address
 # $2 absolute EPICS environment path on the first host
@@ -27,8 +26,8 @@ readonly DRIVER_PATH
 REPO_TOP="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 readonly REPO_TOP
 readonly REPORT_COUNTS_FILE="${REPO_TOP}/tests/reporting-counts.csv"
-# shellcheck source=tests/lib/reporting-counts.bash
-source "${REPO_TOP}/tests/lib/reporting-counts.bash"
+# shellcheck source=tests/lib/test-record-validator.bash
+source "${REPO_TOP}/tests/lib/test-record-validator.bash"
 readonly OUTPUT_ROOT="${REPO_TOP}/work"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 readonly RUN_ID
@@ -95,7 +94,7 @@ function preflight_host {
     local line=""
     local remote_command=""
 
-    remote_command="test -d ${REMOTE_REPO}/tests && test -r '${env_path}' && for c in bash awk sort sha256sum git cat date sudo; do p=\$(command -v \"\${c}\") && test -x \"\${p}\" || exit 1; done && sudo -n true && printf 'HEAD %s\\n' \"\$(git -C ${REMOTE_REPO} rev-parse HEAD)\" && printf 'REPO %s\\n' \"\$(cd ${REMOTE_REPO} && pwd)\""
+    remote_command="test -d ${REMOTE_REPO}/tests && test -r '${env_path}' && for c in bash awk sort sha256sum git cat date sudo stat id env; do p=\$(command -v \"\${c}\") && test -x \"\${p}\" || exit 1; done && sudo -n true && printf 'HEAD %s\\n' \"\$(git -C ${REMOTE_REPO} rev-parse HEAD)\" && printf 'REPO %s\\n' \"\$(cd ${REMOTE_REPO} && pwd)\""
     if ! output="$("${SSH_CMD[@]}" "${host}" "${remote_command}")"; then
         die "host preflight failed: ${host}"
     fi
@@ -211,27 +210,36 @@ function control_provenance_unchanged {
 
 function run_remote_suite {
     local host="$1"
-    local suite="$2"
-    local scope="$3"
-    local runner="$4"
-    local suite_command="$5"
-    local redirect="$6"
-    local remote_log="$7"
-    local status_file="$8"
+    local token="$2"
+    local suite="$3"
+    local scope="$4"
+    local runner="$5"
+    local suite_command="$6"
+    local status_file="$7"
+    local evidence_stem="${suite}.${scope}.${runner}"
+    local remote_stem="/tmp/ioc-runner-gate-suites-${RUN_ID}-${token}-${evidence_stem}"
+    local remote_machine="${remote_stem}.machine"
+    local remote_human="${remote_stem}.human"
+    local local_machine="${RUN_DIR}/${token}.${evidence_stem}.machine"
+    local local_human="${RUN_DIR}/${token}.${evidence_stem}.human"
     local remote_command=""
     local output=""
-    local line=""
+    local run_line=""
+    local files_line=""
     local candidate=""
+    local producer_status=0
+    local owner_uid=""
+    local machine_uid=""
+    local human_uid=""
+    local remote_machine_sha=""
+    local remote_human_sha=""
+    local local_machine_sha=""
+    local local_human_sha=""
+    local evidence_state=""
+    local validated_run=""
+    local validated_suite=""
 
-    case "${redirect}" in
-        '>'|'>>') ;;
-        *)
-            printf 'gate suites: invalid log redirect: %s\n' "${redirect}" >&2
-            return 1
-            ;;
-    esac
-
-    remote_command="t0=\$(date +%s); rc=0; { cd ${REMOTE_REPO} && ${suite_command}; } ${redirect} '${remote_log}' 2>&1 || rc=\$?; t1=\$(date +%s); printf 'RUN suite=${suite} scope=${scope} runner=${runner} rc=%s elapsed=%ss\\n' \"\${rc}\" \"\$((t1 - t0))\"; exit 0"
+    remote_command="umask 077; t0=\$(date +%s); rc=0; { cd ${REMOTE_REPO} && ${suite_command}; } > '${remote_machine}' 2> '${remote_human}' || rc=\$?; t1=\$(date +%s); owner_uid=\$(id -u); machine_uid=\$(stat -c '%u' -- '${remote_machine}' 2>/dev/null || printf invalid); human_uid=\$(stat -c '%u' -- '${remote_human}' 2>/dev/null || printf invalid); machine_sha=\$(sha256sum '${remote_machine}' 2>/dev/null | awk '{print \$1}'); human_sha=\$(sha256sum '${remote_human}' 2>/dev/null | awk '{print \$1}'); evidence=PASS; if test \"\${machine_uid}\" != \"\${owner_uid}\" || test \"\${human_uid}\" != \"\${owner_uid}\" || test ! -r '${remote_machine}' || test ! -r '${remote_human}'; then evidence=FAIL; fi; printf 'RUN suite=${suite} scope=${scope} runner=${runner} rc=%s elapsed=%ss\\n' \"\${rc}\" \"\$((t1 - t0))\"; printf 'FILES suite=${suite} scope=${scope} runner=${runner} owner_uid=%s machine_uid=%s human_uid=%s machine_sha256=%s human_sha256=%s state=%s\\n' \"\${owner_uid}\" \"\${machine_uid}\" \"\${human_uid}\" \"\${machine_sha}\" \"\${human_sha}\" \"\${evidence}\"; exit 0"
     if ! output="$("${SSH_CMD[@]}" "${host}" "${remote_command}")"; then
         printf 'gate suites: suite transport failed: host=%s suite=%s runner=%s\n' \
             "${host}" "${suite}" "${runner}" >&2
@@ -240,15 +248,61 @@ function run_remote_suite {
 
     while IFS= read -r candidate; do
         if [[ "${candidate}" == RUN\ * ]]; then
-            line="${candidate}"
+            run_line="${candidate}"
+        elif [[ "${candidate}" == FILES\ * ]]; then
+            files_line="${candidate}"
         fi
     done <<< "${output}"
-    if [[ ! "${line}" =~ ^RUN[[:space:]]suite=[A-Za-z0-9._:+/-]+[[:space:]]scope=[A-Za-z0-9._:+/-]+[[:space:]]runner=[A-Za-z0-9._:+/-]+[[:space:]]rc=[0-9]+[[:space:]]elapsed=[0-9]+s$ ]]; then
+    if [[ ! "${run_line}" =~ ^RUN[[:space:]]suite=${suite}[[:space:]]scope=${scope}[[:space:]]runner=${runner}[[:space:]]rc=([0-9]+)[[:space:]]elapsed=[0-9]+s$ ]]; then
         printf 'gate suites: suite returned no valid run status: host=%s suite=%s runner=%s\n' \
             "${host}" "${suite}" "${runner}" >&2
         return 1
     fi
-    printf '%s\n' "${line}" | tee -a "${status_file}"
+    producer_status="${BASH_REMATCH[1]}"
+    if [[ ! "${files_line}" =~ ^FILES[[:space:]]suite=${suite}[[:space:]]scope=${scope}[[:space:]]runner=${runner}[[:space:]]owner_uid=([0-9]+)[[:space:]]machine_uid=([0-9]+)[[:space:]]human_uid=([0-9]+)[[:space:]]machine_sha256=([0-9a-f]{64})[[:space:]]human_sha256=([0-9a-f]{64})[[:space:]]state=(PASS|FAIL)$ ]]; then
+        printf 'gate suites: suite returned no valid evidence status: host=%s suite=%s runner=%s\n' \
+            "${host}" "${suite}" "${runner}" >&2
+        return 1
+    fi
+    owner_uid="${BASH_REMATCH[1]}"
+    machine_uid="${BASH_REMATCH[2]}"
+    human_uid="${BASH_REMATCH[3]}"
+    remote_machine_sha="${BASH_REMATCH[4]}"
+    remote_human_sha="${BASH_REMATCH[5]}"
+    evidence_state="${BASH_REMATCH[6]}"
+    if [[ "${evidence_state}" != "PASS" || "${machine_uid}" != "${owner_uid}" ||
+          "${human_uid}" != "${owner_uid}" ]]; then
+        printf 'gate suites: remote evidence ownership failed: host=%s suite=%s runner=%s\n' \
+            "${host}" "${suite}" "${runner}" >&2
+        return 1
+    fi
+
+    if ! "${SSH_CMD[@]}" "${host}" "cat '${remote_machine}'" > "${local_machine}" ||
+       ! "${SSH_CMD[@]}" "${host}" "cat '${remote_human}'" > "${local_human}"; then
+        printf 'gate suites: failed to copy per-run evidence: host=%s suite=%s runner=%s\n' \
+            "${host}" "${suite}" "${runner}" >&2
+        return 1
+    fi
+    local_machine_sha="$(sha256sum "${local_machine}" | awk '{print $1}')"
+    local_human_sha="$(sha256sum "${local_human}" | awk '{print $1}')"
+    if [[ "${local_machine_sha}" != "${remote_machine_sha}" ||
+          "${local_human_sha}" != "${remote_human_sha}" ]]; then
+        printf 'gate suites: remote and local evidence hashes differ: host=%s suite=%s runner=%s\n' \
+            "${host}" "${suite}" "${runner}" >&2
+        return 1
+    fi
+    if ! test_record_validate_file "${local_machine}" "${suite}" "${scope}" "${runner}" \
+        "${producer_status}" validated_run validated_suite; then
+        printf 'gate suites: machine evidence failed validation: host=%s suite=%s runner=%s\n' \
+            "${host}" "${suite}" "${runner}" >&2
+        return 1
+    fi
+
+    printf '%s\n' "${run_line}" | tee -a "${status_file}"
+    printf 'EVIDENCE suite=%s scope=%s runner=%s run=%s machine=%s human=%s machine_sha256=%s human_sha256=%s\n' \
+        "${suite}" "${scope}" "${runner}" "${validated_run}" \
+        "${local_machine}" "${local_human}" "${local_machine_sha}" "${local_human_sha}"
+    : "${validated_suite}"
 }
 
 function run_host {
@@ -256,55 +310,61 @@ function run_host {
     local env_path="$2"
     local token="$3"
     local status_file="${RUN_DIR}/${token}.status"
-    local local_log="${RUN_DIR}/${token}.log"
+    local local_machine="${RUN_DIR}/${token}.machine"
+    local local_human="${RUN_DIR}/${token}.human"
     local meta_file="${RUN_DIR}/${token}.meta"
-    local remote_log="/tmp/ioc-runner-gate-suites-${RUN_ID}-${token}.log"
-    local remote_sha=""
-    local local_sha=""
-    local command_prefix=". '${env_path}' &&"
+    local command_prefix="{ . '${env_path}'; } >&2 &&"
+    local specification=""
+    local suite=""
+    local scope=""
+    local runner=""
+    local evidence_stem=""
+    local -a run_order=(
+        "error-handling none source"
+        "source-regression system source"
+        "local-lifecycle local source"
+        "local-lifecycle local installed"
+        "system-infra system none"
+        "system-lifecycle system installed"
+    )
 
     : > "${status_file}"
-    printf 'HOST START host=%s env=%s remote_log=%s\n' "${host}" "${env_path}" "${remote_log}"
+    : > "${local_machine}"
+    : > "${local_human}"
+    printf 'HOST START host=%s env=%s machine=%s human=%s\n' \
+        "${host}" "${env_path}" "${local_machine}" "${local_human}"
 
-    run_remote_suite "${host}" error-handling none source \
-        "bash tests/test-error-handling.bash" '>' "${remote_log}" "${status_file}" || return 1
-    run_remote_suite "${host}" source-regression system source \
-        "sudo -n true && bash tests/run-all-tests.bash --source-regression" '>>' \
-        "${remote_log}" "${status_file}" || return 1
-    run_remote_suite "${host}" local-lifecycle local source \
-        "${command_prefix} IOC_RUNNER_TEST_MODE=source bash tests/test-local-lifecycle.bash" '>>' \
-        "${remote_log}" "${status_file}" || return 1
-    run_remote_suite "${host}" local-lifecycle local installed \
-        "${command_prefix} IOC_RUNNER_TEST_MODE=installed bash tests/test-local-lifecycle.bash" '>>' \
-        "${remote_log}" "${status_file}" || return 1
-    run_remote_suite "${host}" system-infra system none \
-        "${command_prefix} IOC_RUNNER_TEST_MODE=installed sudo -nE bash tests/test-system-infra.bash" '>>' \
-        "${remote_log}" "${status_file}" || return 1
-    run_remote_suite "${host}" system-lifecycle system installed \
-        "${command_prefix} IOC_RUNNER_TEST_MODE=installed sudo -nE bash tests/test-system-lifecycle.bash" '>>' \
-        "${remote_log}" "${status_file}" || return 1
+    run_remote_suite "${host}" "${token}" error-handling none source \
+        "env REPORT_MACHINE_OUTPUT=1 bash tests/test-error-handling.bash" \
+        "${status_file}" || return 1
+    run_remote_suite "${host}" "${token}" source-regression system source \
+        "sudo -n true >&2 && env REPORT_MACHINE_OUTPUT=1 bash tests/run-all-tests.bash --source-regression" \
+        "${status_file}" || return 1
+    run_remote_suite "${host}" "${token}" local-lifecycle local source \
+        "${command_prefix} IOC_RUNNER_TEST_MODE=source REPORT_MACHINE_OUTPUT=1 bash tests/test-local-lifecycle.bash" \
+        "${status_file}" || return 1
+    run_remote_suite "${host}" "${token}" local-lifecycle local installed \
+        "${command_prefix} IOC_RUNNER_TEST_MODE=installed REPORT_MACHINE_OUTPUT=1 bash tests/test-local-lifecycle.bash" \
+        "${status_file}" || return 1
+    run_remote_suite "${host}" "${token}" system-infra system none \
+        "${command_prefix} IOC_RUNNER_TEST_MODE=installed sudo -nE env REPORT_MACHINE_OUTPUT=1 bash tests/test-system-infra.bash" \
+        "${status_file}" || return 1
+    run_remote_suite "${host}" "${token}" system-lifecycle system installed \
+        "${command_prefix} IOC_RUNNER_TEST_MODE=installed sudo -nE env REPORT_MACHINE_OUTPUT=1 bash tests/test-system-lifecycle.bash" \
+        "${status_file}" || return 1
 
-    if ! "${SSH_CMD[@]}" "${host}" "cat '${remote_log}'" > "${local_log}"; then
-        printf 'gate suites: failed to copy the host log: %s\n' "${host}" >&2
-        return 1
-    fi
-    if [[ ! -s "${local_log}" ]]; then
-        printf 'gate suites: copied host log is empty: %s\n' "${host}" >&2
-        return 1
-    fi
-    if ! remote_sha="$("${SSH_CMD[@]}" "${host}" "sha256sum '${remote_log}'" | awk '{print $1}')"; then
-        printf 'gate suites: failed to hash the remote host log: %s\n' "${host}" >&2
-        return 1
-    fi
-    local_sha="$(sha256sum "${local_log}" | awk '{print $1}')"
-    if [[ "${remote_sha}" != "${local_sha}" ]]; then
-        printf 'gate suites: remote and local log hashes differ: %s\n' "${host}" >&2
-        return 1
-    fi
+    for specification in "${run_order[@]}"; do
+        read -r suite scope runner <<< "${specification}"
+        evidence_stem="${suite}.${scope}.${runner}"
+        cat "${RUN_DIR}/${token}.${evidence_stem}.machine" >> "${local_machine}"
+        cat "${RUN_DIR}/${token}.${evidence_stem}.human" >> "${local_human}"
+    done
 
-    printf 'HOST host=%s env=%s head=%s repo=%s remote_log=%s local_log=%s sha256=%s\n' \
+    printf 'HOST host=%s env=%s head=%s repo=%s machine=%s human=%s machine_sha256=%s human_sha256=%s\n' \
         "${host}" "${env_path}" "${HOST_HEAD[${token}]}" "${HOST_REPO[${token}]}" \
-        "${remote_log}" "${local_log}" "${local_sha}" \
+        "${local_machine}" "${local_human}" \
+        "$(sha256sum "${local_machine}" | awk '{print $1}')" \
+        "$(sha256sum "${local_human}" | awk '{print $1}')" \
         > "${meta_file}"
     cat "${meta_file}"
 }
@@ -441,22 +501,6 @@ function matrix_verdict {
             suite_want_step[$1] = $3 + 0
             next
         }
-        function val(n, prefix) {
-            if (index($n, prefix) != 1 || length($n) == length(prefix)) {
-                bad++
-                return ""
-            }
-            return substr($n, length(prefix) + 1)
-        }
-        function scalar(value) {
-            return value ~ /^[-A-Za-z0-9._:\/+]+$/
-        }
-        function own(run, suite) {
-            if (run_suite[run] != "" && run_suite[run] != suite) {
-                bad++
-            }
-            run_suite[run] = suite
-        }
         BEGIN {
             want_run["error-handling/none/source"] = 1
             want_run["source-regression/system/source"] = 1
@@ -467,139 +511,50 @@ function matrix_verdict {
         }
         $1 == "TEST" {
             raw = $0
-            if (NF != 10) {
-                bad++
-                next
-            }
-            suite = val(2, "suite=")
-            run = val(3, "run=")
-            step = val(4, "step=")
-            id = val(5, "id=")
-            category = val(6, "category=")
-            kind = val(7, "kind=")
-            method = val(8, "method=")
-            state = val(9, "state=")
-            reason = val(10, "reason_b64=")
-            if (!scalar(suite) || !scalar(run) || !scalar(step) || !scalar(id) ||
-                index(id, suite ".") != 1 ||
-                category !~ /^(error-contract|source-regression|installed-conformance|lifecycle-behavior)$/ ||
-                kind !~ /^(REQUIRED|PREREQUISITE|APPLICABILITY|BEHAVIOR|INTEGRITY)$/ ||
-                method !~ /^(real-path|direct-inspection)$/ ||
-                state !~ /^(PASS|FAIL|SKIP|NA|SCRIPT_ERROR)$/ ||
-                (state == "PASS") != (reason == "-") ||
-                (reason != "-" && reason !~ /^[A-Za-z0-9_-]+$/)) {
+            suite = substr($2, 7)
+            run = substr($3, 5)
+            state = substr($9, 7)
+            if (run_suite[run] != "" && run_suite[run] != suite) {
                 bad++
             }
-            own(run, suite)
-            key = run SUBSEP id
-            if (test_seen[key]++) {
-                bad++
-            }
+            run_suite[run] = suite
             test_count[run]++
             test_vector[run SUBSEP state]++
-            test_step = run SUBSEP step
-            test_step_seen[test_step] = 1
-            test_step_vector[test_step SUBSEP state]++
             if (state != "PASS") {
                 exception_run[++exceptions] = run
                 exception_line[exceptions] = raw
             }
-            if (suite_seen[run]) {
-                bad++
-            }
             next
         }
         $1 == "STEP" {
-            if (NF != 9) {
-                bad++
-                next
-            }
-            suite = val(2, "suite=")
-            run = val(3, "run=")
-            step = val(4, "step=")
-            pass_count = val(5, "pass=")
-            fail_count = val(6, "fail=")
-            skip_count = val(7, "skip=")
-            na_count = val(8, "na=")
-            error_count = val(9, "err=")
-            if (!scalar(suite) || !scalar(run) || !scalar(step) ||
-                pass_count !~ /^[0-9]+$/ || fail_count !~ /^[0-9]+$/ ||
-                skip_count !~ /^[0-9]+$/ || na_count !~ /^[0-9]+$/ || error_count !~ /^[0-9]+$/) {
-                bad++
-            }
-            own(run, suite)
-            key = run SUBSEP step
-            if (step_seen[key]++) {
-                bad++
-            }
+            run = substr($3, 5)
             step_count[run]++
-            step_vector[key SUBSEP "PASS"] = pass_count + 0
-            step_vector[key SUBSEP "FAIL"] = fail_count + 0
-            step_vector[key SUBSEP "SKIP"] = skip_count + 0
-            step_vector[key SUBSEP "NA"] = na_count + 0
-            step_vector[key SUBSEP "SCRIPT_ERROR"] = error_count + 0
-            if (suite_seen[run]) {
-                bad++
-            }
             next
         }
         $1 == "SUITE" {
-            if (NF != 14) {
-                bad++
-                next
-            }
-            suite = val(2, "suite=")
-            run = val(3, "run=")
-            scope = val(4, "scope=")
-            runner = val(5, "runner=")
-            os = val(6, "os=")
-            arch = val(7, "arch=")
-            total = val(8, "total=")
-            pass_count = val(9, "pass=")
-            fail_count = val(10, "fail=")
-            skip_count = val(11, "skip=")
-            na_count = val(12, "na=")
-            error_count = val(13, "err=")
-            state = val(14, "state=")
+            suite = substr($2, 7)
+            run = substr($3, 5)
+            scope = substr($4, 7)
+            runner = substr($5, 8)
+            total = substr($8, 7)
+            state = substr($14, 7)
             wanted_key = suite "/" scope "/" runner
-            if (!scalar(suite) || !scalar(run) || !scalar(scope) || !scalar(runner) ||
-                !scalar(os) || !scalar(arch) || total !~ /^[0-9]+$/ ||
-                pass_count !~ /^[0-9]+$/ || fail_count !~ /^[0-9]+$/ ||
-                skip_count !~ /^[0-9]+$/ || na_count !~ /^[0-9]+$/ ||
-                error_count !~ /^[0-9]+$/ || state !~ /^(PASS|FAIL)$/ ||
-                !(wanted_key in want_run) || !(suite in suite_want)) {
+            if (!(wanted_key in want_run) || !(suite in suite_want) ||
+                (run_suite[run] != "" && run_suite[run] != suite)) {
                 bad++
             }
-            own(run, suite)
+            run_suite[run] = suite
             if (suite_seen[run]++ || want_seen[wanted_key]++) {
                 bad++
             }
             run_key[run] = wanted_key
             run_runner[run] = runner
             suite_total[run] = total + 0
-            suite_vector[run SUBSEP "PASS"] = pass_count + 0
-            suite_vector[run SUBSEP "FAIL"] = fail_count + 0
-            suite_vector[run SUBSEP "SKIP"] = skip_count + 0
-            suite_vector[run SUBSEP "NA"] = na_count + 0
-            suite_vector[run SUBSEP "SCRIPT_ERROR"] = error_count + 0
             suite_exec[run] = state
             blocks++
             next
         }
         END {
-            for (key in test_step_seen) {
-                if (!step_seen[key]) {
-                    bad++
-                }
-            }
-            for (key in step_seen) {
-                for (i = 1; i <= 5; i++) {
-                    state = (i == 1 ? "PASS" : i == 2 ? "FAIL" : i == 3 ? "SKIP" : i == 4 ? "NA" : "SCRIPT_ERROR")
-                    if (step_vector[key SUBSEP state] != test_step_vector[key SUBSEP state]) {
-                        bad++
-                    }
-                }
-            }
             for (run in run_suite) {
                 if (!suite_seen[run]) {
                     bad++
@@ -620,7 +575,6 @@ function matrix_verdict {
                 }
             }
             for (run in suite_seen) {
-                wanted_key = run_key[run]
                 checks += test_count[run]
                 steps += step_count[run]
                 expected_suite = run_suite[run]
@@ -628,12 +582,6 @@ function matrix_verdict {
                     step_count[run] != suite_want_step[expected_suite] ||
                     suite_total[run] != test_count[run] || suite_exec[run] != "PASS") {
                     bad++
-                }
-                for (i = 1; i <= 5; i++) {
-                    state = (i == 1 ? "PASS" : i == 2 ? "FAIL" : i == 3 ? "SKIP" : i == 4 ? "NA" : "SCRIPT_ERROR")
-                    if (suite_vector[run SUBSEP state] != test_vector[run SUBSEP state]) {
-                        bad++
-                    }
                 }
                 skip += test_vector[run SUBSEP "SKIP"]
                 fail += test_vector[run SUBSEP "FAIL"]
@@ -656,25 +604,26 @@ function matrix_verdict {
     ' <(reporting_counts_emit_tsv) "${log}"
 }
 
-function validate_host_log {
-    local log="$1"
-    local status_file="$2"
-    local expected_source="$3"
+function validate_host_evidence {
+    local machine_file="$1"
+    local human_file="$2"
+    local status_file="$3"
+    local expected_source="$4"
     local actual_sha=""
 
     if ! validate_run_statuses "${status_file}"; then
         return 1
     fi
-    if ! validate_runner_paths "${log}" "${expected_source}"; then
+    if ! validate_runner_paths "${human_file}" "${expected_source}"; then
         return 1
     fi
-    actual_sha="$(identity_sha256 "${log}")"
+    actual_sha="$(identity_sha256 "${machine_file}")"
     if [[ "${actual_sha}" != "${EXPECTED_IDENTITY_SHA256}" ]]; then
         printf 'SUITES FAIL identity_sha256=%s expected=%s\n' \
             "${actual_sha}" "${EXPECTED_IDENTITY_SHA256}"
         return 1
     fi
-    matrix_verdict "${log}"
+    matrix_verdict "${machine_file}"
 }
 
 function normalize_log {
@@ -811,7 +760,8 @@ function main {
     verdict_one="${RUN_DIR}/${token_one}.verdict"
     verdict_two="${RUN_DIR}/${token_two}.verdict"
     if (( drive_one_rc == 0 )); then
-        validate_host_log "${RUN_DIR}/${token_one}.log" "${RUN_DIR}/${token_one}.status" \
+        validate_host_evidence "${RUN_DIR}/${token_one}.machine" \
+            "${RUN_DIR}/${token_one}.human" "${RUN_DIR}/${token_one}.status" \
             "${HOST_REPO[${token_one}]}/tests/../bin/ioc-runner" \
             > "${verdict_one}" || verdict_one_rc=$?
     else
@@ -819,7 +769,8 @@ function main {
         verdict_one_rc=1
     fi
     if (( drive_two_rc == 0 )); then
-        validate_host_log "${RUN_DIR}/${token_two}.log" "${RUN_DIR}/${token_two}.status" \
+        validate_host_evidence "${RUN_DIR}/${token_two}.machine" \
+            "${RUN_DIR}/${token_two}.human" "${RUN_DIR}/${token_two}.status" \
             "${HOST_REPO[${token_two}]}/tests/../bin/ioc-runner" \
             > "${verdict_two}" || verdict_two_rc=$?
     else
@@ -835,8 +786,8 @@ function main {
     normalized_two="${RUN_DIR}/${token_two}.normalized"
     cross_diff="${RUN_DIR}/cross-host.diff"
     if (( drive_one_rc == 0 && drive_two_rc == 0 )); then
-        normalize_log "${RUN_DIR}/${token_one}.log" "${normalized_one}"
-        normalize_log "${RUN_DIR}/${token_two}.log" "${normalized_two}"
+        normalize_log "${RUN_DIR}/${token_one}.machine" "${normalized_one}"
+        normalize_log "${RUN_DIR}/${token_two}.machine" "${normalized_two}"
         diff -u --label "${host_one}" --label "${host_two}" \
             "${normalized_one}" "${normalized_two}" > "${cross_diff}" || diff_rc=$?
         if (( diff_rc > 1 )); then

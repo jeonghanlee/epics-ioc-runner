@@ -112,6 +112,17 @@ See [REPORTING_CONTRACT.md](REPORTING_CONTRACT.md) for the stable catalog,
 result dimensions, terminal states, machine-readable grammar, invariants, and
 producer boundary.
 
+Normal suite and dispatcher invocations emit the operator report without the
+full machine-record sequence. For a retained machine interface, set
+`REPORT_MACHINE_OUTPUT=1`, capture standard output as machine records, and
+capture standard error as the human report. `REPORT_CATALOG_ONLY=1` takes
+precedence and still emits exactly one `CATALOG` record on standard output.
+
+The dispatcher validates every child machine file with
+`lib/test-record-validator.bash` before accepting or forwarding it. In machine
+mode, its standard output contains only validated child blocks in selected
+suite order; its own messages and child human output use standard error.
+
 ---
 
 ## Debugging and Workspace Retention
@@ -160,6 +171,11 @@ Invoke the master script as the current non-root user. It invokes `sudo`
 internally for source-regression and system phases. Do not prefix the master
 command with `sudo`: a nested `sudo` invocation sets `SUDO_USER` to `root` and
 violates the source-regression invoking-user boundary.
+
+Before system phases are captured, the dispatcher checks `sudo -n true`.
+Accounts with a non-interactive sudo route continue without a credential
+prompt; otherwise the dispatcher runs `sudo -v` before capture so any required
+authentication remains attached to the operator terminal.
 
 ```bash
 # Default: both modes, source binary.

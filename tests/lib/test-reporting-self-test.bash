@@ -119,6 +119,78 @@ function expect_last_line {
     fi
 }
 
+function decode_b64url {
+    local value="$1"
+    local padding=""
+    local standard=""
+
+    standard="${value//-/+}"
+    standard="${standard//_/\/}"
+    case $((${#standard} % 4)) in
+        0) padding="" ;;
+        2) padding="==" ;;
+        3) padding="=" ;;
+        *) return 1 ;;
+    esac
+    printf '%s%s' "${standard}" "${padding}" | base64 -d
+}
+
+function verify_split_projection {
+    local machine_file="$1"
+    local human_file="$2"
+    local line=""
+    local check_id=""
+    local check_kind=""
+    local test_method=""
+    local state=""
+    local reason_b64=""
+    local reason=""
+    local total=""
+    local pass_count=""
+    local fail_count=""
+    local skip_count=""
+    local na_count=""
+    local error_count=""
+    local suite_state=""
+    local non_pass_count=0
+
+    while IFS= read -r line || [[ -n "${line:-}" ]]; do
+        if [[ "${line}" =~ ^TEST[[:space:]].*[[:space:]]id=([^[:space:]]+)[[:space:]].*[[:space:]]kind=([^[:space:]]+)[[:space:]]method=([^[:space:]]+)[[:space:]]state=(FAIL|SKIP|NA|SCRIPT_ERROR)[[:space:]]reason_b64=([^[:space:]]+)$ ]]; then
+            check_id="${BASH_REMATCH[1]}"
+            check_kind="${BASH_REMATCH[2]}"
+            test_method="${BASH_REMATCH[3]}"
+            state="${BASH_REMATCH[4]}"
+            reason_b64="${BASH_REMATCH[5]}"
+            reason=$(decode_b64url "${reason_b64}") || {
+                fail "split projection: ${check_id} reason decodes" "valid base64url" "${reason_b64}"
+                continue
+            }
+            expect_contains "${human_file}" \
+                "${check_id} [${check_kind}/${test_method}] ${state}: ${reason}" \
+                "split projection: ${check_id} common fields agree"
+            non_pass_count=$((non_pass_count + 1))
+        fi
+        if [[ "${line}" =~ ^SUITE[[:space:]].*[[:space:]]total=([0-9]+)[[:space:]]pass=([0-9]+)[[:space:]]fail=([0-9]+)[[:space:]]skip=([0-9]+)[[:space:]]na=([0-9]+)[[:space:]]err=([0-9]+)[[:space:]]state=(PASS|FAIL)$ ]]; then
+            total="${BASH_REMATCH[1]}"
+            pass_count="${BASH_REMATCH[2]}"
+            fail_count="${BASH_REMATCH[3]}"
+            skip_count="${BASH_REMATCH[4]}"
+            na_count="${BASH_REMATCH[5]}"
+            error_count="${BASH_REMATCH[6]}"
+            suite_state="${BASH_REMATCH[7]}"
+        fi
+    done < "${machine_file}"
+
+    expect_status 4 "${non_pass_count}" "split projection: every non-PASS record compared"
+    expect_contains "${human_file}" "Total Assertions     : ${total}" "split projection: total agrees"
+    expect_contains "${human_file}" "Passed               : ${pass_count}" "split projection: pass agrees"
+    expect_contains "${human_file}" "Failed               : ${fail_count}" "split projection: fail agrees"
+    expect_contains "${human_file}" "Skipped              : ${skip_count}" "split projection: skip agrees"
+    expect_contains "${human_file}" "Not applicable       : ${na_count}" "split projection: NA agrees"
+    expect_contains "${human_file}" "Script Errors        : ${error_count}" "split projection: error agrees"
+    expect_contains "${human_file}" "Suite State          : ${suite_state}" "split projection: suite state agrees"
+}
+
 function register_step_and_check {
     local check_id="$1"
     local check_kind="$2"
@@ -474,31 +546,34 @@ function run_scenario {
     local actual_status=0
 
     mkdir -m 0700 -- "${scenario_workspace}"
-    case "${name}" in
-        clean) scenario_clean "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        requested-exit) scenario_requested_exit_after_pass "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        vector) scenario_vector "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        independent-axes) scenario_independent_axes "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        dimension-matrix) scenario_suite_dimension_matrix "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        check-identity) scenario_check_identity_step "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        missing) scenario_missing_state "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        abort) scenario_abort "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        duplicate) scenario_duplicate_state "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        unknown) scenario_unknown_id "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        reason) scenario_missing_reason "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        malformed) scenario_malformed_catalog "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        subshell) scenario_subshell_ledger "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        cleanup-failure) scenario_reporter_cleanup_failure "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        fixed-path) scenario_fixed_command_path "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        invalid-exit) scenario_invalid_exit "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        duplicate-catalog) scenario_duplicate_catalog "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        late) scenario_late_registration "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        invalid-state) scenario_invalid_state "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        invalid-error-id) scenario_invalid_error_identity "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        unsafe-ledger) scenario_unsafe_ledger_directory "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        concurrent) scenario_concurrent_duplicate "${scenario_workspace}" > "${output_file}" 2>&1 || actual_status=$? ;;
-        *) actual_status=99; printf 'Unknown self-test scenario: %s\n' "${name}" > "${output_file}" ;;
-    esac
+    (
+        REPORT_MACHINE_OUTPUT=1
+        case "${name}" in
+            clean) scenario_clean "${scenario_workspace}" ;;
+            requested-exit) scenario_requested_exit_after_pass "${scenario_workspace}" ;;
+            vector) scenario_vector "${scenario_workspace}" ;;
+            independent-axes) scenario_independent_axes "${scenario_workspace}" ;;
+            dimension-matrix) scenario_suite_dimension_matrix "${scenario_workspace}" ;;
+            check-identity) scenario_check_identity_step "${scenario_workspace}" ;;
+            missing) scenario_missing_state "${scenario_workspace}" ;;
+            abort) scenario_abort "${scenario_workspace}" ;;
+            duplicate) scenario_duplicate_state "${scenario_workspace}" ;;
+            unknown) scenario_unknown_id "${scenario_workspace}" ;;
+            reason) scenario_missing_reason "${scenario_workspace}" ;;
+            malformed) scenario_malformed_catalog "${scenario_workspace}" ;;
+            subshell) scenario_subshell_ledger "${scenario_workspace}" ;;
+            cleanup-failure) scenario_reporter_cleanup_failure "${scenario_workspace}" ;;
+            fixed-path) scenario_fixed_command_path "${scenario_workspace}" ;;
+            invalid-exit) scenario_invalid_exit "${scenario_workspace}" ;;
+            duplicate-catalog) scenario_duplicate_catalog "${scenario_workspace}" ;;
+            late) scenario_late_registration "${scenario_workspace}" ;;
+            invalid-state) scenario_invalid_state "${scenario_workspace}" ;;
+            invalid-error-id) scenario_invalid_error_identity "${scenario_workspace}" ;;
+            unsafe-ledger) scenario_unsafe_ledger_directory "${scenario_workspace}" ;;
+            concurrent) scenario_concurrent_duplicate "${scenario_workspace}" ;;
+            *) printf 'Unknown self-test scenario: %s\n' "${name}"; exit 99 ;;
+        esac
+    ) > "${output_file}" 2>&1 || actual_status=$?
     expect_status "${expected_status}" "${actual_status}" "${name}: exit status"
 }
 
@@ -527,6 +602,63 @@ trap cleanup EXIT
 SELF_TEST_PARENT=$(cd -- "${TMPDIR:-/tmp}" && pwd -P)
 readonly SELF_TEST_PARENT
 SELF_TEST_WORKSPACE=$(mktemp -d "${SELF_TEST_PARENT}/ioc-runner-report-self-test.XXXXXX")
+
+mkdir -m 0700 -- "${SELF_TEST_WORKSPACE}/split-vector"
+split_status=0
+(
+    REPORT_MACHINE_OUTPUT=1
+    scenario_vector "${SELF_TEST_WORKSPACE}/split-vector"
+) > "${SELF_TEST_WORKSPACE}/split-vector.machine" \
+  2> "${SELF_TEST_WORKSPACE}/split-vector.human" || split_status=$?
+expect_status 1 "${split_status}" "split projection: exit status"
+expect_count "${SELF_TEST_WORKSPACE}/split-vector.machine" '^(TEST|STEP|SUITE) ' 7 \
+    "split projection: machine output contains only complete record block"
+expect_not_contains "${SELF_TEST_WORKSPACE}/split-vector.machine" "TEST SUMMARY" \
+    "split projection: machine output excludes human summary"
+verify_split_projection \
+    "${SELF_TEST_WORKSPACE}/split-vector.machine" \
+    "${SELF_TEST_WORKSPACE}/split-vector.human"
+
+mkdir -m 0700 -- "${SELF_TEST_WORKSPACE}/default-mode"
+default_status=0
+(
+    REPORT_MACHINE_OUTPUT=0
+    scenario_clean "${SELF_TEST_WORKSPACE}/default-mode"
+) > "${SELF_TEST_WORKSPACE}/default-mode.out" \
+  2> "${SELF_TEST_WORKSPACE}/default-mode.err" || default_status=$?
+expect_status 0 "${default_status}" "default mode: exit status"
+expect_contains "${SELF_TEST_WORKSPACE}/default-mode.out" "source-regression TEST SUMMARY" \
+    "default mode: human output remains on standard output"
+expect_count "${SELF_TEST_WORKSPACE}/default-mode.out" '^(TEST|STEP|SUITE) ' 0 \
+    "default mode: no execution records on standard output"
+
+invalid_mode_status=0
+(
+    REPORT_MACHINE_OUTPUT=invalid
+    # shellcheck source=tests/lib/test-reporting.bash
+    source "${REPORTER}"
+) > "${SELF_TEST_WORKSPACE}/invalid-mode.out" \
+  2> "${SELF_TEST_WORKSPACE}/invalid-mode.err" || invalid_mode_status=$?
+expect_status 1 "${invalid_mode_status}" "invalid mode: source fails"
+expect_contains "${SELF_TEST_WORKSPACE}/invalid-mode.err" \
+    "REPORT_MACHINE_OUTPUT must be 0, 1, or unset" \
+    "invalid mode: diagnostic identifies the contract"
+expect_count "${SELF_TEST_WORKSPACE}/invalid-mode.out" '^(TEST|STEP|SUITE) ' 0 \
+    "invalid mode: no valid execution records"
+
+catalog_status=0
+REPORT_CATALOG_ONLY=1 REPORT_MACHINE_OUTPUT=1 \
+    bash "${SCRIPT_DIR}/../test-source-regression.bash" \
+    > "${SELF_TEST_WORKSPACE}/catalog-precedence.out" \
+    2> "${SELF_TEST_WORKSPACE}/catalog-precedence.err" || catalog_status=$?
+expect_status 0 "${catalog_status}" "catalog precedence: real producer exit status"
+expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^CATALOG ' 1 \
+    "catalog precedence: exactly one catalog record"
+expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^(TEST|STEP|SUITE) ' 0 \
+    "catalog precedence: no execution records"
+expect_last_line "${SELF_TEST_WORKSPACE}/catalog-precedence.out" \
+    "CATALOG suite=source-regression checks=108 steps=18 state=PASS" \
+    "catalog precedence: exact standard-output contract"
 
 run_scenario clean 0
 expect_contains "${SELF_TEST_WORKSPACE}/clean.out" "Total Assertions     : 1" "clean: human total"

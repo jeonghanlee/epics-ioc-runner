@@ -29,6 +29,8 @@ declare -g REPORT_RMDIR_BIN=""
 declare -g REPORT_STAT_BIN=""
 declare -g REPORT_FINAL_STATUS=1
 declare -g REPORT_COUNTS_FILE="${BASH_SOURCE[0]%/*}/../reporting-counts.csv"
+declare -g REPORT_MACHINE_OUTPUT_ACTIVE=0
+declare -g REPORT_MACHINE_OUTPUT_FD=""
 declare -g -a REPORT_STEP_IDS=()
 declare -g -a REPORT_CHECK_IDS=()
 declare -g -A REPORT_STEP_SEEN=()
@@ -39,6 +41,41 @@ declare -g -A REPORT_CHECK_CATEGORY=()
 declare -g -A REPORT_CHECK_KIND=()
 declare -g -A REPORT_CHECK_METHOD=()
 declare -g -A REPORT_CHECK_DESCRIPTION=()
+
+function _report_initialize_output_boundary {
+    local catalog_mode="${REPORT_CATALOG_ONLY:-0}"
+    local machine_mode="${REPORT_MACHINE_OUTPUT:-0}"
+
+    case "${machine_mode}" in
+        ""|0) return 0 ;;
+        1) ;;
+        *)
+            printf 'REPORTING ERROR: REPORT_MACHINE_OUTPUT must be 0, 1, or unset: %s\n' \
+                "${machine_mode}" >&2
+            return 1
+            ;;
+    esac
+
+    if [[ "${catalog_mode}" == "1" ]]; then
+        return 0
+    fi
+
+    if ! exec {REPORT_MACHINE_OUTPUT_FD}>&1; then
+        printf '%s\n' "REPORTING ERROR: cannot reserve standard output for machine records" >&2
+        return 1
+    fi
+    if ! exec 1>&2; then
+        exec {REPORT_MACHINE_OUTPUT_FD}>&- || true
+        REPORT_MACHINE_OUTPUT_FD=""
+        printf '%s\n' "REPORTING ERROR: cannot route human output to standard error" >&2
+        return 1
+    fi
+    REPORT_MACHINE_OUTPUT_ACTIVE=1
+}
+
+if ! _report_initialize_output_boundary; then
+    return 1 2>/dev/null || exit 1
+fi
 
 function _report_scalar_is_valid {
     local value="$1"
@@ -769,43 +806,45 @@ function report_finalize {
     fi
     printf '%s\n' "===================================================================================================="
 
-    for check_id in "${REPORT_CHECK_IDS[@]}"; do
-        printf 'TEST suite=%s run=%s step=%s id=%s category=%s kind=%s method=%s state=%s reason_b64=%s\n' \
+    if (( REPORT_MACHINE_OUTPUT_ACTIVE )); then
+        for check_id in "${REPORT_CHECK_IDS[@]}"; do
+            printf 'TEST suite=%s run=%s step=%s id=%s category=%s kind=%s method=%s state=%s reason_b64=%s\n' \
+                "${REPORT_SUITE}" \
+                "${REPORT_RUN_ID}" \
+                "${REPORT_CHECK_STEP[${check_id}]}" \
+                "${check_id}" \
+                "${REPORT_CHECK_CATEGORY[${check_id}]}" \
+                "${REPORT_CHECK_KIND[${check_id}]}" \
+                "${REPORT_CHECK_METHOD[${check_id}]}" \
+                "${resolved_state[${check_id}]}" \
+                "${resolved_reason_b64[${check_id}]}" >&"${REPORT_MACHINE_OUTPUT_FD}"
+        done
+        for step_id in "${REPORT_STEP_IDS[@]}"; do
+            printf 'STEP suite=%s run=%s step=%s pass=%d fail=%d skip=%d na=%d err=%d\n' \
+                "${REPORT_SUITE}" \
+                "${REPORT_RUN_ID}" \
+                "${step_id}" \
+                "${step_pass[${step_id}]}" \
+                "${step_fail[${step_id}]}" \
+                "${step_skip[${step_id}]}" \
+                "${step_na[${step_id}]}" \
+                "${step_error[${step_id}]}" >&"${REPORT_MACHINE_OUTPUT_FD}"
+        done
+        printf 'SUITE suite=%s run=%s scope=%s runner=%s os=%s arch=%s total=%d pass=%d fail=%d skip=%d na=%d err=%d state=%s\n' \
             "${REPORT_SUITE}" \
             "${REPORT_RUN_ID}" \
-            "${REPORT_CHECK_STEP[${check_id}]}" \
-            "${check_id}" \
-            "${REPORT_CHECK_CATEGORY[${check_id}]}" \
-            "${REPORT_CHECK_KIND[${check_id}]}" \
-            "${REPORT_CHECK_METHOD[${check_id}]}" \
-            "${resolved_state[${check_id}]}" \
-            "${resolved_reason_b64[${check_id}]}"
-    done
-    for step_id in "${REPORT_STEP_IDS[@]}"; do
-        printf 'STEP suite=%s run=%s step=%s pass=%d fail=%d skip=%d na=%d err=%d\n' \
-            "${REPORT_SUITE}" \
-            "${REPORT_RUN_ID}" \
-            "${step_id}" \
-            "${step_pass[${step_id}]}" \
-            "${step_fail[${step_id}]}" \
-            "${step_skip[${step_id}]}" \
-            "${step_na[${step_id}]}" \
-            "${step_error[${step_id}]}"
-    done
-    printf 'SUITE suite=%s run=%s scope=%s runner=%s os=%s arch=%s total=%d pass=%d fail=%d skip=%d na=%d err=%d state=%s\n' \
-        "${REPORT_SUITE}" \
-        "${REPORT_RUN_ID}" \
-        "${REPORT_SCOPE}" \
-        "${REPORT_RUNNER}" \
-        "${REPORT_OS}" \
-        "${REPORT_ARCH}" \
-        "${total}" \
-        "${pass_count}" \
-        "${fail_count}" \
-        "${skip_count}" \
-        "${na_count}" \
-        "${error_count}" \
-        "${suite_state}"
+            "${REPORT_SCOPE}" \
+            "${REPORT_RUNNER}" \
+            "${REPORT_OS}" \
+            "${REPORT_ARCH}" \
+            "${total}" \
+            "${pass_count}" \
+            "${fail_count}" \
+            "${skip_count}" \
+            "${na_count}" \
+            "${error_count}" \
+            "${suite_state}" >&"${REPORT_MACHINE_OUTPUT_FD}"
+    fi
 
     return "${REPORT_FINAL_STATUS}"
 }

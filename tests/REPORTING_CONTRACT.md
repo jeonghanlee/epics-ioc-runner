@@ -1,7 +1,7 @@
 # Test Reporting Contract
 
-This document defines the producer contract for machine-readable test results.
-It applies to the test suites under `tests/`.
+This document defines the producer contract for human-readable and
+machine-readable test results. It applies to the test suites under `tests/`.
 
 ## Result Dimensions
 
@@ -277,6 +277,23 @@ Records are emitted in this order:
 
 No reporter record may follow `SUITE`.
 
+## Output Surfaces
+
+The default producer invocation emits the human report and no `TEST`, `STEP`,
+or `SUITE` records. Setting `REPORT_MACHINE_OUTPUT=1` before the reporting
+library is sourced reserves the process's original standard output for the
+complete machine-record block and routes subsequent human output to standard
+error. Unset, empty, and `0` select the default. Any other value is rejected
+before producer execution.
+
+`REPORT_CATALOG_ONLY=1` has precedence over machine mode. It preserves the
+single `CATALOG` record on standard output, emits no execution records, and
+does not change the output descriptor used by catalog registration.
+
+The producer does not accept an output pathname. A caller that needs retained
+evidence opens and owns the standard-output and standard-error destinations
+outside any producer privilege boundary.
+
 ## Shared Reporter Interface
 
 The producer suites use `lib/test-reporting.bash` through this ordered
@@ -318,7 +335,8 @@ producer integration rather than by the shared library.
 `report_finalize` preserves completed states, turns every unclosed declared
 check into `SCRIPT_ERROR`, validates the ledger, calculates one complete
 vector, cleans the reporter workspace, derives the final suite state, and
-emits both projections. A recoverable event defect tied to a known check
+emits the human projection plus the selected machine projection. A recoverable
+event defect tied to a known check
 resolves that check to `SCRIPT_ERROR`. An unknown identity or invalid catalog
 prevents a valid projection, exits nonzero, and emits no `SUITE` record for a
 consumer to mistake as complete.
@@ -375,13 +393,21 @@ projections must reconcile with the ledger before `SUITE` is emitted.
 ## Producer and Consumer Boundary
 
 The test suites and shared reporter own the catalog, recording path, ledger,
-and both output projections. Gate consumption is separate and reads only the
-machine-readable records after M8 implements this producer contract; it does
-not infer states from human-readable prose.
+and both output projections. `lib/test-record-validator.bash` owns structural
+acceptance of one machine-record file. It requires exact record grammar and
+phase order, unique identities, complete count and state vectors, expected
+suite dimensions, a final `SUITE`, and agreement with the producer exit
+status. It loads supported suites and expected counts from the maintained
+reporting libraries and does not carry a second identity catalog.
 
-`run-all-tests.bash` collects the final record together with the producer exit
-status. It accepts `state=PASS` only with producer status zero and no `FAIL` or
-`SCRIPT_ERROR` count. It accepts `state=FAIL` only with a nonzero producer
-status. An all-PASS check vector may therefore carry suite state `FAIL` when
-producer or reporter cleanup failed, while the fixed check identities remain
-unchanged.
+`run-all-tests.bash` opens private machine and human files for each selected
+child, injects machine mode inside the final child process, and validates the
+machine file with the child exit status before accepting it. Default dispatcher
+mode displays human output and emits no machine records. Dispatcher machine
+mode emits only validated child blocks on standard output, in selected-suite
+order, while dispatcher and child human output uses standard error.
+
+The two-host gate uses the same validator on every per-run machine file before
+aggregation. Runner-path evidence is read only from human files. Count, state,
+identity, matrix, and cross-host checks read only structurally validated
+machine files and never infer states from human-readable text.

@@ -10,12 +10,12 @@ sessions.
 | ADR | Title | Status | Scope |
 | --- | --- | --- | --- |
 | [0001](0001-restart-supervision-c1h.md) | Restart Supervision: the C1+H bundle | Accepted (2026-06-15) | The systemd unit + procServ configuration supervising every IOC (template cluster M5-M11): the `Restart=`/`StartLimit*`/`KillMode=` policy, the `--autorestartcmd=''` `^T` harden, the **unit ordering and dependencies** (M9/#53), and the **startup-poll classification** (M11/#67). |
+| [0002](0002-test-output-surfaces.md) | Test Output Surfaces | Accepted (2026-08-25) | The reporter, dispatcher, and two-host gate boundary between human output and validated machine records. |
 
 ## Decision-record map (the SOT for "why")
 
-A single ADR is intentional, not a gap. Decisions in this project are recorded
-at the layer that matches their kind; each layer is in-repository (committed)
-and self-contained:
+Decisions in this project are recorded at the layer that matches their kind;
+each layer is in-repository and self-contained:
 
 | Decision kind | SOT home | Example |
 | --- | --- | --- |

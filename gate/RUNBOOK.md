@@ -626,11 +626,14 @@ into the evidence directory, and records SHA-256 values for both the status and
 driver snapshot. It hashes the live driver and snapshot again before the final
 verdict; a change to either during the run makes the driver fail.
 
-Each host writes one remote log. The first suite truncates it and the remaining
-five append to it. The driver then copies the complete log into the control
-repository, compares the remote and local SHA-256 values, and validates:
+For every run, the remote login shell opens one machine file and one human file
+outside the producer's sudo boundary. Both files are owned by the login
+account. The driver verifies their owners, copies each file through that
+account, compares remote and local SHA-256 values, and structurally validates
+the machine file before either host aggregate is built. It then validates:
 
-- exactly six successful process-status records;
+- exactly six successful process-status records and six validated per-run
+  machine blocks;
 - TEST and STEP totals derived by joining the six independent run keys to
   `tests/reporting-counts.csv`, plus one final PASS SUITE record per run key;
 - the canonical execution-identity SHA-256;
@@ -696,10 +699,11 @@ finding even when the driver returns success.
 
 The evidence directory is on the control host under `work/`, not only in
 remote `/tmp`. It contains `control.meta`, `control.status`, and the exact
-`control-driver.bash` snapshot; per host, the complete `.log`, six-run
-`.status`, runner `.runner`, host `.meta`, canonical `.verdict`, and
-`.normalized` files; and one `cross-host.diff`. Keep the directory together
-when handing the gate to another control host.
+`control-driver.bash` snapshot; per host, six per-run `.machine` and `.human`
+pairs, complete `.machine` and `.human` aggregates, six-run `.status`, runner
+`.runner`, host `.meta`, canonical `.verdict`, and `.normalized` files; and one
+`cross-host.diff`. Keep the directory together when handing the gate to
+another control host.
 
 ### 3. The root_squash deployment path
 

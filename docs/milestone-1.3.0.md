@@ -10,7 +10,8 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review and accept the M8 (#144) implementation plan.
+Next session entry point: commit the review-accepted M8 (#144) output-boundary
+implementation.
 M1 through M7 are Complete and their linked issues are closed. Continue the
 M10 (#102) health-signal design conversation in parallel - M10 is the largest
 item and its boundary must be designed before any code.
@@ -28,7 +29,7 @@ item and its boundary must be designed before any code.
 | Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
-| Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Not started | Yes | D1, D3 | Operator output and the machine record surface separate while describing one ledger; [detail](#m8---human-and-machine-output-separation) |
+| Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | In progress | No | D1, D3 | Implementation, real-path verification, and review are complete in the working tree; commit remains; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
@@ -1114,7 +1115,7 @@ Last Compared: 2026-08-25; remote updated 2026-08-25T17:58:39Z
 Origin: 1.3.0 / M8
 Identity History: staged from `docs/milestone-46790f9.md` M11
 GitHub Issue: 144, https://github.com/jeonghanlee/epics-ioc-runner/issues/144
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1152,22 +1153,31 @@ or the accepted reporting count vectors.
   remediation.
 - The implementation must preserve the shipped reporting contract and the
   fixed check identity set.
-- D1
+- D1: default invocations emit human output only;
+  `REPORT_MACHINE_OUTPUT=1` reserves standard output for complete machine
+  records and routes human output to standard error.
+- D2: `REPORT_CATALOG_ONLY=1` takes precedence and preserves its single
+  standard-output `CATALOG` record.
+- D3: one shared per-file validator is used by the dispatcher and gate; the
+  gate's existing digest remains the exact six-run identity authority.
+- D4: remote login shells own per-run machine and human evidence files outside
+  producer sudo boundaries.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: accepted 2026-08-25
+Implementation Authorization: all plan items P001-P006 authorized 2026-08-25
 Superseded Plan Artifacts: none
 
-1. Choose the output boundary and document direct-suite and dispatcher
-   behavior.
-2. Route the human report and machine records through their selected surfaces
-   without introducing a second calculation path.
-3. Update the collector to consume only the machine-readable surface.
-4. Verify all producer and dispatcher paths and update maintained test
-   documentation.
+1. Add the reporter output boundary and same-process projection checks.
+2. Add one structural validator for a complete suite machine-record file.
+3. Make the dispatcher capture, validate, and conditionally emit child machine
+   blocks while retaining the human report separately.
+4. Make the gate verify and retain per-run machine and human evidence before
+   aggregate identity and matrix checks.
+5. Verify the real producer, dispatcher, privilege, remote-shell, and gate
+   paths, then update maintained documentation and ADR 0002.
 
 ##### Test Plan
 
@@ -1176,18 +1186,21 @@ Superseded Plan Artifacts: none
 | T1 | Reporter contract | Run the shipped reporter self-test through its public API | Working tree | Human and machine outputs reconcile to one ledger while using separate surfaces |
 | T2 | Collector integration | Run the shipped collector probe and a real source-regression dispatcher path | Debian 13 | The operator output stays concise and the collector validates the complete machine record sequence |
 | T3 | Producer integration | Run all five shipped producer paths | Both golden OS families | Every fixed identity closes once and both output surfaces carry the same suite result |
+| T4 | Static and catalog boundary | Run Bash parse, warning-level shellcheck, whitespace checks, and all five real catalog-only entry points with both output modes selected | Working tree | Static checks pass and every catalog emits only its one accepted `CATALOG` record |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Working tree | Pending | none |
-| T2 | Not run | Debian 13 | Pending | none |
-| T3 | Not run | Both golden OS families | Pending | none |
+| T1 | 2026-08-25 20:12 PDT | Working tree, Debian 13, Rocky Linux 8 | Pass: reporter 113/113 locally; validator 66/66 and count parser 8/8 locally and on both goldens | Terminal observation |
+| T2 | 2026-08-25 20:12 PDT | Debian 13 and Rocky Linux 8 | Pass: source-regression dispatcher runs produced one validated 108-check, 18-STEP block on both goldens; Debian direct-user local, root-to-user local, and passwordless sudo system routes returned 187, 187, and 197 machine records with no mixed output; default dispatcher mode emitted no execution records | `work/gate-suites-20260826T030650Z-2686588`; terminal observation |
+| T3 | 2026-08-25 20:12 PDT | Debian 13 and Rocky Linux 8 | Pass: both hosts completed six validated blocks and 758 checks; all twelve per-run machine files passed the shared validator; final gate result was PASS | `work/gate-suites-20260826T030650Z-2686588` |
+| T4 | 2026-08-25 18:40 PDT | Working tree | Pass: parse, warning-level shellcheck, and whitespace checks passed; the five real catalogs emitted only accepted records at 198/41, 108/18, 149/37, 36/7, and 118/34 | Terminal observation |
 
 ##### Closure Evidence
 
-- none
+- Implementation and real-path verification are complete in the working tree.
+- Commit, GitHub projection, and milestone closure remain pending.
 
 ##### GitHub Projection
 

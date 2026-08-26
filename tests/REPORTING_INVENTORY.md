@@ -2,10 +2,9 @@
 
 ## Scope
 
-This document is the M8 step 1 index for every result-producing script under
-tests/. It fixes the suite boundaries, stable identity membership, STEP ownership,
-and conditional-result mappings that the shared reporter implementation must
-preserve.
+This document indexes every result-producing script under `tests/`. It fixes
+the suite boundaries, stable identity membership, STEP ownership, and
+conditional-result mappings preserved by the shared reporter.
 
 Current expected check and STEP counts are maintained only in
 [`reporting-counts.csv`](reporting-counts.csv). Each suite compares its real
@@ -21,8 +20,10 @@ closed catalog with that CSV before environment preflight.
 | system-infra | test-system-infra.bash | system | none | installed-conformance | SYSTEM_INFRA_INVENTORY.md |
 | system-lifecycle | test-system-lifecycle.bash | system | source or installed | lifecycle-behavior | SYSTEM_LIFECYCLE_INVENTORY.md |
 
-run-all-tests.bash is a collector and dispatcher. It owns no product check ID
-and must not create a terminal state for a suite check.
+`run-all-tests.bash` is a collector and dispatcher. It owns no product check ID
+and must not create a terminal state for a suite check. It accepts only a
+complete machine-record file validated against the producer exit status and
+keeps child human output outside that validation boundary.
 
 ## Fixed-Vector Rules
 
