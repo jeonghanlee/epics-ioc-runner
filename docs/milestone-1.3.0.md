@@ -10,9 +10,9 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: commit the review-accepted M8 (#144) output-boundary
-implementation.
-M1 through M7 are Complete and their linked issues are closed. Continue the
+Next session entry point: review M9 (#132) and choose the fate of
+`docs/MILESTONE_PROCEDURE.md`.
+M1 through M8 are Complete and their linked issues are closed. Continue the
 M10 (#102) health-signal design conversation in parallel - M10 is the largest
 item and its boundary must be designed before any code.
 
@@ -29,7 +29,7 @@ item and its boundary must be designed before any code.
 | Configuration | M5 | (#113) Unify runner conf parsing and enforce systemd agreement | Milestone | Complete | No | D1, D2, D3 | Complete in `c10659d`; T1-T4 Pass. Both internal readers share one parser, and accepted deployed fixtures agree with systemd; [detail](#m5---conf-parser-unification) |
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
-| Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | In progress | No | D1, D3 | Implementation, real-path verification, and review are complete in the working tree; commit remains; [detail](#m8---human-and-machine-output-separation) |
+| Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
@@ -1115,13 +1115,14 @@ Last Compared: 2026-08-25; remote updated 2026-08-25T17:58:39Z
 Origin: 1.3.0 / M8
 Identity History: staged from `docs/milestone-46790f9.md` M11
 GitHub Issue: 144, https://github.com/jeonghanlee/epics-ioc-runner/issues/144
-Status: In progress
+Status: Complete
 
 ##### Summary
 
-The test suites currently print the human summary and the machine-readable
-`TEST`, `STEP`, and `SUITE` records in one terminal output. The complete
-machine record sequence obscures the result intended for an operator.
+The shipped test paths separate the human report from the machine-readable
+`TEST`, `STEP`, and `SUITE` record sequence. Both surfaces derive from the
+same validated ledger, and collectors consume only complete machine-record
+blocks.
 
 ##### Scope
 
@@ -1151,8 +1152,8 @@ or the accepted reporting count vectors.
 - Owner direction, 2026-08-10: record human and machine output separation as
   later milestone work rather than extending the then-active reporting
   remediation.
-- The implementation must preserve the shipped reporting contract and the
-  fixed check identity set.
+- The implementation preserves the shipped reporting contract and the fixed
+  check identity set.
 - D1: default invocations emit human output only;
   `REPORT_MACHINE_OUTPUT=1` reserves standard output for complete machine
   records and routes human output to standard error.
@@ -1177,7 +1178,9 @@ Superseded Plan Artifacts: none
 4. Make the gate verify and retain per-run machine and human evidence before
    aggregate identity and matrix checks.
 5. Verify the real producer, dispatcher, privilege, remote-shell, and gate
-   paths, then update maintained documentation and ADR 0002.
+   paths.
+6. Update the maintained reporting documentation, test README, gate runbook,
+   ADR 0002, ADR index, and milestone evidence.
 
 ##### Test Plan
 
@@ -1192,26 +1195,30 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-08-25 20:12 PDT | Working tree, Debian 13, Rocky Linux 8 | Pass: reporter 113/113 locally; validator 66/66 and count parser 8/8 locally and on both goldens | Terminal observation |
-| T2 | 2026-08-25 20:12 PDT | Debian 13 and Rocky Linux 8 | Pass: source-regression dispatcher runs produced one validated 108-check, 18-STEP block on both goldens; Debian direct-user local, root-to-user local, and passwordless sudo system routes returned 187, 187, and 197 machine records with no mixed output; default dispatcher mode emitted no execution records | `work/gate-suites-20260826T030650Z-2686588`; terminal observation |
-| T3 | 2026-08-25 20:12 PDT | Debian 13 and Rocky Linux 8 | Pass: both hosts completed six validated blocks and 758 checks; all twelve per-run machine files passed the shared validator; final gate result was PASS | `work/gate-suites-20260826T030650Z-2686588` |
-| T4 | 2026-08-25 18:40 PDT | Working tree | Pass: parse, warning-level shellcheck, and whitespace checks passed; the five real catalogs emitted only accepted records at 198/41, 108/18, 149/37, 36/7, and 118/34 | Terminal observation |
+| T1 | 2026-08-25 20:12 PDT | Working tree, Debian 13, Rocky Linux 8 | Pass: reporter 113/113 locally; validator 66/66 and count parser 8/8 locally and on both goldens | Direct execution of the shipped self-tests |
+| T2 | 2026-08-25 20:12 PDT | Debian 13 and Rocky Linux 8 | Pass: source-regression dispatcher runs produced one validated 108-check, 18-STEP block on both goldens; Debian direct-user local, root-to-user local, and passwordless sudo system routes returned 187, 187, and 197 machine records with no mixed output; default dispatcher mode emitted no execution records | Direct execution through the shipped dispatcher and privilege routes |
+| T3 | 2026-08-25 20:12 PDT | Debian 13 and Rocky Linux 8 | Pass: both hosts completed six validated blocks and 758 checks; all twelve per-run machine files passed the shared validator; final gate result was PASS | Direct execution of the shipped two-host gate |
+| T4 | 2026-08-25 18:40 PDT | Working tree | Pass: parse, warning-level shellcheck, and whitespace checks passed; the five real catalogs emitted only accepted records at 198/41, 108/18, 149/37, 36/7, and 118/34 | Direct execution of the shipped catalog entry points |
 
 ##### Closure Evidence
 
-- Implementation and real-path verification are complete in the working tree.
-- Commit, GitHub projection, and milestone closure remain pending.
+- Implementation and documentation review completed with no blocking findings.
+- Commit `ee40e5a` contains the implementation, tests, ADR, runbook, reporting
+  contract, and milestone evidence.
+- The real Debian 13 and Rocky Linux 8 gate paths each passed six suite blocks
+  and 758 checks.
+- Issue #144 is closed as completed; observed 2026-08-26.
 
 ##### GitHub Projection
 
 Title: Separate human-readable test output from machine-readable records
 Labels: tests
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: tests
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:23Z
+Last Compared: 2026-08-26; remote updated 2026-08-26T16:09:47Z
 
 #### M9 - Milestone procedure draft fate
 
