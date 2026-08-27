@@ -10,11 +10,10 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: resume M9 (#132) at P009 after separate Commit and
-Push authorities are granted for both implementation repositories.
-M1 through M8 are Complete and their linked issues are closed. Continue the
-M10 (#102) health-signal design conversation in parallel - M10 is the largest
-item and its boundary must be designed before any code.
+Next session entry point: continue the M10 (#102) health-signal design
+conversation before implementation.
+M1 through M9 are Complete and their linked issues are closed. M10 is the
+largest remaining item, and its boundary must be designed before any code.
 
 ## Milestone
 
@@ -30,7 +29,7 @@ item and its boundary must be designed before any code.
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
-| Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | In progress | No | D1, D3 | T1-T6 Pass; reusable rules and ownership boundaries are applied, the draft is removed, and the verified implementation awaits its two-repository landing; [detail](#m9---milestone-procedure-draft-fate) |
+| Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in `dev-env` `34b9514` and this repository `a8bfdcd`; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
@@ -1225,7 +1224,7 @@ Last Compared: 2026-08-26; remote updated 2026-08-26T16:09:47Z
 Origin: 1.3.0 / M10
 Identity History: staged from `docs/milestone-46790f9.md` M13; 1.3.0 / M10 -> 1.3.0 / M9 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 132, https://github.com/jeonghanlee/epics-ioc-runner/issues/132
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1238,8 +1237,8 @@ acceptance, local verification, and closure; `gate/RUNBOOK.md` owns executable
 release-gate operation. The owner selected that split on 2026-08-26. All 21
 candidate rules now have one inspected owner or explicit rejection, their
 reusable parts are in the shared skills, and T1 passed before the working draft
-was removed. T1-T6 now pass; the separately authorized landing sequence
-remains.
+was removed. T1-T6 and both configured-upstream readbacks now pass. This final
+projection records the state used for issue closure.
 
 ##### Scope
 
@@ -1386,7 +1385,7 @@ and DR7. The worked examples are repository evidence rather than shared rules.
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: accepted 2026-08-26 after `conv20260826_204919`
+Plan Acceptance: accepted 2026-08-26 by the repository owner
 Implementation Authorization: Owner authorized P001-P011 on 2026-08-26.
 Superseded Plan Artifacts: none
 
@@ -1451,27 +1450,41 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-08-27 00:56 PDT | Both source repository working trees | Pass: all 21 fixed ledger IDs had one inspected owner or explicit rejection; DR20 preserved distinct Commit and Push authorities plus configured-upstream readback, no candidate or destination was missing, all four rejections had a rationale, and no repository history entered the shared skill | Direct inspection of the byte-identical restored draft and every declared destination; `work/m9-t1-rule-parity.md` |
+| T1 | 2026-08-27 00:56 PDT | Both source repository working trees | Pass: all 21 fixed ledger IDs had one inspected owner or explicit rejection; DR20 preserved distinct Commit and Push authorities plus configured-upstream readback, no candidate or destination was missing, all four rejections had a rationale, and no repository history entered the shared skill | Direct inspection of the byte-identical restored draft, fixed Source Rule Inventory, and every declared destination |
 | T2 | 2026-08-27 00:57 PDT | `dev-env` source tree and installed Codex and Claude skill paths | Pass: both skill validators exited 0, `make render.check` reported projections in sync, and all four source-to-installed identity checks exited 0 | Direct execution of both `quick_validate.py` commands, `make render.check`, and the four planned `test <source> -ef <installed>` commands |
-| T3 | 2026-08-27 00:58 PDT | Fresh read-only context starting from the installed `milestone-tracking` skill and `docs/README.md` | Pass: the reader found the active 1.3.0 register and M9, reached `references/plan.md` and `references/procedure.md`, kept `conceptual-integrity` conditional, distinguished plan acceptance, implementation authorization, Commit, Push, and Issue authorities, and required upstream readback before Complete | Independent route inspection through the installed skill and tracked repository documentation without `docs/review_sessions`, `work/`, conversation history, or git history |
+| T3 | 2026-08-27 00:58 PDT | Fresh read-only context starting from the installed `milestone-tracking` skill and `docs/README.md` | Pass: the reader found the active 1.3.0 register and M9, reached `references/plan.md` and `references/procedure.md`, kept `conceptual-integrity` conditional, distinguished plan acceptance, implementation authorization, Commit, Push, and Issue authorities, and required upstream readback before Complete | Independent route inspection through the installed skill and tracked repository documentation from a fresh context |
 | T4 | 2026-08-27 00:58 PDT | Tracked Markdown in both source repositories | Pass: `dev-env` had zero removed-path hits; release-branch hits were the current M9 removal record or the non-authoritative master snapshot, and `docs/README.md` agreed with both register headers about authority | Direct tracked-file searches, including a no-match `git grep`, plus inspection of `docs/README.md`, `docs/milestone-1.3.0.md`, and `docs/milestone-46790f9.md` headers |
 | T5 | 2026-08-27 00:58 PDT | Both source repository working trees | Pass: `milestone-tracking` owned per-milestone planning and closure with distinct Commit, Push, and Issue authorities and required landing evidence; `gate/RUNBOOK.md` owned Gate operation, `release-cycle` owned release-wide execution, and `git-workflow` owned git and GitHub mutations | Direct cross-file inspection of all four ownership surfaces |
-| T6 | 2026-08-27 01:00 PDT | Canonical checkout | Pass: the canonical M9 detail and generated local issue body each contained the nine required projected sections, their complete projected content matched, excluded GitHub metadata was absent from the body, and no GitHub mutation was issued | Direct section counts and byte comparison against `work/issue-132-m9-procedure-body.md` |
+| T6 | 2026-08-27 01:00 PDT | Canonical checkout | Pass: the canonical M9 detail and generated local issue body each contained the nine required projected sections, their complete projected content matched, excluded GitHub metadata was absent from the body, and no GitHub mutation was issued | Direct section counts and byte comparison of the nine canonical projected sections against the generated body before GitHub mutation |
 
 ##### Closure Evidence
 
-- none
+- At 2026-08-27 08:55 PDT, `dev-env` implementation commit
+  `34b9514ba47dbaa5f7634a941c8fe9a91231c02c` was contained in
+  `origin/master` at `4c91d25ed1a5fb55b5d47d00171cd71b0bf43d9f`.
+  Direct `git diff --exit-code` readback found zero differences across all five
+  planned M9 paths.
+- At 2026-08-27 08:55 PDT, `epics-ioc-runner` implementation commit
+  `a8bfdcd2579aa85c2af6334dbedaddcb5dc3cb9c` was the current
+  `origin/release-1.3.0` tip. Direct `git diff --exit-code` readback found zero
+  differences across all four planned M9 paths, and a `git cat-file -e`
+  absence check confirmed that `docs/MILESTONE_PROCEDURE.md` is not in the
+  upstream tree.
+- P009 / V008 passed. Both implementation commits are durable upstream. This
+  evidence is the fixed input for final issue synchronization; terminal
+  canonical reconciliation is a separate post-readback step and is not part of
+  this projected body.
 
 ##### GitHub Projection
 
 Title: Settle the fate of the milestone procedure working draft
 Labels: P3-low, docs
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: P3-low, docs
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-26; remote updated 2026-08-18T07:39:22Z
+Last Compared: 2026-08-27; remote updated 2026-08-27T16:05:43Z
 
 #### M10 - Fleet-layer reliability
 
