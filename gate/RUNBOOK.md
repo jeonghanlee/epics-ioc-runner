@@ -1330,13 +1330,19 @@ scoring the silence as clear.
 
 ## Upstream and downstream
 
+This runbook owns executable Gate operations and their evidence contract. It
+does not own per-milestone planning, release-wide execution, or permission to
+mutate git or GitHub state.
+
 | Document | What it owns |
 |---|---|
 | `cloud-provision/docs/RUNBOOK_BAKE.md` | Baking the goldens, bake failure handling, and the provenance contract this runbook accepts |
 | `ansible-provision/docs/test_users_handoff.md` | Creating the fixture accounts this runbook verifies |
 | [`../tests/README.md`](../tests/README.md) | The suite contract: permission modes, binary origin, workspace retention |
 | [`../docs/PERMISSION_MODEL.md`](../docs/PERMISSION_MODEL.md) | The model the multi-user scenarios verify |
-| `git-workflow` skill, release reference | The release sequence itself: merge, tag, published release, milestone close |
+| `milestone-tracking` skill | Per-milestone plan review, acceptance, implementation authority, local verification records, and closure |
+| `release-cycle` skill | Release-wide ordering, integrated verification, production tests, version changes, and release execution |
+| `git-workflow` skill | Commit, push, issue, and release mutations, including the release sequence |
 
 The release sequence is deliberately absent from this runbook. A Gate-grade
 result is its precondition, not part of it.

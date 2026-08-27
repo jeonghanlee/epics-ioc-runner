@@ -10,8 +10,8 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review M9 (#132) and choose the fate of
-`docs/MILESTONE_PROCEDURE.md`.
+Next session entry point: resume M9 (#132) at P009 after separate Commit and
+Push authorities are granted for both implementation repositories.
 M1 through M8 are Complete and their linked issues are closed. Continue the
 M10 (#102) health-signal design conversation in parallel - M10 is the largest
 item and its boundary must be designed before any code.
@@ -30,7 +30,7 @@ item and its boundary must be designed before any code.
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
-| Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Not started | Yes | D1, D3 | One fate is chosen and applied with every live reference resolvable; [detail](#m9---milestone-procedure-draft-fate) |
+| Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | In progress | No | D1, D3 | T1-T6 Pass; reusable rules and ownership boundaries are applied, the draft is removed, and the verified implementation awaits its two-repository landing; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
@@ -1225,66 +1225,238 @@ Last Compared: 2026-08-26; remote updated 2026-08-26T16:09:47Z
 Origin: 1.3.0 / M10
 Identity History: staged from `docs/milestone-46790f9.md` M13; 1.3.0 / M10 -> 1.3.0 / M9 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 132, https://github.com/jeonghanlee/epics-ioc-runner/issues/132
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-`docs/MILESTONE_PROCEDURE.md` carries the per-milestone procedure - plan review
-before code, the owner gate, de-knotting, implementation, verification on the
-real path, and the reconcile-and-land step - with the 1.2.2 M2, M3 and M4 runs
-as worked examples. Its own first line names the fate it expects: fold it into
-a skill. That fate has never been decided.
+`docs/MILESTONE_PROCEDURE.md` was a repository working draft for plan review,
+the owner gate, implementation, real-path verification, and landing. Review of
+the 1.2.3 M1 record, issue #131, driver issue #134, verdict issue #135,
+tool-probe issue #136, machine-record issue #137, and the current runbook
+confirmed the durable boundary: `milestone-tracking` owns work planning,
+acceptance, local verification, and closure; `gate/RUNBOOK.md` owns executable
+release-gate operation. The owner selected that split on 2026-08-26. All 21
+candidate rules now have one inspected owner or explicit rejection, their
+reusable parts are in the shared skills, and T1 passed before the working draft
+was removed. T1-T6 now pass; the separately authorized landing sequence
+remains.
 
 ##### Scope
 
-Decide between the three fates and carry it out: fold the draft into a skill,
-keep it as a repository document with the draft marker removed, or absorb it
-into another document. The decision settles its boundary with
-`gate/RUNBOOK.md`, which covers the release gate rather than the
-work inside a cycle.
+- Add a plan-review operation to the `milestone-tracking` source package. It
+  covers premise recovery, evidence classification, owner decisions, removal
+  of invented dependencies, conditional use of `conceptual-integrity`, plan
+  acceptance, separate implementation authorization, real-path verification,
+  and `Keep (examined, no action)` records.
+- Route the operation from the skill entry point and the milestone procedure,
+  including the requirement that a behavior regression detect the old defect
+  when that claim is part of acceptance.
+- Add the source rule for matching the surrounding code idiom to
+  `code-conventions`; do not duplicate general code-style ownership in the
+  milestone procedure.
+- Add only the ownership boundary to `gate/RUNBOOK.md`; retain its current
+  operational commands, evidence rules, and driver contracts.
+- Remove `docs/MILESTONE_PROCEDURE.md` after parity and reference checks, then
+  reconcile the canonical milestone and its GitHub projection.
+- Use the fixed DR1-DR21 inventory below as the complete migration ledger for
+  the draft's candidate rules.
+- Reconcile the milestone authority text in `docs/README.md` and use that index
+  as the starting point for the fresh-context route check.
 
 ##### Out of Scope
 
-Retroactive changes to closed release lines that reference the draft.
+- Rewriting historical tags, issues, or worked examples.
+- Making `conceptual-integrity`, multiple reviewers, both golden images, or one
+  coupled commit mandatory for every milestone regardless of risk.
+- Changing Gate commands, tracked drivers, evidence schemas, or the release
+  sequence.
+- Moving general code-style ownership out of `code-conventions`.
 
 ##### Completion Criteria
 
-- The owner chooses one of the three fates and it is applied.
-- No live document calls the surviving procedure a working draft.
-- The release-cycle runbook reference remains resolvable and the two
-  procedures state non-overlapping boundaries.
+- All 21 candidate rules in the DR1-DR21 inventory have exactly one recorded
+  destination or explicit rejection, with zero missing or multiply owned IDs;
+  repository-specific history is not copied into the shared skill.
+- `milestone-tracking` routes plan review to one maintained procedure that
+  preserves the owner gate and the distinction between plan acceptance and
+  implementation authorization.
+- `conceptual-integrity` is selected only when accumulated code or shared
+  agreement-points make a whole-codebase coherence review relevant.
+- `code-conventions` explicitly preserves the surrounding-code idiom rule and
+  remains the only owner of general code style.
+- `gate/RUNBOOK.md` states the ownership boundary without taking ownership of
+  per-milestone planning or release execution.
+- The working draft is removed, every live reference resolves, and the shared
+  skill and repository documentation checks pass.
+- After T6, the verified implementation state in both `dev-env` and
+  `epics-ioc-runner` is committed and pushed under separately granted
+  per-repository Commit and Push authorities. Each configured upstream is read
+  back, and its changed-path set matches the verified local state before issue
+  closure, including required absence for a removed path. The commit IDs and
+  upstream readbacks are recorded in Closure Evidence.
+- The final GitHub issue body is generated only after both upstream readbacks
+  succeed and T1-T6 results and Closure Evidence are final. Under separate
+  Issue authority, the final body is applied, the linked issue is closed, and
+  its body, state, and metadata are read back.
+  After readback, projected sections remain unchanged; only GitHub Projection
+  observation fields, the M9 row and detail status, the release tally, and the
+  `Next session entry point:` may change. The observed closed state is evidence
+  for, but does not by itself imply, canonical completion.
+- Under separately granted Commit and Push authorities, the post-readback
+  canonical reconciliation is committed and pushed without changing projected
+  sections.
+  An upstream readback contains the final M9 status and next-session entry
+  point, matches the local canonical file, and requires no later record edit.
+- A reader starting at `docs/README.md` can locate the active 1.3.0 register,
+  enter M9, follow the installed skill to the plan-review procedure, keep
+  `conceptual-integrity` conditional, and distinguish plan acceptance from
+  implementation authorization.
 
 ##### Dependencies And Decisions
 
-- The runbook written under 1.2.3 (#131) references this draft, so whichever
-  fate is chosen must keep that reference resolvable.
+- Owner direction, 2026-08-26: fold the reusable rules into
+  `milestone-tracking`, retain operational Gate rules in `gate/RUNBOOK.md`, and
+  retire the repository draft after parity checks.
+- The 1.2.3 M1 record and issue #131 established the standing runbook. Issue
+  #134 shipped the executable drivers, #137 produced the machine-readable
+  records, #135 consumed those records for the verdict, and #136 independently
+  aligned suite tool probes with runner resolution.
+- Contrary to the prior M9 dependency text, neither the initial nor the current
+  runbook links to `docs/MILESTONE_PROCEDURE.md`; only milestone records made
+  that assertion. M9 corrects the premise instead of preserving a link that
+  never existed.
+- Existing unrelated changes in the `dev-env` working tree are outside M9 and
+  must remain untouched when the shared skill source is updated.
+- Owner direction, 2026-08-26: preserve the ordered plan-to-landed-commit
+  lifecycle as a separate DR20 entry rather than combine it with DR1.
+- Owner direction, 2026-08-26: keep DR1 limited to canonical identity and local
+  T labels; record the draft's mandatory tracker-issue rule as rejected DR21;
+  inspect every declared destination in T1; add end-to-end issue-projection
+  verification; and correct the historical issue roles.
+- Owner direction, 2026-08-26: supersede the preceding end-to-end T6 sequence;
+  make DR13 a new `code-conventions` rule; use T6 for the pre-mutation
+  projection comparison; and perform one final stable issue synchronization
+  only after every projected result and Closure Evidence are final.
+- Owner direction, 2026-08-26: the stable synchronization applies the final
+  body and closes issue #132 under separate Issue authority, reads back the
+  live body, state, and metadata, then permits only unprojected observations
+  and canonical status, tally, and next-entry fields to change.
+- Owner direction, 2026-08-26: after that canonical update, use a separate
+  reconciliation commit and push, then verify the configured upstream without
+  adding a projected result that would reopen the final issue body.
+- Owner direction, 2026-08-26: after T6 and before final issue synchronization,
+  commit, push, and read back the verified implementation in both source
+  repositories; record that landing in Closure Evidence, then retain the later
+  `epics-ioc-runner` canonical reconciliation as the terminal step.
+- Owner direction, 2026-08-26: replace the tracked `dev-env` essay-site memory's
+  deleted draft reference with the maintained `milestone-tracking` plan route
+  and include that path in M9 rather than leave T4 failing.
 - D1
+
+##### Source Rule Inventory
+
+This fixed inventory is the complete migration ledger for candidate rules in
+`docs/MILESTONE_PROCEDURE.md`. The five principles repeat DR2, DR5, DR14, DR9,
+and DR7. The worked examples are repository evidence rather than shared rules.
+
+| ID | Candidate Rule | Disposition |
+| --- | --- | --- |
+| DR1 | Identify a milestone by its canonical register entry and local T labels. | Existing owner: `milestone-tracking` work-register contract. |
+| DR2 | Recover the premise before choosing a fate. | New owner: `milestone-tracking/references/plan.md`. |
+| DR3 | Require independent reviewers to read every essay for every milestone. | Explicit rejection: reviewer count and `conceptual-integrity` use remain risk-based. |
+| DR4 | Rank findings by observed impact rather than presentation preference. | Existing owner: `conceptual-integrity`, when the plan-review route selects it. |
+| DR5 | Examine real seams and dependencies asserted without evidence. | New owner: `milestone-tracking/references/plan.md`. |
+| DR6 | Classify candidates as confirmed findings, hypotheses, or owner decisions, with evidence locations. | New owner: `milestone-tracking/references/plan.md`. |
+| DR7 | Obtain the owner's choice when more than one defensible fate exists before recording a decision. | New owner: `milestone-tracking/references/plan.md`. |
+| DR8 | Remove confirmed invented dependencies and narrow the milestone to its real target. | New owner: `milestone-tracking/references/plan.md`. |
+| DR9 | Record examined-no-action decisions in `docs/CLOSED_DOORS.md`. | Existing owner: `milestone-tracking` work-register contract. |
+| DR10 | Reflect corrected scope, dependency meaning, and local T labels in the canonical register. | New owner: `milestone-tracking/references/plan.md`. |
+| DR11 | Project the accepted canonical plan and later evidence to the tracker issue. | Existing owner: `milestone-tracking/references/reconcile.md`. |
+| DR12 | Update release-wide ordering only when an active release cycle is affected. | Existing owner: `release-cycle`. |
+| DR13 | Match implementation to the surrounding code idiom. | New owner: `code-conventions`. |
+| DR14 | Verify the real shipped path without replacing internal spans with substitutes. | Existing owner: `milestone-tracking/references/procedure.md`. |
+| DR15 | Require a behavior regression to detect the old defect when that claim is part of acceptance. | New owner: `milestone-tracking/references/plan.md`. |
+| DR16 | Run every affected suite on both golden images for every milestone. | Explicit rejection: the milestone Test Plan is risk-based; `gate/RUNBOOK.md` owns the release Gate matrix. |
+| DR17 | Record observed evidence and the next session entry point before closure. | Existing owner: `milestone-tracking/references/procedure.md`. |
+| DR18 | Require one coupled code, test, and documentation commit for every milestone. | Explicit rejection: `git-workflow` retains commit-granularity authority. |
+| DR19 | Keep git and GitHub mutations owner-run unless the matching authority is delegated in the same request. | Existing owner: `git-workflow`. |
+| DR20 | Follow the ordered per-milestone lifecycle from plan review through landed commit. | New owner: `milestone-tracking` plan-to-close operation route. |
+| DR21 | Require every milestone to have exactly one tracker issue. | Explicit rejection: `milestone-tracking` permits no issue link and reconciles GitHub only when one is linked. |
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: accepted 2026-08-26 after `conv20260826_204919`
+Implementation Authorization: Owner authorized P001-P011 on 2026-08-26.
 Superseded Plan Artifacts: none
 
-1. Select fold-into-skill, keep-as-repository-document, or absorb.
-2. Apply the selected fate and update every live reference.
-3. Verify that the release-cycle runbook still reaches the surviving
-   milestone procedure.
+1. Add `references/plan.md` to the `milestone-tracking` source package with the
+   reusable planning gate, using the fixed DR1-DR21 inventory as the migration
+   ledger rather than deriving a new source list during implementation.
+2. Add the plan-review operation to `SKILL.md` routing and connect it from
+   `references/procedure.md`; add the behavior-regression detection condition
+   without making one test shape universal.
+3. Add the surrounding-code idiom rule to `code-conventions` without moving
+   general code-style ownership into the milestone procedure.
+4. Update `gate/RUNBOOK.md` only at its ownership boundary so the runbook keeps
+   operational Gate execution while `milestone-tracking`, `release-cycle`, and
+   `git-workflow` retain their existing responsibilities.
+5. Run T1 against the still-present draft and every declared destination,
+   including unchanged owner text and explicit rejection rationale. Stop unless
+   all 21 IDs are present and each has exactly one owner or explicit rejection.
+6. After T1 passes, remove `docs/MILESTONE_PROCEDURE.md`, update all live
+   repository references, reconcile `docs/README.md` with the active register,
+   update canonical milestone evidence, and prepare the issue projection for
+   application only under separate `git-workflow` Issue authority.
+7. Run T2 through T5 against the resulting cross-repository change, including
+   the fresh-context route check and complete review, and reconcile only
+   evidence produced by those real validation paths.
+8. Run T6 as a pre-mutation comparison between the canonical detail and its
+   generated issue content, then record the observed T6 result in the canonical
+   detail without changing GitHub.
+9. Under separately granted `git-workflow` Commit and Push authorities for each
+   repository, commit the verified implementation state in `dev-env` and
+   `epics-ioc-runner`, push each configured branch, fetch its upstream, and read
+   back each scoped changed path. Treat an intentionally removed path as a
+   required absence. Stop unless both upstream trees match their verified local
+   commits over the exact changed-path sets. Record the commit IDs and upstream
+   readbacks in Closure Evidence before generating the final issue body.
+10. After both upstream readbacks succeed and all T1-T6 results and Closure
+    Evidence are final, regenerate the issue body. Only under separate Issue
+    authority, apply that final body, close issue #132, and re-read the live
+    body, state, and metadata. After observing the closed state, update the
+    unprojected GitHub Projection observations, the M9 row and detail status,
+    the release tally, and the `Next session entry point:`. Do not change a
+    projected section after readback.
+11. Under separately granted `git-workflow` Commit and Push authorities, commit
+    only the final canonical reconciliation, push the configured
+    `epics-ioc-runner` branch, fetch its upstream, and read the upstream register
+    back. Require the upstream M9 row, detail status, GitHub observations,
+    release tally, and next-session entry point to match the local canonical
+    file, with no remaining M9 reconciliation diff. This is the terminal check;
+    do not create a new projected result afterward.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Reference integrity | Search tracked documentation after applying the selected fate | Working tree | No document calls the survivor a working draft and every live link resolves |
-| T2 | Procedure boundary | Review the surviving procedure against `gate/RUNBOOK.md` | Working tree | Per-milestone work and release-gate work have one explicit, non-overlapping authority each |
+| T1 | Rule disposition | For each fixed DR1-DR21 row, compare the candidate with the draft and inspect its named existing owner, proposed new owner, or explicit rejection rationale | Both source repositories | Exactly 21 unique IDs are present; zero source rules or destination checks are missing; every ID has exactly one owner or explicit rejection; no repository history is copied into the skill |
+| T2 | Skill packages | Run `python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py shared/skills/milestone-tracking`, repeat it for `shared/skills/code-conventions`, run `make render.check`, then run `test <source-package> -ef <installed-package>` for each package's matching `~/.codex/skills/` and `~/.claude/skills/` path | `dev-env` working tree | Both source packages are valid, repository instruction projections are in sync, and both Codex and Claude installed paths resolve to each source package |
+| T3 | Procedure route | Give a fresh-context reviewer the installed skill and only `docs/README.md` as the repository starting point | Current checkout | The reviewer locates the active 1.3.0 register and M9 through its Next session entry point, follows the skill to `references/plan.md`, keeps `conceptual-integrity` conditional, and preserves plan acceptance and implementation authorization as separate gates |
+| T4 | Reference integrity | Search tracked live documentation after removing the draft and compare the register descriptions in `docs/README.md` with the canonical register headers | Both source repositories | No live text depends on the removed path or calls a surviving procedure a working draft; the documentation index names the active authority without contradicting either register header |
+| T5 | Ownership boundary | Review the shared procedure against `gate/RUNBOOK.md`, `release-cycle`, and `git-workflow` | Working trees | Per-milestone planning, Gate operation, release execution, and GitHub or git mutation each retain one non-overlapping owner |
+| T6 | Issue projection content | Generate issue content from the current canonical detail and compare every required projected section without mutating GitHub | Canonical checkout | The generated body matches the current canonical projected sections; no GitHub mutation occurs; the observed result can be recorded before generating the final body for authorized application |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Working tree | Pending | none |
-| T2 | Not run | Working tree | Pending | none |
+| T1 | 2026-08-27 00:56 PDT | Both source repository working trees | Pass: all 21 fixed ledger IDs had one inspected owner or explicit rejection; DR20 preserved distinct Commit and Push authorities plus configured-upstream readback, no candidate or destination was missing, all four rejections had a rationale, and no repository history entered the shared skill | Direct inspection of the byte-identical restored draft and every declared destination; `work/m9-t1-rule-parity.md` |
+| T2 | 2026-08-27 00:57 PDT | `dev-env` source tree and installed Codex and Claude skill paths | Pass: both skill validators exited 0, `make render.check` reported projections in sync, and all four source-to-installed identity checks exited 0 | Direct execution of both `quick_validate.py` commands, `make render.check`, and the four planned `test <source> -ef <installed>` commands |
+| T3 | 2026-08-27 00:58 PDT | Fresh read-only context starting from the installed `milestone-tracking` skill and `docs/README.md` | Pass: the reader found the active 1.3.0 register and M9, reached `references/plan.md` and `references/procedure.md`, kept `conceptual-integrity` conditional, distinguished plan acceptance, implementation authorization, Commit, Push, and Issue authorities, and required upstream readback before Complete | Independent route inspection through the installed skill and tracked repository documentation without `docs/review_sessions`, `work/`, conversation history, or git history |
+| T4 | 2026-08-27 00:58 PDT | Tracked Markdown in both source repositories | Pass: `dev-env` had zero removed-path hits; release-branch hits were the current M9 removal record or the non-authoritative master snapshot, and `docs/README.md` agreed with both register headers about authority | Direct tracked-file searches, including a no-match `git grep`, plus inspection of `docs/README.md`, `docs/milestone-1.3.0.md`, and `docs/milestone-46790f9.md` headers |
+| T5 | 2026-08-27 00:58 PDT | Both source repository working trees | Pass: `milestone-tracking` owned per-milestone planning and closure with distinct Commit, Push, and Issue authorities and required landing evidence; `gate/RUNBOOK.md` owned Gate operation, `release-cycle` owned release-wide execution, and `git-workflow` owned git and GitHub mutations | Direct cross-file inspection of all four ownership surfaces |
+| T6 | 2026-08-27 01:00 PDT | Canonical checkout | Pass: the canonical M9 detail and generated local issue body each contained the nine required projected sections, their complete projected content matched, excluded GitHub metadata was absent from the body, and no GitHub mutation was issued | Direct section counts and byte comparison against `work/issue-132-m9-procedure-body.md` |
 
 ##### Closure Evidence
 
@@ -1299,7 +1471,7 @@ Observed State: open
 Observed Labels: P3-low, docs
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
+Last Compared: 2026-08-26; remote updated 2026-08-18T07:39:22Z
 
 #### M10 - Fleet-layer reliability
 
