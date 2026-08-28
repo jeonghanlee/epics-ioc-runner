@@ -10,8 +10,8 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review the M10 (#102) draft covering M10-1 through
-M10-6 before implementation.
+Next session entry point: review the M10 (#102) draft covering M10-2, M10-3,
+and M10-5 before implementation.
 M1 through M9 are Complete and their linked issues are closed. M10 is the
 largest remaining item, and its boundary must be designed before any code.
 
@@ -30,7 +30,7 @@ largest remaining item, and its boundary must be designed before any code.
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
-| Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | M10-1 through M10-5 detect the remaining non-exit failure modes, and M10-6 makes common-cause fleet recovery observable and controlled; [detail](#m10---fleet-layer-reliability) |
+| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Not started | Yes | D1, D3, D5, D6 | M10-2, M10-3, and M10-5 provide runner-owned detection through the real command paths; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -42,6 +42,8 @@ largest remaining item, and its boundary must be designed before any code.
 | D2 | Run M5 and M6 as one configuration-contract lane: M6 is the narrow two-reader case that M5's shared parse core subsumes, so M6 follows M5 and closes on the shared core's evidence plus its own reader-equivalence fixtures. | Owner-accepted lane pairing, 2026-08-17 |
 | D3 | Execute the cycle in local ID order M1 (#148), M2 (#139), M3 (#142), M4 (#115), M5+M6 (#113/#129 lane), M7 (#116), M8 (#144), M9 (#132); M10 (#102) runs its design conversation from cycle start with implementation placed after the mid-cycle. Local IDs were renumbered to match this order; each detail's Identity History records its prior ID. | Owner decision, 2026-08-18 |
 | D4 | M1 centralizes expected check and STEP counts in `tests/reporting-counts.csv`. Runtime catalogs remain the independent actual values, and the CSV is initially populated only from pre-change observations of the five real shipped suite paths. The reporter's existing five-suite set becomes a public supported-suite contract that independently validates CSV membership. Normal suite runs compare immediately after catalog close; `REPORT_CATALOG_ONLY=1` performs the same comparison and then exits through a reporter-owned cleanup state before environment preflight, emitting exactly one `CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line on success. The gate's six-run execution set remains independent and joins to the CSV for per-suite expectations and derived totals. Live expectation documents reference the CSV; historical observed counts remain unchanged. | Owner design direction, 2026-08-18; third-person and second-person review findings accepted 2026-08-18 |
+| D5 | Keep M10 as one milestone and implement M10-2, M10-3, M10-4, and M10-5 in that order. M10-1 and M10-6 remain outside this repository's implementation boundary. Scope-fit scores of 1-2 exclude an item, 3 require boundary revision, and 4-5 retain it. | Decision Date: 2026-08-28 |
+| D6 | Exclude M10-4 from implementation. Linux `hard` NFS mounts retry requests indefinitely, while `soft` and `softerr` can risk silent data corruption; `ioc-runner` therefore cannot guarantee a bounded command return without imposing a host mount policy. NFS availability and mount policy remain host responsibilities. This supersedes the M10-4 portion of D5. | Decision Date: 2026-08-28 |
 
 ### Assignment History
 
@@ -1494,20 +1496,17 @@ Status: Not started
 ##### Summary
 
 The child-exit, crash-loop, and procServ-death layers are already complete.
-M10 covers six remaining items: five detection gaps where supervised processes
-may stay alive or change identity without a normal exit signal, plus one
-fleet-level recovery boundary for related failures.
+M10 retains three runner-owned reliability checks after evaluating the original
+six candidates against the repository boundary. Application-level IOC health
+and fleet recovery remain external responsibilities.
 
 ##### Scope
 
 | ID | Remaining Item | Completion Boundary |
 | --- | --- | --- |
-| M10-1 | Running IOC hang | Detect a live-but-unresponsive IOC through an accepted active health signal without requiring process exit or a crash token. |
 | M10-2 | Running configuration drift | Detect when the configuration backing a running IOC changes before an automatic restart can activate unvalidated values. |
-| M10-3 | Log-path capacity loss | Detect an unusable or full procServ log path through a signal independent of the crash log stored on that path. |
-| M10-4 | NFS outage | Bound local-mode operations that wait on unavailable NFS and identify the shared storage failure. |
-| M10-5 | procServ executable drift | Detect when the running procServ executable no longer matches the configured on-disk executable before a later restart changes runtime behavior. |
-| M10-6 | Fleet recovery | Correlate common-cause failures across IOC units and apply a documented recovery path that controls restart load after the dependency returns. |
+| M10-3 | Log-path availability | During `start`, `restart`, and `inspect`, report when the configured procServ log path cannot support the requested runner operation. |
+| M10-5 | procServ executable drift | When `inspect` is invoked, compare the active procServ server process executable with the systemd `ExecStart` executable and warn if their identities differ or the running executable is deleted. |
 
 ##### Out of Scope
 
@@ -1517,15 +1516,32 @@ fleet-level recovery boundary for related failures.
 - Reimplementing procServ-death recovery delivered in `d0338f1`.
 - Unit-layer restart jitter, `ExecStartPre` random delay, or changing the
   per-IOC indefinite-restart policy.
+- M10-1 application-level IOC hang detection. A heartbeat PV or equivalent
+  health signal belongs to external IOC monitoring rather than this
+  lifecycle CLI.
+- M10-6 common-cause correlation, restart-load orchestration, and other fleet
+  recovery controls.
+- Continuous disk-capacity and NFS-availability monitoring. M10-3 covers only
+  runner command behavior when the configured log path is unavailable.
+- M10-4 bounded local-mode NFS failure. Linux `hard` NFS mounts retry requests
+  indefinitely, while `soft` and `softerr` can risk silent data corruption.
+  NFS availability and mount policy remain host responsibilities.
+- A runner executable, shell, or current working directory that is itself
+  blocked on unavailable NFS; the runner cannot bound execution before its
+  own code is locally available.
+- Continuous procServ executable or package monitoring, package management,
+  and automatic stop or restart in response to M10-5.
 
 ##### Completion Criteria
 
-- M10-1 through M10-5 each have an accepted signal, ownership boundary, and
+- M10-2, M10-3, and M10-5 each have an accepted signal, ownership boundary, and
   failure threshold before implementation.
 - Each detection reports its named condition without depending on the signal
   that condition disables.
-- M10-6 exposes synchronized failures and provides a documented recovery path
-  that controls restart load after a shared dependency returns.
+- M10-3 affects only the requested runner command and introduces no
+  continuous monitoring process.
+- M10-5 reports executable drift only during an explicit `inspect` and does
+  not change process state.
 
 ##### Dependencies And Decisions
 
@@ -1551,8 +1567,33 @@ fleet-level recovery boundary for related failures.
   disk-full, NFS outage, and procServ executable replacement as additional
   detection-layer gaps. They are M10-2 through M10-5 rather than separate
   untracked work.
-- D1
-- D3 places implementation after the mid-cycle while the design conversation runs from cycle start.
+- M10-5 is an on-demand `inspect` diagnostic. It reuses the active procServ
+  server PID already identified through the target UDS and adds no background
+  daemon or package-monitoring responsibility.
+- The evaluation used five 1-5 scores: `ioc-runner` scope fit, impact,
+  likelihood, current detection gap, and real-path verification feasibility.
+  The displayed 10-point result is their sum divided by 2.5. Scope fit is a
+  gate applied before the total: 1-2 excludes, 3 requires boundary revision,
+  and 4-5 retains an item.
+
+| ID | Scope Fit | Score / 10 | Disposition | Basis |
+| --- | ---: | ---: | --- | --- |
+| M10-1 | 2 | 6.4 | External | The runner observes systemd, procServ, UDS, and startup logs; application health requires a PV or equivalent external signal. |
+| M10-2 | 5 | 8.0 | Retain | The runner creates, validates, installs, reads, and activates the configuration. |
+| M10-3 | 5 | 8.0 | Retain after narrowing | Runner commands depend directly on the configured log path; continuous capacity monitoring remains external. |
+| M10-4 | 2 | 6.8 | External after feasibility correction | A runner cannot guarantee a bounded return from indefinitely retried `hard` NFS access without imposing a host mount policy. |
+| M10-5 | 4 | 6.0 | Retain as on-demand diagnostic | `inspect` already identifies the active procServ server PID and can report executable identity without changing process state. |
+| M10-6 | 1 | 6.8 | External | Cross-host correlation and restart orchestration require inventory and a continuous fleet control surface that the runner does not own. |
+
+- D1 assigns #102 to the 1.3.0 reliability and configuration contract release
+  line.
+- D3 places implementation after the mid-cycle while the design conversation
+  runs from cycle start.
+- D5 keeps one M10 and orders implementation as M10-2, M10-3, M10-4, then
+  M10-5; M10-1 and M10-6 remain outside this repository's implementation
+  boundary.
+- D6 supersedes the M10-4 portion of D5 after the NFS client recovery contract
+  showed that the proposed bounded-return guarantee is not runner-owned.
 
 ##### Implementation Plan
 
@@ -1561,31 +1602,25 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Define and obtain owner acceptance for the signal, threshold, and owning
-   subsystem for M10-1 through M10-5.
-2. Implement M10-1 active hang detection without moving PV discovery or fleet
-   monitoring into the per-IOC systemd unit.
-3. Implement M10-2 configuration-drift detection before automatic restart can
+1. Define and obtain owner acceptance for the exact failure signal and command
+   outcome for M10-2, M10-3, and M10-5 within the D5 and D6 boundary.
+2. Implement M10-2 configuration-drift detection before automatic restart can
    activate changed values.
-4. Implement M10-3 log-path capacity detection through a signal that remains
-   available when the procServ log path is unusable.
-5. Implement M10-4 bounded NFS-failure handling for the real local-mode path.
-6. Implement M10-5 procServ executable-drift detection.
-7. Implement M10-6 common-cause correlation and the documented fleet recovery
-   control outside the per-IOC systemd unit.
-8. Run T1 through T6 through the real shipped paths and record observed
+3. Implement M10-3 log-path availability checks in `start`, `restart`, and
+   `inspect` without adding a continuous disk monitor.
+4. Extend `inspect` for M10-5 to compare the active procServ server process
+   executable identity with the executable configured by systemd, warn on a
+   mismatch or deleted running executable, and leave the process unchanged.
+5. Run T1 through T3 through the real shipped paths and record observed
    results.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | M10-1 runtime health | Make a real IOC process remain alive while its accepted health signal stops progressing | Both golden OS families | Monitoring detects the hang without waiting for process exit or a crash token |
-| T2 | M10-2 configuration drift | Change the real configuration backing a running IOC, then exercise its real automatic-restart path | Both golden OS families | The change is detected before unvalidated values can become active |
-| T3 | M10-3 log-path capacity | Use a size-limited test filesystem as the real procServ log path, fill it, and exercise the real crash-detection path | Both golden OS families | Monitoring reports the unusable log path independently of the missing crash-log evidence |
-| T4 | M10-4 NFS outage | Interrupt a dedicated test NFS mount used by real local-mode operations | Assigned fleet test environment | The operation ends within its accepted bound and reports the shared storage failure |
-| T5 | M10-5 executable drift | Install a real service against an isolated procServ executable copy, replace that copy while the service remains running, and exercise the accepted detection path | Both golden OS families | Monitoring reports the running/on-disk executable mismatch before an unplanned restart changes behavior |
-| T6 | M10-6 fleet recovery | Interrupt a shared dependency for multiple real IOC units and restore it | Assigned fleet test environment | Monitoring correlates the failures and the documented recovery path controls restart load |
+| T1 | M10-2 configuration drift | Change the real configuration backing a running IOC, then exercise its real automatic-restart path | Both golden OS families | The change is detected before unvalidated values can become active |
+| T2 | M10-3 log-path availability | Use a size-limited test filesystem as the real procServ log path, make it unavailable, and exercise the real `start`, `restart`, and `inspect` paths | Both golden OS families | Each command reports the unavailable log path without relying on new content from that path |
+| T3 | M10-5 executable drift | Install a real service against an isolated procServ executable copy, replace that copy while the service remains running, and invoke the real `ioc-runner inspect` path | Both golden OS families | `inspect` warns that the active procServ executable differs from the systemd `ExecStart` executable and does not stop or restart the service |
 
 ##### Verification Results
 
@@ -1594,9 +1629,6 @@ Superseded Plan Artifacts: none
 | T1 | Not run | Both golden OS families | Pending | none |
 | T2 | Not run | Both golden OS families | Pending | none |
 | T3 | Not run | Both golden OS families | Pending | none |
-| T4 | Not run | Assigned fleet test environment | Pending | none |
-| T5 | Not run | Both golden OS families | Pending | none |
-| T6 | Not run | Assigned fleet test environment | Pending | none |
 
 ##### Closure Evidence
 
@@ -1604,14 +1636,14 @@ Superseded Plan Artifacts: none
 
 ##### GitHub Projection
 
-Title: Fleet-layer reliability: restart-storm boundary and running-IOC hang detection
+Title: Runner-owned reliability checks: configuration, log path, and procServ executable
 Labels: enhancement, P3-low, ops, area/architecture
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: enhancement, P3-low, ops, area/architecture
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-28; remote updated 2026-08-28T18:43:32Z
+Last Compared: 2026-08-28; remote updated 2026-08-28T20:09:41Z
 
 #### M11 - Final release
 
