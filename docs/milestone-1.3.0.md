@@ -10,8 +10,8 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: continue the M10 (#102) health-signal design
-conversation before implementation.
+Next session entry point: review the M10 (#102) draft covering M10-1 through
+M10-6 before implementation.
 M1 through M9 are Complete and their linked issues are closed. M10 is the
 largest remaining item, and its boundary must be designed before any code.
 
@@ -30,7 +30,7 @@ largest remaining item, and its boundary must be designed before any code.
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
-| Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
+| Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | M10-1 through M10-5 detect the remaining non-exit failure modes, and M10-6 makes common-cause fleet recovery observable and controlled; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -1494,13 +1494,20 @@ Status: Not started
 ##### Summary
 
 The child-exit, crash-loop, and procServ-death layers are already complete.
-M10 covers detection gaps that remain when the supervised processes stay alive
-or when related failures must be correlated across the fleet.
+M10 covers six remaining items: five detection gaps where supervised processes
+may stay alive or change identity without a normal exit signal, plus one
+fleet-level recovery boundary for related failures.
 
 ##### Scope
 
-Running-time hang detection through an active health signal, plus fleet-level
-restart-storm observability and orchestrated recovery.
+| ID | Remaining Item | Completion Boundary |
+| --- | --- | --- |
+| M10-1 | Running IOC hang | Detect a live-but-unresponsive IOC through an accepted active health signal without requiring process exit or a crash token. |
+| M10-2 | Running configuration drift | Detect when the configuration backing a running IOC changes before an automatic restart can activate unvalidated values. |
+| M10-3 | Log-path capacity loss | Detect an unusable or full procServ log path through a signal independent of the crash log stored on that path. |
+| M10-4 | NFS outage | Bound local-mode operations that wait on unavailable NFS and identify the shared storage failure. |
+| M10-5 | procServ executable drift | Detect when the running procServ executable no longer matches the configured on-disk executable before a later restart changes runtime behavior. |
+| M10-6 | Fleet recovery | Correlate common-cause failures across IOC units and apply a documented recovery path that controls restart load after the dependency returns. |
 
 ##### Out of Scope
 
@@ -1513,10 +1520,12 @@ restart-storm observability and orchestrated recovery.
 
 ##### Completion Criteria
 
-- The owner accepts the selected health signal before implementation.
-- A live-but-unresponsive IOC is detected without requiring process exit.
-- Fleet monitoring exposes synchronized failures and a documented recovery
-  path controls restart load after a shared dependency returns.
+- M10-1 through M10-5 each have an accepted signal, ownership boundary, and
+  failure threshold before implementation.
+- Each detection reports its named condition without depending on the signal
+  that condition disables.
+- M10-6 exposes synchronized failures and provides a documented recovery path
+  that controls restart load after a shared dependency returns.
 
 ##### Dependencies And Decisions
 
@@ -1538,6 +1547,10 @@ restart-storm observability and orchestrated recovery.
   conflict with the measured per-IOC stabilization window established by
   #67. Restart-storm control therefore remains a fleet and operations-layer
   responsibility rather than a per-IOC unit change.
+- The 1.2.0 full-code review recorded configuration drift, log-path
+  disk-full, NFS outage, and procServ executable replacement as additional
+  detection-layer gaps. They are M10-2 through M10-5 rather than separate
+  untracked work.
 - D1
 - D3 places implementation after the mid-cycle while the design conversation runs from cycle start.
 
@@ -1548,24 +1561,42 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Select the running-IOC health signal and fleet monitoring boundary.
-2. Implement active hang detection and fleet recovery observability outside
-   the per-IOC systemd unit.
-3. Verify a live-but-unresponsive IOC and a common-cause fleet outage.
+1. Define and obtain owner acceptance for the signal, threshold, and owning
+   subsystem for M10-1 through M10-5.
+2. Implement M10-1 active hang detection without moving PV discovery or fleet
+   monitoring into the per-IOC systemd unit.
+3. Implement M10-2 configuration-drift detection before automatic restart can
+   activate changed values.
+4. Implement M10-3 log-path capacity detection through a signal that remains
+   available when the procServ log path is unusable.
+5. Implement M10-4 bounded NFS-failure handling for the real local-mode path.
+6. Implement M10-5 procServ executable-drift detection.
+7. Implement M10-6 common-cause correlation and the documented fleet recovery
+   control outside the per-IOC systemd unit.
+8. Run T1 through T6 through the real shipped paths and record observed
+   results.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Runtime health | Make a real IOC process remain alive while its selected health signal stops progressing | Both golden OS families | Monitoring detects the hang without waiting for process exit or a crash token |
-| T2 | Fleet recovery | Interrupt a shared dependency for multiple running IOCs and restore it | Assigned fleet test environment | Monitoring exposes the synchronized failures and the documented recovery path controls restart load |
+| T1 | M10-1 runtime health | Make a real IOC process remain alive while its accepted health signal stops progressing | Both golden OS families | Monitoring detects the hang without waiting for process exit or a crash token |
+| T2 | M10-2 configuration drift | Change the real configuration backing a running IOC, then exercise its real automatic-restart path | Both golden OS families | The change is detected before unvalidated values can become active |
+| T3 | M10-3 log-path capacity | Use a size-limited test filesystem as the real procServ log path, fill it, and exercise the real crash-detection path | Both golden OS families | Monitoring reports the unusable log path independently of the missing crash-log evidence |
+| T4 | M10-4 NFS outage | Interrupt a dedicated test NFS mount used by real local-mode operations | Assigned fleet test environment | The operation ends within its accepted bound and reports the shared storage failure |
+| T5 | M10-5 executable drift | Install a real service against an isolated procServ executable copy, replace that copy while the service remains running, and exercise the accepted detection path | Both golden OS families | Monitoring reports the running/on-disk executable mismatch before an unplanned restart changes behavior |
+| T6 | M10-6 fleet recovery | Interrupt a shared dependency for multiple real IOC units and restore it | Assigned fleet test environment | Monitoring correlates the failures and the documented recovery path controls restart load |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Both golden OS families | Pending | none |
-| T2 | Not run | Assigned fleet test environment | Pending | none |
+| T2 | Not run | Both golden OS families | Pending | none |
+| T3 | Not run | Both golden OS families | Pending | none |
+| T4 | Not run | Assigned fleet test environment | Pending | none |
+| T5 | Not run | Both golden OS families | Pending | none |
+| T6 | Not run | Assigned fleet test environment | Pending | none |
 
 ##### Closure Evidence
 
@@ -1580,7 +1611,7 @@ Observed State: open
 Observed Labels: enhancement, P3-low, ops, area/architecture
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-18; remote updated 2026-08-18T07:39:22Z
+Last Compared: 2026-08-28; remote updated 2026-08-28T18:43:32Z
 
 #### M11 - Final release
 
