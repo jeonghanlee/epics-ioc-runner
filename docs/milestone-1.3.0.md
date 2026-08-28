@@ -29,7 +29,7 @@ largest remaining item, and its boundary must be designed before any code.
 | Configuration | M6 | (#129) Unify conf-value normalization between `read_conf_var` and `read_conf_all` | Milestone | Complete | No | M5, D1, D2, D3 | Complete in `9061d2e` and `14b362f`; T1-T3 Pass and issue #129 is closed; [detail](#m6---conf-value-normalization) |
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
-| Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in `dev-env` `34b9514` and this repository `a8bfdcd`; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
+| Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Fleet-layer reliability: restart-storm boundary and running-IOC hang detection | Milestone | Not started | Yes | D1, D3 | A live-but-unresponsive IOC is detected without process exit and fleet recovery is observable; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
@@ -1287,12 +1287,12 @@ projection records the state used for issue closure.
   per-milestone planning or release execution.
 - The working draft is removed, every live reference resolves, and the shared
   skill and repository documentation checks pass.
-- After T6, the verified implementation state in both `dev-env` and
-  `epics-ioc-runner` is committed and pushed under separately granted
-  per-repository Commit and Push authorities. Each configured upstream is read
-  back, and its changed-path set matches the verified local state before issue
-  closure, including required absence for a removed path. The commit IDs and
-  upstream readbacks are recorded in Closure Evidence.
+- After T6, the verified implementation state in both source repositories is
+  committed and pushed under separately granted per-repository Commit and Push
+  authorities. Each configured upstream is read back, and its changed-path set
+  matches the verified local state before issue closure, including required
+  absence for a removed path. The commit IDs and upstream readbacks are
+  recorded in Closure Evidence.
 - The final GitHub issue body is generated only after both upstream readbacks
   succeed and T1-T6 results and Closure Evidence are final. Under separate
   Issue authority, the final body is applied, the linked issue is closed, and
@@ -1324,8 +1324,8 @@ projection records the state used for issue closure.
   runbook links to `docs/MILESTONE_PROCEDURE.md`; only milestone records made
   that assertion. M9 corrects the premise instead of preserving a link that
   never existed.
-- Existing unrelated changes in the `dev-env` working tree are outside M9 and
-  must remain untouched when the shared skill source is updated.
+- Existing unrelated working-tree changes are outside M9 and must remain
+  untouched when the shared skill source is updated.
 - Owner direction, 2026-08-26: preserve the ordered plan-to-landed-commit
   lifecycle as a separate DR20 entry rather than combine it with DR1.
 - Owner direction, 2026-08-26: keep DR1 limited to canonical identity and local
@@ -1347,9 +1347,9 @@ projection records the state used for issue closure.
   commit, push, and read back the verified implementation in both source
   repositories; record that landing in Closure Evidence, then retain the later
   `epics-ioc-runner` canonical reconciliation as the terminal step.
-- Owner direction, 2026-08-26: replace the tracked `dev-env` essay-site memory's
-  deleted draft reference with the maintained `milestone-tracking` plan route
-  and include that path in M9 rather than leave T4 failing.
+- Owner direction, 2026-08-26: replace the tracked essay-site memory's deleted
+  draft reference with the maintained `milestone-tracking` plan route and
+  include that path in M9 rather than leave T4 failing.
 - D1
 
 ##### Source Rule Inventory
@@ -1414,11 +1414,11 @@ Superseded Plan Artifacts: none
    generated issue content, then record the observed T6 result in the canonical
    detail without changing GitHub.
 9. Under separately granted `git-workflow` Commit and Push authorities for each
-   repository, commit the verified implementation state in `dev-env` and
-   `epics-ioc-runner`, push each configured branch, fetch its upstream, and read
-   back each scoped changed path. Treat an intentionally removed path as a
-   required absence. Stop unless both upstream trees match their verified local
-   commits over the exact changed-path sets. Record the commit IDs and upstream
+   repository, commit the verified implementation state in both source
+   repositories, push each configured branch, fetch its upstream, and read back
+   each scoped changed path. Treat an intentionally removed path as a required
+   absence. Stop unless both upstream trees match their verified local commits
+   over the exact changed-path sets. Record the commit IDs and upstream
    readbacks in Closure Evidence before generating the final issue body.
 10. After both upstream readbacks succeed and all T1-T6 results and Closure
     Evidence are final, regenerate the issue body. Only under separate Issue
@@ -1440,7 +1440,7 @@ Superseded Plan Artifacts: none
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | Rule disposition | For each fixed DR1-DR21 row, compare the candidate with the draft and inspect its named existing owner, proposed new owner, or explicit rejection rationale | Both source repositories | Exactly 21 unique IDs are present; zero source rules or destination checks are missing; every ID has exactly one owner or explicit rejection; no repository history is copied into the skill |
-| T2 | Skill packages | Run `python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py shared/skills/milestone-tracking`, repeat it for `shared/skills/code-conventions`, run `make render.check`, then run `test <source-package> -ef <installed-package>` for each package's matching `~/.codex/skills/` and `~/.claude/skills/` path | `dev-env` working tree | Both source packages are valid, repository instruction projections are in sync, and both Codex and Claude installed paths resolve to each source package |
+| T2 | Skill packages | Run the package validator for `shared/skills/milestone-tracking` and `shared/skills/code-conventions`, run `make render.check`, then confirm each installed skill entry resolves to its matching source package | Shared skill source working tree | Both source packages are valid, repository instruction projections are in sync, and installed skill entries resolve to their source packages |
 | T3 | Procedure route | Give a fresh-context reviewer the installed skill and only `docs/README.md` as the repository starting point | Current checkout | The reviewer locates the active 1.3.0 register and M9 through its Next session entry point, follows the skill to `references/plan.md`, keeps `conceptual-integrity` conditional, and preserves plan acceptance and implementation authorization as separate gates |
 | T4 | Reference integrity | Search tracked live documentation after removing the draft and compare the register descriptions in `docs/README.md` with the canonical register headers | Both source repositories | No live text depends on the removed path or calls a surviving procedure a working draft; the documentation index names the active authority without contradicting either register header |
 | T5 | Ownership boundary | Review the shared procedure against `gate/RUNBOOK.md`, `release-cycle`, and `git-workflow` | Working trees | Per-milestone planning, Gate operation, release execution, and GitHub or git mutation each retain one non-overlapping owner |
@@ -1451,19 +1451,17 @@ Superseded Plan Artifacts: none
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | 2026-08-27 00:56 PDT | Both source repository working trees | Pass: all 21 fixed ledger IDs had one inspected owner or explicit rejection; DR20 preserved distinct Commit and Push authorities plus configured-upstream readback, no candidate or destination was missing, all four rejections had a rationale, and no repository history entered the shared skill | Direct inspection of the byte-identical restored draft, fixed Source Rule Inventory, and every declared destination |
-| T2 | 2026-08-27 00:57 PDT | `dev-env` source tree and installed Codex and Claude skill paths | Pass: both skill validators exited 0, `make render.check` reported projections in sync, and all four source-to-installed identity checks exited 0 | Direct execution of both `quick_validate.py` commands, `make render.check`, and the four planned `test <source> -ef <installed>` commands |
+| T2 | 2026-08-27 00:57 PDT | Shared skill source tree and installed skill entries | Pass: both skill validators exited 0, `make render.check` reported projections in sync, and all four source-to-installed identity checks exited 0 | Direct execution of both package validators, `make render.check`, and the four source-to-installed identity checks |
 | T3 | 2026-08-27 00:58 PDT | Fresh read-only context starting from the installed `milestone-tracking` skill and `docs/README.md` | Pass: the reader found the active 1.3.0 register and M9, reached `references/plan.md` and `references/procedure.md`, kept `conceptual-integrity` conditional, distinguished plan acceptance, implementation authorization, Commit, Push, and Issue authorities, and required upstream readback before Complete | Independent route inspection through the installed skill and tracked repository documentation from a fresh context |
-| T4 | 2026-08-27 00:58 PDT | Tracked Markdown in both source repositories | Pass: `dev-env` had zero removed-path hits; release-branch hits were the current M9 removal record or the non-authoritative master snapshot, and `docs/README.md` agreed with both register headers about authority | Direct tracked-file searches, including a no-match `git grep`, plus inspection of `docs/README.md`, `docs/milestone-1.3.0.md`, and `docs/milestone-46790f9.md` headers |
+| T4 | 2026-08-27 00:58 PDT | Tracked Markdown in both source repositories | Pass: the shared skill source repository had zero removed-path hits; release-branch hits were the current M9 removal record or the non-authoritative master snapshot, and `docs/README.md` agreed with both register headers about authority | Direct tracked-file searches, including a no-match `git grep`, plus inspection of `docs/README.md`, `docs/milestone-1.3.0.md`, and `docs/milestone-46790f9.md` headers |
 | T5 | 2026-08-27 00:58 PDT | Both source repository working trees | Pass: `milestone-tracking` owned per-milestone planning and closure with distinct Commit, Push, and Issue authorities and required landing evidence; `gate/RUNBOOK.md` owned Gate operation, `release-cycle` owned release-wide execution, and `git-workflow` owned git and GitHub mutations | Direct cross-file inspection of all four ownership surfaces |
 | T6 | 2026-08-27 01:00 PDT | Canonical checkout | Pass: the canonical M9 detail and generated local issue body each contained the nine required projected sections, their complete projected content matched, excluded GitHub metadata was absent from the body, and no GitHub mutation was issued | Direct section counts and byte comparison of the nine canonical projected sections against the generated body before GitHub mutation |
 
 ##### Closure Evidence
 
-- At 2026-08-27 08:55 PDT, `dev-env` implementation commit
-  `34b9514ba47dbaa5f7634a941c8fe9a91231c02c` was contained in
-  `origin/master` at `4c91d25ed1a5fb55b5d47d00171cd71b0bf43d9f`.
-  Direct `git diff --exit-code` readback found zero differences across all five
-  planned M9 paths.
+- At 2026-08-27 08:55 PDT, the shared skill source implementation was present
+  in its configured upstream. Direct `git diff --exit-code` readback found zero
+  differences across all five planned M9 paths.
 - At 2026-08-27 08:55 PDT, `epics-ioc-runner` implementation commit
   `a8bfdcd2579aa85c2af6334dbedaddcb5dc3cb9c` was the current
   `origin/release-1.3.0` tip. Direct `git diff --exit-code` readback found zero
