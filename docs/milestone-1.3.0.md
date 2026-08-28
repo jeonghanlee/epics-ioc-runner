@@ -30,7 +30,7 @@ largest remaining item, and its boundary must be designed before any code.
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
-| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Not started | Yes | D1, D3, D5, D6 | M10-2, M10-3, and M10-5 provide runner-owned detection through the real command paths; [detail](#m10---fleet-layer-reliability) |
+| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Not started | Yes | D1, D3, D5, D6, D7 | M10-2, M10-3, and M10-5 provide runner-owned detection through the real command paths; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -44,6 +44,7 @@ largest remaining item, and its boundary must be designed before any code.
 | D4 | M1 centralizes expected check and STEP counts in `tests/reporting-counts.csv`. Runtime catalogs remain the independent actual values, and the CSV is initially populated only from pre-change observations of the five real shipped suite paths. The reporter's existing five-suite set becomes a public supported-suite contract that independently validates CSV membership. Normal suite runs compare immediately after catalog close; `REPORT_CATALOG_ONLY=1` performs the same comparison and then exits through a reporter-owned cleanup state before environment preflight, emitting exactly one `CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line on success. The gate's six-run execution set remains independent and joins to the CSV for per-suite expectations and derived totals. Live expectation documents reference the CSV; historical observed counts remain unchanged. | Owner design direction, 2026-08-18; third-person and second-person review findings accepted 2026-08-18 |
 | D5 | Keep M10 as one milestone and implement M10-2, M10-3, M10-4, and M10-5 in that order. M10-1 and M10-6 remain outside this repository's implementation boundary. Scope-fit scores of 1-2 exclude an item, 3 require boundary revision, and 4-5 retain it. | Decision Date: 2026-08-28 |
 | D6 | Exclude M10-4 from implementation. Linux `hard` NFS mounts retry requests indefinitely, while `soft` and `softerr` can risk silent data corruption; `ioc-runner` therefore cannot guarantee a bounded command return without imposing a host mount policy. NFS availability and mount policy remain host responsibilities. This supersedes the M10-4 portion of D5. | Decision Date: 2026-08-28 |
+| D7 | Implement the retained M10 checks with an install-owned configuration hash and a dedicated launch helper for M10-2, a create-write-delete log-path probe for M10-3, and an on-demand systemd PID, UDS, and executable-identity comparison for M10-5. Hash mismatch blocks activation without a restart loop; log-path failure blocks `start` and `restart` but only warns during `inspect`; executable drift only warns and never changes process state. | Decision Date: 2026-08-28 |
 
 ### Assignment History
 
@@ -1506,7 +1507,7 @@ and fleet recovery remain external responsibilities.
 | --- | --- | --- |
 | M10-2 | Running configuration drift | Detect when the configuration backing a running IOC changes before an automatic restart can activate unvalidated values. |
 | M10-3 | Log-path availability | During `start`, `restart`, and `inspect`, report when the configured procServ log path cannot support the requested runner operation. |
-| M10-5 | procServ executable drift | When `inspect` is invoked, compare the active procServ server process executable with the systemd `ExecStart` executable and warn if their identities differ or the running executable is deleted. |
+| M10-5 | procServ executable drift | When `inspect` is invoked, confirm that systemd `MainPID` owns the target UDS, then compare the active executable with the procServ executable configured in the effective systemd launch command. Warn if the executable is missing, deleted, or has a different device and inode. |
 
 ##### Out of Scope
 
@@ -1534,8 +1535,16 @@ and fleet recovery remain external responsibilities.
 
 ##### Completion Criteria
 
-- M10-2, M10-3, and M10-5 each have an accepted signal, ownership boundary, and
-  failure threshold before implementation.
+- M10-2 accepts only the configuration hash recorded by `install` or the
+  one-time system migration baseline; a missing or mismatched record blocks
+  procServ activation without entering a restart loop.
+- M10-3 creates a temporary file in the effective procServ log directory,
+  writes one byte, and removes it. Failure blocks `start` and `restart` before
+  systemd is called; `inspect` warns and continues.
+- M10-5 verifies that systemd `MainPID` is a target-UDS server PID and compares
+  device and inode identities. A missing, deleted, unreadable, or mismatched
+  executable produces a warning; `inspect` returns success and changes no
+  process state.
 - Each detection reports its named condition without depending on the signal
   that condition disables.
 - M10-3 affects only the requested runner command and introduces no
@@ -1570,6 +1579,26 @@ and fleet recovery remain external responsibilities.
 - M10-5 is an on-demand `inspect` diagnostic. It reuses the active procServ
   server PID already identified through the target UDS and adds no background
   daemon or package-monitoring responsibility.
+- `RestartPreventExitStatus` applies only to the main service process, not an
+  `ExecStartPre` process. M10-2 therefore uses a dedicated launch helper as
+  `ExecStart`; it exits 78 on a missing or mismatched hash and otherwise
+  replaces itself with procServ through `exec`. The unit declares
+  `RestartPreventExitStatus=78`, preventing the configuration gate from
+  becoming a two-second restart loop under `Restart=always`.
+- `install` writes the hash record atomically only after configuration
+  validation and deployment succeed. System-mode records are root-owned and
+  not writable by the `ioc` service account; local-mode records are owned by
+  the local user. `remove` removes the corresponding record.
+- System infrastructure setup creates the system hash-state directory and
+  records a one-time migration baseline for already deployed configurations
+  before installing the gated unit. This preserves existing deployments
+  without claiming that migration performed a fresh `install` validation.
+- M10-3 resolves the effective procServ log directory from the installed unit
+  launch command rather than the caller's current environment, then uses a
+  same-directory temporary file for the one-byte probe and cleanup.
+- M10-5 reads the effective systemd launch command. It accepts either a direct
+  procServ `ExecStart` or the M10-2 helper form and extracts the configured
+  procServ executable before comparing identities.
 - The evaluation used five 1-5 scores: `ioc-runner` scope fit, impact,
   likelihood, current detection gap, and real-path verification feasibility.
   The displayed 10-point result is their sum divided by 2.5. Scope fit is a
@@ -1594,6 +1623,12 @@ and fleet recovery remain external responsibilities.
   boundary.
 - D6 supersedes the M10-4 portion of D5 after the NFS client recovery contract
   showed that the proposed bounded-return guarantee is not runner-owned.
+- D7 implements M10-2 with an install-owned configuration hash and dedicated
+  launch helper, M10-3 with a create-write-delete log-path probe, and M10-5
+  with an on-demand systemd PID, UDS, and executable-identity comparison.
+  Hash mismatch blocks activation without a restart loop; log-path failure
+  blocks `start` and `restart` but only warns during `inspect`; executable
+  drift only warns and never changes process state.
 
 ##### Implementation Plan
 
@@ -1602,25 +1637,32 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Define and obtain owner acceptance for the exact failure signal and command
-   outcome for M10-2, M10-3, and M10-5 within the D5 and D6 boundary.
-2. Implement M10-2 configuration-drift detection before automatic restart can
-   activate changed values.
-3. Implement M10-3 log-path availability checks in `start`, `restart`, and
-   `inspect` without adding a continuous disk monitor.
-4. Extend `inspect` for M10-5 to compare the active procServ server process
-   executable identity with the executable configured by systemd, warn on a
-   mismatch or deleted running executable, and leave the process unchanged.
-5. Run T1 through T3 through the real shipped paths and record observed
-   results.
+1. Add atomic per-IOC configuration-hash records and a dedicated launch helper
+   that exits 78 on missing or mismatched state and otherwise uses `exec` to
+   start the configured procServ command. Add `RestartPreventExitStatus=78` to
+   both unit templates.
+2. Extend system setup, local install, and removal for state-directory
+   ownership, existing-system migration baselines, atomic hash updates, and
+   cleanup without weakening configuration validation.
+3. Add one shared effective-launch-command reader. Use it to resolve the real
+   procServ log directory for a create-write-delete probe in `start`,
+   `restart`, and `inspect`; mutation commands fail before systemd, while
+   `inspect` reports a warning and continues.
+4. Extend `inspect` to read systemd `MainPID`, require it to match a server PID
+   found through the target UDS, resolve the configured procServ executable
+   from either supported launch form, and compare device and inode identities.
+5. Update user, permission, and test documentation for the hash state, exit-78
+   restart boundary, log-path probe, and executable warning.
+6. Run T1 through T3 through the real shipped system and local paths on both
+   golden OS families and record observed results.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | M10-2 configuration drift | Change the real configuration backing a running IOC, then exercise its real automatic-restart path | Both golden OS families | The change is detected before unvalidated values can become active |
-| T2 | M10-3 log-path availability | Use a size-limited test filesystem as the real procServ log path, make it unavailable, and exercise the real `start`, `restart`, and `inspect` paths | Both golden OS families | Each command reports the unavailable log path without relying on new content from that path |
-| T3 | M10-5 executable drift | Install a real service against an isolated procServ executable copy, replace that copy while the service remains running, and invoke the real `ioc-runner inspect` path | Both golden OS families | `inspect` warns that the active procServ executable differs from the systemd `ExecStart` executable and does not stop or restart the service |
+| T1 | M10-2 configuration drift | Install a real IOC, prove matching-hash activation, change its deployed configuration without `install`, and terminate procServ so systemd exercises the real automatic-restart path; also exercise missing-record and existing-system migration cases | System and local modes on both golden OS families | Matching and migrated states start normally; missing or mismatched state exits 78 before procServ starts, remains stopped beyond multiple `RestartSec` intervals, and recovers only after `install` records the accepted hash |
+| T2 | M10-3 log-path availability | Point the real installed unit at a size-limited test filesystem, exhaust it, and exercise real `start`, `restart`, and `inspect` commands | System and local modes on both golden OS families | `start` and `restart` fail before the target unit state changes; `inspect` warns and returns success; the probe leaves no temporary file |
+| T3 | M10-5 executable drift | Install and start a real service against an isolated procServ copy, atomically replace that copy while it remains active, and invoke the real `inspect` path before and after replacement | System and local modes on both golden OS families | Baseline identity reports no warning; replacement reports the deleted or device-and-inode mismatch; `inspect` returns success and leaves unit state and `MainPID` unchanged |
 
 ##### Verification Results
 
@@ -1643,7 +1685,7 @@ Observed State: open
 Observed Labels: enhancement, P3-low, ops, area/architecture
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-28; remote updated 2026-08-28T20:09:41Z
+Last Compared: 2026-08-28; remote updated 2026-08-28T22:10:48Z
 
 #### M11 - Final release
 
