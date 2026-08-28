@@ -1493,8 +1493,9 @@ Status: Not started
 
 ##### Summary
 
-Restart-storm boundary and running-IOC hang detection: the fleet-level
-reliability work that the 1.3.0 theme is built around.
+The child-exit, crash-loop, and procServ-death layers are already complete.
+M10 covers detection gaps that remain when the supervised processes stay alive
+or when related failures must be correlated across the fleet.
 
 ##### Scope
 
@@ -1503,8 +1504,12 @@ restart-storm observability and orchestrated recovery.
 
 ##### Out of Scope
 
-Unit-layer restart jitter, `ExecStartPre` random delay, or changing the
-per-IOC indefinite-restart policy.
+- Reimplementing recurring child-death detection delivered in `44b9191`, its
+  silent child-kill regression delivered in `b49d074`, or the later real child
+  recovery proof delivered in `98fafea`.
+- Reimplementing procServ-death recovery delivered in `d0338f1`.
+- Unit-layer restart jitter, `ExecStartPre` random delay, or changing the
+  per-IOC indefinite-restart policy.
 
 ##### Completion Criteria
 
@@ -1515,6 +1520,15 @@ per-IOC indefinite-restart policy.
 
 ##### Dependencies And Decisions
 
+- #52 and #67 are completed foundations, not open M10 work. Commit `44b9191`
+  added readiness polling and recurring child-death-banner detection;
+  `b49d074` added the silent child-kill crash-loop regression; and `98fafea`
+  later verified real child recovery under the same procServ on both golden OS
+  families.
+- #54 is a completed foundation, not open M10 work. Commit `d0338f1` added
+  `Restart=always`, `RestartSec=2`, `KillMode=mixed`, and disabled the systemd
+  start-rate limit in both procServ unit templates so procServ death recovers
+  without operator intervention.
 - systemd service units have no restart jitter. `RandomizedDelaySec` applies
   to timer units, not service restarts.
 - `RestartSteps` and `RestartMaxDelaySec` require systemd v254 or later,
@@ -1524,7 +1538,6 @@ per-IOC indefinite-restart policy.
   conflict with the measured per-IOC stabilization window established by
   #67. Restart-storm control therefore remains a fleet and operations-layer
   responsibility rather than a per-IOC unit change.
-- Related history: #52, #54, and #67.
 - D1
 - D3 places implementation after the mid-cycle while the design conversation runs from cycle start.
 
