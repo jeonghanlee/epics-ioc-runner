@@ -10,7 +10,7 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review the M10 (#102) draft covering M10-2, M10-3,
+Next session entry point: review the revised M10 (#102) draft covering M10-3
 and M10-5 before implementation.
 M1 through M9 are Complete and their linked issues are closed. M10 is the
 largest remaining item, and its boundary must be designed before any code.
@@ -30,7 +30,7 @@ largest remaining item, and its boundary must be designed before any code.
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
-| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Not started | Yes | D1, D3, D5, D6, D7 | M10-2, M10-3, and M10-5 provide runner-owned detection through the real command paths; [detail](#m10---fleet-layer-reliability) |
+| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Not started | Yes | D1, D3, D5, D6, D7, D8, D9 | The revised draft retains M10-3 and M10-5; M10-2 is an examined no-action result; [detail](#m10---fleet-layer-reliability) |
 | Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -45,6 +45,8 @@ largest remaining item, and its boundary must be designed before any code.
 | D5 | Keep M10 as one milestone and implement M10-2, M10-3, M10-4, and M10-5 in that order. M10-1 and M10-6 remain outside this repository's implementation boundary. Scope-fit scores of 1-2 exclude an item, 3 require boundary revision, and 4-5 retain it. | Decision Date: 2026-08-28 |
 | D6 | Exclude M10-4 from implementation. Linux `hard` NFS mounts retry requests indefinitely, while `soft` and `softerr` can risk silent data corruption; `ioc-runner` therefore cannot guarantee a bounded command return without imposing a host mount policy. NFS availability and mount policy remain host responsibilities. This supersedes the M10-4 portion of D5. | Decision Date: 2026-08-28 |
 | D7 | Implement the retained M10 checks with an install-owned configuration hash and a dedicated launch helper for M10-2, a create-write-delete log-path probe for M10-3, and an on-demand systemd PID, UDS, and executable-identity comparison for M10-5. Hash mismatch blocks activation without a restart loop; log-path failure blocks `start` and `restart` but only warns during `inspect`; executable drift only warns and never changes process state. | Decision Date: 2026-08-28 |
+| D8 | Replace the M10-2 hash portion of D7 with activation-time validation of the deployed configuration. Preserve the established group-writable configuration and shared-operator contracts; valid direct edits remain eligible for activation, while validation failure exits 78 and prevents a restart loop. Add no hash state, migration baseline, sudo command, or account-model change. | Decision Date: 2026-08-29 |
+| D9 | Do not implement M10-2. On the minimum supported systemd 239, a main-process restart exception cannot distinguish a launch validator from procServ after `exec`; the pinned procServ `073f290` can return a child exit code or an errno, so no numeric status is reserved for validation. A parent wrapper would replace procServ as `MainPID`, while self-stop would expand the sudo contract. Preserve the direct procServ `MainPID`, indefinite `Restart=always` policy, shared configuration, and current sudo model. This supersedes D8 and the M10-2 portion of D5. | Decision Date: 2026-08-29 |
 
 ### Assignment History
 
@@ -1497,16 +1499,16 @@ Status: Not started
 ##### Summary
 
 The child-exit, crash-loop, and procServ-death layers are already complete.
-M10 retains three runner-owned reliability checks after evaluating the original
-six candidates against the repository boundary. Application-level IOC health
-and fleet recovery remain external responsibilities.
+M10 retains two runner-owned reliability checks after evaluating the original
+six candidates against the repository boundary and the supported systemd and
+procServ contracts. Application-level IOC health and fleet recovery remain
+external responsibilities.
 
 ##### Scope
 
 | ID | Remaining Item | Completion Boundary |
 | --- | --- | --- |
-| M10-2 | Running configuration drift | Detect when the configuration backing a running IOC changes before an automatic restart can activate unvalidated values. |
-| M10-3 | Log-path availability | During `start`, `restart`, and `inspect`, report when the configured procServ log path cannot support the requested runner operation. |
+| M10-3 | Log-path availability | During system `start` and `restart`, report shared-filesystem write failure visible to the ordinary authorized operator. During system `inspect`, probe the effective log directory as the unit's service identity. Local commands probe as the local owner. |
 | M10-5 | procServ executable drift | When `inspect` is invoked, confirm that systemd `MainPID` owns the target UDS, then compare the active executable with the procServ executable configured in the effective systemd launch command. Warn if the executable is missing, deleted, or has a different device and inode. |
 
 ##### Out of Scope
@@ -1530,21 +1532,34 @@ and fleet recovery remain external responsibilities.
 - A runner executable, shell, or current working directory that is itself
   blocked on unavailable NFS; the runner cannot bound execution before its
   own code is locally available.
+- Configuration immutability, per-IOC hash state, migration baselines, and
+  changes to the established `ioc` group or sudo policy.
+- M10-2 activation-time configuration validation. systemd 239 cannot make a
+  restart decision based on whether the main process exited before or after
+  `exec`, and the pinned procServ returns child exit codes and errno values.
+  The feasible alternatives would replace procServ as `MainPID`, add another
+  supervisor, or expand the sudo contract. The explicit-restart warning from
+  #106 remains; automatic-restart validation is an accepted limitation.
 - Continuous procServ executable or package monitoring, package management,
   and automatic stop or restart in response to M10-5.
 
 ##### Completion Criteria
 
-- M10-2 accepts only the configuration hash recorded by `install` or the
-  one-time system migration baseline; a missing or mismatched record blocks
-  procServ activation without entering a restart loop.
 - M10-3 creates a temporary file in the effective procServ log directory,
-  writes one byte, and removes it. Failure blocks `start` and `restart` before
-  systemd is called; `inspect` warns and continues.
+  writes one byte, forces the write to the filesystem, verifies every result,
+  and removes the file on both success and failure. Failure blocks `start` and
+  `restart` before systemd is called; `inspect` warns and continues.
+- System `start` and `restart` perform the probe as the invoking authorized
+  operator and cover shared-filesystem capacity under the established
+  group-writable log-directory model. They do not claim service-UID quota or
+  owner-only permission equivalence. System `inspect` runs the probe with the
+  effective unit's `User=` and `Group=`; local commands run it as the local
+  owner.
 - M10-5 verifies that systemd `MainPID` is a target-UDS server PID and compares
   device and inode identities. A missing, deleted, unreadable, or mismatched
   executable produces a warning; `inspect` returns success and changes no
-  process state.
+  process state. If `MainPID:starttime` changes during the inspection,
+  `inspect` reports an unstable snapshot instead of executable drift.
 - Each detection reports its named condition without depending on the signal
   that condition disables.
 - M10-3 affects only the requested runner command and introduces no
@@ -1579,26 +1594,40 @@ and fleet recovery remain external responsibilities.
 - M10-5 is an on-demand `inspect` diagnostic. It reuses the active procServ
   server PID already identified through the target UDS and adds no background
   daemon or package-monitoring responsibility.
-- `RestartPreventExitStatus` applies only to the main service process, not an
-  `ExecStartPre` process. M10-2 therefore uses a dedicated launch helper as
-  `ExecStart`; it exits 78 on a missing or mismatched hash and otherwise
-  replaces itself with procServ through `exec`. The unit declares
-  `RestartPreventExitStatus=78`, preventing the configuration gate from
-  becoming a two-second restart loop under `Restart=always`.
-- `install` writes the hash record atomically only after configuration
-  validation and deployment succeed. System-mode records are root-owned and
-  not writable by the `ioc` service account; local-mode records are owned by
-  the local user. `remove` removes the corresponding record.
-- System infrastructure setup creates the system hash-state directory and
-  records a one-time migration baseline for already deployed configurations
-  before installing the gated unit. This preserves existing deployments
-  without claiming that migration performed a fresh `install` validation.
+- Commit `f5789a8` and #106 already warn when an explicit restart would apply a
+  configuration changed after activation. That warning remains the runner's
+  configuration-change boundary.
+- The established configuration contract remains unchanged: system `.conf`
+  files are group-writable, any authorized `ioc` engineer may manage an IOC,
+  and the multi-user gate requires a second operator to edit the deployed
+  configuration successfully.
+- systemd 239 applies `RestartPreventExitStatus` to the main process without
+  retaining whether that status came from a pre-`exec` validator or procServ.
+  The pinned procServ source at `073f290` returns the managed child's last exit
+  code and returns errno values on listener setup failures, so no numeric exit
+  status is a validation-only channel.
+- A parent wrapper would add a second supervisor and replace procServ as the
+  systemd `MainPID`. A validation-time self-stop would require a new nonblocking
+  systemctl permission outside the current sudo policy. Both contradict
+  established contracts, so M10-2 is recorded as examined and not implemented.
 - M10-3 resolves the effective procServ log directory from the installed unit
   launch command rather than the caller's current environment, then uses a
-  same-directory temporary file for the one-byte probe and cleanup.
-- M10-5 reads the effective systemd launch command. It accepts either a direct
-  procServ `ExecStart` or the M10-2 helper form and extracts the configured
-  procServ executable before comparing identities.
+  same-directory temporary file for a create-write-sync probe and cleanup.
+- M10-3 detects command-time write failure at the configured log filesystem;
+  it does not add a general permission audit or continuous capacity monitor.
+  In system mode, `start` and `restart` retain the ordinary `ioc` operator path
+  and its existing restricted `sudo systemctl` transition. Their probe covers
+  shared-filesystem capacity under the established group-writable directory
+  model; per-service-UID quota and owner-only permission differences are
+  outside this check. Because `inspect` already requires root, it resolves the
+  effective unit's `User=` and `Group=` and runs the probe with both identities
+  through the existing `sudo` dependency. This matches a custom unit even when
+  the service user's passwd primary group differs from `Group=`, and prevents
+  root-only reserved capacity from producing a false success. This adds no
+  sudoers entry. In local mode, the current local user remains both runner and
+  procServ writer for all three commands.
+- M10-5 reads the direct procServ `ExecStart` from the effective systemd launch
+  command and extracts the configured executable before comparing identities.
 - The evaluation used five 1-5 scores: `ioc-runner` scope fit, impact,
   likelihood, current detection gap, and real-path verification feasibility.
   The displayed 10-point result is their sum divided by 2.5. Scope fit is a
@@ -1608,7 +1637,7 @@ and fleet recovery remain external responsibilities.
 | ID | Scope Fit | Score / 10 | Disposition | Basis |
 | --- | ---: | ---: | --- | --- |
 | M10-1 | 2 | 6.4 | External | The runner observes systemd, procServ, UDS, and startup logs; application health requires a PV or equivalent external signal. |
-| M10-2 | 5 | 8.0 | Retain | The runner creates, validates, installs, reads, and activates the configuration. |
+| M10-2 | 5 | 8.0 | No action after feasibility review | The runner owns activation, but systemd 239 exposes no validation-only restart result; every feasible implementation changes the procServ `MainPID`, indefinite restart, or sudo contract. |
 | M10-3 | 5 | 8.0 | Retain after narrowing | Runner commands depend directly on the configured log path; continuous capacity monitoring remains external. |
 | M10-4 | 2 | 6.8 | External after feasibility correction | A runner cannot guarantee a bounded return from indefinitely retried `hard` NFS access without imposing a host mount policy. |
 | M10-5 | 4 | 6.0 | Retain as on-demand diagnostic | `inspect` already identifies the active procServ server PID and can report executable identity without changing process state. |
@@ -1623,46 +1652,65 @@ and fleet recovery remain external responsibilities.
   boundary.
 - D6 supersedes the M10-4 portion of D5 after the NFS client recovery contract
   showed that the proposed bounded-return guarantee is not runner-owned.
-- D7 implements M10-2 with an install-owned configuration hash and dedicated
-  launch helper, M10-3 with a create-write-delete log-path probe, and M10-5
-  with an on-demand systemd PID, UDS, and executable-identity comparison.
-  Hash mismatch blocks activation without a restart loop; log-path failure
-  blocks `start` and `restart` but only warns during `inspect`; executable
-  drift only warns and never changes process state.
+- D7 originally specified a create-write-delete log-path probe for M10-3 and
+  the on-demand systemd PID, UDS, and executable-identity comparison for
+  M10-5. The current draft strengthens the retained M10-3 probe by requiring
+  successful sync and result checks. D8 supersedes only D7's M10-2 hash design
+  with activation-time validation.
+- D9 supersedes D8 and the M10-2 portion of D5 after the pinned procServ source
+  confirmed that no numeric exit status is reserved for validation. M10-2 is
+  not implemented; the direct procServ `MainPID`, indefinite restart, shared
+  configuration, account, and sudo contracts remain unchanged.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
+Plan Status: accepted
+Plan Acceptance: Owner approved the reviewed M10 plan on 2026-08-29
+("승인").
 Implementation Authorization: none
-Superseded Plan Artifacts: none
 
-1. Add atomic per-IOC configuration-hash records and a dedicated launch helper
-   that exits 78 on missing or mismatched state and otherwise uses `exec` to
-   start the configured procServ command. Add `RestartPreventExitStatus=78` to
-   both unit templates.
-2. Extend system setup, local install, and removal for state-directory
-   ownership, existing-system migration baselines, atomic hash updates, and
-   cleanup without weakening configuration validation.
-3. Add one shared effective-launch-command reader. Use it to resolve the real
-   procServ log directory for a create-write-delete probe in `start`,
-   `restart`, and `inspect`; mutation commands fail before systemd, while
-   `inspect` reports a warning and continues.
-4. Extend `inspect` to read systemd `MainPID`, require it to match a server PID
-   found through the target UDS, resolve the configured procServ executable
-   from either supported launch form, and compare device and inode identities.
-5. Update user, permission, and test documentation for the hash state, exit-78
-   restart boundary, log-path probe, and executable warning.
-6. Run T1 through T3 through the real shipped system and local paths on both
+1. In `bin/ioc-runner`, add one shared effective-launch-command reader. Use it
+   to resolve the real procServ log directory for a create-write-sync-delete
+   probe in `start`, `restart`, and `inspect`. Require successful creation,
+   one-byte write, filesystem sync, close, and cleanup; preserve the original
+   failure if cleanup also fails. Mutation commands fail before systemd, while
+   `inspect` reports a warning and continues. Preserve the ordinary `ioc`
+   operator and restricted `sudo systemctl` path for system `start` and
+   `restart`; classify those probes as shared-filesystem capacity checks under
+   the established group-writable model, not service-UID quota or owner-only
+   permission checks. Make the already-root system `inspect` resolve the
+   effective unit's `User=` and `Group=` and run the probe with both identities
+   through the existing `sudo` dependency. Keep local probes under the current
+   local user.
+2. In `bin/ioc-runner`, extend `inspect` to read systemd `MainPID`, require it
+   to match a server PID found through the target UDS, extract the configured
+   procServ executable from the direct launch command, and compare device and
+   inode identities without changing service state or supervision. Capture
+   `MainPID:starttime` before the UDS and executable checks and revalidate it
+   afterward; if it changed, report an unstable inspection snapshot rather
+   than executable drift.
+3. Add real-path coverage to `tests/test-system-lifecycle.bash` and
+   `tests/test-local-lifecycle.bash`. Update their matching
+   `SYSTEM_LIFECYCLE_INVENTORY.md` and `LOCAL_LIFECYCLE_INVENTORY.md` rows,
+   then update `tests/reporting-counts.csv` only from the observed closed
+   catalogs. Run the canonical gate with its prior expected identity digest,
+   require the only identity failure to report one common digest from both
+   hosts, update that digest in `gate/drivers/control/suites.bash`, and rerun
+   the gate.
+4. Update `docs/CLI_REFERENCE.md`, `docs/USER_GUIDE.md`,
+   `docs/USER_GUIDE_LOCAL.md`, and `docs/PERMISSION_MODEL.md` for the two
+   diagnostics and their execution identities. Do not change the account,
+   sudoers, configuration-write, or direct procServ `MainPID` contracts.
+5. Run T1 through T3 through the real shipped system and local paths on both
    golden OS families and record observed results.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | M10-2 configuration drift | Install a real IOC, prove matching-hash activation, change its deployed configuration without `install`, and terminate procServ so systemd exercises the real automatic-restart path; also exercise missing-record and existing-system migration cases | System and local modes on both golden OS families | Matching and migrated states start normally; missing or mismatched state exits 78 before procServ starts, remains stopped beyond multiple `RestartSec` intervals, and recovers only after `install` records the accepted hash |
-| T2 | M10-3 log-path availability | Point the real installed unit at a size-limited test filesystem, exhaust it, and exercise real `start`, `restart`, and `inspect` commands | System and local modes on both golden OS families | `start` and `restart` fail before the target unit state changes; `inspect` warns and returns success; the probe leaves no temporary file |
-| T3 | M10-5 executable drift | Install and start a real service against an isolated procServ copy, atomically replace that copy while it remains active, and invoke the real `inspect` path before and after replacement | System and local modes on both golden OS families | Baseline identity reports no warning; replacement reports the deleted or device-and-inode mismatch; `inspect` returns success and leaves unit state and `MainPID` unchanged |
+| T1 | M10-3 log-path availability | Point a real installed unit at a size-limited filesystem and exhaust it. Exercise `start` from inactive and `restart` plus `inspect` from active. In system mode, invoke the shipped `start` and `restart` as an ordinary `ioc` operator through the existing sudoers path; these calls test shared-filesystem capacity under the established group-writable model and make no service-UID quota or owner-only permission claim. Invoke `inspect` as root while its probe runs with the effective unit's `User=` and `Group=`. Include a temporary custom-identity fixture whose passwd primary group differs from the unit `Group=` and remove it during cleanup. In local mode, invoke all three shipped commands as the local owner. Record unit state and `MainPID` before and after each command, restore capacity, and repeat. | System and local modes on both golden OS families | At full capacity, inactive `start` remains inactive, active `restart` and `inspect` retain their original active state and `MainPID`, `inspect` warns and returns success, and no probe file remains. The custom-identity fixture proves that the inspect probe uses both effective unit identities. After capacity is restored, inactive `start` becomes active with a valid `MainPID`, active `restart` succeeds with a new `MainPID`, and `inspect` succeeds without a log-path warning or process-state change. No product account, sudoers, unit, or permission change is required, and the temporary identity fixture leaves no residue. |
+| T2 | M10-5 executable drift | In the stable phases, install and start a real service against an isolated procServ copy, record unit state and `MainPID`, invoke the shipped `inspect`, atomically replace the copy while it remains active, and invoke the same path again with state observations around each call. In the separate race phase, start the real `inspect` with streamed captured output, record its PID in the suite's always-run cleanup state, and wait for its existing `Target Socket:` line emitted after the initial `MainPID:starttime` snapshot. Immediately send `SIGSTOP` to the inspect process, have the harness request exactly one real systemd restart, wait within a fixed timeout for the unit to become active with a different `MainPID:starttime`, then send `SIGCONT` and wait for inspect completion. In a separate cleanup failure phase, start the same real inspect path, wait for the same line, send `SIGSTOP`, deliberately omit the restart, and require a short fixed test timeout to invoke the same always-run cleanup. On every exit, cleanup sends `SIGCONT` to a surviving stopped inspect process, terminates it with a bounded wait and `SIGKILL` fallback, reaps it, restores the pre-test unit state and isolated procServ copy, and verifies that no process or fixture residue remains. Fail on any stop, restart, state, resume, cleanup, or timeout-contract error. Use root for system `inspect` and the local owner for local `inspect`. | System and local modes on both golden OS families | In the stable phases, baseline identity reports no warning, replacement reports the deleted or device-and-inode mismatch, and each `inspect` returns success without changing unit state or `MainPID`. In the race phase, the changed snapshot is reported as unstable rather than executable drift. The harness records exactly one restart after the synchronization line and while inspect is stopped; the inspected process resumes only after the replacement `MainPID:starttime` is observed. In the cleanup failure phase, the planned timeout occurs without a restart and the cleanup leaves no inspect process, changed unit state, modified procServ copy, or fixture residue. |
+| T3 | Reporting and gate identity | Close the updated real lifecycle catalogs, compare their inventories and observed CSV counts, run the canonical two-host gate with the prior digest, update only the common observed identity digest, and rerun the same gate. | Source environment plus both golden OS families | Catalogs, inventories, and CSV counts agree; the first gate fails only on one common new identity digest; the updated gate passes on both hosts. |
 
 ##### Verification Results
 
