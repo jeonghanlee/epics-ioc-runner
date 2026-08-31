@@ -12,10 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: execute the accepted and authorized M12 (#146)
-current Rocky golden downstream-validation plan, starting with the upstream
-and clean-checkout preflight. M13 remains Conditional after M12, and M14 is
-the final release phase.
+Next session entry point: land and push the M12 (#146) Rocky golden
+downstream-validation result, then reconcile and close issue #146. Evaluate
+the M13 condition after M12 closes; M14 remains the final release phase.
 
 ## Milestone
 
@@ -34,7 +33,7 @@ the final release phase.
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
-| Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Not started | Yes | M11, D12, D14 | A fresh consumer from a new `release-1.3.0` Rocky 8 bake passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m12---current-rocky-golden-downstream-validation) |
+| Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | In progress | No | M11, D12, D14 | T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow; repository landing and issue closure remain; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Conditional | No | M12, D12 | A production SELinux-enforcing IOC host is confirmed and the shipped setup path produces the expected policy contexts; [detail](#m13---selinux-context) |
 | Release | M14 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
@@ -1928,17 +1927,17 @@ Last Compared: 2026-08-31; remote updated 2026-08-31T10:01:57Z
 Origin: 46790f9 / M3
 Identity History: 46790f9 / M3 -> 1.3.0 / M12 (staged target, D12, 2026-08-30)
 GitHub Issue: 146, https://github.com/jeonghanlee/epics-ioc-runner/issues/146
-Status: Not started
+Status: In progress
 
 ##### Summary
 
 The 2026-06-03 Rocky golden named by jeonghanlee/cloud-provision#4 is
 obsolete after the copy-based image workflow shipped in
-jeonghanlee/cloud-provision#30. The current workflow has real bake,
-provenance, publication, and fresh-consumer acceptance, but the downstream
-system-infrastructure and system-lifecycle suites have not run against a new
-Rocky image pinned to the current `release-1.3.0` runner line. This row carries
-only that remaining verification.
+jeonghanlee/cloud-provision#30. A new Rocky image pinned to the current
+`release-1.3.0` runner line now passes fresh-consumer provenance acceptance
+and the downstream system-infrastructure and system-lifecycle suites. This row
+records that verification and remains open for repository landing and linked
+issue closure.
 
 ##### Scope
 
@@ -2062,12 +2061,14 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Fresh new-bake Rocky 8 consumer | Pending | The 2026-08-12 Rocky gate predates jeonghanlee/cloud-provision#30 and is supporting history, not M12 verification |
-| T2 | Not run | Same consumer after current candidate deployment | Pending | Runtime verification starts only after T1 accepts the untouched golden |
+| T1 | 2026-08-31 15:24 PDT | Fresh consumer `lab-rocky8-iocrunner-main` from `iocrunner-rocky8-20260831T220442Z-85267a69c44f.qcow2` | Pass | The bake published a valid image pair from `cloud-provision` `a5557d8`, `ansible-provision` `05b1ad8`, and runner `0ee75ab`; the manifest hash was `cb08d878c926c4f915673f74d942638ab29d6855f286cee95c289310c6e120d5` on both the control host and consumer; the consumer reached `READY`; the shipped validator, baseline checkout and runner identity checks, clean-manifest check, and fixture checks passed; `net-snmp-devel-5.8-33.el8_10.x86_64` supplied `/usr/lib64/libnetsnmp.so` |
+| T2 | 2026-08-31 15:24 PDT | Same fresh Rocky 8 consumer after deployment of clean `release-1.3.0` commit `0ee75abc43883bb4c9191111485b35b9c3b1c2ed` | Pass | The shipped full setup passed 10/10; the installed runner reported `0ee75ab`; the real installed system-infrastructure suite passed with 36 total, 32 Pass, 4 NA, and no failures or script errors; the real installed system-lifecycle suite passed 144/144 with no NA, failures, or script errors; machine-output SHA-256 was `7c2e0bcf93fb8ba48edef69428b504e1fb94a2f8dbe039a19d5b7bf5e79f0913` and human-output SHA-256 was `755a4e686f9cc9515cc08642c01a75eb3840225be89e8287d5b2a211d661cc39` |
 
 ##### Closure Evidence
 
-- none
+- T1 and T2 satisfy the implementation and verification criteria on
+  2026-08-31. M12 remains In progress until this canonical result lands on
+  `origin/release-1.3.0` and linked issue #146 is observed closed.
 
 ##### GitHub Projection
 
@@ -2078,7 +2079,7 @@ Observed State: open
 Observed Labels: tests
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-30; remote updated 2026-08-31T05:55:48Z
+Last Compared: 2026-08-31; remote updated 2026-08-31T05:55:48Z
 
 #### M13 - SELinux context
 
