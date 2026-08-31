@@ -10,11 +10,10 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: land the verified M10 (#102) implementation, project
-its final evidence to GitHub, and reconcile the canonical register.
-M1 through M9 are Complete and their linked issues are closed. M10 is the
-largest remaining item; its implementation and two-golden verification are
-complete locally and await landing and tracker reconciliation.
+Next session entry point: review and accept the M11 (#149) custom identity
+teardown plan, then authorize implementation if its scope and test plan remain
+acceptable. M1 through M10 are Complete and their linked issues are closed.
+M11 is Ready; M12 remains dependent on M11.
 
 ## Milestone
 
@@ -31,8 +30,8 @@ complete locally and await landing and tracker reconciliation.
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
-| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | In progress | No | D1, D3, D5, D6, D7, D8, D9, D11 | T1-T3 Pass on both goldens; M10-3 and M10-5 are verified, M10-2 is an examined no-action result, and landing plus tracker reconciliation remain; [detail](#m10---fleet-layer-reliability) |
-| Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Not started | No | M10, D1, D10 | The documented full teardown removes and verifies the identity selected during installation without targeting the shipped defaults when custom values were used; [detail](#m11---custom-identity-teardown-agreement) |
+| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
+| Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Not started | Yes | M10, D1, D10 | The documented full teardown removes and verifies the identity selected during installation without targeting the shipped defaults when custom values were used; [detail](#m11---custom-identity-teardown-agreement) |
 | Release | M12 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m12---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -1504,7 +1503,7 @@ Last Compared: 2026-08-27; remote updated 2026-08-27T16:05:43Z
 Origin: 1.3.0 / M1
 Identity History: staged from `docs/milestone-46790f9.md` M4; 1.3.0 / M1 -> 1.3.0 / M10 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 102, https://github.com/jeonghanlee/epics-ioc-runner/issues/102
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1745,18 +1744,24 @@ Implementation Authorization: Owner authorized implementation of the accepted M1
 
 ##### Closure Evidence
 
-- none
+- Commit `4f2caabbfd956f4cb73609ffbab2c35331a362cf` implements the
+  accepted M10 scope on `release-1.3.0` and is present on
+  `origin/release-1.3.0`.
+- The final canonical Debian 13 and Rocky 8 gate passed all six suite blocks
+  and 830 checks per host.
+- GitHub issue #102 carries the completed criteria and verification results
+  and was closed on 2026-08-30.
 
 ##### GitHub Projection
 
 Title: Runner-owned reliability checks: configuration, log path, and procServ executable
 Labels: enhancement, P3-low, ops, area/architecture
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: enhancement, P3-low, ops, area/architecture
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-28; remote updated 2026-08-28T22:10:48Z
+Last Compared: 2026-08-30; remote updated 2026-08-31T05:17:08Z
 
 #### M11 - Custom identity teardown agreement
 
