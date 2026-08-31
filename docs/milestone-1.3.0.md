@@ -12,10 +12,10 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: review and accept the M11 (#149) custom identity
-teardown plan, then authorize implementation if its scope and test plan remain
-acceptable. M11 is Ready; M12 follows M11, M13 remains Conditional after M12,
-and M14 is the final release phase.
+Next session entry point: review the verified M11 (#149) custom identity
+teardown documentation, then commit, land, and reconcile the linked issue.
+M12 follows M11, M13 remains Conditional after M12, and M14 is the final
+release phase.
 
 ## Milestone
 
@@ -33,7 +33,7 @@ and M14 is the final release phase.
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
-| Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Not started | Yes | M10, D1, D10 | The documented full teardown removes and verifies the identity selected during installation without targeting the shipped defaults when custom values were used; [detail](#m11---custom-identity-teardown-agreement) |
+| Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | In progress | No | M10, D1, D10, D13 | The documented full teardown resolves the selected identity and log path, removes only confirmed dedicated resources, and preserves pre-existing or unknown resources; [detail](#m11---custom-identity-teardown-agreement) |
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Not started | No | M11, D12 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Conditional | No | M12, D12 | A production SELinux-enforcing IOC host is confirmed and the shipped setup path produces the expected policy contexts; [detail](#m13---selinux-context) |
 | Release | M14 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
@@ -55,6 +55,7 @@ and M14 is the final release phase.
 | D10 | Keep the custom service identity teardown seam in the 1.3.0 release as M11, after M10 and before the final release phase. Renumber the prior final release row from M11 to M12. | Decision Date: 2026-08-30 |
 | D11 | Use `/usr/sbin/runuser` for the already-root system `inspect` log probe to assume the effective unit `User=` and `Group=`. Do not add a nested sudoers rule; require the `util-linux` runtime dependency. | Decision Date: 2026-08-30 |
 | D12 | Assign #146 and #120 item 3 to the 1.3.0 release after M11, in that order. #146 becomes M12 and moves to Not started when source authority transfers. #120 item 3 becomes M13 and remains Conditional until a production SELinux-enforcing IOC host is confirmed. Renumber the final release row from M12 to M14 and require both new rows to complete before release execution. | Decision Date: 2026-08-30 |
+| D13 | Resolve the uninstall identity and system log path from the deployed `epics-@.service` `User=`, `Group=`, and `ExecStart=...--logfile=` values. Accept only one absolute logfile template ending in `/%i.log`, derive a non-root existing parent directory, and stop before any metadata change when a value is missing, ambiguous, or unsafe. Require the operator to confirm the resolved values and whether the log directory was created exclusively for this installation. Transfer retained logs to `root:root` and remove identity ACL entries only for a confirmed dedicated log directory; otherwise preserve its observed pre-teardown metadata and retain the related account and group. Delete any remaining account or group only when the operator separately confirms it was created exclusively for this installation and has no other use. Keep the deployed unit available as the identity source until all identity-dependent log and account work completes, then remove it. | Decision Date: 2026-08-31 |
 
 ### ID Migration
 
@@ -1775,7 +1776,7 @@ Last Compared: 2026-08-30; remote updated 2026-08-31T05:17:08Z
 Origin: 1.3.0 / M11
 Identity History: none
 GitHub Issue: 149, https://github.com/jeonghanlee/epics-ioc-runner/issues/149
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1787,70 +1788,123 @@ behind or direct an operator to remove unrelated default-named accounts.
 
 ##### Scope
 
-Make the full uninstallation procedure use the same service account and group
-selected during installation. Include an explicit identity check before any
-account or group removal, use that resolved identity in removal and
-verification steps, and keep the default `ioc-srv` and `ioc` behavior
-unchanged when no override was used.
+Make the full uninstallation procedure read the service account and group from
+the deployed `epics-@.service` before removing the unit. Read the actual system
+log path from the same deployed unit. Require the operator to confirm those
+values before any account or group removal, use the confirmed identity and log
+path in removal and verification steps, transfer retained system logs away from
+that identity only when the log directory is confirmed as dedicated, and
+delete only accounts and groups confirmed as dedicated and unused. Preserve an
+existing or origin-unknown log directory and its related identity. Keep the
+default `ioc-srv` and `ioc` behavior unchanged when no override was used,
+subject to the same dedicated-use checks.
 
 ##### Out of Scope
 
 - Adding an automated full-teardown command.
-- Changing the service-account, sudoers, directory-ownership, or runner
-  execution model.
+- Changing the installed service-account, sudoers, runtime
+  directory-ownership, or runner execution model. The teardown-only ownership
+  transfer for retained system logs is in scope.
 
 ##### Completion Criteria
 
-- `docs/UNINSTALL.md` identifies the service account and group chosen during
-  installation before showing destructive commands.
+- `docs/UNINSTALL.md` reads the service account, group, and system log path
+  chosen during installation from the deployed unit before showing destructive
+  commands.
+- The deployed unit remains available until system-log ownership, ACL cleanup,
+  and account and group retain-or-delete decisions complete; unit removal
+  follows those identity-dependent steps.
+- The procedure stops account removal when any deployed value is missing or
+  ambiguous and requires the operator to confirm all three values.
+- The logfile template must be an absolute path ending in `/%i.log`; its
+  derived parent must exist and must not be `/`. Any failure stops before an
+  ownership or ACL change.
 - Account and group removal, verification, and recovery guidance consistently
   use the selected identity rather than unconditional default names.
+- Account and group deletion are separate operator decisions. A selected
+  identity is deleted only when it was created exclusively for this
+  installation and has no other use; an unknown or pre-existing identity is
+  retained.
+- Log-directory handling is a separate operator decision. A confirmed
+  installation-dedicated directory is transferred to `root:root` with no ACL
+  entry naming a removed identity. An existing or origin-unknown directory
+  keeps its observed pre-teardown metadata, and its related account and group
+  are retained.
 - The default installation still resolves to `ioc-srv` and `ioc` without an
   additional site setting.
 - A real custom-identity setup and documented teardown on both golden OS
-  families removes only the selected custom identity, leaves any pre-existing
-  default-named sentinel identity intact, and leaves no installed
-  infrastructure residue.
+  families removes the deployed infrastructure, removes only resources
+  confirmed as dedicated and unused, and preserves the documented logs,
+  backups, pre-existing resources, and conservative identity dependencies.
 
 ##### Dependencies And Decisions
 
 - M10
-- D1, D10
+- D1, D10, D13
 - The custom identity contract is established by `docs/INSTALL.md`,
   `docs/PERMISSION_MODEL.md`, and `bin/setup-system-infra.bash`.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner accepted 2026-08-31
+Implementation Authorization: Owner authorized 2026-08-31
 Superseded Plan Artifacts: none
 
-1. Update `docs/UNINSTALL.md` so the operator records and confirms the service
-   account and group used during setup before any destructive step.
-2. Replace unconditional default identity references in removal,
-   verification, and recovery guidance with the confirmed values while
-   retaining the shipped defaults as the ordinary case.
-3. Verify the updated procedure through the real full setup and teardown path
+1. Update `docs/UNINSTALL.md` so it reads exactly one non-empty `User=` and
+   `Group=` value and exactly one `--logfile=` path from the deployed
+   `epics-@.service`. Require an absolute logfile template ending in `/%i.log`,
+   derive its parent directory, reject an empty, root, or missing directory,
+   and show all three resolved values for operator confirmation. Stop before
+   any metadata change on every failure.
+2. Require confirmation that the resolved log directory was created
+   exclusively for this installation and has no other use. Only for that case,
+   recursively transfer retained log ownership to `root:root` and remove access
+   and default ACL entries that name the confirmed identity. Otherwise preserve
+   the directory's observed pre-teardown metadata and retain the related
+   account and group.
+3. For identities not retained by step 2, require separate confirmation that
+   the selected account and group were
+   created exclusively for this installation and have no other use. Show each
+   deletion command only for a confirmed dedicated identity; otherwise retain
+   it and verify that the infrastructure no longer depends on it.
+4. Keep `epics-@.service` in place through steps 1-3. Before either identity is
+   deleted, an interrupted procedure can restart identity resolution from the
+   deployed source. Once identity deletion begins, require the operator to
+   complete the identity-dependent steps in the same privileged session or
+   stop and inspect the remaining state. Remove the unit only after all
+   identity-dependent work completes.
+5. Carry the confirmed values and retain-or-delete decisions through removal,
+   verification, and recovery guidance while retaining the shipped defaults as
+   the ordinary case.
+6. Verify the updated procedure through the real full setup and teardown path
    with a custom identity on both golden OS families.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Documentation agreement | Compare the identity contract and defaults in `bin/setup-system-infra.bash`, `docs/INSTALL.md`, and `docs/PERMISSION_MODEL.md` with every identity reference in `docs/UNINSTALL.md` | Tracked source | Installation and teardown use one account-and-group choice; unconditional custom-path deletion of `ioc-srv` or `ioc` is absent |
-| T2 | Real custom teardown | On a disposable golden host, preserve a pre-existing default-named sentinel identity, run the shipped full setup with a distinct custom account and group, then follow the documented teardown and verification procedure | Debian 13 and Rocky 8 golden OS families | The custom account, group, and installed infrastructure are absent; the sentinel default identity is unchanged; setup and teardown leave no test residue |
+| T1 | Documentation agreement | Compare the deployed unit rendering, account and group creation-or-reuse behavior, identity and log-path defaults, and system-log ownership contract in `bin/setup-system-infra.bash`, `docs/INSTALL.md`, and `docs/PERMISSION_MODEL.md` with every identity and log-path reference in `docs/UNINSTALL.md` | Tracked source | Teardown reads exactly one non-empty deployed account, group, and `--logfile=` path; validates and derives a safe log directory before metadata changes; changes log metadata only after a dedicated-directory confirmation; retains identities related to an existing or origin-unknown directory; permits any remaining deletion only after a separate dedicated-use confirmation; and removes the unit only after all identity-dependent work completes |
+| T2 | Real custom teardown | On a disposable golden host, preserve a pre-existing default-named sentinel identity, run the shipped full setup with a distinct custom account, group, and system log path, create retained log content, then follow the documented teardown and verification procedure | Debian 13 and Rocky 8 golden OS families | The custom account, group, and installed infrastructure are absent; retained content at the resolved custom log path is `root:root` with no ACL reference to the removed identity; the sentinel default identity is unchanged; setup and teardown leave no test residue outside the retained logs and backups documented by the procedure |
+| T3 | Unsafe deployed-value refusal | On a disposable golden host, run the shipped full setup, then mutate one deployed-unit field at a time to produce missing and multiple `User=` values, missing and multiple `Group=` values, and a missing `--logfile=`, multiple logfile values, a relative logfile, a logfile without the `/%i.log` suffix, a root parent, and a missing parent directory; execute the documented resolution step after each mutation | Debian 13 and Rocky 8 golden OS families | Every unsafe case stops with no state change beyond the intentional unit mutation; restoring the original shipped unit permits normal teardown |
+| T4 | Identity creation-or-reuse matrix | On a disposable golden host, exercise the three custom-identity cases in which setup creates the account but reuses a sentinel group, reuses a sentinel account but creates the group, or reuses both; run the shipped full setup with a custom system log path, then follow the documented teardown with a separate origin decision for each identity | Debian 13 and Rocky 8 golden OS families | Installed infrastructure is absent; retained logs are `root:root` with no ACL reference to the selected identity; each setup-created identity is deleted; each pre-existing identity and its sentinel properties are unchanged |
+| T5 | Existing log-directory preservation | On a disposable golden host, create a custom log directory with sentinel content, run the shipped full setup with otherwise new custom identities, capture the post-setup directory ownership, modes, ACLs, and content, then follow the documented teardown without confirming the directory as installation-owned | Debian 13 and Rocky 8 golden OS families | Deployed infrastructure is absent; the log tree matches its post-setup metadata and content snapshot; the related account and group are retained; no unrelated path changes |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Tracked source | Pending | none |
-| T2 | Not run | Debian 13 and Rocky 8 golden OS families | Pending | none |
+| T1 | 2026-08-31 02:13 PDT | Tracked source at `c31a379b1703` with the M11 documentation changes | Pass: the deployed unit rendering, identity defaults and overrides, log-directory creation-or-reuse behavior, ownership and ACL contract, teardown resolver, retain-or-delete decisions, preservation-state comparison, and unit-removal order agree across the setup code and maintained documents | Direct comparison of `bin/setup-system-infra.bash`, `docs/INSTALL.md`, `docs/PERMISSION_MODEL.md`, and `docs/UNINSTALL.md`; every Bash block in the uninstall guide passed `bash -n` and ShellCheck after the final review changes |
+| T2 | 2026-08-31 01:00 PDT | Reused Debian 13 and Rocky 8 golden testbeds, current tree copied to `/home/vmadmin/gitsrc-m11/epics-ioc-runner` | Pass: the shipped full setup created a distinct custom account, group, and log path; the documented blocks removed only the custom infrastructure and identities, transferred retained content to `root:root`, removed its identity ACLs, and left the default sentinel identity records unchanged | Direct execution of the shipped setup and Bash blocks extracted from `docs/UNINSTALL.md`; both hosts restored the default installation after verification |
+| T3 | 2026-08-31 01:00 PDT | Reused Debian 13 and Rocky 8 golden testbeds | Pass: all ten missing, duplicate, relative, wrong-suffix, root-parent, and missing-parent unit mutations returned nonzero without changing the selected account, group, or log tree; restoring the shipped unit permitted normal teardown | Direct execution of the documented resolver against each mutated deployed unit on both hosts, with identity and log-tree digests compared before and after every refusal |
+| T4 | 2026-08-31 01:00 PDT | Reused Debian 13 and Rocky 8 golden testbeds | Pass: the create-account/reuse-group, reuse-account/create-group, and reuse-both cases independently deleted every setup-created identity and preserved every pre-existing identity record; each dedicated log tree passed ownership and ACL cleanup | Direct execution of the shipped setup and documented teardown blocks for all three creation-or-reuse cases on both hosts |
+| T5 | 2026-08-31 02:13 PDT | Reused Debian 13 and Rocky 8 golden testbeds | Pass: a pre-existing custom log tree retained its complete post-setup content, ownership, modes, and numeric ACL digest while the infrastructure was removed and both related identities remained; the final documented state-capture and comparison blocks returned the same value on each host | Direct execution of the conservative documented path on both hosts after the second-person finding was applied; test-only identities, source copies, and paths were removed after observation, and the default installation was restored |
 
 ##### Closure Evidence
 
-- none
+- Implementation and T1-T5 verification are complete in the current working
+  tree. The third-person and repeated second-person reviews have no remaining
+  finding. Commit landing and linked-issue reconciliation remain pending.
 
 ##### GitHub Projection
 
