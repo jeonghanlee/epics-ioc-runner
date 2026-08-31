@@ -8,10 +8,10 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.2.4 reset generation
 
-Next session entry point: The 1.3.0 line is open. Authority for the ten
-selected items moved to `docs/milestone-1.3.0.md` on `release-1.3.0` at
-target commit `d849366`. This register holds only the M1-M3 Backlog; current
-work continues on `release-1.3.0` (version 1.3.0-dev).
+Next session entry point: stage M3 (#146) and M1 (#120 item 3) in
+`docs/milestone-1.3.0.md` after the source assignment-intent commit lands.
+Authority remains in this register until the target commit is named here.
+M2 (#127) remains the only unassigned Backlog item.
 
 ## Milestone
 
@@ -29,6 +29,7 @@ No work is currently assigned to master.
 | D1 | #120 items 1 and 2 are examined-Keep and were retired; only item 3 (SELinux) remains, and it stays closed until the owner confirms a production SELinux-enforcing environment. | Owner decision, 2026-07-28; recorded in `CLOSED_DOORS.md` CI-29 |
 | D2 | Open 1.3.0 as a reliability-and-configuration-contract line. Transfer M4-M13 (#102, #115, #113, #129, #142, #139, #116, #144, #148, #132) to `docs/milestone-1.3.0.md` on `release-1.3.0`. #127 (M2) stays deferred as a standalone feature for a later cycle. This supersedes the prior generation's 1.3.0 targeting decision, retained at the History commit. | Owner decision, 2026-08-17 |
 | D3 | The obsolete `cloud-provision` 2026-06-03 Rocky golden target was retired without claiming its downstream check passed. Validation of the current image-workflow Rocky golden is carried as independent Backlog work in this repository; it does not block any release. | Owner selection of the Backlog carry-forward and repository boundary, 2026-08-16 |
+| D4 | Assign M3 (#146) and M1 (#120 item 3) to the 1.3.0 release after its current M11, in that order. M3 becomes Not started when authority moves. M1 remains Conditional until a production SELinux-enforcing IOC host is confirmed. The final release milestone follows both items. This supersedes D3's independent Backlog placement and retains D1's activation condition. | Decision Date: 2026-08-30 |
 
 ### Assignment History
 
@@ -44,6 +45,8 @@ No work is currently assigned to master.
 | 46790f9 / M11 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | `d8493660ef2d92b34d05949a59dba5ca156e96c6` | this synchronization commit |
 | 46790f9 / M12 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | `d8493660ef2d92b34d05949a59dba5ca156e96c6` | this synchronization commit |
 | 46790f9 / M13 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | `d8493660ef2d92b34d05949a59dba5ca156e96c6` | this synchronization commit |
+| 46790f9 / M3 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
+| 46790f9 / M1 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | pending target commit | not moved |
 
 ## Backlog
 
@@ -51,9 +54,9 @@ No work is currently assigned to master.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| | M1 | (#120 item 3) SELinux context on the setup deploys, RHEL-only | Milestone | Conditional | No | D1 | The owner confirms production hosts run SELinux enforcing; [detail](#m1---selinux-context) |
+| | M1 | (#120 item 3) SELinux context on the setup deploys, RHEL-only | Milestone | Conditional | No | D1, D4 | The owner confirms production hosts run SELinux enforcing; [detail](#m1---selinux-context) |
 | | M2 | (#127) Container execution mode without systemd | Milestone | Deferred | No | D2 | D2 defers it to a later cycle as a standalone feature; [detail](#m2---container-execution-mode) |
-| | M3 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Deferred | No | D3 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m3---current-rocky-golden-downstream-validation) |
+| | M3 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Deferred | No | D3, D4 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m3---current-rocky-golden-downstream-validation) |
 
 ### Backlog Details
 
@@ -92,6 +95,7 @@ non-enforcing golden as proof of production SELinux behavior.
 ##### Dependencies And Decisions
 
 - D1
+- D4
 
 ##### Implementation Plan
 
@@ -267,6 +271,7 @@ row carries only that remaining verification.
 ##### Dependencies And Decisions
 
 - D3
+- D4
 - jeonghanlee/cloud-provision#30 supplies the current copy-based image
   workflow and its accepted Rocky image format.
 - jeonghanlee/cloud-provision#4 closed by owner-approved retirement of its
