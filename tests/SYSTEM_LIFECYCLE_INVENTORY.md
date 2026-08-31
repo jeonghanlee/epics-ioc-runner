@@ -19,7 +19,7 @@ S26. The camonitor
 availability assertion is currently fail-only, so the maximum successful path
 reports 102 assertions although 103 assertion branches exist.
 
-The fixed catalog adds four P00 checks and eleven prerequisite or required
+The fixed catalog adds five P00 checks and eleven prerequisite or required
 conditions currently represented only by early returns. Its expected check and
 STEP counts are owned by [`reporting-counts.csv`](reporting-counts.csv). S02,
 S03, and S04 are setup-only STEPs and own no checks.
@@ -28,9 +28,9 @@ S03, and S04 are setup-only STEPs and own no checks.
 
 - The `EPICS_BASE` P00 check is the first environment boundary after catalog
   close and expected-count comparison. If it fails, the remaining P00 checks
-  and every numbered STEP check are `SKIP`; `lsof`, root invocation, and
-  runner executability are not evaluated.
-- After `EPICS_BASE` passes, the remaining three P00 checks govern all numbered
+  and every numbered STEP check are `SKIP`; `lsof`, `runuser`, root invocation,
+  and runner executability are not evaluated.
+- After `EPICS_BASE` passes, the remaining four P00 checks govern all numbered
   STEPs.
 - S23 camonitor availability governs the Channel Access behavior check.
 - S25 system-journal availability governs both monitor-isolation checks.
@@ -61,6 +61,7 @@ and executable paths directly. No row uses hand-built-reproduction.
 | --- | --- | --- | --- | --- |
 | P00 | `system-lifecycle.P00.epics-base-set` | `REQUIRED` | `direct-inspection` | EPICS_BASE is set. |
 | P00 | `system-lifecycle.P00.lsof-available` | `REQUIRED` | `direct-inspection` | lsof is available. |
+| P00 | `system-lifecycle.P00.runuser-available` | `REQUIRED` | `direct-inspection` | runuser is executable at `/usr/sbin/runuser`. |
 | P00 | `system-lifecycle.P00.root-invocation` | `REQUIRED` | `direct-inspection` | The effective user is root. |
 | P00 | `system-lifecycle.P00.selected-runner-executable` | `REQUIRED` | `direct-inspection` | The selected source or installed runner is executable. |
 | S01 | `system-lifecycle.S01.system-configuration-directory-exists-conf-dir` | `REQUIRED` | `direct-inspection` | System configuration directory exists (${CONF_DIR}) |
@@ -177,18 +178,43 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S33 | `system-lifecycle.S33.conf-parser-probe-systemd-emits-last-value-with-embedded-equals` | `BEHAVIOR` | `real-path` | The probe process receives the later systemd value with its embedded equals sign intact. |
 | S33 | `system-lifecycle.S33.conf-parser-probe-systemd-uses-last-chdir` | `BEHAVIOR` | `real-path` | systemd starts the probe in the later IOC_CHDIR assignment. |
 | S33 | `system-lifecycle.S33.conf-parser-probe-cleanup-complete` | `BEHAVIOR` | `real-path` | Removal leaves no probe configuration or active unit. |
+| S34 | `system-lifecycle.S34.identity-names-available` | `PREREQUISITE` | `direct-inspection` | Dedicated service and operator names are unused. |
+| S34 | `system-lifecycle.S34.service-primary-group-differs-from-unit-group` | `BEHAVIOR` | `real-path` | The temporary service account primary group differs from unit `Group=`. |
+| S34 | `system-lifecycle.S34.tmpfs-fixture-ready` | `PREREQUISITE` | `direct-inspection` | A size-limited tmpfs is mounted. |
+| S34 | `system-lifecycle.S34.procserv-copy-ready` | `PREREQUISITE` | `direct-inspection` | An isolated executable procServ copy exists. |
+| S34 | `system-lifecycle.S34.probe-ioc-installed` | `BEHAVIOR` | `real-path` | The real dedicated IOC and instance drop-in are installed. |
+| S34 | `system-lifecycle.S34.full-filesystem-start-blocked` | `BEHAVIOR` | `real-path` | An ordinary authorized operator is blocked before start. |
+| S34 | `system-lifecycle.S34.blocked-start-remains-inactive` | `BEHAVIOR` | `real-path` | The blocked start leaves the unit inactive. |
+| S34 | `system-lifecycle.S34.restored-filesystem-starts-active` | `BEHAVIOR` | `real-path` | Restored capacity permits an operator start. |
+| S34 | `system-lifecycle.S34.full-filesystem-restart-blocked` | `BEHAVIOR` | `real-path` | An ordinary authorized operator is blocked before restart. |
+| S34 | `system-lifecycle.S34.blocked-restart-preserves-mainpid` | `BEHAVIOR` | `real-path` | The blocked restart preserves `MainPID:starttime`. |
+| S34 | `system-lifecycle.S34.full-filesystem-inspect-warns-and-succeeds` | `BEHAVIOR` | `real-path` | Root inspect warns and succeeds on the full filesystem. |
+| S34 | `system-lifecycle.S34.inspect-warning-preserves-mainpid` | `BEHAVIOR` | `real-path` | Warning-only inspect preserves `MainPID:starttime`. |
+| S34 | `system-lifecycle.S34.failed-probe-leaves-no-residue` | `BEHAVIOR` | `real-path` | The service-identity probe leaves no temporary file. |
+| S34 | `system-lifecycle.S34.restored-filesystem-restart-changes-mainpid` | `BEHAVIOR` | `real-path` | Restored capacity permits restart with a new identity. |
+| S34 | `system-lifecycle.S34.baseline-inspect-matches-executable` | `BEHAVIOR` | `real-path` | Effective `User=` and `Group=` probe succeeds and executable identity matches. |
+| S34 | `system-lifecycle.S34.baseline-inspect-preserves-mainpid` | `BEHAVIOR` | `real-path` | Baseline inspect changes no process identity. |
+| S34 | `system-lifecycle.S34.replaced-executable-warns` | `BEHAVIOR` | `real-path` | Atomic executable replacement produces a drift warning. |
+| S34 | `system-lifecycle.S34.drift-inspect-preserves-mainpid` | `BEHAVIOR` | `real-path` | Drift inspection changes no process identity. |
+| S34 | `system-lifecycle.S34.race-reaches-synchronization-line` | `BEHAVIOR` | `real-path` | Inspect reaches `Target Socket:` before the race action. |
+| S34 | `system-lifecycle.S34.race-observes-one-new-mainpid` | `BEHAVIOR` | `real-path` | Exactly one real restart produces one new identity. |
+| S34 | `system-lifecycle.S34.race-reports-unstable-not-drift` | `BEHAVIOR` | `real-path` | The changed snapshot reports unstable rather than drift. |
+| S34 | `system-lifecycle.S34.timeout-cleanup-reaches-synchronization-line` | `BEHAVIOR` | `real-path` | The cleanup phase reaches the same synchronization line. |
+| S34 | `system-lifecycle.S34.timeout-cleanup-reaps-inspect` | `BEHAVIOR` | `real-path` | Bounded cleanup resumes, terminates, and reaps inspect. |
+| S34 | `system-lifecycle.S34.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | `real-path` | Cleanup performs no restart. |
+| S34 | `system-lifecycle.S34.fixture-cleanup-complete` | `BEHAVIOR` | `real-path` | No service, executable, mount, drop-in, or identity residue remains. |
 
 ## Completeness Cross-check
 
 | Source Shape | Count |
 | --- | ---: |
-| Static assertion call sites | 93 |
+| Static assertion call sites | 117 |
 | Repeated pipeline and boundary-helper occurrences | 10 |
-| Current assertion branches | 103 |
+| Current assertion branches | 127 |
 | Added P00 checks | 4 |
-| Added prerequisite or required conditions | 11 |
+| Added prerequisite or required conditions | 12 |
 | Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
 The mapping is complete only while every source assertion branch maps once,
 every early return maps to its governing identity, repeated functions retain
-their STEP-specific IDs, and the pipeline remains S01 through S33.
+their STEP-specific IDs, and the pipeline remains S01 through S34.

@@ -10,10 +10,11 @@ number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
 commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 
-Next session entry point: review the revised M10 (#102) draft covering M10-3
-and M10-5 before implementation.
+Next session entry point: land the verified M10 (#102) implementation, project
+its final evidence to GitHub, and reconcile the canonical register.
 M1 through M9 are Complete and their linked issues are closed. M10 is the
-largest remaining item, and its boundary must be designed before any code.
+largest remaining item; its implementation and two-golden verification are
+complete locally and await landing and tracker reconciliation.
 
 ## Milestone
 
@@ -30,8 +31,9 @@ largest remaining item, and its boundary must be designed before any code.
 | Tests | M7 | (#116) Exercise the deployed local logrotate oneshot through systemd | Milestone | Complete | No | D1, D3 | Complete in `836311a`; T1-T3 Pass on both goldens, the canonical gate passed 758 checks per host, and issue #116 is closed; [detail](#m7---suite-integrity) |
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
-| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Not started | Yes | D1, D3, D5, D6, D7, D8, D9 | The revised draft retains M10-3 and M10-5; M10-2 is an examined no-action result; [detail](#m10---fleet-layer-reliability) |
-| Release | M11 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m11---final-release) |
+| Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | In progress | No | D1, D3, D5, D6, D7, D8, D9, D11 | T1-T3 Pass on both goldens; M10-3 and M10-5 are verified, M10-2 is an examined no-action result, and landing plus tracker reconciliation remain; [detail](#m10---fleet-layer-reliability) |
+| Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Not started | No | M10, D1, D10 | The documented full teardown removes and verifies the identity selected during installation without targeting the shipped defaults when custom values were used; [detail](#m11---custom-identity-teardown-agreement) |
+| Release | M12 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m12---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -47,6 +49,14 @@ largest remaining item, and its boundary must be designed before any code.
 | D7 | Implement the retained M10 checks with an install-owned configuration hash and a dedicated launch helper for M10-2, a create-write-delete log-path probe for M10-3, and an on-demand systemd PID, UDS, and executable-identity comparison for M10-5. Hash mismatch blocks activation without a restart loop; log-path failure blocks `start` and `restart` but only warns during `inspect`; executable drift only warns and never changes process state. | Decision Date: 2026-08-28 |
 | D8 | Replace the M10-2 hash portion of D7 with activation-time validation of the deployed configuration. Preserve the established group-writable configuration and shared-operator contracts; valid direct edits remain eligible for activation, while validation failure exits 78 and prevents a restart loop. Add no hash state, migration baseline, sudo command, or account-model change. | Decision Date: 2026-08-29 |
 | D9 | Do not implement M10-2. On the minimum supported systemd 239, a main-process restart exception cannot distinguish a launch validator from procServ after `exec`; the pinned procServ `073f290` can return a child exit code or an errno, so no numeric status is reserved for validation. A parent wrapper would replace procServ as `MainPID`, while self-stop would expand the sudo contract. Preserve the direct procServ `MainPID`, indefinite `Restart=always` policy, shared configuration, and current sudo model. This supersedes D8 and the M10-2 portion of D5. | Decision Date: 2026-08-29 |
+| D10 | Keep the custom service identity teardown seam in the 1.3.0 release as M11, after M10 and before the final release phase. Renumber the prior final release row from M11 to M12. | Decision Date: 2026-08-30 |
+| D11 | Use `/usr/sbin/runuser` for the already-root system `inspect` log probe to assume the effective unit `User=` and `Group=`. Do not add a nested sudoers rule; require the `util-linux` runtime dependency. | Decision Date: 2026-08-30 |
+
+### ID Migration
+
+| Old ID | Current ID | Reason | Updated References |
+| --- | --- | --- | --- |
+| M11 | M12 | Insert M11 for the custom service identity teardown issue before the final release phase (D10). | Work table, final release detail, dependencies, and G1 affected work |
 
 ### Assignment History
 
@@ -1494,7 +1504,7 @@ Last Compared: 2026-08-27; remote updated 2026-08-27T16:05:43Z
 Origin: 1.3.0 / M1
 Identity History: staged from `docs/milestone-46790f9.md` M4; 1.3.0 / M1 -> 1.3.0 / M10 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 102, https://github.com/jeonghanlee/epics-ioc-runner/issues/102
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1547,8 +1557,10 @@ external responsibilities.
 
 - M10-3 creates a temporary file in the effective procServ log directory,
   writes one byte, forces the write to the filesystem, verifies every result,
-  and removes the file on both success and failure. Failure blocks `start` and
-  `restart` before systemd is called; `inspect` warns and continues.
+  and removes the file on both success and failure. The existing startup
+  readiness scan reads the IOC log from that same effective directory. Failure
+  blocks `start` and `restart` before systemd is called; `inspect` warns and
+  continues.
 - System `start` and `restart` perform the probe as the invoking authorized
   operator and cover shared-filesystem capacity under the established
   group-writable log-directory model. They do not claim service-UID quota or
@@ -1612,7 +1624,9 @@ external responsibilities.
   established contracts, so M10-2 is recorded as examined and not implemented.
 - M10-3 resolves the effective procServ log directory from the installed unit
   launch command rather than the caller's current environment, then uses a
-  same-directory temporary file for a create-write-sync probe and cleanup.
+  same-directory temporary file for a create-write-sync probe and cleanup. The
+  existing startup readiness scan uses the same resolved directory instead of
+  independently following the caller's `LOG_DIR`.
 - M10-3 detects command-time write failure at the configured log filesystem;
   it does not add a general permission audit or continuous capacity monitor.
   In system mode, `start` and `restart` retain the ordinary `ioc` operator path
@@ -1621,11 +1635,13 @@ external responsibilities.
   model; per-service-UID quota and owner-only permission differences are
   outside this check. Because `inspect` already requires root, it resolves the
   effective unit's `User=` and `Group=` and runs the probe with both identities
-  through the existing `sudo` dependency. This matches a custom unit even when
+  through `/usr/sbin/runuser`. This matches a custom unit even when
   the service user's passwd primary group differs from `Group=`, and prevents
   root-only reserved capacity from producing a false success. This adds no
-  sudoers entry. In local mode, the current local user remains both runner and
-  procServ writer for all three commands.
+  nested sudoers entry or password prompt. In local mode, the current local user remains both runner and
+  procServ writer for all three commands. The canonical gate may prepare and
+  remove an isolated size-limited filesystem outside the local suite, but the
+  local lifecycle suite itself remains an ordinary-user path with no `sudo`.
 - M10-5 reads the direct procServ `ExecStart` from the effective systemd launch
   command and extracts the configured executable before comparing identities.
 - The evaluation used five 1-5 scores: `ioc-runner` scope fit, impact,
@@ -1665,13 +1681,13 @@ external responsibilities.
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: Owner approved the reviewed M10 plan on 2026-08-29
-("승인").
-Implementation Authorization: none
+Plan Acceptance: Owner re-approved the revised M10 plan on 2026-08-30 ("재승인") and accepted the `runuser` correction on 2026-08-30 ("승인할께").
+Implementation Authorization: Owner authorized implementation of the accepted M10 plan on 2026-08-30 ("구현 승인할께 진행해줘") and authorized the accepted `runuser` correction on 2026-08-30 ("승인할께").
 
 1. In `bin/ioc-runner`, add one shared effective-launch-command reader. Use it
    to resolve the real procServ log directory for a create-write-sync-delete
-   probe in `start`, `restart`, and `inspect`. Require successful creation,
+   probe in `start`, `restart`, and `inspect`, and use that same resolved path
+   for the existing startup readiness scan. Require successful creation,
    one-byte write, filesystem sync, close, and cleanup; preserve the original
    failure if cleanup also fails. Mutation commands fail before systemd, while
    `inspect` reports a warning and continues. Preserve the ordinary `ioc`
@@ -1680,7 +1696,7 @@ Implementation Authorization: none
    the established group-writable model, not service-UID quota or owner-only
    permission checks. Make the already-root system `inspect` resolve the
    effective unit's `User=` and `Group=` and run the probe with both identities
-   through the existing `sudo` dependency. Keep local probes under the current
+   through `/usr/sbin/runuser`. Keep local probes under the current
    local user.
 2. In `bin/ioc-runner`, extend `inspect` to read systemd `MainPID`, require it
    to match a server PID found through the target UDS, extract the configured
@@ -1690,7 +1706,12 @@ Implementation Authorization: none
    afterward; if it changed, report an unstable inspection snapshot rather
    than executable drift.
 3. Add real-path coverage to `tests/test-system-lifecycle.bash` and
-   `tests/test-local-lifecycle.bash`. Update their matching
+   `tests/test-local-lifecycle.bash`. In `gate/drivers/control/suites.bash`,
+   prepare and remove the isolated local size-limited filesystem outside the
+   local suite, transfer its writable directory to the local test owner, and
+   pass only the prepared path into the suite. Keep filesystem exhaustion,
+   restoration, and every shipped `ioc-runner --local` invocation inside the
+   suite under the ordinary local owner with no `sudo`. Update the matching
    `SYSTEM_LIFECYCLE_INVENTORY.md` and `LOCAL_LIFECYCLE_INVENTORY.md` rows,
    then update `tests/reporting-counts.csv` only from the observed closed
    catalogs. Run the canonical gate with its prior expected identity digest,
@@ -1699,8 +1720,10 @@ Implementation Authorization: none
    the gate.
 4. Update `docs/CLI_REFERENCE.md`, `docs/USER_GUIDE.md`,
    `docs/USER_GUIDE_LOCAL.md`, and `docs/PERMISSION_MODEL.md` for the two
-   diagnostics and their execution identities. Do not change the account,
-   sudoers, configuration-write, or direct procServ `MainPID` contracts.
+   diagnostics and their execution identities. State that direct `systemctl`
+   lifecycle commands remain supported but bypass `ioc-runner` preflight
+   diagnostics and readiness reporting. Do not change the account, sudoers,
+   configuration-write, or direct procServ `MainPID` contracts.
 5. Run T1 through T3 through the real shipped system and local paths on both
    golden OS families and record observed results.
 
@@ -1708,7 +1731,7 @@ Implementation Authorization: none
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | M10-3 log-path availability | Point a real installed unit at a size-limited filesystem and exhaust it. Exercise `start` from inactive and `restart` plus `inspect` from active. In system mode, invoke the shipped `start` and `restart` as an ordinary `ioc` operator through the existing sudoers path; these calls test shared-filesystem capacity under the established group-writable model and make no service-UID quota or owner-only permission claim. Invoke `inspect` as root while its probe runs with the effective unit's `User=` and `Group=`. Include a temporary custom-identity fixture whose passwd primary group differs from the unit `Group=` and remove it during cleanup. In local mode, invoke all three shipped commands as the local owner. Record unit state and `MainPID` before and after each command, restore capacity, and repeat. | System and local modes on both golden OS families | At full capacity, inactive `start` remains inactive, active `restart` and `inspect` retain their original active state and `MainPID`, `inspect` warns and returns success, and no probe file remains. The custom-identity fixture proves that the inspect probe uses both effective unit identities. After capacity is restored, inactive `start` becomes active with a valid `MainPID`, active `restart` succeeds with a new `MainPID`, and `inspect` succeeds without a log-path warning or process-state change. No product account, sudoers, unit, or permission change is required, and the temporary identity fixture leaves no residue. |
+| T1 | M10-3 log-path availability | Point a real installed unit at a size-limited filesystem and exhaust it. Exercise `start` from inactive and `restart` plus `inspect` from active. In system mode, invoke the shipped `start` and `restart` as an ordinary `ioc` operator through the existing sudoers path; these calls test shared-filesystem capacity under the established group-writable model and make no service-UID quota or owner-only permission claim. Invoke `inspect` as root while its probe runs with the effective unit's `User=` and `Group=`. Include a temporary custom-identity fixture whose passwd primary group differs from the unit `Group=` and remove it during cleanup. For local mode, have the canonical gate create and mount the isolated size-limited filesystem before the local suite, transfer its writable directory to the ordinary local owner, and pass the prepared path into the suite. Have the local suite exhaust and restore that filesystem and invoke all three shipped `ioc-runner --local` commands as the local owner without calling `sudo`. After the suite exits, have the gate unmount and remove the fixture through its always-run cleanup. Record unit state and `MainPID` before and after each command, restore capacity, and repeat. | System and local modes on both golden OS families | At full capacity, inactive `start` remains inactive, active `restart` and `inspect` retain their original active state and `MainPID`, `inspect` warns and returns success, and no probe file remains. The custom-identity fixture proves that the inspect probe uses both effective unit identities. After capacity is restored, inactive `start` becomes active with a valid `MainPID`, active `restart` succeeds with a new `MainPID`, and `inspect` succeeds without a log-path warning or process-state change. The local lifecycle suite remains sudo-free; only the gate's outer fixture setup and cleanup use privilege. No product account, sudoers, unit, or permission change is required, and the temporary filesystem and identity fixtures leave no residue. |
 | T2 | M10-5 executable drift | In the stable phases, install and start a real service against an isolated procServ copy, record unit state and `MainPID`, invoke the shipped `inspect`, atomically replace the copy while it remains active, and invoke the same path again with state observations around each call. In the separate race phase, start the real `inspect` with streamed captured output, record its PID in the suite's always-run cleanup state, and wait for its existing `Target Socket:` line emitted after the initial `MainPID:starttime` snapshot. Immediately send `SIGSTOP` to the inspect process, have the harness request exactly one real systemd restart, wait within a fixed timeout for the unit to become active with a different `MainPID:starttime`, then send `SIGCONT` and wait for inspect completion. In a separate cleanup failure phase, start the same real inspect path, wait for the same line, send `SIGSTOP`, deliberately omit the restart, and require a short fixed test timeout to invoke the same always-run cleanup. On every exit, cleanup sends `SIGCONT` to a surviving stopped inspect process, terminates it with a bounded wait and `SIGKILL` fallback, reaps it, restores the pre-test unit state and isolated procServ copy, and verifies that no process or fixture residue remains. Fail on any stop, restart, state, resume, cleanup, or timeout-contract error. Use root for system `inspect` and the local owner for local `inspect`. | System and local modes on both golden OS families | In the stable phases, baseline identity reports no warning, replacement reports the deleted or device-and-inode mismatch, and each `inspect` returns success without changing unit state or `MainPID`. In the race phase, the changed snapshot is reported as unstable rather than executable drift. The harness records exactly one restart after the synchronization line and while inspect is stopped; the inspected process resumes only after the replacement `MainPID:starttime` is observed. In the cleanup failure phase, the planned timeout occurs without a restart and the cleanup leaves no inspect process, changed unit state, modified procServ copy, or fixture residue. |
 | T3 | Reporting and gate identity | Close the updated real lifecycle catalogs, compare their inventories and observed CSV counts, run the canonical two-host gate with the prior digest, update only the common observed identity digest, and rerun the same gate. | Source environment plus both golden OS families | Catalogs, inventories, and CSV counts agree; the first gate fails only on one common new identity digest; the updated gate passes on both hosts. |
 
@@ -1716,9 +1739,9 @@ Implementation Authorization: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Both golden OS families | Pending | none |
-| T2 | Not run | Both golden OS families | Pending | none |
-| T3 | Not run | Both golden OS families | Pending | none |
+| T1 | 2026-08-30 21:59 PDT | Debian 13 and Rocky 8 goldens, installed and source lifecycle paths | Pass: exhausted filesystems blocked `start` and `restart`, `inspect` warned without changing service state, restored filesystems recovered, the custom system identity used its effective `User=` and `Group=` through `runuser`, and every fixture reported clean removal | Final canonical evidence in `work/gate-suites-20260831T045417Z-1188529`; both installed system-lifecycle runs passed 144 checks, and both source and installed local-lifecycle runs passed their closed catalogs |
+| T2 | 2026-08-30 21:59 PDT | Debian 13 and Rocky 8 goldens, system and local modes | Pass: baseline executable identity matched, atomic replacement warned without changing service state, the forced restart race reported an unstable snapshot rather than drift, timeout cleanup reaped the stopped inspection, and all fixture cleanup checks passed | Final canonical evidence in `work/gate-suites-20260831T045417Z-1188529`; focused Rocky race observation in `work/gate-suites-20260831T032518Z-1149985/rocky-m10-race-observer.log` |
+| T3 | 2026-08-30 21:59 PDT | Source environment plus Debian 13 and Rocky 8 goldens | Pass: static checks and closed catalogs agreed; the unchanged-digest gate produced the same `d2c25a1cfdd26f70bc4e7646bde85fc4443299d7ce95ecd4d39577641feaf1bd` candidate on both hosts; after accepting it, the final gate passed six blocks and 830 checks per host with only the documented OS applicability differences. Investigation of the pre-final S22 failure found a `pipefail` false negative in `ss -lx | grep -q`; materializing the real `ss` output before fixed-string matching removed it, and the focused Debian run passed 144/144 before the final gate | Digest-only evidence in `work/gate-suites-20260831T043115Z-1169420`; S22 diagnostic trace in `work/gate-suites-20260831T043740Z-1174983/debian-s22-trace.log`; final PASS in `work/gate-suites-20260831T045417Z-1188529` |
 
 ##### Closure Evidence
 
@@ -1735,10 +1758,103 @@ Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-28; remote updated 2026-08-28T22:10:48Z
 
-#### M11 - Final release
+#### M11 - Custom identity teardown agreement
 
 Origin: 1.3.0 / M11
 Identity History: none
+GitHub Issue: 149, https://github.com/jeonghanlee/epics-ioc-runner/issues/149
+Status: Not started
+
+##### Summary
+
+The full installation path supports a custom system service account and group
+through `IOC_RUNNER_SYSTEM_USER` and `IOC_RUNNER_SYSTEM_GROUP`. The full
+uninstallation guide still removes and verifies only the shipped `ioc-srv` and
+`ioc` defaults. A custom installation can therefore leave its actual identity
+behind or direct an operator to remove unrelated default-named accounts.
+
+##### Scope
+
+Make the full uninstallation procedure use the same service account and group
+selected during installation. Include an explicit identity check before any
+account or group removal, use that resolved identity in removal and
+verification steps, and keep the default `ioc-srv` and `ioc` behavior
+unchanged when no override was used.
+
+##### Out of Scope
+
+- Adding an automated full-teardown command.
+- Changing the service-account, sudoers, directory-ownership, or runner
+  execution model.
+
+##### Completion Criteria
+
+- `docs/UNINSTALL.md` identifies the service account and group chosen during
+  installation before showing destructive commands.
+- Account and group removal, verification, and recovery guidance consistently
+  use the selected identity rather than unconditional default names.
+- The default installation still resolves to `ioc-srv` and `ioc` without an
+  additional site setting.
+- A real custom-identity setup and documented teardown on both golden OS
+  families removes only the selected custom identity, leaves any pre-existing
+  default-named sentinel identity intact, and leaves no installed
+  infrastructure residue.
+
+##### Dependencies And Decisions
+
+- M10
+- D1, D10
+- The custom identity contract is established by `docs/INSTALL.md`,
+  `docs/PERMISSION_MODEL.md`, and `bin/setup-system-infra.bash`.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Update `docs/UNINSTALL.md` so the operator records and confirms the service
+   account and group used during setup before any destructive step.
+2. Replace unconditional default identity references in removal,
+   verification, and recovery guidance with the confirmed values while
+   retaining the shipped defaults as the ordinary case.
+3. Verify the updated procedure through the real full setup and teardown path
+   with a custom identity on both golden OS families.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Documentation agreement | Compare the identity contract and defaults in `bin/setup-system-infra.bash`, `docs/INSTALL.md`, and `docs/PERMISSION_MODEL.md` with every identity reference in `docs/UNINSTALL.md` | Tracked source | Installation and teardown use one account-and-group choice; unconditional custom-path deletion of `ioc-srv` or `ioc` is absent |
+| T2 | Real custom teardown | On a disposable golden host, preserve a pre-existing default-named sentinel identity, run the shipped full setup with a distinct custom account and group, then follow the documented teardown and verification procedure | Debian 13 and Rocky 8 golden OS families | The custom account, group, and installed infrastructure are absent; the sentinel default identity is unchanged; setup and teardown leave no test residue |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Tracked source | Pending | none |
+| T2 | Not run | Debian 13 and Rocky 8 golden OS families | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Align custom service identity teardown with installation
+Labels: bug, P2-medium, docs, area/install
+GitHub Milestone: 1.3.0
+Observed State: open
+Observed Labels: bug, P2-medium, docs, area/install
+Observed Milestone: 1.3.0
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-30; remote updated 2026-08-30T07:23:06Z
+
+#### M12 - Final release
+
+Origin: 1.3.0 / M11
+Identity History: 1.3.0 / M11 -> 1.3.0 / M12 (new M11 inserted, D10, 2026-08-30)
 GitHub Issue: none
 Status: Not started
 
@@ -1756,7 +1872,7 @@ milestone close, following the release-cycle procedure.
 
 ##### Out of Scope
 
-Individual milestone implementation and verification, which the M1-M10 rows
+Individual milestone implementation and verification, which the M1-M11 rows
 own.
 
 ##### Completion Criteria
@@ -1768,7 +1884,7 @@ own.
 
 ##### Dependencies And Decisions
 
-- M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, G1
+- M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, G1
 - D1
 
 ##### Implementation Plan
@@ -1842,7 +1958,7 @@ Repository owner.
 
 ##### Affected Work
 
-M11 (final release) and the GitHub projection of M1-M10, whose issues move
+M12 (final release) and the GitHub projection of M1-M11, whose issues move
 from the `Backlog` milestone to `1.3.0` once it exists.
 
 ##### Completion Criterion

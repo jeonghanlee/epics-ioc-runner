@@ -48,6 +48,7 @@ declare -g SYSTEM_INFRA_READY=0
 declare -g -a SYSTEM_CATALOG_ROWS=(
     "P00|system-lifecycle.P00.epics-base-set|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.lsof-available|REQUIRED|direct-inspection"
+    "P00|system-lifecycle.P00.runuser-available|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.root-invocation|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.selected-runner-executable|REQUIRED|direct-inspection"
     "S01|system-lifecycle.S01.system-configuration-directory-exists-conf-dir|REQUIRED|direct-inspection"
@@ -164,6 +165,31 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S33|system-lifecycle.S33.conf-parser-probe-systemd-emits-last-value-with-embedded-equals|BEHAVIOR|real-path"
     "S33|system-lifecycle.S33.conf-parser-probe-systemd-uses-last-chdir|BEHAVIOR|real-path"
     "S33|system-lifecycle.S33.conf-parser-probe-cleanup-complete|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.identity-names-available|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.service-primary-group-differs-from-unit-group|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.tmpfs-fixture-ready|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.procserv-copy-ready|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.probe-ioc-installed|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.full-filesystem-start-blocked|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.blocked-start-remains-inactive|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.restored-filesystem-starts-active|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.full-filesystem-restart-blocked|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.blocked-restart-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.full-filesystem-inspect-warns-and-succeeds|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.inspect-warning-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.failed-probe-leaves-no-residue|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.restored-filesystem-restart-changes-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.baseline-inspect-matches-executable|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.baseline-inspect-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.replaced-executable-warns|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.drift-inspect-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.race-reaches-synchronization-line|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.race-observes-one-new-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.race-reports-unstable-not-drift|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.timeout-cleanup-reaches-synchronization-line|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.timeout-cleanup-reaps-inspect|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.timeout-cleanup-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.fixture-cleanup-complete|BEHAVIOR|real-path"
 )
 declare -g -A SYSTEM_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -213,6 +239,27 @@ declare -g RESTART_PROBE_CLEANUP_REQUIRED=0
 declare -g RESTART_PROBE_CLEANUP_FAILED=0
 declare -g CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
 declare -g CONF_PARSER_PROBE_CLEANUP_FAILED=0
+# These globals are consumed by the separately sourced M10 system helper.
+# shellcheck disable=SC2034
+declare -gr M10_SYSTEM_IOC_NAME="M10ReliabilityIOC-SYS"
+# shellcheck disable=SC2034
+declare -gr M10_SERVICE_USER="epics-m10-service"
+# shellcheck disable=SC2034
+declare -gr M10_OPERATOR_USER="epics-m10-operator"
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_DROPIN_DIR=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_MOUNT_DIR=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_PROCSERV_COPY=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_INSPECT_PID=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_CLEANUP_REQUIRED=0
+# shellcheck disable=SC2034
+declare -g M10_SERVICE_USER_CREATED=0
+# shellcheck disable=SC2034
+declare -g M10_OPERATOR_USER_CREATED=0
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
@@ -274,7 +321,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 33; index += 1)); do
+    for ((index = 1; index <= 34; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -369,6 +416,7 @@ function close_catalog_from_index {
 function run_preflight {
     local epics_base_set="false"
     local lsof_available="false"
+    local runuser_available="false"
     local root_invocation="false"
     local runner_executable="false"
 
@@ -383,14 +431,17 @@ function run_preflight {
     fi
 
     command -v lsof >/dev/null 2>&1 && lsof_available="true"
+    [[ -x /usr/sbin/runuser ]] && runuser_available="true"
     [[ "${EUID}" -eq 0 ]] && root_invocation="true"
     [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
     verify_state true "${lsof_available}" "lsof is available"
+    verify_state true "${runuser_available}" "runuser is available at /usr/sbin/runuser"
     verify_state true "${root_invocation}" "Effective user is root"
     verify_state true "${runner_executable}" "Selected runner is executable"
-    if [[ "${lsof_available}" != "true" || "${root_invocation}" != "true" ||
+    if [[ "${lsof_available}" != "true" || "${runuser_available}" != "true" ||
+          "${root_invocation}" != "true" ||
           "${runner_executable}" != "true" ]]; then
-        close_catalog_from_index 4 SKIP "requires system lifecycle P00"
+        close_catalog_from_index 5 SKIP "requires system lifecycle P00"
         return 1
     fi
 }
@@ -415,6 +466,11 @@ function _handle_exit {
 
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
         exit "${REPORT_FINAL_STATUS}"
+    fi
+
+    if ! _cleanup_m10_system; then
+        final_status=1
+        _log "ERROR" "Failed to clean up the M10 system reliability fixture."
     fi
 
     if ! _cleanup_restart_probe; then
@@ -960,8 +1016,12 @@ function test_console_attach {
     done
     verify_state "true" "${con_ok}" "con utility is available"
 
+    local ss_lx_out=""
     local socket_listening="false"
-    if ss -lx 2>/dev/null | grep -q "${UDS_PATH}"; then socket_listening="true"; fi
+    if ss_lx_out=$(ss -lx 2>/dev/null) &&
+       grep -qF -- "${UDS_PATH}" <<< "${ss_lx_out}"; then
+        socket_listening="true"
+    fi
     verify_state "true" "${socket_listening}" "UDS socket is in listening state"
 }
 
@@ -2574,6 +2634,9 @@ EOF
     verify_state "true" "${clean}" "Parser agreement probe cleanup is complete"
 }
 
+# shellcheck source=lib/test-m10-system.bash
+source "${SC_TOP}/lib/test-m10-system.bash"
+
 function run_all_tests {
     local -a pipeline=(
         "verify_infrastructure"
@@ -2609,6 +2672,7 @@ function run_all_tests {
         "test_persistence"
         "test_remove"
         "test_conf_parser_systemd_agreement"
+        "test_m10_system_reliability"
     )
 
     local step=1

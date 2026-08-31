@@ -103,6 +103,12 @@ Start the IOC process.
 ioc-runner start myioc
 ```
 
+`start` and `restart` verify the effective procServ log path before asking
+systemd to change service state. A create, write, sync, or cleanup failure
+blocks the transition. `sudo ioc-runner inspect myioc` reports the same
+log-path condition as a warning and also checks whether the running procServ
+executable still matches the effective unit.
+
 ## 2. Attaching to the IOC Console
 To interact with the IOC shell, connect to the UNIX Domain Socket.
 
@@ -114,6 +120,11 @@ ioc-runner attach myioc
 
 ## 3. Daily Operations (Systemd Native Commands)
 Because the IOCs are managed by `systemd` templates, you can use native `systemctl` commands without a password.
+
+Direct `systemctl` lifecycle commands bypass `ioc-runner` preflight checks,
+warnings, and readiness reporting. Use `ioc-runner start` and
+`ioc-runner restart` for normal lifecycle operations; use direct `systemctl`
+when that bypass is intentional.
 
 **Check IOC Status:**
 ```bash

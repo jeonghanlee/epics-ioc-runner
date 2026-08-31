@@ -96,9 +96,9 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S10|error-handling.S10.view-on-a-never-installed-name-exits-1|BEHAVIOR|real-path"
     "S10|error-handling.S10.gate-message-names-the-missing-configuration|BEHAVIOR|real-path"
     "S11|error-handling.S11.exactly-one-ioc-port-replacement-warning|BEHAVIOR|real-path"
-    "S17|error-handling.S17.system-differing-ioc-runner-log-dir-triggers-warning|BEHAVIOR|real-path"
-    "S17|error-handling.S17.system-matching-ioc-runner-log-dir-suppresses-warning|BEHAVIOR|real-path"
-    "S17|error-handling.S17.local-mode-suppresses-log-dir-guard|BEHAVIOR|real-path"
+    "S17|error-handling.S17.system-status-ignores-caller-log-dir-difference|BEHAVIOR|real-path"
+    "S17|error-handling.S17.system-status-with-matching-log-dirs-emits-no-warning|BEHAVIOR|real-path"
+    "S17|error-handling.S17.local-status-with-log-dir-override-emits-no-system-warning|BEHAVIOR|real-path"
     "S19|error-handling.S19.relative-ioc-runner-conf-dir-exits-1-on-list|BEHAVIOR|real-path"
     "S19|error-handling.S19.relative-conf-dir-error-names-the-resolved-directory|BEHAVIOR|real-path"
     "S19|error-handling.S19.whitespace-conf-dir-exits-1-on-status|BEHAVIOR|real-path"
@@ -948,40 +948,39 @@ function no_error_contract_checks {
     :
 }
 
-# Validates the system-mode foot-gun warning for IOC_RUNNER_LOG_DIR:
-# warning fires when IOC_RUNNER_LOG_DIR diverges from SYSTEM_LOG_DIR in
-# system mode; suppressed when they match; suppressed in --local mode.
-function test_log_dir_guard {
+# Validates that runtime status does not compare caller log-directory values.
+# Lifecycle commands resolve the effective log path from the installed unit.
+function test_log_dir_runtime_boundary {
     local step="$1"
     local stderr_cap
     stderr_cap=$(mktemp)
     local has_warn
 
     print_divider
-    _log "INFO" "STEP ${step}: LOG_DIR Foot-Gun Guard"
+    _log "INFO" "STEP ${step}: Runtime LOG_DIR Boundary"
     print_sub_divider
 
-    # Case 1: system mode + IOC_RUNNER_LOG_DIR differs from default SYSTEM_LOG_DIR.
+    # Case 1: system mode with caller and system values that differ.
     IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_diff \
         bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
     has_warn="false"
     grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
-    verify_state "true" "${has_warn}" "system + differing IOC_RUNNER_LOG_DIR triggers warning"
+    verify_state "false" "${has_warn}" "system status ignores caller LOG_DIR difference"
 
-    # Case 2: system mode + IOC_RUNNER_LOG_DIR matches overridden SYSTEM_LOG_DIR.
+    # Case 2: system mode with caller and system values that match.
     IOC_RUNNER_SYSTEM_LOG_DIR=/tmp/log_dir_guard_test_match \
     IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_match \
         bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
     has_warn="false"
     grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
-    verify_state "false" "${has_warn}" "system + matching IOC_RUNNER_LOG_DIR suppresses warning"
+    verify_state "false" "${has_warn}" "system status with matching LOG_DIR values emits no warning"
 
-    # Case 3: --local mode + IOC_RUNNER_LOG_DIR set to non-default.
+    # Case 3: local mode with a caller override.
     IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_local \
         bash "${RUNNER_SCRIPT}" --local status fake-ioc >/dev/null 2>"${stderr_cap}" || true
     has_warn="false"
     grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
-    verify_state "false" "${has_warn}" "--local mode suppresses LOG_DIR guard"
+    verify_state "false" "${has_warn}" "local status with LOG_DIR override emits no system warning"
 
     rm -f "${stderr_cap}"
 }
@@ -2458,7 +2457,7 @@ function run_all_tests {
         "no_error_contract_checks"
         "no_error_contract_checks"
         "no_error_contract_checks"
-        "test_log_dir_guard"
+        "test_log_dir_runtime_boundary"
         "no_error_contract_checks"
         "test_conf_dir_guard"
         "no_error_contract_checks"

@@ -7,6 +7,7 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
 * Bash 4.3+ (the runner relies on `local -n` namerefs, introduced in Bash 4.3). Debian 8+, Ubuntu 14.04+, and RHEL/Rocky/AlmaLinux 8+ qualify; RHEL 7 / CentOS 7 ship Bash 4.2 and are not supported.
 * Basic build tools installed (`gcc`, `g++`, `make`, `git`).
 * Core utilities (`procServ` and `con`) compiled and installed system-wide.
+* `util-linux` installed with `/usr/sbin/runuser` for system `inspect` identity switching.
 
 ---
 

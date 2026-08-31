@@ -266,9 +266,9 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S10 | `error-handling.S10.view-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | view on a never-installed name exits 1 |
 | S10 | `error-handling.S10.gate-message-names-the-missing-configuration` | `BEHAVIOR` | `real-path` | gate message names the missing configuration |
 | S11 | `error-handling.S11.exactly-one-ioc-port-replacement-warning` | `BEHAVIOR` | `real-path` | exactly one IOC_PORT replacement warning |
-| S17 | `error-handling.S17.system-differing-ioc-runner-log-dir-triggers-warning` | `BEHAVIOR` | `real-path` | system + differing IOC_RUNNER_LOG_DIR triggers warning |
-| S17 | `error-handling.S17.system-matching-ioc-runner-log-dir-suppresses-warning` | `BEHAVIOR` | `real-path` | system + matching IOC_RUNNER_LOG_DIR suppresses warning |
-| S17 | `error-handling.S17.local-mode-suppresses-log-dir-guard` | `BEHAVIOR` | `real-path` | --local mode suppresses LOG_DIR guard |
+| S17 | `error-handling.S17.system-status-ignores-caller-log-dir-difference` | `BEHAVIOR` | `real-path` | system status ignores caller LOG_DIR difference |
+| S17 | `error-handling.S17.system-status-with-matching-log-dirs-emits-no-warning` | `BEHAVIOR` | `real-path` | system status with matching LOG_DIR values emits no warning |
+| S17 | `error-handling.S17.local-status-with-log-dir-override-emits-no-system-warning` | `BEHAVIOR` | `real-path` | local status with LOG_DIR override emits no system warning |
 | S19 | `error-handling.S19.relative-ioc-runner-conf-dir-exits-1-on-list` | `BEHAVIOR` | `real-path` | relative IOC_RUNNER_CONF_DIR exits 1 on list |
 | S19 | `error-handling.S19.relative-conf-dir-error-names-the-resolved-directory` | `BEHAVIOR` | `real-path` | relative CONF_DIR error names the resolved directory |
 | S19 | `error-handling.S19.whitespace-conf-dir-exits-1-on-status` | `BEHAVIOR` | `real-path` | whitespace CONF_DIR exits 1 on status |

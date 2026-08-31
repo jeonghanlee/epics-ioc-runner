@@ -312,6 +312,32 @@ pre-existing override directory.
 - `local-lifecycle.S36.abort-nonzero` | `BEHAVIOR` | A declined reinstall returns nonzero.
 - `local-lifecycle.S36.abort-template-unchanged` | `BEHAVIOR` | The shared template is unchanged on abort.
 
+### S37 - M10 Reliability (23)
+
+- `local-lifecycle.S37.tmpfs-fixture-ready` | `PREREQUISITE` | The gate supplied a writable size-limited tmpfs.
+- `local-lifecycle.S37.procserv-copy-ready` | `PREREQUISITE` | An isolated executable procServ copy exists.
+- `local-lifecycle.S37.probe-ioc-installed` | `BEHAVIOR` | The real dedicated IOC and instance drop-in are installed.
+- `local-lifecycle.S37.full-filesystem-start-blocked` | `BEHAVIOR` | The real runner blocks start when the effective log filesystem is full.
+- `local-lifecycle.S37.blocked-start-remains-inactive` | `BEHAVIOR` | A blocked start leaves the unit inactive.
+- `local-lifecycle.S37.restored-filesystem-starts-active` | `BEHAVIOR` | Restored capacity permits a real active start.
+- `local-lifecycle.S37.full-filesystem-restart-blocked` | `BEHAVIOR` | The real runner blocks restart when the filesystem is full.
+- `local-lifecycle.S37.blocked-restart-preserves-mainpid` | `BEHAVIOR` | A blocked restart preserves `MainPID:starttime`.
+- `local-lifecycle.S37.full-filesystem-inspect-warns-and-succeeds` | `BEHAVIOR` | Inspect warns and succeeds on the full filesystem.
+- `local-lifecycle.S37.inspect-warning-preserves-mainpid` | `BEHAVIOR` | Warning-only inspect preserves `MainPID:starttime`.
+- `local-lifecycle.S37.failed-probe-leaves-no-residue` | `BEHAVIOR` | The failed probe leaves no temporary file.
+- `local-lifecycle.S37.restored-filesystem-restart-changes-mainpid` | `BEHAVIOR` | Restored capacity permits restart with a new identity.
+- `local-lifecycle.S37.baseline-inspect-matches-executable` | `BEHAVIOR` | Baseline inspect matches the effective procServ executable.
+- `local-lifecycle.S37.baseline-inspect-preserves-mainpid` | `BEHAVIOR` | Baseline inspect changes no process identity.
+- `local-lifecycle.S37.replaced-executable-warns` | `BEHAVIOR` | Atomic executable replacement produces a drift warning.
+- `local-lifecycle.S37.drift-inspect-preserves-mainpid` | `BEHAVIOR` | Drift inspection changes no process identity.
+- `local-lifecycle.S37.race-reaches-synchronization-line` | `BEHAVIOR` | Inspect reaches `Target Socket:` before the race action.
+- `local-lifecycle.S37.race-observes-one-new-mainpid` | `BEHAVIOR` | Exactly one real restart produces one new identity.
+- `local-lifecycle.S37.race-reports-unstable-not-drift` | `BEHAVIOR` | The changed snapshot reports unstable rather than drift.
+- `local-lifecycle.S37.timeout-cleanup-reaches-synchronization-line` | `BEHAVIOR` | The cleanup phase reaches the same synchronization line.
+- `local-lifecycle.S37.timeout-cleanup-reaps-inspect` | `BEHAVIOR` | Bounded cleanup resumes, terminates, and reaps inspect.
+- `local-lifecycle.S37.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | Cleanup performs no restart.
+- `local-lifecycle.S37.fixture-cleanup-complete` | `BEHAVIOR` | No service or drop-in residue remains.
+
 ## Fixed Vector Rule
 
 Every source and installed invocation declares the same identities in this

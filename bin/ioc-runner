@@ -54,6 +54,7 @@ declare -g LOCAL_LOG_DIR="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/
 
 # --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN="/usr/bin/systemctl"
+declare -g RUNUSER_BIN="/usr/sbin/runuser"
 
 if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
     printf "Error: %s not found or not executable. This script requires systemd.\n" "${SYSTEMCTL_BIN}" >&2
@@ -352,28 +353,6 @@ if [[ "${CONF_DIR}" != /* || "${CONF_DIR}" == *[[:space:]]* ]]; then
     exit 1
 fi
 
-# Foot-gun guard: IOC_RUNNER_LOG_DIR shifts where the runner scans for crash
-# patterns; the scan path (LOG_DIR) must match where procServ actually writes.
-# - system mode: procServ writes to SYSTEM_LOG_DIR (fixed by the system
-#   template), so an IOC_RUNNER_LOG_DIR override that differs guarantees a
-#   mismatch.
-# - local mode: the user unit bakes the resolved LOG_DIR as --logfile at
-#   install time, so a different IOC_RUNNER_LOG_DIR or IOC_RUNNER_LOCAL_LOG_DIR
-#   at start/restart scans a file procServ is not writing to.
-if [[ "${EXEC_MODE}" == "system" && -n "${IOC_RUNNER_LOG_DIR:-}" \
-      && "${IOC_RUNNER_LOG_DIR}" != "${SYSTEM_LOG_DIR}" ]]; then
-    printf "Warning: IOC_RUNNER_LOG_DIR (%s) differs from SYSTEM_LOG_DIR (%s).\n" \
-           "${IOC_RUNNER_LOG_DIR}" "${SYSTEM_LOG_DIR}" >&2
-    printf "         The runner will scan the override path, but procServ writes to\n" >&2
-    printf "         SYSTEM_LOG_DIR per the system systemd template. Use --local for\n" >&2
-    printf "         custom paths.\n" >&2
-elif [[ "${EXEC_MODE}" == "local" && ( -n "${IOC_RUNNER_LOG_DIR:-}" || -n "${IOC_RUNNER_LOCAL_LOG_DIR:-}" ) ]]; then
-    printf "Warning: the local log directory (%s), set via IOC_RUNNER_LOG_DIR or\n" "${LOG_DIR}" >&2
-    printf "         IOC_RUNNER_LOCAL_LOG_DIR, is baked into the user unit's --logfile\n" >&2
-    printf "         at install time. Export the same value when you start or restart\n" >&2
-    printf "         the IOC, or the crash scan reads a path procServ is not writing to.\n" >&2
-fi
-
 # Strict validation for command-specific flags
 if [[ ${VERBOSE_LEVEL} -gt 0 && "${COMMAND_ACTION}" != "list" ]]; then
     printf "Error: Verbose options (-v, -vv) are only supported for the 'list' command.\n" >&2
@@ -412,6 +391,154 @@ function run_systemctl {
                 ;;
         esac
     fi
+}
+
+# Resolve the direct procServ executable and logfile from systemd's effective
+# ExecStart property. Runtime commands consume this installed-unit view rather
+# than reconstructing launch paths from the caller's current environment.
+declare -g EFFECTIVE_PROCSERV_PATH=""
+declare -g EFFECTIVE_LOG_FILE=""
+declare -g EFFECTIVE_LAUNCH_ERROR=""
+
+function resolve_effective_launch_command {
+    local unit="$1"
+    local exec_start=""
+    local procserv_path=""
+    local log_file=""
+
+    EFFECTIVE_LAUNCH_ERROR=""
+    if ! exec_start=$(run_systemctl show "${unit}" --property=ExecStart --value 2>/dev/null); then
+        EFFECTIVE_LAUNCH_ERROR="unable to read the effective ExecStart for ${unit}"
+        return 1
+    fi
+    if [[ -z "${exec_start}" ]]; then
+        EFFECTIVE_LAUNCH_ERROR="effective ExecStart is empty for ${unit}"
+        return 1
+    fi
+
+    if [[ "${exec_start}" =~ path=([^[:space:];]+) ]]; then
+        procserv_path="${BASH_REMATCH[1]}"
+    elif [[ "${exec_start}" =~ ^([^[:space:];]+) ]]; then
+        procserv_path="${BASH_REMATCH[1]}"
+    fi
+    if [[ "${exec_start}" =~ --logfile=([^[:space:];]+) ]]; then
+        log_file="${BASH_REMATCH[1]}"
+    fi
+
+    log_file="${log_file//%i/${IOC_NAME}}"
+    if [[ "${procserv_path}" != /* || "${procserv_path}" == *[[:space:]]* ]]; then
+        EFFECTIVE_LAUNCH_ERROR="unable to resolve an absolute procServ executable from ${unit}"
+        return 1
+    fi
+    if [[ "${log_file}" != /* || "${log_file}" == *[[:space:]]* ]]; then
+        EFFECTIVE_LAUNCH_ERROR="unable to resolve an absolute procServ logfile from ${unit}"
+        return 1
+    fi
+
+    EFFECTIVE_PROCSERV_PATH="${procserv_path}"
+    EFFECTIVE_LOG_FILE="${log_file}"
+}
+
+# Probe the effective logfile directory through one create-write-sync-delete
+# transaction. An optional user/group pair runs the same fixed probe through
+# runuser under the effective system service identity for root-only inspection.
+declare -g LOG_PATH_PROBE_ERROR=""
+
+function probe_effective_log_path {
+    local log_file="$1"
+    local probe_user="${2:-}"
+    local probe_group="${3:-}"
+    local log_dir="${log_file%/*}"
+    local probe_output=""
+    local probe_rc=0
+    local probe_script=''
+    local -a probe_cmd=()
+
+    LOG_PATH_PROBE_ERROR=""
+    probe_script='probe_file=""; cleanup_probe() { if [[ -n "${probe_file}" ]]; then /usr/bin/rm -f -- "${probe_file}"; fi; }; trap cleanup_probe EXIT HUP INT TERM; probe_file=$(/usr/bin/mktemp -- "$1/.ioc-runner-probe.XXXXXX") || exit $?; write_rc=0; printf "x" > "${probe_file}" || write_rc=$?; if (( write_rc == 0 )); then /usr/bin/sync -f "${probe_file}" || write_rc=$?; fi; cleanup_rc=0; /usr/bin/rm -f -- "${probe_file}" || cleanup_rc=$?; probe_file=""; if (( write_rc != 0 )); then exit "${write_rc}"; fi; exit "${cleanup_rc}"'
+    probe_cmd=(/bin/bash -p -c "${probe_script}" ioc-runner-log-probe "${log_dir}")
+    if [[ -n "${probe_user}" || -n "${probe_group}" ]]; then
+        if [[ -z "${probe_user}" || -z "${probe_group}" ]]; then
+            printf "Error: Both service user and group are required for the log-path probe.\n" >&2
+            return 1
+        fi
+        if (( EUID != 0 )); then
+            LOG_PATH_PROBE_ERROR="service-identity log-path probe requires root"
+            return 1
+        fi
+        if [[ ! -x "${RUNUSER_BIN}" ]] || ! command -v "${RUNUSER_BIN}" >/dev/null 2>&1; then
+            LOG_PATH_PROBE_ERROR="required identity switch is unavailable: ${RUNUSER_BIN}"
+            return 1
+        fi
+        probe_cmd=("${RUNUSER_BIN}" -u "${probe_user}" -g "${probe_group}" -- "${probe_cmd[@]}")
+    fi
+
+    probe_output=$("${probe_cmd[@]}" 2>&1) || probe_rc=$?
+    if (( probe_rc != 0 )); then
+        LOG_PATH_PROBE_ERROR="log-path probe failed for ${log_dir}"
+        if [[ -n "${probe_output}" ]]; then
+            LOG_PATH_PROBE_ERROR+=": ${probe_output//$'\n'/; }"
+        fi
+        return 1
+    fi
+}
+
+function read_process_starttime {
+    local pid="$1"
+    local stat_line=""
+    local stat_tail=""
+    local -a stat_fields=()
+
+    if [[ ! "${pid}" =~ ^[1-9][0-9]*$ || ! -r "/proc/${pid}/stat" ]]; then
+        return 1
+    fi
+    stat_line=$(<"/proc/${pid}/stat")
+    stat_tail="${stat_line##*) }"
+    read -r -a stat_fields <<< "${stat_tail}"
+    if [[ ${#stat_fields[@]} -lt 20 || ! "${stat_fields[19]}" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+    printf "%s" "${stat_fields[19]}"
+}
+
+declare -g EFFECTIVE_UNIT_USER=""
+declare -g EFFECTIVE_UNIT_GROUP=""
+
+function resolve_effective_unit_identity {
+    local unit="$1"
+    local unit_user=""
+    local unit_group=""
+
+    if ! unit_user=$(run_systemctl show "${unit}" --property=User --value 2>/dev/null) ||
+       ! unit_group=$(run_systemctl show "${unit}" --property=Group --value 2>/dev/null); then
+        printf "Error: Unable to read the effective service identity for %s.\n" "${unit}" >&2
+        return 1
+    fi
+    if [[ -z "${unit_user}" || -z "${unit_group}" ||
+          "${unit_user}" == *[[:space:]]* || "${unit_group}" == *[[:space:]]* ]]; then
+        printf "Error: Effective service identity is incomplete for %s.\n" "${unit}" >&2
+        return 1
+    fi
+
+    EFFECTIVE_UNIT_USER="${unit_user}"
+    EFFECTIVE_UNIT_GROUP="${unit_group}"
+}
+
+function read_unit_mainpid_snapshot {
+    local unit="$1"
+    local pid=""
+    local starttime=""
+
+    if ! pid=$(run_systemctl show "${unit}" --property=MainPID --value 2>/dev/null); then
+        return 1
+    fi
+    if [[ ! "${pid}" =~ ^[1-9][0-9]*$ ]]; then
+        return 1
+    fi
+    if ! starttime=$(read_process_starttime "${pid}"); then
+        return 1
+    fi
+    printf "%s:%s" "${pid}" "${starttime}"
 }
 
 # M6/D10/D11: decide whether to replace an EXISTING, DIFFERING shared local asset
@@ -2320,6 +2447,26 @@ function do_view {
 
 
 function do_inspect {
+    local unit=""
+    local sock_path=""
+    local launch_available=0
+    local initial_snapshot=""
+    local final_snapshot=""
+    local initial_mainpid=""
+    local lsof_found=0
+    local mainpid_owns_socket=0
+    local executable_link=""
+    local active_executable_identity=""
+    local configured_executable_identity=""
+    local line=""
+    local pid=""
+    local c_pid=""
+    local ss_peer_out=""
+    local -a server_pids=()
+    local -A seen_server_pids=()
+    local -a client_pids=()
+    local -A seen_client_pids=()
+
     if [[ -z "${IOC_NAME}" ]]; then
         printf "Error: Target IOC name is required for inspect.\n" >&2
         exit 1
@@ -2334,10 +2481,36 @@ function do_inspect {
     fi
 
     resolve_sock_path
-    # Local alias for RESOLVED_SOCK_PATH, named for readability across this
-    # command's long FD-mapping block below. do_attach/do_monitor have short
-    # bodies and reference the global directly; the naming split is intentional.
-    local sock_path="${RESOLVED_SOCK_PATH}"
+    unit="epics-@${IOC_NAME}.service"
+    sock_path="${RESOLVED_SOCK_PATH}"
+
+    if initial_snapshot=$(read_unit_mainpid_snapshot "${unit}"); then
+        initial_mainpid="${initial_snapshot%%:*}"
+    fi
+    if resolve_effective_launch_command "${unit}"; then
+        launch_available=1
+    fi
+
+    if (( launch_available )); then
+        if [[ "${EXEC_MODE}" == "system" ]]; then
+            if resolve_effective_unit_identity "${unit}" 2>/dev/null; then
+                if ! probe_effective_log_path "${EFFECTIVE_LOG_FILE}" \
+                    "${EFFECTIVE_UNIT_USER}" "${EFFECTIVE_UNIT_GROUP}"; then
+                    printf "Warning: IOC '%s' inspect continued: %s.\n" \
+                        "${IOC_NAME}" "${LOG_PATH_PROBE_ERROR}" >&2
+                fi
+            else
+                printf "Warning: IOC '%s' inspect could not resolve the effective service user and group; the log-path probe was skipped.\n" \
+                    "${IOC_NAME}" >&2
+            fi
+        elif ! probe_effective_log_path "${EFFECTIVE_LOG_FILE}"; then
+            printf "Warning: IOC '%s' inspect continued: %s.\n" \
+                "${IOC_NAME}" "${LOG_PATH_PROBE_ERROR}" >&2
+        fi
+    else
+        printf "Warning: IOC '%s' inspect could not resolve its launch command: %s.\n" \
+            "${IOC_NAME}" "${EFFECTIVE_LAUNCH_ERROR}" >&2
+    fi
 
     if ! command -v lsof >/dev/null 2>&1; then
         printf "Error: 'lsof' utility is required but not found in PATH.\n" >&2
@@ -2366,11 +2539,6 @@ function do_inspect {
     printf "   - (LISTEN)    : Server socket waiting for connections\n"
     printf "   - (CONNECTED) : Server-side socket for an accepted client session\n"
     print_sub_divider
-
-    local lsof_found=0
-    local -a server_pids=()
-    local -A seen_server_pids=()
-    local line pid c_pid
 
     # 1. Gather server PIDs via lsof, restricted to the target socket path.
     # The -a flag forces AND semantics across selection criteria; without it,
@@ -2412,9 +2580,6 @@ function do_inspect {
     # "Isolated Web Co"), which would split a field-indexed match. awk emits
     # client-candidate PIDs; the server-PID exclusion and dedup below
     # preserve the original bash policy.
-    local -a client_pids=()
-    local -A seen_client_pids=()
-    local ss_peer_out
     if ! ss_peer_out=$(ss -x -a -p 2>/dev/null); then
         printf "Error: 'ss -x -a -p' failed; cannot trace client connections.\n" >&2
         exit 1
@@ -2465,10 +2630,50 @@ function do_inspect {
     fi
     print_divider
 
+    final_snapshot=$(read_unit_mainpid_snapshot "${unit}" 2>/dev/null || printf "")
+    if [[ -n "${initial_mainpid}" && -n "${seen_server_pids[${initial_mainpid}]:-}" ]]; then
+        mainpid_owns_socket=1
+    fi
+
+    printf "4. procServ Executable Identity\n"
+    printf "   [Description]\n"
+    printf "   - Compares the active MainPID executable with the effective ExecStart path.\n"
+    print_sub_divider
+    if [[ -z "${initial_snapshot}" || -z "${final_snapshot}" ||
+          "${initial_snapshot}" != "${final_snapshot}" ]]; then
+        printf "Warning: inspection snapshot became unstable; MainPID:starttime changed during inspection.\n" >&2
+    elif (( mainpid_owns_socket == 0 )); then
+        printf "Warning: systemd MainPID %s does not own the target UNIX domain socket; executable identity was not attributed.\n" \
+            "${initial_mainpid}" >&2
+    elif (( launch_available == 0 )); then
+        printf "Warning: configured procServ executable identity is unavailable.\n" >&2
+    else
+        executable_link=$(readlink "/proc/${initial_mainpid}/exe" 2>/dev/null || printf "")
+        active_executable_identity=$(stat -Lc '%d:%i' "/proc/${initial_mainpid}/exe" 2>/dev/null || printf "")
+        configured_executable_identity=$(stat -Lc '%d:%i' "${EFFECTIVE_PROCSERV_PATH}" 2>/dev/null || printf "")
+        if [[ "${executable_link}" == *" (deleted)" ]]; then
+            printf "Warning: active procServ executable is deleted: %s.\n" "${executable_link}" >&2
+        elif [[ -z "${configured_executable_identity}" ]]; then
+            printf "Warning: configured procServ executable is missing or unreadable: %s.\n" \
+                "${EFFECTIVE_PROCSERV_PATH}" >&2
+        elif [[ -z "${active_executable_identity}" ]]; then
+            printf "Warning: active procServ executable identity is unreadable for MainPID %s.\n" \
+                "${initial_mainpid}" >&2
+        elif [[ "${active_executable_identity}" != "${configured_executable_identity}" ]]; then
+            printf "Warning: active procServ executable differs from the configured path: %s.\n" \
+                "${EFFECTIVE_PROCSERV_PATH}" >&2
+        else
+            printf "Executable identity matches: %s\n" "${EFFECTIVE_PROCSERV_PATH}"
+        fi
+    fi
+    print_divider
+
 }
 
 function do_start_restart {
     local action="$1"
+    local unit=""
+    local log_file=""
 
     if [[ -z "${IOC_NAME}" ]]; then
         printf "Error: Target IOC name is required for %s.\n" "${action}" >&2
@@ -2479,16 +2684,10 @@ function do_start_restart {
     if [[ "${EXEC_MODE}" == "local" ]]; then
         run_systemctl daemon-reload
 
-        # Drift warnings (#109): the unit and conf bake install-time
-        # paths; a changed environment silently splits writer/reader.
-        local baked_logdir="" drift_conf drift_port drift_sock
-        if [[ -f "${SYSTEMD_DIR}/epics-@.service" ]]; then
-            baked_logdir=$(sed -n 's|^ExecStart=.*--logfile=\(.*\)/%i\.log .*|\1|p' "${SYSTEMD_DIR}/epics-@.service" 2>/dev/null | head -n1 || true)
-        fi
-        if [[ -n "${baked_logdir}" && "${baked_logdir}" != "${LOG_DIR}" ]]; then
-            printf "Warning: LOG_DIR resolves to %s but the installed user unit logs to %s (baked at install).\n" "${LOG_DIR}" "${baked_logdir}" >&2
-            printf "         The startup poll would watch the wrong file; export the install-time value or re-run install.\n" >&2
-        fi
+        # The conf still bakes the install-time socket path. Runtime log-path
+        # checks use the effective unit below and do not depend on the caller's
+        # current LOG_DIR environment.
+        local drift_conf drift_port drift_sock
         drift_conf="${CONF_DIR}/${IOC_NAME}.conf"
         if [[ -f "${drift_conf}" ]]; then
             drift_port=$(read_conf_var "${drift_conf}" "IOC_PORT" 2>/dev/null || printf "")
@@ -2500,8 +2699,19 @@ function do_start_restart {
         fi
     fi
 
-    local log_file="${LOG_DIR}/${IOC_NAME}.log"
-    local unit="epics-@${IOC_NAME}.service"
+    unit="epics-@${IOC_NAME}.service"
+    if ! resolve_effective_launch_command "${unit}"; then
+        printf "Error: IOC '%s' %s was blocked: %s.\n" \
+            "${IOC_NAME}" "${action}" "${EFFECTIVE_LAUNCH_ERROR}" >&2
+        exit 1
+    fi
+    log_file="${EFFECTIVE_LOG_FILE}"
+    if ! probe_effective_log_path "${log_file}"; then
+        printf "Error: IOC '%s' %s was blocked: %s.\n" \
+            "${IOC_NAME}" "${action}" "${LOG_PATH_PROBE_ERROR}" >&2
+        exit 1
+    fi
+
     local log_start_offset log_start_inode log_start_tailhash
     log_start_offset=$(get_file_size "${log_file}")
     log_start_inode=$(get_file_inode "${log_file}")

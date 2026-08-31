@@ -216,6 +216,29 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S36|local-lifecycle.S36.force-backup-created|BEHAVIOR"
     "S36|local-lifecycle.S36.abort-nonzero|BEHAVIOR"
     "S36|local-lifecycle.S36.abort-template-unchanged|BEHAVIOR"
+    "S37|local-lifecycle.S37.tmpfs-fixture-ready|PREREQUISITE"
+    "S37|local-lifecycle.S37.procserv-copy-ready|PREREQUISITE"
+    "S37|local-lifecycle.S37.probe-ioc-installed|BEHAVIOR"
+    "S37|local-lifecycle.S37.full-filesystem-start-blocked|BEHAVIOR"
+    "S37|local-lifecycle.S37.blocked-start-remains-inactive|BEHAVIOR"
+    "S37|local-lifecycle.S37.restored-filesystem-starts-active|BEHAVIOR"
+    "S37|local-lifecycle.S37.full-filesystem-restart-blocked|BEHAVIOR"
+    "S37|local-lifecycle.S37.blocked-restart-preserves-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.full-filesystem-inspect-warns-and-succeeds|BEHAVIOR"
+    "S37|local-lifecycle.S37.inspect-warning-preserves-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.failed-probe-leaves-no-residue|BEHAVIOR"
+    "S37|local-lifecycle.S37.restored-filesystem-restart-changes-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.baseline-inspect-matches-executable|BEHAVIOR"
+    "S37|local-lifecycle.S37.baseline-inspect-preserves-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.replaced-executable-warns|BEHAVIOR"
+    "S37|local-lifecycle.S37.drift-inspect-preserves-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.race-reaches-synchronization-line|BEHAVIOR"
+    "S37|local-lifecycle.S37.race-observes-one-new-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.race-reports-unstable-not-drift|BEHAVIOR"
+    "S37|local-lifecycle.S37.timeout-cleanup-reaches-synchronization-line|BEHAVIOR"
+    "S37|local-lifecycle.S37.timeout-cleanup-reaps-inspect|BEHAVIOR"
+    "S37|local-lifecycle.S37.timeout-cleanup-preserves-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.fixture-cleanup-complete|BEHAVIOR"
 )
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -278,6 +301,51 @@ declare -g -a SYSTEMCTL_CMD=(systemctl --user)
 
 declare -g KEEP_WORKSPACE="${KEEP_WORKSPACE:-0}"
 declare -g SUITE_ASSERTION_FAILED=0
+declare -gr M10_IOC_NAME="M10ReliabilityIOC-LOCAL"
+declare -g M10_DROPIN_DIR=""
+declare -g M10_INSPECT_PID=""
+declare -g M10_CLEANUP_REQUIRED=0
+
+function _m10_terminate_inspect {
+    local attempt=0
+
+    [[ "${M10_INSPECT_PID}" =~ ^[1-9][0-9]*$ ]] || return 0
+    if kill -0 "${M10_INSPECT_PID}" 2>/dev/null; then
+        kill -CONT "${M10_INSPECT_PID}" 2>/dev/null || true
+        kill -TERM "${M10_INSPECT_PID}" 2>/dev/null || true
+        while (( attempt < 20 )) && kill -0 "${M10_INSPECT_PID}" 2>/dev/null; do
+            sleep 0.1
+            attempt=$((attempt + 1))
+        done
+        kill -KILL "${M10_INSPECT_PID}" 2>/dev/null || true
+    fi
+    wait "${M10_INSPECT_PID}" 2>/dev/null || true
+    M10_INSPECT_PID=""
+}
+
+function _cleanup_m10_local {
+    local cleanup_rc=0
+
+    _m10_terminate_inspect
+    if (( M10_CLEANUP_REQUIRED == 0 )); then
+        return 0
+    fi
+    systemctl --user stop "epics-@${M10_IOC_NAME}.service" >/dev/null 2>&1 || true
+    if [[ -e "${CONF_DIR}/${M10_IOC_NAME}.conf" ||
+          -L "${CONF_DIR}/${M10_IOC_NAME}.conf" ]]; then
+        bash "${RUNNER_SCRIPT}" --local remove "${M10_IOC_NAME}" >/dev/null 2>&1 || cleanup_rc=1
+    fi
+    if [[ -n "${M10_DROPIN_DIR}" ]]; then
+        rm -rf -- "${M10_DROPIN_DIR}" || cleanup_rc=1
+    fi
+    systemctl --user daemon-reload >/dev/null 2>&1 || cleanup_rc=1
+    rm -f -- "${IOC_RUNNER_M10_LOG_FIXTURE:-}/m10-fill" 2>/dev/null || cleanup_rc=1
+    if (( cleanup_rc == 0 )); then
+        M10_CLEANUP_REQUIRED=0
+        M10_DROPIN_DIR=""
+    fi
+    return "${cleanup_rc}"
+}
 
 function read_os_release_value {
     local wanted="$1"
@@ -309,7 +377,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 36; index += 1)); do
+    for ((index = 1; index <= 37; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -578,6 +646,11 @@ function _handle_exit {
 
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
         exit "${REPORT_FINAL_STATUS}"
+    fi
+
+    if ! _cleanup_m10_local; then
+        final_status=1
+        _log "ERROR" "Failed to clean up the M10 local reliability fixture."
     fi
 
     if ! restore_logrotate_execstart_override; then
@@ -2253,6 +2326,9 @@ EOF
     rm -rf "${root_dir}"
 }
 
+# shellcheck source=lib/test-m10-local.bash
+source "${SC_TOP}/lib/test-m10-local.bash"
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -2291,6 +2367,7 @@ function run_all_tests {
         "test_logrotate_teardown"
         "test_local_install_path_resolution"
         "test_m6_shared_asset_refresh"
+        "test_m10_reliability"
     )
 
     local step=1

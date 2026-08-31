@@ -16,7 +16,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin"
 unset BASH_ENV ENV CDPATH
 umask 077
 
-readonly EXPECTED_IDENTITY_SHA256="bbbf18a391ac734465426d5e16ee3d883c14494d21a7e510033f6887188e49c9"
+readonly EXPECTED_IDENTITY_SHA256="d2c25a1cfdd26f70bc4e7646bde85fc4443299d7ce95ecd4d39577641feaf1bd"
 readonly DEFAULT_REMOTE_REPO="\${HOME}/gitsrc/epics-ioc-runner"
 REMOTE_REPO="${DEFAULT_REMOTE_REPO}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -341,10 +341,10 @@ function run_host {
         "sudo -n true >&2 && env REPORT_MACHINE_OUTPUT=1 bash tests/run-all-tests.bash --source-regression" \
         "${status_file}" || return 1
     run_remote_suite "${host}" "${token}" local-lifecycle local source \
-        "${command_prefix} IOC_RUNNER_TEST_MODE=source REPORT_MACHINE_OUTPUT=1 bash tests/test-local-lifecycle.bash" \
+        "${command_prefix} bash gate/drivers/remote/run-local-lifecycle.bash source" \
         "${status_file}" || return 1
     run_remote_suite "${host}" "${token}" local-lifecycle local installed \
-        "${command_prefix} IOC_RUNNER_TEST_MODE=installed REPORT_MACHINE_OUTPUT=1 bash tests/test-local-lifecycle.bash" \
+        "${command_prefix} bash gate/drivers/remote/run-local-lifecycle.bash installed" \
         "${status_file}" || return 1
     run_remote_suite "${host}" "${token}" system-infra system none \
         "${command_prefix} IOC_RUNNER_TEST_MODE=installed sudo -nE env REPORT_MACHINE_OUTPUT=1 bash tests/test-system-infra.bash" \

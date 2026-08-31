@@ -253,12 +253,14 @@ Create, Manage, and Track (read).
 | Create | install log directory | `root` (via sudo) | `${SYSTEM_LOG_DIR}/` | `setup-system-infra.bash`: `install -d -o root -g ioc -m 2775` + `setfacl -d` | `root:ioc 2775` + default ACL `g:ioc:rw, o::r--, m::rw` |
 | Create | open log file | `ioc-srv` | `${SYSTEM_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` at IOC start; system unit umask `0022` | `ioc-srv:ioc 0644` |
 | Create | adhoc file (probe, manual archive) | engineer ∈ `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | `<engineer>:ioc 0664` |
+| Manage | preflight log-path probe for `start` / `restart` | engineer ∈ `ioc` | effective `--logfile` directory | `ioc-runner` create-write-sync-delete transaction before systemd | shared-filesystem capacity and group-write availability; failure blocks the transition |
 | Manage | append log records | `ioc-srv` | `<ioc>.log` | procServ `write(logFileFD, ...)` during IOC runtime | owner `w` bit |
 | Manage | start / stop / restart IOC | engineer ∈ `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` → `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ...` against `epics-@<name>.service` (regex form on sudo >= 1.9.10, glob fallback otherwise) |
 | Manage | rotate (system mode, deployed) | `root` (cron) | `<ioc>.log` | `logrotate -f /etc/logrotate.d/procserv` with `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
 | Track | crash detection scan | engineer ∈ `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
 | Track | manual read | engineer ∈ `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |
 | Track | read-only inspection | engineer ∉ `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |
+| Track | `inspect` log-path and executable identity | `root`; probe changes to effective unit `User=` and `Group=` | effective log directory, `MainPID`, UDS, procServ executable | fixed `/usr/sbin/runuser -u <User> -g <Group>` probe plus read-only `/proc` and systemd queries | warnings only; no service-state change or nested sudoers rule |
 | Track | directory listing | any user | `${SYSTEM_LOG_DIR}/` | `ls` | dir `o+rx` |
 | Track | `ioc-runner status` / `is-active` | any user | service state | systemd query (no sudo) | systemd query ACL (permissive) |
 
@@ -268,8 +270,10 @@ Create, Manage, and Track (read).
 | --- | --- | --- | --- | --- | --- |
 | Create | install log directory | `<user>` | `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `ioc-runner --local install`: `install -d -m 0750` | `<user>:<user> 0750` |
 | Create | open log file | `<user>` (via `systemd --user`) | `${LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` + user unit `UMask=0027` | `<user>:<user> 0640` |
+| Manage | preflight log-path probe for `start` / `restart` | `<user>` | effective `--logfile` directory | create-write-sync-delete transaction before `systemctl --user` | failure blocks the transition |
 | Manage | append / IOC lifecycle | `<user>` | log file, user unit | `systemctl --user ...` (no sudo) | self-managed |
 | Track | crash scan / shell read | `<user>` | `<ioc>.log` | `ioc-runner --local`, `cat`, `tail` | owner `r` |
+| Track | `--local inspect` log-path and executable identity | `<user>` | effective log directory, `MainPID`, UDS, procServ executable | unprivileged probe plus read-only `/proc` and user-systemd queries | warnings only; no service-state change |
 
 ## Why Default ACLs Are Still Set
 
