@@ -12,10 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: review the verified M11 (#149) custom identity
-teardown documentation, then commit, land, and reconcile the linked issue.
-M12 follows M11, M13 remains Conditional after M12, and M14 is the final
-release phase.
+Next session entry point: authorize implementation of the accepted M12 (#146)
+current Rocky golden downstream-validation plan. M13 remains Conditional
+after M12, and M14 is the final release phase.
 
 ## Milestone
 
@@ -33,8 +32,8 @@ release phase.
 | Tests | M8 | (#144) Separate human-readable test output from machine-readable records | Milestone | Complete | No | D1, D3 | Complete in `ee40e5a`; T1-T4 Pass, including the two-golden gate, and issue #144 is closed; [detail](#m8---human-and-machine-output-separation) |
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
-| Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | In progress | No | M10, D1, D10, D13 | The documented full teardown resolves the selected identity and log path, removes only confirmed dedicated resources, and preserves pre-existing or unknown resources; [detail](#m11---custom-identity-teardown-agreement) |
-| Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Not started | No | M11, D12 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m12---current-rocky-golden-downstream-validation) |
+| Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
+| Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Not started | Yes | M11, D12, D14 | A fresh consumer from a new `release-1.3.0` Rocky 8 bake passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Conditional | No | M12, D12 | A production SELinux-enforcing IOC host is confirmed and the shipped setup path produces the expected policy contexts; [detail](#m13---selinux-context) |
 | Release | M14 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
@@ -56,6 +55,7 @@ release phase.
 | D11 | Use `/usr/sbin/runuser` for the already-root system `inspect` log probe to assume the effective unit `User=` and `Group=`. Do not add a nested sudoers rule; require the `util-linux` runtime dependency. | Decision Date: 2026-08-30 |
 | D12 | Assign #146 and #120 item 3 to the 1.3.0 release after M11, in that order. #146 becomes M12 and moves to Not started when source authority transfers. #120 item 3 becomes M13 and remains Conditional until a production SELinux-enforcing IOC host is confirmed. Renumber the final release row from M12 to M14 and require both new rows to complete before release execution. | Decision Date: 2026-08-30 |
 | D13 | Resolve the uninstall identity and system log path from the deployed `epics-@.service` `User=`, `Group=`, and `ExecStart=...--logfile=` values. Accept only one absolute logfile template ending in `/%i.log`, derive a non-root existing parent directory, and stop before any metadata change when a value is missing, ambiguous, or unsafe. Require the operator to confirm the resolved values and whether the log directory was created exclusively for this installation. Transfer retained logs to `root:root` and remove identity ACL entries only for a confirmed dedicated log directory; otherwise preserve its observed pre-teardown metadata and retain the related account and group. Delete any remaining account or group only when the operator separately confirms it was created exclusively for this installation and has no other use. Keep the deployed unit available as the identity source until all identity-dependent log and account work completes, then remove it. | Decision Date: 2026-08-31 |
+| D14 | Produce a new Rocky 8 golden for M12 and pin its `epics-ioc-runner` input to `release-1.3.0`. Do not use an earlier golden as M12 evidence. | Decision Date: 2026-08-31 |
 
 ### ID Migration
 
@@ -1776,7 +1776,7 @@ Last Compared: 2026-08-30; remote updated 2026-08-31T05:17:08Z
 Origin: 1.3.0 / M11
 Identity History: none
 GitHub Issue: 149, https://github.com/jeonghanlee/epics-ioc-runner/issues/149
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1904,18 +1904,23 @@ Superseded Plan Artifacts: none
 
 - Implementation and T1-T5 verification are complete in the current working
   tree. The third-person and repeated second-person reviews have no remaining
-  finding. Commit landing and linked-issue reconciliation remain pending.
+  finding.
+- Implementation commit `7894b1d13c4212789a34e78c4542c2f2a776f8a1` is
+  pushed to `origin/release-1.3.0`; a 2026-08-31 fetch observed local HEAD and
+  upstream at the same commit with no changed path.
+- Linked issue #149 was observed closed as completed after its canonical body
+  and checked acceptance criteria were projected on 2026-08-31.
 
 ##### GitHub Projection
 
 Title: Align custom service identity teardown with installation
 Labels: bug, P2-medium, docs, area/install
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: bug, P2-medium, docs, area/install
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-30; remote updated 2026-08-30T07:23:06Z
+Last Compared: 2026-08-31; remote updated 2026-08-31T10:01:57Z
 
 #### M12 - Current Rocky golden downstream validation
 
@@ -1926,59 +1931,137 @@ Status: Not started
 
 ##### Summary
 
-The 2026-06-03 Rocky golden named by jeonghanlee/cloud-provision#4 is obsolete after the copy-based image workflow shipped in jeonghanlee/cloud-provision#30. The current workflow has real bake, provenance, publication, and fresh-consumer acceptance, but the downstream system-infrastructure and system-lifecycle suites have not run against that current Rocky image. This row carries only that remaining verification.
+The 2026-06-03 Rocky golden named by jeonghanlee/cloud-provision#4 is
+obsolete after the copy-based image workflow shipped in
+jeonghanlee/cloud-provision#30. The current workflow has real bake,
+provenance, publication, and fresh-consumer acceptance, but the downstream
+system-infrastructure and system-lifecycle suites have not run against a new
+Rocky image pinned to the current `release-1.3.0` runner line. This row carries
+only that remaining verification.
 
 ##### Scope
 
-- Boot a fresh Rocky 8 consumer from a current run-specific image and matching creation record produced by the shipped `cloud-provision` image workflow.
-- Record the exact `cloud-provision`, `ansible-provision`, and installed `epics-ioc-runner` identities before the test.
-- Run the shipped system-infrastructure and system-lifecycle suites through the real installed-runner path without replacing the setup, sudo, systemd, or IOC paths.
-- Record the complete suite results and the current sudoers-policy observations.
+- Produce a new Rocky 8 golden with the shipped `cloud-provision` image
+  workflow and `epics-ioc-runner` ref `release-1.3.0`.
+- Boot a fresh consumer from that exact image and its matching creation
+  record.
+- Before deploying the candidate tree, verify the untouched consumer against
+  the image manifest and record the exact `cloud-provision`,
+  `ansible-provision`, retained checkout, and installed runner identities.
+- Deploy the current candidate through the shipped full setup path, then run
+  the shipped system-infrastructure and system-lifecycle suites through the
+  real installed-runner path without replacing the setup, sudo, systemd, or
+  IOC paths.
+- Record the complete suite results, current sudoers-policy observations, and
+  evidence hashes.
 
 ##### Out of Scope
 
 - Re-running the retired 2026-06-03 Rocky golden.
 - Treating the 2026-08-12 Rocky gate, which predates jeonghanlee/cloud-provision#30, as verification of the current image-workflow artifact.
-- Rebuilding the current golden unless provenance is invalid or the downstream run exposes a defect.
+- Reusing any earlier Rocky golden as M12 verification.
 - Treating this downstream runner check as image-workflow acceptance.
 
 ##### Completion Criteria
 
-- A fresh consumer selects one exact current Rocky image and matching creation record and reaches `READY`.
-- The image manifest records the exact clean supplier identities and the installed runner reports the expected identity.
-- `tests/test-system-infra.bash` and `tests/test-system-lifecycle.bash` run through the shipped installed path and both finish with final PASS suite records.
-- Evidence records the image name, creation record, supplier commits, runner identity, commands, suite counts, final states, and log hashes.
+- A new Rocky 8 bake publishes one exact image, creation record, and manifest,
+  with `app_ioc_runner requested=release-1.3.0` and clean supplier identities.
+- The manifest's supplier commits match the fetched `origin/master` tips of
+  `cloud-provision` and `ansible-provision`, and its `app_ioc_runner commit`
+  matches the fetched `origin/release-1.3.0` commit recorded before the bake.
+- The candidate checkout is a clean `release-1.3.0` branch exactly equal to
+  that fetched `origin/release-1.3.0` commit before the bake and again before
+  it is pushed to the consumer.
+- A fresh consumer selects that exact image, reaches `READY`, and passes the
+  untouched golden acceptance checks before any candidate deployment.
+- Before deployment, both the retained checkout and installed runner agree
+  with the manifest's `app_ioc_runner commit`.
+- After the shipped full setup, the installed runner agrees with the current
+  M12 candidate commit.
+- `tests/test-system-infra.bash` and `tests/test-system-lifecycle.bash` run
+  through the shipped installed path and both finish with final PASS suite
+  records.
+- Evidence records the image name, creation record, manifest, supplier
+  commits, baseline and candidate runner identities, commands, suite counts,
+  final states, and log hashes.
 
 ##### Dependencies And Decisions
 
 - M11
 - D12
+- D14
 - jeonghanlee/cloud-provision#30 supplies the current copy-based image workflow and its accepted Rocky image format.
 - jeonghanlee/cloud-provision#4 closed by owner-approved retirement of its exact historical target; this row does not retroactively satisfy that issue's original first check.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
+Plan Status: accepted
+Plan Acceptance: Owner approved the reviewed M12 plan on 2026-08-31
+("승인해").
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. Select or bake a current Rocky golden through the shipped `cloud-provision` image workflow and boot a fresh consumer.
-2. Capture the selected image, creation record, manifest, supplier commits, and installed runner identity.
-3. Run the shipped system-infrastructure and system-lifecycle suites through the installed-runner path.
-4. Record complete results and reconcile this detail and its GitHub issue.
+1. Fetch `cloud-provision`, `ansible-provision`, and `epics-ioc-runner`.
+   Require the first two checkouts to be clean `master` branches exactly equal
+   to their `origin/master` tips. Require the runner checkout to be a clean
+   `release-1.3.0` branch exactly equal to its fetched
+   `origin/release-1.3.0` tip, and record that candidate commit. Then run
+   `bin/bake_iocrunner_image.bash -o rocky8 -r release-1.3.0` from the
+   `cloud-provision` checkout.
+2. Record the published image, matching creation record and manifest,
+   supplier commits, requested runner ref, and artifact hashes.
+3. In the current `cloud-provision` checkout, confirm the effective
+   `VM_PREFIX=lab` and `NODE_IDS=main`. Run
+   `make rocky8-iocrunner.main.clean`, then
+   `make rocky8-iocrunner.main`. Require `READY`, and record the resulting
+   domain, VM disk creation record, and address instead of using an address
+   copied from an older runbook example.
+4. Before pushing or deploying the candidate tree, follow
+   `cloud-provision/docs/RUNBOOK_BAKE.md`, section "Fresh consumer SSH host
+   keys", and `gate/RUNBOOK.md`, section "Golden acceptance", using the
+   address recorded in step 3. The bake runbook owns host-key handling and the
+   SSH transport: use `ControlMaster=no` and `ControlPath=none`. The gate
+   runbook owns acceptance order and criteria: use `sudo -n` for every remote
+   privileged command. Run the shipped validator and verify the remote
+   manifest, retained checkout, installed runner, fixture accounts, and
+   source-image identity against the control-host artifacts. Keep the
+   acceptance commands unredirected as required by the bake runbook. After
+   each command returns, record its exact command and exit status, and record
+   the remote and control-host manifest hashes in
+   `work/m12-<run-id>/golden-acceptance.status`.
+5. Follow `gate/RUNBOOK.md`, section "The tree on each host", using the
+   address recorded in step 3. Reconfirm that the runner checkout is clean,
+   remains on `release-1.3.0`, and still equals the candidate commit recorded
+   in step 1. Push that candidate with `gate/drivers/push.bash`, deploy it with
+   `bin/setup-system-infra.bash --full`, and verify the installed runner
+   identity against the candidate commit.
+6. Follow `gate/RUNBOOK.md`, section "The EPICS environment", to resolve and
+   source the consumer's absolute EPICS environment path, then run
+   `REPORT_MACHINE_OUTPUT=1 bash tests/run-all-tests.bash --system --installed`
+   from the pushed candidate through SSH. Apply the standard-output and
+   standard-error redirections to the control-host SSH invocation, not inside
+   the remote command. Store standard output as
+   `work/m12-<run-id>/system-installed.machine` and standard error as
+   `work/m12-<run-id>/system-installed.human` on the control host.
+7. Store the upstream-input record, image creation record, manifest, golden
+   acceptance status record, suite outputs, and one `SHA256SUMS` file under
+   the same `work/m12-<run-id>/` directory. Do not create a redirected copy of
+   the acceptance output. Record the complete results and reconcile this
+   detail and its GitHub issue.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Runtime acceptance | Run the shipped system-only installed suite selection on a fresh current Rocky consumer after recording its image and software identities | Rocky 8 consumer from the current copy-based image workflow | The real system-infrastructure and system-lifecycle suites both emit complete final PASS records |
+| T1 | Bake provenance | Fetch and record the three upstream inputs, require a clean runner `release-1.3.0` checkout equal to its fetched upstream, produce a new Rocky 8 golden with that ref, boot a fresh consumer, and run the shipped untouched-golden acceptance checks before candidate deployment | Rocky 8 consumer from the new copy-based image workflow artifact | The image pair is valid, the consumer reaches `READY`, the manifest matches both recorded supplier `origin/master` commits and the recorded runner `origin/release-1.3.0` commit, has clean supplier identities and `requested=release-1.3.0`, both baseline runner identities agree with its `app_ioc_runner commit`, and the unredirected acceptance commands have a complete status and manifest-hash record |
+| T2 | Runtime acceptance | Reconfirm and push the same clean `release-1.3.0` candidate commit, fully deploy it, verify the installed runner identity, then run `REPORT_MACHINE_OUTPUT=1 bash tests/run-all-tests.bash --system --installed` while preserving both output streams under one `work/m12-<run-id>/` directory | Same fresh Rocky 8 consumer after candidate deployment | The installed runner agrees with the recorded candidate commit, and the real system-infrastructure and system-lifecycle suites emit complete final PASS records with the expected counts and evidence hashes |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Fresh current-image Rocky 8 consumer | Pending | The 2026-08-12 Rocky gate predates jeonghanlee/cloud-provision#30 and is supporting history, not M12 verification |
+| T1 | Not run | Fresh new-bake Rocky 8 consumer | Pending | The 2026-08-12 Rocky gate predates jeonghanlee/cloud-provision#30 and is supporting history, not M12 verification |
+| T2 | Not run | Same consumer after current candidate deployment | Pending | Runtime verification starts only after T1 accepts the untouched golden |
 
 ##### Closure Evidence
 
