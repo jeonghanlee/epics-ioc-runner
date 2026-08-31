@@ -7,15 +7,15 @@ Canonical branch or ref: `release-1.3.0`
 Git upstream: `origin/release-1.3.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.3.0`,
 number 16
-Activation state: active on `release-1.3.0`; source authority moved in master
-commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. M12 and M13 are staged
-from master source-intent commit `6bf5e3c9cac01fef956a5dcbc868bb45be2d6153`.
-Their authority remains in the master Backlog until its source transfer commit
-names this target commit.
+Activation state: active on `release-1.3.0`; initial source authority moved in
+master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
+M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
+to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: complete the source transfer of staged M12 (#146)
-and M13 (#120 item 3) by recording this target commit in the master register.
-Until that commit lands, M11 (#149) remains the nearest active Ready row.
+Next session entry point: review and accept the M11 (#149) custom identity
+teardown plan, then authorize implementation if its scope and test plan remain
+acceptable. M11 is Ready; M12 follows M11, M13 remains Conditional after M12,
+and M14 is the final release phase.
 
 ## Milestone
 
@@ -76,8 +76,8 @@ Until that commit lands, M11 (#149) remains the nearest active Ready row.
 | 46790f9 / M11 -> 1.3.0 / M8 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
 | 46790f9 / M12 -> 1.3.0 / M9 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
 | 46790f9 / M13 -> 1.3.0 / M10 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M3 -> 1.3.0 / M12 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M1 -> 1.3.0 / M13 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M3 -> 1.3.0 / M12 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | `36396b371464575ad325d3ed0bd18b02281495d8` | `757dcd2464d34d616a32fe7175ba9371ddc8e92c` |
+| 46790f9 / M1 -> 1.3.0 / M13 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | `36396b371464575ad325d3ed0bd18b02281495d8` | `757dcd2464d34d616a32fe7175ba9371ddc8e92c` |
 
 ### Milestone Details
 
@@ -1937,9 +1937,9 @@ Labels: tests
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: tests
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-30; remote updated 2026-08-16T08:24:10Z
+Last Compared: 2026-08-30; remote updated 2026-08-31T05:55:48Z
 
 #### M13 - SELinux context
 
@@ -2010,9 +2010,9 @@ Labels: P3-low, ops
 GitHub Milestone: 1.3.0
 Observed State: open
 Observed Labels: P3-low, ops
-Observed Milestone: Backlog
+Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-30; remote updated 2026-08-14T17:06:03Z
+Last Compared: 2026-08-30; remote updated 2026-08-31T05:55:36Z
 
 #### M14 - Final release
 
@@ -2121,8 +2121,8 @@ Repository owner.
 
 ##### Affected Work
 
-M14 (final release) and the GitHub projection of M1-M13, whose issues move
-from the `Backlog` milestone to `1.3.0` once it exists.
+M14 (final release) and the GitHub projection of M1-M13. Every linked issue is
+assigned to the open `1.3.0` milestone.
 
 ##### Completion Criterion
 
