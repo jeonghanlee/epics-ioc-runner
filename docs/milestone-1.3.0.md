@@ -8,12 +8,14 @@ Git upstream: `origin/release-1.3.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.3.0`,
 number 16
 Activation state: active on `release-1.3.0`; source authority moved in master
-commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
+commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. M12 and M13 are staged
+from master source-intent commit `6bf5e3c9cac01fef956a5dcbc868bb45be2d6153`.
+Their authority remains in the master Backlog until its source transfer commit
+names this target commit.
 
-Next session entry point: review and accept the M11 (#149) custom identity
-teardown plan, then authorize implementation if its scope and test plan remain
-acceptable. M1 through M10 are Complete and their linked issues are closed.
-M11 is Ready; M12 remains dependent on M11.
+Next session entry point: complete the source transfer of staged M12 (#146)
+and M13 (#120 item 3) by recording this target commit in the master register.
+Until that commit lands, M11 (#149) remains the nearest active Ready row.
 
 ## Milestone
 
@@ -32,7 +34,9 @@ M11 is Ready; M12 remains dependent on M11.
 | Docs | M9 | (#132) Settle the fate of the `docs/MILESTONE_PROCEDURE.md` working draft | Milestone | Complete | No | D1, D3 | Complete in this repository `a8bfdcd` with the shared skill source applied upstream; T1-T6 and both upstream readbacks Pass; issue #132 is closed; [detail](#m9---milestone-procedure-draft-fate) |
 | Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Not started | Yes | M10, D1, D10 | The documented full teardown removes and verifies the identity selected during installation without targeting the shipped defaults when custom values were used; [detail](#m11---custom-identity-teardown-agreement) |
-| Release | M12 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m12---final-release) |
+| Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Not started | No | M11, D12 | A fresh consumer from the current image workflow passes the shipped system-infrastructure and system-lifecycle suites with exact image and runner identities recorded; [detail](#m12---current-rocky-golden-downstream-validation) |
+| Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Conditional | No | M12, D12 | A production SELinux-enforcing IOC host is confirmed and the shipped setup path produces the expected policy contexts; [detail](#m13---selinux-context) |
+| Release | M14 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -50,12 +54,13 @@ M11 is Ready; M12 remains dependent on M11.
 | D9 | Do not implement M10-2. On the minimum supported systemd 239, a main-process restart exception cannot distinguish a launch validator from procServ after `exec`; the pinned procServ `073f290` can return a child exit code or an errno, so no numeric status is reserved for validation. A parent wrapper would replace procServ as `MainPID`, while self-stop would expand the sudo contract. Preserve the direct procServ `MainPID`, indefinite `Restart=always` policy, shared configuration, and current sudo model. This supersedes D8 and the M10-2 portion of D5. | Decision Date: 2026-08-29 |
 | D10 | Keep the custom service identity teardown seam in the 1.3.0 release as M11, after M10 and before the final release phase. Renumber the prior final release row from M11 to M12. | Decision Date: 2026-08-30 |
 | D11 | Use `/usr/sbin/runuser` for the already-root system `inspect` log probe to assume the effective unit `User=` and `Group=`. Do not add a nested sudoers rule; require the `util-linux` runtime dependency. | Decision Date: 2026-08-30 |
+| D12 | Assign #146 and #120 item 3 to the 1.3.0 release after M11, in that order. #146 becomes M12 and moves to Not started when source authority transfers. #120 item 3 becomes M13 and remains Conditional until a production SELinux-enforcing IOC host is confirmed. Renumber the final release row from M12 to M14 and require both new rows to complete before release execution. | Decision Date: 2026-08-30 |
 
 ### ID Migration
 
 | Old ID | Current ID | Reason | Updated References |
 | --- | --- | --- | --- |
-| M11 | M12 | Insert M11 for the custom service identity teardown issue before the final release phase (D10). | Work table, final release detail, dependencies, and G1 affected work |
+| M11 | M14 | Insert M11 for custom identity teardown, then M12 and M13 for the two Backlog transfers before the final release phase (D10, D12). | Work table, final release detail, dependencies, and G1 affected work |
 
 ### Assignment History
 
@@ -71,6 +76,8 @@ M11 is Ready; M12 remains dependent on M11.
 | 46790f9 / M11 -> 1.3.0 / M8 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
 | 46790f9 / M12 -> 1.3.0 / M9 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
 | 46790f9 / M13 -> 1.3.0 / M10 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M3 -> 1.3.0 / M12 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M1 -> 1.3.0 / M13 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
 
 ### Milestone Details
 
@@ -1856,10 +1863,161 @@ Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-30; remote updated 2026-08-30T07:23:06Z
 
-#### M12 - Final release
+#### M12 - Current Rocky golden downstream validation
+
+Origin: 46790f9 / M3
+Identity History: 46790f9 / M3 -> 1.3.0 / M12 (staged target, D12, 2026-08-30)
+GitHub Issue: 146, https://github.com/jeonghanlee/epics-ioc-runner/issues/146
+Status: Not started
+
+##### Summary
+
+The 2026-06-03 Rocky golden named by jeonghanlee/cloud-provision#4 is obsolete after the copy-based image workflow shipped in jeonghanlee/cloud-provision#30. The current workflow has real bake, provenance, publication, and fresh-consumer acceptance, but the downstream system-infrastructure and system-lifecycle suites have not run against that current Rocky image. This row carries only that remaining verification.
+
+##### Scope
+
+- Boot a fresh Rocky 8 consumer from a current run-specific image and matching creation record produced by the shipped `cloud-provision` image workflow.
+- Record the exact `cloud-provision`, `ansible-provision`, and installed `epics-ioc-runner` identities before the test.
+- Run the shipped system-infrastructure and system-lifecycle suites through the real installed-runner path without replacing the setup, sudo, systemd, or IOC paths.
+- Record the complete suite results and the current sudoers-policy observations.
+
+##### Out of Scope
+
+- Re-running the retired 2026-06-03 Rocky golden.
+- Treating the 2026-08-12 Rocky gate, which predates jeonghanlee/cloud-provision#30, as verification of the current image-workflow artifact.
+- Rebuilding the current golden unless provenance is invalid or the downstream run exposes a defect.
+- Treating this downstream runner check as image-workflow acceptance.
+
+##### Completion Criteria
+
+- A fresh consumer selects one exact current Rocky image and matching creation record and reaches `READY`.
+- The image manifest records the exact clean supplier identities and the installed runner reports the expected identity.
+- `tests/test-system-infra.bash` and `tests/test-system-lifecycle.bash` run through the shipped installed path and both finish with final PASS suite records.
+- Evidence records the image name, creation record, supplier commits, runner identity, commands, suite counts, final states, and log hashes.
+
+##### Dependencies And Decisions
+
+- M11
+- D12
+- jeonghanlee/cloud-provision#30 supplies the current copy-based image workflow and its accepted Rocky image format.
+- jeonghanlee/cloud-provision#4 closed by owner-approved retirement of its exact historical target; this row does not retroactively satisfy that issue's original first check.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Select or bake a current Rocky golden through the shipped `cloud-provision` image workflow and boot a fresh consumer.
+2. Capture the selected image, creation record, manifest, supplier commits, and installed runner identity.
+3. Run the shipped system-infrastructure and system-lifecycle suites through the installed-runner path.
+4. Record complete results and reconcile this detail and its GitHub issue.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Runtime acceptance | Run the shipped system-only installed suite selection on a fresh current Rocky consumer after recording its image and software identities | Rocky 8 consumer from the current copy-based image workflow | The real system-infrastructure and system-lifecycle suites both emit complete final PASS records |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Fresh current-image Rocky 8 consumer | Pending | The 2026-08-12 Rocky gate predates jeonghanlee/cloud-provision#30 and is supporting history, not M12 verification |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Validate the current Rocky 8 golden through downstream runner suites
+Labels: tests
+GitHub Milestone: 1.3.0
+Observed State: open
+Observed Labels: tests
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-30; remote updated 2026-08-16T08:24:10Z
+
+#### M13 - SELinux context
+
+Origin: 46790f9 / M1
+Identity History: 46790f9 / M1 -> 1.3.0 / M13 (staged target, D12, 2026-08-30)
+GitHub Issue: 120, https://github.com/jeonghanlee/epics-ioc-runner/issues/120
+Status: Conditional
+
+##### Summary
+
+Items 1 and 2 are examined-Keep decisions, not pending implementation. Only the SELinux context of setup deployments into `/etc` remains, conditional on the owner confirming a production SELinux-enforcing IOC host.
+
+##### Scope
+
+On an enforcing production host, record the expected contexts for the sudoers and logrotate targets, run the shipped setup path, and compare the resulting contexts and policy acceptance. If a mismatch is observed, implement the smallest cross-distribution correction and a real-path final-context check.
+
+##### Out of Scope
+
+Reopening items 1 or 2 without new reachability evidence, or treating a non-enforcing golden as proof of production SELinux behavior.
+
+##### Completion Criteria
+
+- The named condition is observed: the owner confirms a production SELinux-enforcing environment. The row then moves to Not started.
+- The real setup deployment records expected and observed contexts for both `/etc` targets before any correction is selected.
+
+##### Dependencies And Decisions
+
+- M12
+- D12
+- Items 1 and 2 are retired as examined Keep in `docs/CLOSED_DOORS.md` CI-29.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Confirm an owner-authorized production IOC host is SELinux enforcing.
+2. Record `getenforce`, filesystem boundaries, `matchpathcon` expectations, and existing target contexts.
+3. Run the shipped setup deployment and compare resulting contexts and policy acceptance.
+4. Only after an observed mismatch, select and verify a correction supported by the target distributions.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Activation condition | Read the production host SELinux mode with owner authorization | Production IOC host | `Enforcing` is observed before investigation begins |
+| T2 | Deployment context | Run the shipped setup path and compare `matchpathcon` with resulting target contexts | Same enforcing host | Both deployed policies carry their expected contexts and are accepted by their consumers |
+| T3 | Regression | If T2 finds a mismatch, rerun the real setup path with the correction present | Supported enforcing targets | A wrong final context fails the check and the corrected context passes |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Production IOC host | Pending | none |
+| T2 | Not run | Production IOC host | Pending | none |
+| T3 | Not run | Supported enforcing targets | Pending | none |
+
+##### Closure Evidence
+
+- Items 1 and 2 are retired as examined Keep in `docs/CLOSED_DOORS.md` CI-29; the conditional SELinux item remains open.
+
+##### GitHub Projection
+
+Title: Validate SELinux contexts on system policy deployments
+Labels: P3-low, ops
+GitHub Milestone: 1.3.0
+Observed State: open
+Observed Labels: P3-low, ops
+Observed Milestone: Backlog
+Observed Assignee: jeonghanlee
+Last Compared: 2026-08-30; remote updated 2026-08-14T17:06:03Z
+
+#### M14 - Final release
 
 Origin: 1.3.0 / M11
-Identity History: 1.3.0 / M11 -> 1.3.0 / M12 (new M11 inserted, D10, 2026-08-30)
+Identity History: 1.3.0 / M11 -> 1.3.0 / M12 (new M11 inserted, D10, 2026-08-30); 1.3.0 / M12 -> 1.3.0 / M14 (M12 and M13 inserted, D12, 2026-08-30)
 GitHub Issue: none
 Status: Not started
 
@@ -1877,7 +2035,7 @@ milestone close, following the release-cycle procedure.
 
 ##### Out of Scope
 
-Individual milestone implementation and verification, which the M1-M11 rows
+Individual milestone implementation and verification, which the M1-M13 rows
 own.
 
 ##### Completion Criteria
@@ -1889,7 +2047,7 @@ own.
 
 ##### Dependencies And Decisions
 
-- M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, G1
+- M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1
 - D1
 
 ##### Implementation Plan
@@ -1963,7 +2121,7 @@ Repository owner.
 
 ##### Affected Work
 
-M12 (final release) and the GitHub projection of M1-M11, whose issues move
+M14 (final release) and the GitHub projection of M1-M13, whose issues move
 from the `Backlog` milestone to `1.3.0` once it exists.
 
 ##### Completion Criterion
