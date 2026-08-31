@@ -12,9 +12,10 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: authorize implementation of the accepted M12 (#146)
-current Rocky golden downstream-validation plan. M13 remains Conditional
-after M12, and M14 is the final release phase.
+Next session entry point: execute the accepted and authorized M12 (#146)
+current Rocky golden downstream-validation plan, starting with the upstream
+and clean-checkout preflight. M13 remains Conditional after M12, and M14 is
+the final release phase.
 
 ## Milestone
 
@@ -1998,7 +1999,8 @@ only that remaining verification.
 Plan Status: accepted
 Plan Acceptance: Owner approved the reviewed M12 plan on 2026-08-31
 ("승인해").
-Implementation Authorization: none
+Implementation Authorization: Owner authorized M12 implementation on
+2026-08-31 ("구현 승인").
 Superseded Plan Artifacts: none
 
 1. Fetch `cloud-provision`, `ansible-provision`, and `epics-ioc-runner`.
