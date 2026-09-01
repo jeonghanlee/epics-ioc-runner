@@ -70,10 +70,10 @@ addresses their targets reserve:
 
 | Platform | Consumer target | Address | libvirt domain |
 |---|---|---|---|
-| Rocky 8 | `rocky8-iocrunner.server` | `192.168.122.150` | `testbed-rocky8-iocrunner-server` |
-| Debian 13 | `debian13-iocrunner.server` | `192.168.122.50` | `testbed-debian13-iocrunner-server` |
+| Rocky 8 | `rocky8-iocrunner.main` | `192.168.123.150` | `lab-rocky8-iocrunner-main` |
+| Debian 13 | `debian13-iocrunner.main` | `192.168.123.50` | `lab-debian13-iocrunner-main` |
 
-The domain is not the target. The make target's name gains a `testbed-` prefix
+The domain is not the target. The make target's name gains a `lab-` prefix
 and its dots become dashes, so no `virsh` command takes the name the target
 uses. Read the defined set rather than deriving it:
 
@@ -125,58 +125,23 @@ git -C <repo> rev-parse --show-toplevel
 ls "$(dirname "$(git -C <repo> rev-parse --show-toplevel)")" | grep -E 'cloud-provision|ansible-provision'
 ```
 
-**Destroy the consumer VMs first.** The bake scans defined domains and refuses
-to publish while any disk resolves through the target golden as its backing
-file, which is exactly what a running consumer does. A bake started with the
-consumers still present stops before publication.
-
-```bash
-make rocky8-iocrunner.server.clean
-make debian13-iocrunner.server.clean
-```
-
-Confirm the removal from libvirt rather than from the target's exit code, under
-the domain names the table above gives — and where a consumer is still defined,
-read which golden it backs onto, since that backing file is the thing the bake
-refuses to publish through:
+The copy-based workflow publishes a new versioned image pair and manifest
+sidecar for each bake.
+An existing consumer disk is an independent qcow2 and does not block
+publication. Record the defined consumers before the bake, but do not treat
+their presence as permission to reuse them for Gate acceptance:
 
 ```bash
 virsh list --all
-virsh domblklist testbed-rocky8-iocrunner-server
-qemu-img info -U --backing-chain <the vda Source path domblklist printed>
+ls -ld "$IMAGE_DIR"
+find "$IMAGE_DIR" -maxdepth 1 -type f -name 'iocrunner-*.qcow2*' -ls
 ```
 
-`domblklist` names the consumer's own overlay, not the golden underneath it —
-take the third command's path from its `vda` row rather than assuming where the
-overlay lives. The golden is the `backing file` line that command prints; `-U`
-is what lets it read while the domain is running, and without it the image lock
-refuses the read rather than answering.
-
-Required before the bake starts: neither consumer domain is listed.
-
-The bake publishes immutable golden pairs under the archive directory and then
-refreshes separate working copies under `IMAGE_DIR`. Set and inspect both
-locations:
-
-```bash
-export ARCHIVE_DIR="$(realpath -m "${IMAGE_DIR%/}/../archive")"
-ls -ld "$IMAGE_DIR" "$(dirname "$ARCHIVE_DIR")"
-if [ -d "$ARCHIVE_DIR" ]; then
-    ls -ld "$ARCHIVE_DIR"
-    find "$ARCHIVE_DIR" -maxdepth 1 -type f -name 'iocrunner-*.qcow2*' -ls
-else
-    printf 'archive will be created by the first bake: %s\n' "$ARCHIVE_DIR"
-fi
-ls -l "$IMAGE_DIR"/iocrunner-*.qcow2*
-```
-
-Required before baking: `IMAGE_DIR` and the archive parent are writable by the
-baking account. If the archive already exists, it and its existing golden pairs
-belong to that account; otherwise the bake creates it. A working copy may retain
-the hypervisor's ownership after a consumer ran; that is expected and is not a
-repair condition. The refresh writes a new temporary copy and replaces the
-working path only after archive publication and validation succeed. Files named
-`*.prevowner*` are historical working copies and are not read by the bake.
+Required before baking: `IMAGE_DIR` is writable by the baking account. Existing
+versioned image pairs and manifest sidecars remain unchanged. The bake publishes
+a new uniquely named qcow2 image, writes its matching `.creation-record`, and
+writes its `.manifest` sidecar in `IMAGE_DIR`. Provisioning selects the newest
+image whose image and creation record validate together.
 
 Choose one baseline ref for the pair. A release gate uses the last released tag
 that precedes the candidate; a Check-grade run records another explicit ref if
@@ -189,10 +154,10 @@ bin/bake_iocrunner_image.bash -o rocky8 -r "$BASELINE_REF"
 bin/bake_iocrunner_image.bash -o debian13 -r "$BASELINE_REF"
 ```
 
-Required after baking: both runs publish validated archive pairs, refresh the
-two working copies, and record the same `requested=$BASELINE_REF`. Read the
-supplier branch, commit, and dirty count again and confirm they match the values
-recorded before the bake.
+Required after baking: both runs publish one validated versioned image pair and
+one manifest sidecar in `IMAGE_DIR`, and both manifests record the same
+`requested=$BASELINE_REF`. Read the supplier branch, commit, and dirty count
+again and confirm they match the values recorded before the bake.
 
 Bake failure handling, proxy handling, and slow-boot diagnosis belong to
 `cloud-provision/docs/RUNBOOK_BAKE.md`. Do not diagnose a bake from here. Two
@@ -205,16 +170,15 @@ running and half-provisioned, so a clean retry destroys it first.
 When the current release register includes work linked to
 [ansible-provision#13](https://github.com/jeonghanlee/ansible-provision/issues/13),
 its change-specific check spans the real Ansible role and the consumer
-lifecycle suites. Run it on a disposable Debian 13 and Rocky 8 consumer pair
-before creating the canonical pair in the next section. The names and
-addresses are deterministic, so the disposable and canonical pairs cannot
-coexist.
+lifecycle suites. If that condition applies, first execute "Freshly created
+consumer VMs", "Golden acceptance", and "Fixture accounts" below. Treat that
+first accepted pair as disposable, then return here before "The tree on each
+host". If the condition does not apply, skip this section and continue
+linearly.
 
-Create the disposable pair from the newly published images with the two
-targets in the next section. Before changing either host, run the Golden
-acceptance checks below. Then push the candidate tree to the
-`path_ioc_runner_src` location with `gate/drivers/push.bash` and resolve the
-EPICS environment by the later procedure.
+Push the candidate tree to the `path_ioc_runner_src` location with
+`gate/drivers/push.bash` and resolve the EPICS environment by the later
+procedure.
 
 From the `ansible-provision` checkout, use a runtime inventory that places each
 host in its normal `ioc_nodes` OS group. Run the real `app_ioc_runner` path once
@@ -250,24 +214,31 @@ source runs must ignore the installed override, record `bin/ioc-runner`, and
 pass the source-regression contracts. Preserve the Ansible and consumer logs
 as one evidence set.
 
-From the `cloud-provision` checkout, remove only these two disposable
-consumers. Then continue with the next section to create the canonical fresh
-pair:
-
-```bash
-make rocky8-iocrunner.server.clean
-make debian13-iocrunner.server.clean
-```
+Return to "Freshly created consumer VMs" and execute that section, "Golden
+acceptance", and "Fixture accounts" a second time. The unconditional cleanup
+at the start of the first section removes the disposable pair before it creates
+the canonical pair. After the repeated fixture check passes, continue at "The
+tree on each host".
 
 ### Freshly created consumer VMs
 
-Create them from the images just published. Never reuse a test bed: it
-accumulates state — a stale system user, a previously installed runner,
+From the `cloud-provision` checkout, remove both deterministic consumers and
+confirm that neither domain remains. This step applies whether or not the
+optional configured-destination check above ran:
+
+```bash
+make rocky8-iocrunner.main.clean
+make debian13-iocrunner.main.clean
+virsh list --all
+```
+
+Create both consumers from the images just published. Never reuse a test bed:
+it accumulates state — a stale system user, a previously installed runner,
 leftover accounts — and produces failures the tree under test does not have.
 
 ```bash
-make rocky8-iocrunner.server
-make debian13-iocrunner.server
+make rocky8-iocrunner.main
+make debian13-iocrunner.main
 ```
 
 Each target ends by printing `READY`; anything else is an incomplete boot,
@@ -277,8 +248,8 @@ Recreated VMs reuse the deterministic addresses and present new host keys.
 Clear the stale entries before the first connection:
 
 ```bash
-ssh-keygen -f ~/.ssh/known_hosts -R 192.168.122.150
-ssh-keygen -f ~/.ssh/known_hosts -R 192.168.122.50
+ssh-keygen -f ~/.ssh/known_hosts -R 192.168.123.150
+ssh-keygen -f ~/.ssh/known_hosts -R 192.168.123.50
 ```
 
 ### Golden acceptance
@@ -312,29 +283,30 @@ decides to prompt has nowhere to ask and stalls until something times out.
 Rocky 8 consumer:
 
 ```bash
-ssh vmadmin@192.168.122.150 "sudo -n stat -c '%U:%G %a %n' /etc/iocrunner-bake.manifest"
-ssh vmadmin@192.168.122.150 "sudo -n sha256sum /etc/iocrunner-bake.manifest"
-ssh vmadmin@192.168.122.150 "sudo -n sed -n '1,80p' /etc/iocrunner-bake.manifest"
-scp bin/validate_iocrunner_bake.bash vmadmin@192.168.122.150:/tmp/validate_iocrunner_bake.bash
-ssh vmadmin@192.168.122.150 "sudo -n /bin/bash -p /tmp/validate_iocrunner_bake.bash"
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.150 "sudo -n stat -c '%U:%G %a %n' /etc/iocrunner-bake.manifest"
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.150 "sudo -n sha256sum /etc/iocrunner-bake.manifest"
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.150 "sudo -n sed -n '1,80p' /etc/iocrunner-bake.manifest"
+scp bin/validate_iocrunner_bake.bash vmadmin@192.168.123.150:/tmp/validate_iocrunner_bake.bash
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.150 "sudo -n /bin/bash -p /tmp/validate_iocrunner_bake.bash"
 ```
 
 Debian 13 consumer:
 
 ```bash
-ssh vmadmin@192.168.122.50 "sudo -n stat -c '%U:%G %a %n' /etc/iocrunner-bake.manifest"
-ssh vmadmin@192.168.122.50 "sudo -n sha256sum /etc/iocrunner-bake.manifest"
-ssh vmadmin@192.168.122.50 "sudo -n sed -n '1,80p' /etc/iocrunner-bake.manifest"
-scp bin/validate_iocrunner_bake.bash vmadmin@192.168.122.50:/tmp/validate_iocrunner_bake.bash
-ssh vmadmin@192.168.122.50 "sudo -n /bin/bash -p /tmp/validate_iocrunner_bake.bash"
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.50 "sudo -n stat -c '%U:%G %a %n' /etc/iocrunner-bake.manifest"
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.50 "sudo -n sha256sum /etc/iocrunner-bake.manifest"
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.50 "sudo -n sed -n '1,80p' /etc/iocrunner-bake.manifest"
+scp bin/validate_iocrunner_bake.bash vmadmin@192.168.123.50:/tmp/validate_iocrunner_bake.bash
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.50 "sudo -n /bin/bash -p /tmp/validate_iocrunner_bake.bash"
 ```
 
 Compare each remote manifest hash against its sidecar on the control host,
 using the `IMAGE_DIR` exported at the start:
 
 ```bash
-sha256sum ${IMAGE_DIR}/iocrunner-rocky8.qcow2.manifest
-sha256sum ${IMAGE_DIR}/iocrunner-debian13.qcow2.manifest
+latest_iocrunner="$(ls -1t "${IMAGE_DIR}"/iocrunner-rocky8-*.qcow2 | head -n 1)"
+latest_debian_iocrunner="$(ls -1t "${IMAGE_DIR}"/iocrunner-debian13-*.qcow2 | head -n 1)"
+sha256sum "${latest_iocrunner}.manifest" "${latest_debian_iocrunner}.manifest"
 ```
 
 Also read the runner the golden already carries and the checkout the bake
@@ -448,7 +420,7 @@ It takes three positional arguments:
 | `$3` | the destination parent directory on the host; a leading `~` is expanded on the host, so quote it here or the control host's shell expands it first |
 
 ```bash
-bash gate/drivers/push.bash vmadmin@192.168.122.150 <repo-root> '~/gitsrc'
+bash gate/drivers/push.bash vmadmin@192.168.123.150 <repo-root> '~/gitsrc'
 ```
 
 The driver creates the destination and removes any previous copy of the tree
@@ -467,10 +439,10 @@ only the command wrapper and skips the log directory, the sudoers policy, and
 the unit template.
 
 ```bash
-ssh vmadmin@192.168.122.150 'cd ~/gitsrc/epics-ioc-runner && sudo -nE bash bin/setup-system-infra.bash --full'
+ssh -o ControlMaster=no -o ControlPath=none vmadmin@192.168.123.150 'cd ~/gitsrc/epics-ioc-runner && sudo -nE bash bin/setup-system-infra.bash --full'
 ```
 
-Repeat both for `192.168.122.50`.
+Repeat both for `192.168.123.50`.
 
 ### System mode and the engineer home
 
