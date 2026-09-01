@@ -12,9 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: land the M13 T6 evidence, close linked issue #120,
-then record M13 as Complete and open the M14 final-release plan. M13 T1-T6
-pass, but closure evidence has not yet landed and the linked issue remains open.
+Next session entry point: review and accept the M14 final-release plan through
+the release-cycle procedure. M13 is Complete, every M14 dependency is
+Complete, and M14 is Ready.
 
 ## Milestone
 
@@ -34,8 +34,8 @@ pass, but closure evidence has not yet landed and the linked issue remains open.
 | Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
-| Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | In progress | No | M12, D12, D15, D16 | T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host; closure evidence must land and issue #120 must close; [detail](#m13---selinux-context) |
-| Release | M14 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
+| Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
+| Release | M14 | Final release 1.3.0 | Milestone | Not started | Yes | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2091,7 +2091,7 @@ Last Compared: 2026-08-31; remote updated 2026-08-31T22:39:10Z
 Origin: 46790f9 / M1
 Identity History: 46790f9 / M1 -> 1.3.0 / M13 (staged target, D12, 2026-08-30)
 GitHub Issue: 120, https://github.com/jeonghanlee/epics-ioc-runner/issues/120
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -2172,19 +2172,25 @@ Superseded Plan Artifacts: none
   correction, and D16 activated implementation. An owner-authorized production
   SELinux-enforcing IOC host passed final acceptance.
 - The implementation, testbed verification, and production acceptance T1-T6
-  pass. The evidence update must land and linked issue #120 must close before
-  M13 moves to Complete.
+  pass.
+- Implementation commit `1647f8a3ded85f114714a129b8bfdf9c849868da`
+  and production evidence commit
+  `7c9f59013ac672a598678d7d40cbdf6ea7d49075` are pushed to
+  `origin/release-1.3.0`; the latter was read back at the same upstream commit
+  on 2026-08-31 22:32 PDT.
+- Linked issue #120 is closed with every acceptance criterion checked;
+  observed remote update `2026-09-01T05:32:30Z`.
 
 ##### GitHub Projection
 
 Title: Validate SELinux contexts on system policy deployments
 Labels: P3-low, ops
 GitHub Milestone: 1.3.0
-Observed State: open
+Observed State: closed
 Observed Labels: P3-low, ops
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-31; remote updated 2026-09-01T04:53:28Z
+Last Compared: 2026-08-31; remote updated 2026-09-01T05:32:30Z
 
 #### M14 - Final release
 
