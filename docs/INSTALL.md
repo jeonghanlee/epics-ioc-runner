@@ -8,6 +8,9 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
 * Basic build tools installed (`gcc`, `g++`, `make`, `git`).
 * Core utilities (`procServ` and `con`) compiled and installed system-wide.
 * `util-linux` installed with `/usr/sbin/runuser` for system `inspect` identity switching.
+* On a host with active SELinux, executable `/usr/sbin/restorecon` and
+  `/usr/sbin/matchpathcon`. Hosts without active SELinux do not require these
+  tools.
 
 ---
 
@@ -23,6 +26,11 @@ The script verifies every artefact it deploys and **exits 1 if any
 verification check fails** — automated provisioning (ansible, CI) can trust
 the exit status directly; a non-zero exit means the reported items must be
 fixed and the script re-run.
+
+When SELinux is active, the full setup restores the policy-defined context of
+`/etc/sudoers.d/10-epics-ioc` and `/etc/logrotate.d/procserv` after each atomic
+deployment and requires `matchpathcon -V` to accept both final paths. The
+preflight requires both SELinux tools before any system mutation.
 
 > **Important (custom service identity):** the service account and group are
 > configurable via `IOC_RUNNER_SYSTEM_USER` / `IOC_RUNNER_SYSTEM_GROUP`, but
@@ -123,6 +131,10 @@ cat <<EOF > /etc/sudoers.d/10-epics-ioc
 EOF
 
 chmod 0440 /etc/sudoers.d/10-epics-ioc
+
+# Required when SELinux is active
+/usr/sbin/restorecon /etc/sudoers.d/10-epics-ioc
+/usr/sbin/matchpathcon -V /etc/sudoers.d/10-epics-ioc
 ```
 
 On hosts with sudo < 1.9.10, replace each `^<verb> ... $` form with the glob form (`<verb> epics-@*.service`); the deployment script handles this automatically and emits a `WARN` line plus a residual-risk header comment. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
@@ -211,6 +223,10 @@ cat <<EOF > /etc/logrotate.d/procserv
 EOF
 
 chmod 0644 /etc/logrotate.d/procserv
+
+# Required when SELinux is active
+/usr/sbin/restorecon /etc/logrotate.d/procserv
+/usr/sbin/matchpathcon -V /etc/logrotate.d/procserv
 ```
 
 ---

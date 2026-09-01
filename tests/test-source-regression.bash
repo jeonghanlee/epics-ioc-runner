@@ -130,6 +130,17 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S22.valid.setup-exits-zero"
     "${SUITE_ID}.S22.valid.configuration-directory-accepted"
     "${SUITE_ID}.S22.valid.log-directory-accepted"
+    "${SUITE_ID}.S22.selinux-valid.setup-exits-zero"
+    "${SUITE_ID}.S22.selinux-valid.policy-paths-processed"
+    "${SUITE_ID}.S22.missing-restorecon.setup-exits-one"
+    "${SUITE_ID}.S22.missing-restorecon.preflight-error"
+    "${SUITE_ID}.S22.missing-restorecon.targets-unchanged"
+    "${SUITE_ID}.S22.missing-matchpathcon.setup-exits-one"
+    "${SUITE_ID}.S22.missing-matchpathcon.preflight-error"
+    "${SUITE_ID}.S22.missing-matchpathcon.targets-unchanged"
+    "${SUITE_ID}.S22.reject-context.setup-exits-one"
+    "${SUITE_ID}.S22.reject-context.verification-failed"
+    "${SUITE_ID}.S22.reject-context.success-banner-absent"
     "${SUITE_ID}.S23.absent-parent.setup-exits-zero"
     "${SUITE_ID}.S23.absent-parent.runner-deployed"
     "${SUITE_ID}.S23.default.parent-unchanged"
@@ -1542,6 +1553,16 @@ function test_setup_path_type_expectations {
     local impostor_rc=0
     local valid_output=""
     local valid_rc=0
+    local selinux_valid_output=""
+    local selinux_valid_rc=0
+    local missing_restorecon_output=""
+    local missing_restorecon_rc=0
+    local missing_matchpathcon_output=""
+    local missing_matchpathcon_rc=0
+    local reject_context_output=""
+    local reject_context_rc=0
+    local policy_paths_processed="false"
+    local sentinel_state=""
     local check_id=""
     local -a behavior_ids=(
         "${SUITE_ID}.S22.impostor.setup-exits-one"
@@ -1554,6 +1575,17 @@ function test_setup_path_type_expectations {
         "${SUITE_ID}.S22.valid.setup-exits-zero"
         "${SUITE_ID}.S22.valid.configuration-directory-accepted"
         "${SUITE_ID}.S22.valid.log-directory-accepted"
+        "${SUITE_ID}.S22.selinux-valid.setup-exits-zero"
+        "${SUITE_ID}.S22.selinux-valid.policy-paths-processed"
+        "${SUITE_ID}.S22.missing-restorecon.setup-exits-one"
+        "${SUITE_ID}.S22.missing-restorecon.preflight-error"
+        "${SUITE_ID}.S22.missing-restorecon.targets-unchanged"
+        "${SUITE_ID}.S22.missing-matchpathcon.setup-exits-one"
+        "${SUITE_ID}.S22.missing-matchpathcon.preflight-error"
+        "${SUITE_ID}.S22.missing-matchpathcon.targets-unchanged"
+        "${SUITE_ID}.S22.reject-context.setup-exits-one"
+        "${SUITE_ID}.S22.reject-context.verification-failed"
+        "${SUITE_ID}.S22.reject-context.success-banner-absent"
     )
 
     print_divider
@@ -1631,6 +1663,67 @@ function test_setup_path_type_expectations {
     verify_output_contains "${valid_output}" \
         "Verify PASSED : ${work}/valid/targets/procserv-log (" \
         "${SUITE_ID}.S22.valid.log-directory-accepted"
+
+    selinux_valid_output=$(unshare --mount --propagation private -- /bin/bash -p \
+        "${helper}" "${REPO_TOP}" "${work}/selinux-valid" selinux-valid \
+        "${INVOKING_USER}" 2>&1) || selinux_valid_rc=$?
+    verify_state "0" "${selinux_valid_rc}" \
+        "${SUITE_ID}.S22.selinux-valid.setup-exits-zero"
+    if [[ "${selinux_valid_output}" == *"Verify PASSED : SELinux policy context on /etc/sudoers.d/10-epics-ioc"* ]] &&
+       [[ "${selinux_valid_output}" == *"Verify PASSED : SELinux policy context on /etc/logrotate.d/procserv"* ]] &&
+       [[ -f "${work}/selinux-valid/selinux-tools.log" ]] &&
+       [[ $(wc -l < "${work}/selinux-valid/selinux-tools.log") -eq 4 ]] &&
+       grep -qFx "restorecon /etc/sudoers.d/10-epics-ioc" \
+           "${work}/selinux-valid/selinux-tools.log" &&
+       grep -qFx "matchpathcon -V /etc/sudoers.d/10-epics-ioc" \
+           "${work}/selinux-valid/selinux-tools.log" &&
+       grep -qFx "restorecon /etc/logrotate.d/procserv" \
+           "${work}/selinux-valid/selinux-tools.log" &&
+       grep -qFx "matchpathcon -V /etc/logrotate.d/procserv" \
+           "${work}/selinux-valid/selinux-tools.log"; then
+        policy_paths_processed="true"
+    fi
+    verify_state "true" "${policy_paths_processed}" \
+        "${SUITE_ID}.S22.selinux-valid.policy-paths-processed"
+
+    missing_restorecon_output=$(unshare --mount --propagation private -- \
+        /bin/bash -p "${helper}" "${REPO_TOP}" \
+        "${work}/missing-restorecon" selinux-missing-restorecon \
+        "${INVOKING_USER}" 2>&1) || missing_restorecon_rc=$?
+    verify_state "1" "${missing_restorecon_rc}" \
+        "${SUITE_ID}.S22.missing-restorecon.setup-exits-one"
+    verify_output_contains "${missing_restorecon_output}" \
+        "Required SELinux tool 'restorecon' not found or not executable." \
+        "${SUITE_ID}.S22.missing-restorecon.preflight-error"
+    sentinel_state="$(<"${work}/missing-restorecon/mounts/sudoers.d/10-epics-ioc")|$(<"${work}/missing-restorecon/mounts/logrotate.d/procserv")"
+    verify_state "sudoers-sentinel|logrotate-sentinel" "${sentinel_state}" \
+        "${SUITE_ID}.S22.missing-restorecon.targets-unchanged"
+
+    missing_matchpathcon_output=$(unshare --mount --propagation private -- \
+        /bin/bash -p "${helper}" "${REPO_TOP}" \
+        "${work}/missing-matchpathcon" selinux-missing-matchpathcon \
+        "${INVOKING_USER}" 2>&1) || missing_matchpathcon_rc=$?
+    verify_state "1" "${missing_matchpathcon_rc}" \
+        "${SUITE_ID}.S22.missing-matchpathcon.setup-exits-one"
+    verify_output_contains "${missing_matchpathcon_output}" \
+        "Required SELinux tool 'matchpathcon' not found or not executable." \
+        "${SUITE_ID}.S22.missing-matchpathcon.preflight-error"
+    sentinel_state="$(<"${work}/missing-matchpathcon/mounts/sudoers.d/10-epics-ioc")|$(<"${work}/missing-matchpathcon/mounts/logrotate.d/procserv")"
+    verify_state "sudoers-sentinel|logrotate-sentinel" "${sentinel_state}" \
+        "${SUITE_ID}.S22.missing-matchpathcon.targets-unchanged"
+
+    reject_context_output=$(unshare --mount --propagation private -- \
+        /bin/bash -p "${helper}" "${REPO_TOP}" \
+        "${work}/reject-context" selinux-reject-context \
+        "${INVOKING_USER}" 2>&1) || reject_context_rc=$?
+    verify_state "1" "${reject_context_rc}" \
+        "${SUITE_ID}.S22.reject-context.setup-exits-one"
+    verify_output_contains "${reject_context_output}" \
+        "Verify FAILED : SELinux policy context on /etc/sudoers.d/10-epics-ioc" \
+        "${SUITE_ID}.S22.reject-context.verification-failed"
+    verify_output_absent "${reject_context_output}" \
+        "Secure system infrastructure setup completed." \
+        "${SUITE_ID}.S22.reject-context.success-banner-absent"
 
     case "${work}" in
         /tmp/ioc-runner-setup-type.*) rm -rf -- "${work}" ;;

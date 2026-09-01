@@ -86,7 +86,7 @@ function generate_baseline {
     local step_index=0
     local step_id=""
     local check_id=""
-    local -a step_ids=(P00 S01 S02 S03 S04 S05 S06)
+    local -a step_ids=(P00 S01 S02 S03 S04 S05 S06 S07)
     local -a check_ids=()
 
     mkdir -m 0700 -- "${report_workspace}"
@@ -99,8 +99,8 @@ function generate_baseline {
         for step_id in "${step_ids[@]}"; do
             report_register_step "${step_id}" "Validator baseline STEP ${step_id}"
         done
-        for ((index = 1; index <= 36; index++)); do
-            step_index=$(((index - 1) / 6))
+        for ((index = 1; index <= 40; index++)); do
+            step_index=$(((index - 1) / 5))
             step_id="${step_ids[${step_index}]}"
             printf -v check_id 'system-infra.%s.validator-%02d' "${step_id}" "${index}"
             report_register_check "${check_id}" "${step_id}" installed-conformance \
@@ -216,10 +216,10 @@ expect_reject duplicate-step "${SELF_TEST_WORKSPACE}/duplicate-step.records" 0 "
 sed '0,/^STEP /{/^STEP /d;}' "${baseline}" > "${SELF_TEST_WORKSPACE}/missing-step.records"
 expect_reject missing-step "${SELF_TEST_WORKSPACE}/missing-step.records" 0 "record count mismatch"
 
-sed '0,/ pass=6 /s// pass=5 /' "${baseline}" > "${SELF_TEST_WORKSPACE}/step-vector.records"
+sed '0,/ pass=5 /s// pass=4 /' "${baseline}" > "${SELF_TEST_WORKSPACE}/step-vector.records"
 expect_reject step-vector "${SELF_TEST_WORKSPACE}/step-vector.records" 0 "STEP vector mismatch"
 
-sed 's/ total=36 pass=36 / total=35 pass=36 /' "${baseline}" \
+sed 's/ total=40 pass=40 / total=39 pass=40 /' "${baseline}" \
     > "${SELF_TEST_WORKSPACE}/suite-vector.records"
 expect_reject suite-vector "${SELF_TEST_WORKSPACE}/suite-vector.records" 0 "SUITE vector does not reconcile"
 
@@ -227,8 +227,8 @@ sed '1s/reason_b64=-$/reason_b64=_/' "${baseline}" > "${SELF_TEST_WORKSPACE}/pas
 expect_reject pass-reason "${SELF_TEST_WORKSPACE}/pass-reason.records" 0 "PASS reason must be '-'"
 
 sed -e '1s/state=PASS reason_b64=-$/state=FAIL reason_b64=YQo/' \
-    -e '0,/ step=P00 pass=6 fail=0 /s// step=P00 pass=5 fail=1 /' \
-    -e '/^SUITE /s/ total=36 pass=36 fail=0 / total=36 pass=35 fail=1 /' \
+    -e '0,/ step=P00 pass=5 fail=0 /s// step=P00 pass=4 fail=1 /' \
+    -e '/^SUITE /s/ total=40 pass=40 fail=0 / total=40 pass=39 fail=1 /' \
     -e '/^SUITE /s/ state=PASS$/ state=FAIL/' "${baseline}" \
     > "${SELF_TEST_WORKSPACE}/trailing-newline-reason.records"
 expect_reject trailing-newline-reason \

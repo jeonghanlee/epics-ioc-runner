@@ -657,7 +657,7 @@ expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^CATALOG ' 1 \
 expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^(TEST|STEP|SUITE) ' 0 \
     "catalog precedence: no execution records"
 expect_last_line "${SELF_TEST_WORKSPACE}/catalog-precedence.out" \
-    "CATALOG suite=source-regression checks=108 steps=18 state=PASS" \
+    "CATALOG suite=source-regression checks=119 steps=18 state=PASS" \
     "catalog precedence: exact standard-output contract"
 
 run_scenario clean 0

@@ -12,9 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: evaluate whether a production SELinux-enforcing IOC
-host is available for M13 (#120 item 3). M14 remains the final release phase
-after the M13 condition is resolved.
+Next session entry point: run M13 T6 on an owner-authorized production
+SELinux-enforcing IOC host. M13 implementation and testbed verification T1-T5
+pass; production-host acceptance remains required before M13 can complete.
 
 ## Milestone
 
@@ -34,7 +34,7 @@ after the M13 condition is resolved.
 | Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
-| Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Conditional | No | M12, D12 | A production SELinux-enforcing IOC host is confirmed and the shipped setup path produces the expected policy contexts; [detail](#m13---selinux-context) |
+| Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | In progress | No | M12, D12, D15, D16 | T1-T5 Pass on the testbeds; T6 remains on an owner-authorized production SELinux-enforcing IOC host; [detail](#m13---selinux-context) |
 | Release | M14 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -56,6 +56,8 @@ after the M13 condition is resolved.
 | D12 | Assign #146 and #120 item 3 to the 1.3.0 release after M11, in that order. #146 becomes M12 and moves to Not started when source authority transfers. #120 item 3 becomes M13 and remains Conditional until a production SELinux-enforcing IOC host is confirmed. Renumber the final release row from M12 to M14 and require both new rows to complete before release execution. | Decision Date: 2026-08-30 |
 | D13 | Resolve the uninstall identity and system log path from the deployed `epics-@.service` `User=`, `Group=`, and `ExecStart=...--logfile=` values. Accept only one absolute logfile template ending in `/%i.log`, derive a non-root existing parent directory, and stop before any metadata change when a value is missing, ambiguous, or unsafe. Require the operator to confirm the resolved values and whether the log directory was created exclusively for this installation. Transfer retained logs to `root:root` and remove identity ACL entries only for a confirmed dedicated log directory; otherwise preserve its observed pre-teardown metadata and retain the related account and group. Delete any remaining account or group only when the operator separately confirms it was created exclusively for this installation and has no other use. Keep the deployed unit available as the identity source until all identity-dependent log and account work completes, then remove it. | Decision Date: 2026-08-31 |
 | D14 | Produce a new Rocky 8 golden for M12 and pin its `epics-ioc-runner` input to `release-1.3.0`. Do not use an earlier golden as M12 evidence. | Decision Date: 2026-08-31 |
+| D15 | Correct the M13 policy-file context only when SELinux is active: run `restorecon` after deploying `/etc/sudoers.d/10-epics-ioc` and `/etc/logrotate.d/procserv`, then require `matchpathcon -V` to accept each final path. Keep the Debian path unchanged and do not require SELinux tools when SELinux is unavailable. | Decision Date: 2026-08-31 |
+| D16 | Treat the enforcing Rocky 8 testbed observation as the M13 implementation activation condition and move M13 to Not started. Keep an enforcing production IOC host as a completion condition, not an implementation prerequisite. This supersedes only the M13 activation portion of D12. | Decision Date: 2026-08-31 |
 
 ### ID Migration
 
@@ -2089,15 +2091,15 @@ Last Compared: 2026-08-31; remote updated 2026-08-31T22:39:10Z
 Origin: 46790f9 / M1
 Identity History: 46790f9 / M1 -> 1.3.0 / M13 (staged target, D12, 2026-08-30)
 GitHub Issue: 120, https://github.com/jeonghanlee/epics-ioc-runner/issues/120
-Status: Conditional
+Status: In progress
 
 ##### Summary
 
-Items 1 and 2 are examined-Keep decisions, not pending implementation. Only the SELinux context of setup deployments into `/etc` remains, conditional on the owner confirming a production SELinux-enforcing IOC host.
+Items 1 and 2 are examined-Keep decisions, not pending implementation. An enforcing Rocky 8 testbed reproduced the remaining setup defect: both policy files retained `user_tmp_t` after deployment while policy expected `etc_t`. That observation activates implementation; an enforcing production IOC host remains required for final acceptance.
 
 ##### Scope
 
-On an enforcing production host, record the expected contexts for the sudoers and logrotate targets, run the shipped setup path, and compare the resulting contexts and policy acceptance. If a mismatch is observed, implement the smallest cross-distribution correction and a real-path final-context check.
+On a SELinux-active host, normalize the sudoers and logrotate targets with `restorecon` after deployment and require `matchpathcon -V` to accept both final paths. Keep systems without active SELinux unchanged. Use the enforcing Rocky 8 testbed for implementation regression and an enforcing production IOC host for final acceptance.
 
 ##### Out of Scope
 
@@ -2105,46 +2107,70 @@ Reopening items 1 or 2 without new reachability evidence, or treating a non-enfo
 
 ##### Completion Criteria
 
-- The named condition is observed: the owner confirms a production SELinux-enforcing environment. The row then moves to Not started.
-- The real setup deployment records expected and observed contexts for both `/etc` targets before any correction is selected.
+- The setup preflight detects active SELinux and stops before any mutation if `restorecon` or `matchpathcon` is unavailable.
+- The real setup deployment restores and verifies the policy context of both `/etc` targets when SELinux is active.
+- The real setup path exits nonzero when final-context verification fails.
+- The Debian setup path gains no SELinux package requirement and preserves its current behavior.
+- The enforcing testbed proves both the corrected final state and detection of a deliberately wrong final type.
+- Installation and test documentation describe the SELinux-active dependency and each new test identity, and the observed catalogs agree with `tests/reporting-counts.csv`.
+- The canonical two-host gate accepts the updated common identity and completes with both host verdicts passing.
+- An owner-authorized production IOC host is confirmed as SELinux `Enforcing` and accepts both deployed policy contexts.
 
 ##### Dependencies And Decisions
 
 - M12
 - D12
+- D15
+- D16
 - Items 1 and 2 are retired as examined Keep in `docs/CLOSED_DOORS.md` CI-29.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: Owner approved the reviewed M13 plan on 2026-08-31 ("승인함").
+Implementation Authorization: Owner authorized M13 implementation on
+2026-08-31 ("구현승인").
 Superseded Plan Artifacts: none
 
-1. Confirm an owner-authorized production IOC host is SELinux enforcing.
-2. Record `getenforce`, filesystem boundaries, `matchpathcon` expectations, and existing target contexts.
-3. Run the shipped setup deployment and compare resulting contexts and policy acceptance.
-4. Only after an observed mismatch, select and verify a correction supported by the target distributions.
+1. Before the first setup mutation, detect active SELinux through `/sys/fs/selinux/enforce`; only in that state require executable `restorecon` and `matchpathcon`, and fail the preflight if either tool is unavailable.
+2. Add a setup helper that runs `restorecon` on a deployed path and records a setup verification failure unless `matchpathcon -V` accepts the final context.
+3. Apply the helper immediately after deploying `/etc/sudoers.d/10-epics-ioc` and `/etc/logrotate.d/procserv` without changing the inactive-SELinux path.
+4. Extend the shipped system-infrastructure suite to verify both final contexts on an active SELinux host and report the check as not applicable otherwise.
+5. Extend the existing private-mount-namespace setup regression with an active-SELinux fixture and outer-boundary tool controls. Require the real setup script to stop before target mutation when a required tool is unavailable and to exit nonzero when `matchpathcon -V` rejects a final path.
+6. Update `docs/INSTALL.md` and `tests/README.md` with the SELinux-active dependency and checks, add the new identities to `tests/SYSTEM_INFRA_INVENTORY.md` and `tests/SOURCE_REGRESSION_INVENTORY.md`, and derive `tests/reporting-counts.csv` values only from closed real catalogs.
+7. On the enforcing Rocky 8 testbed, run the corrected shipped full setup and system-infrastructure suite, then change one target to a wrong type, prove that the real suite fails, and restore the host through the shipped setup path.
+8. Run the full setup and system-infrastructure path on Debian 13 and confirm that the SELinux checks are not applicable without adding a package requirement.
+9. Run static checks, all affected catalog-only paths, reporting self-tests, full affected suites, inventory agreement, and the canonical two-host gate. Update the common gate identity only after the unchanged identity fails solely on the observed new records, then rerun the same gate to Pass.
+10. Confirm an owner-authorized production IOC host is SELinux enforcing and repeat the final-context and policy-acceptance checks there before closure.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Activation condition | Read the production host SELinux mode with owner authorization | Production IOC host | `Enforcing` is observed before investigation begins |
-| T2 | Deployment context | Run the shipped setup path and compare `matchpathcon` with resulting target contexts | Same enforcing host | Both deployed policies carry their expected contexts and are accepted by their consumers |
-| T3 | Regression | If T2 finds a mismatch, rerun the real setup path with the correction present | Supported enforcing targets | A wrong final context fails the check and the corrected context passes |
+| T1 | Diagnostic | Run the current shipped full setup on an enforcing Rocky 8 testbed and compare `matchpathcon` expectations with final contexts | Rocky 8 testbed | The pre-change path reproduces `user_tmp_t` where policy expects `etc_t` |
+| T2 | Correction and regression | Run the corrected shipped full setup and system-infrastructure suite, change one final target to a wrong type, run the real suite, and restore through shipped setup | Same enforcing Rocky 8 testbed | Correct contexts pass, the wrong type fails, and the restored state passes |
+| T3 | Setup failure paths | Run the shipped setup in its existing private mount namespace with an active-SELinux fixture and only outer-boundary tool controls | Source regression environment | A missing required tool stops before target mutation, and a rejected final context makes the real setup exit nonzero |
+| T4 | Cross-distribution | Run the shipped full setup and system-infrastructure suite | Debian 13 testbed without active SELinux | Existing setup behavior passes, SELinux checks are not applicable, and no SELinux package is required |
+| T5 | Contract integration | Run static checks, affected catalogs and suites, reporting self-tests, inventory comparison, and the canonical two-host gate before and after accepting the observed common identity | Source environment plus Debian 13 and Rocky 8 testbeds | Documentation and inventories name every new identity, catalog counts agree with the CSV, the first gate differs only by the expected identity, and the accepted rerun passes both hosts |
+| T6 | Production acceptance | Read SELinux mode, run shipped setup, and compare expected and final policy contexts | Owner-authorized production IOC host | `Enforcing` is observed and both deployed policies carry expected contexts accepted by their consumers |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Production IOC host | Pending | none |
-| T2 | Not run | Production IOC host | Pending | none |
-| T3 | Not run | Supported enforcing targets | Pending | none |
+| T1 | 2026-08-31 16:22 PDT | Rocky 8.10 testbed, `testbed-rocky8-iocrunner-server` | Pass | `getenforce` reported `Enforcing`; current shipped full setup passed its 10 checks, but `matchpathcon -V` rejected both targets because policy expected `etc_t` and each deployed file retained `user_tmp_t`; `visudo` and `logrotate -d` accepted their contents |
+| T2 | 2026-08-31 17:54 PDT | Rocky 8.10 testbed, `testbed-rocky8-iocrunner-server` | Pass: the corrected full setup restored and accepted both contexts; the real system-infrastructure suite passed both S07 policy checks; changing the sudoers target to `user_tmp_t` made that real check fail, and the shipped setup restored the accepted state | Direct testbed observation; restored final state in `work/gate-suites-20260901T004837Z-3311446` |
+| T3 | 2026-08-31 17:54 PDT | Shipped source regression path on Debian 13 and Rocky 8 testbeds | Pass: S22 exercised the real setup in its private mount namespace; missing `restorecon` and `matchpathcon` stopped before target mutation, a rejected context exited nonzero, and the `Permissive` active-SELinux fixture processed both policy paths | Both source-regression runs in `work/gate-suites-20260901T004837Z-3311446`; the catalog closed at 119 checks and 18 steps |
+| T4 | 2026-08-31 17:54 PDT | Debian 13 testbed without active SELinux | Pass: full setup completed without SELinux tools; system-infrastructure S07 reported all four identities as not applicable and the suite passed | Direct setup observation; Debian system-infrastructure evidence in `work/gate-suites-20260901T004837Z-3311446` |
+| T5 | 2026-08-31 17:54 PDT | Source environment plus Debian 13 and Rocky 8 testbeds | Pass: Bash parse, whitespace, both affected catalogs, and reporting self-tests passed; warning-level shellcheck added no warning relative to `HEAD` and retained the existing SC1090 and SC2034 findings; the unchanged identity failed only against the same new digest on both hosts, and the accepted rerun passed six blocks and 845 checks per host with only documented OS applicability differences | Digest-only evidence in `work/gate-suites-20260901T002208Z-2788177`; final PASS in `work/gate-suites-20260901T004837Z-3311446` |
+| T6 | Not run | Production IOC host | Pending | none |
 
 ##### Closure Evidence
 
-- Items 1 and 2 are retired as examined Keep in `docs/CLOSED_DOORS.md` CI-29; the conditional SELinux item remains open.
+- Items 1 and 2 are retired as examined Keep in `docs/CLOSED_DOORS.md` CI-29.
+- The enforcing Rocky 8 testbed established the defect, D15 selects the correction, and D16 activates implementation; production acceptance remains open.
+- The implementation and testbed verification T1-T5 pass; T6 remains the only
+  M13 completion condition.
 
 ##### GitHub Projection
 

@@ -40,9 +40,13 @@ declare -g BASH_COMP_SRC="${IOC_RUNNER_BASH_COMP_SRC:-${SC_DIR}/ioc-runner-compl
 declare -g BASH_COMP_DEST="${IOC_RUNNER_BASH_COMP_DEST:-/etc/bash_completion.d/ioc-runner}"
 declare -g RUNNER_SCRIPT_SYMLINK="${IOC_RUNNER_SCRIPT_SYMLINK:-/usr/bin/ioc-runner}"
 declare -g OS_RELEASE_FILE="/etc/os-release"
+declare -g SELINUX_ENFORCE_FILE="/sys/fs/selinux/enforce"
 
 
 declare -g RESOLVED_PROCSERV_BIN=""
+declare -gr RESTORECON_BIN="/usr/sbin/restorecon"
+declare -gr MATCHPATHCON_BIN="/usr/sbin/matchpathcon"
+declare -g SELINUX_ACTIVE=0
 
 declare -g VERIFY_PASS=0
 declare -g VERIFY_FAIL=0
@@ -224,6 +228,28 @@ function verify_path {
     fi
 }
 
+function restore_and_verify_selinux_context {
+    local path="$1"
+
+    if (( ! SELINUX_ACTIVE )); then
+        return
+    fi
+
+    if ! "${RESTORECON_BIN}" "${path}" >/dev/null 2>&1; then
+        _log "ERROR" "Verify FAILED : restorecon rejected ${path}"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+    if ! "${MATCHPATHCON_BIN}" -V "${path}" >/dev/null 2>&1; then
+        _log "ERROR" "Verify FAILED : SELinux policy context on ${path}"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    _log "SUCCESS" "Verify PASSED : SELinux policy context on ${path}"
+    (( VERIFY_PASS++ )) || true
+}
+
 function verify_symlink {
     local link_path="$1"
     local expected_target="$2"
@@ -383,6 +409,22 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
         fi
     done
 
+    selinux_enforce=""
+    if [[ -r "${SELINUX_ENFORCE_FILE}" ]]; then
+        read -r selinux_enforce < "${SELINUX_ENFORCE_FILE}" || true
+    fi
+    if [[ "${selinux_enforce}" =~ ^[01]$ ]]; then
+        SELINUX_ACTIVE=1
+        if [[ ! -x "${RESTORECON_BIN}" ]]; then
+            _log "ERROR" "Required SELinux tool 'restorecon' not found or not executable."
+            exit 1
+        fi
+        if [[ ! -x "${MATCHPATHCON_BIN}" ]]; then
+            _log "ERROR" "Required SELinux tool 'matchpathcon' not found or not executable."
+            exit 1
+        fi
+    fi
+
     # Resolve procServ here too: STEP 5 hardcodes its absolute path into
     # the unit template, so a missing binary must abort before STEP 1-4
     # mutate accounts, sudoers, and the log directory.
@@ -477,6 +519,7 @@ EOF
         backup_if_exists "${SUDOERS_FILE}" "${tmp_sudoers}"
         mv "${tmp_sudoers}" "${SUDOERS_FILE}"
         tmp_sudoers=""   # consumed by mv; keep the EXIT trap from re-acting
+        restore_and_verify_selinux_context "${SUDOERS_FILE}"
         verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" file \
             "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
         verify_sudoers_includedir_order "/etc/sudoers"
@@ -622,6 +665,7 @@ EOF
         backup_if_exists "${LOGROTATE_FILE}" "${tmp_logrotate}"
         mv "${tmp_logrotate}" "${LOGROTATE_FILE}"
         tmp_logrotate=""   # consumed by mv; keep the EXIT trap from re-acting
+        restore_and_verify_selinux_context "${LOGROTATE_FILE}"
         verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" file \
             "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
     else

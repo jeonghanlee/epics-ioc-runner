@@ -41,8 +41,8 @@ if ! id -u "${INVOKING_USER}" >/dev/null 2>&1; then
     die "the invoking user is not resolvable"
 fi
 case "${FIXTURE_MODE}" in
-    impostor|valid) ;;
-    *) die "fixture mode must be impostor or valid" ;;
+    impostor|valid|selinux-valid|selinux-missing-restorecon|selinux-missing-matchpathcon|selinux-reject-context) ;;
+    *) die "unsupported fixture mode" ;;
 esac
 if [[ /proc/self/ns/mnt -ef /proc/1/ns/mnt ]]; then
     die "a separate mount namespace is required"
@@ -64,6 +64,11 @@ readonly BACKUP_DIR="${TARGET_DIR}/backups"
 readonly RUNNER_SYMLINK="${TARGET_DIR}/ioc-runner-symlink"
 readonly FAKE_PROCSERV="${FAKE_DIR}/procServ"
 readonly FAKE_SYSTEMCTL="${FAKE_DIR}/systemctl"
+readonly FAKE_RESTORECON="${FAKE_DIR}/restorecon"
+readonly FAKE_MATCHPATHCON="${FAKE_DIR}/matchpathcon"
+readonly SELINUX_TOOL_LOG="${WORK_DIR}/selinux-tools.log"
+readonly ORIGINAL_USR_SBIN="${WORK_DIR}/original-usr-sbin"
+readonly USR_SBIN_MOUNT="${WORK_DIR}/usr-sbin"
 
 for target in /etc/procServ.d /etc/sudoers.d /etc/systemd/system /etc/logrotate.d; do
     if [[ ! -d "${target}" || -L "${target}" ]]; then
@@ -83,6 +88,37 @@ printf '#!/bin/sh\nexit 0\n' > "${FAKE_PROCSERV}"
 printf '#!/bin/sh\nexit 0\n' > "${FAKE_SYSTEMCTL}"
 chmod 0755 "${FAKE_PROCSERV}" "${FAKE_SYSTEMCTL}"
 
+case "${FIXTURE_MODE}" in
+    selinux-*)
+        mount -t tmpfs -o mode=0755 tmpfs /sys/fs
+        mkdir -p /sys/fs/selinux
+        if [[ "${FIXTURE_MODE}" == "selinux-valid" ]]; then
+            printf '0\n' > /sys/fs/selinux/enforce
+        else
+            printf '1\n' > /sys/fs/selinux/enforce
+        fi
+        cat > "${FAKE_RESTORECON}" <<'EOF'
+#!/bin/sh
+printf 'restorecon %s\n' "$*" >> "${IOC_RUNNER_SELINUX_TOOL_LOG}"
+exit 0
+EOF
+        cat > "${FAKE_MATCHPATHCON}" <<'EOF'
+#!/bin/sh
+printf 'matchpathcon %s\n' "$*" >> "${IOC_RUNNER_SELINUX_TOOL_LOG}"
+exit "${IOC_RUNNER_MATCHPATHCON_RESULT:-0}"
+EOF
+        chmod 0755 "${FAKE_RESTORECON}" "${FAKE_MATCHPATHCON}"
+        mkdir "${ORIGINAL_USR_SBIN}" "${USR_SBIN_MOUNT}"
+        mount --bind /usr/sbin "${ORIGINAL_USR_SBIN}"
+        cp -as "${ORIGINAL_USR_SBIN}/." "${USR_SBIN_MOUNT}"
+        rm -f "${USR_SBIN_MOUNT}/restorecon" \
+            "${USR_SBIN_MOUNT}/matchpathcon"
+        ln -s "${FAKE_RESTORECON}" "${USR_SBIN_MOUNT}/restorecon"
+        ln -s "${FAKE_MATCHPATHCON}" "${USR_SBIN_MOUNT}/matchpathcon"
+        mount --bind "${USR_SBIN_MOUNT}" /usr/sbin
+        ;;
+esac
+
 if [[ "${FIXTURE_MODE}" == "impostor" ]]; then
     mkdir "${SUDOERS_MOUNT}/10-epics-ioc"
     mkdir "${SYSTEMD_MOUNT}/epics-@.service"
@@ -90,6 +126,12 @@ if [[ "${FIXTURE_MODE}" == "impostor" ]]; then
     mkdir "${RUNNER_DEST}"
     mkdir "${COMPLETION_DEST}"
 fi
+case "${FIXTURE_MODE}" in
+    selinux-missing-restorecon|selinux-missing-matchpathcon)
+        printf 'sudoers-sentinel\n' > "${SUDOERS_MOUNT}/10-epics-ioc"
+        printf 'logrotate-sentinel\n' > "${LOGROTATE_MOUNT}/procserv"
+        ;;
+esac
 
 mount --bind "${CONF_MOUNT}" /etc/procServ.d
 mount --bind "${SUDOERS_MOUNT}" /etc/sudoers.d
@@ -97,9 +139,35 @@ mount --bind "${SYSTEMD_MOUNT}" /etc/systemd/system
 mount --bind "${LOGROTATE_MOUNT}" /etc/logrotate.d
 mount --bind "${FAKE_SYSTEMCTL}" "${systemctl_target}"
 
+setup_path="${FAKE_DIR}:${PATH}"
+matchpathcon_result=0
+case "${FIXTURE_MODE}" in
+    selinux-missing-restorecon|selinux-missing-matchpathcon)
+        for required_tool in dirname rm setfacl getfacl logrotate sudo; do
+            required_path=$(command -v "${required_tool}" 2>/dev/null || true)
+            if [[ -z "${required_path}" || ! -x "${required_path}" ]]; then
+                die "required preflight tool is unavailable: ${required_tool}"
+            fi
+            ln -s "${required_path}" "${FAKE_DIR}/${required_tool}"
+        done
+        setup_path="${FAKE_DIR}"
+        ;;
+esac
+if [[ "${FIXTURE_MODE}" == "selinux-missing-restorecon" ]]; then
+    rm -f "${FAKE_RESTORECON}"
+fi
+if [[ "${FIXTURE_MODE}" == "selinux-missing-matchpathcon" ]]; then
+    rm -f "${FAKE_MATCHPATHCON}"
+fi
+if [[ "${FIXTURE_MODE}" == "selinux-reject-context" ]]; then
+    matchpathcon_result=1
+fi
+
 env -i \
-    PATH="${PATH}" \
+    PATH="${setup_path}" \
     SUDO_USER="${INVOKING_USER}" \
+    IOC_RUNNER_SELINUX_TOOL_LOG="${SELINUX_TOOL_LOG}" \
+    IOC_RUNNER_MATCHPATHCON_RESULT="${matchpathcon_result}" \
     IOC_RUNNER_PROCSERV_PATH="${FAKE_PROCSERV}" \
     IOC_RUNNER_SCRIPT_DEST="${RUNNER_DEST}" \
     IOC_RUNNER_SCRIPT_SYMLINK="${RUNNER_SYMLINK}" \

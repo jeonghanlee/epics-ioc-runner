@@ -291,6 +291,10 @@ no active unit or installed configuration.
   runner source change.
 * **Source Boundary**: Verifies the root-to-invoking-user Git boundary and test
   path-safety contracts.
+* **SELinux Deployment Boundary**: Runs the shipped full setup in a private
+  mount namespace with only filesystem and SELinux tool boundaries isolated;
+  verifies preflight failures, both policy deployments, and final-context
+  rejection.
 
 ### 5. Infrastructure State (`test-system-infra.bash`)
 
@@ -300,3 +304,6 @@ no active unit or installed configuration.
 * **Installed Files**: Confirms installed runner, completion, systemd,
   logrotate, configuration, and log paths with their required ownership and
   permissions.
+* **SELinux Contexts**: On an active SELinux host, requires
+  `/usr/sbin/matchpathcon -V` to accept the deployed sudoers and logrotate
+  policies; records the checks as not applicable when SELinux is inactive.
