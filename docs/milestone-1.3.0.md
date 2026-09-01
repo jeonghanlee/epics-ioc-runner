@@ -12,9 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: run M13 T6 on an owner-authorized production
-SELinux-enforcing IOC host. M13 implementation and testbed verification T1-T5
-pass; production-host acceptance remains required before M13 can complete.
+Next session entry point: land the M13 T6 evidence, close linked issue #120,
+then record M13 as Complete and open the M14 final-release plan. M13 T1-T6
+pass, but closure evidence has not yet landed and the linked issue remains open.
 
 ## Milestone
 
@@ -34,7 +34,7 @@ pass; production-host acceptance remains required before M13 can complete.
 | Reliability | M10 | (#102) Runner-owned reliability checks: configuration, log path, and procServ executable | Milestone | Complete | No | D1, D3, D5, D6, D7, D8, D9, D11 | Complete in `4f2caab`; T1-T3 Pass on both goldens, M10-2 is an examined no-action result, and issue #102 is closed; [detail](#m10---fleet-layer-reliability) |
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
-| Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | In progress | No | M12, D12, D15, D16 | T1-T5 Pass on the testbeds; T6 remains on an owner-authorized production SELinux-enforcing IOC host; [detail](#m13---selinux-context) |
+| Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | In progress | No | M12, D12, D15, D16 | T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host; closure evidence must land and issue #120 must close; [detail](#m13---selinux-context) |
 | Release | M14 | Final release 1.3.0 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -2095,7 +2095,7 @@ Status: In progress
 
 ##### Summary
 
-Items 1 and 2 are examined-Keep decisions, not pending implementation. An enforcing Rocky 8 testbed reproduced the remaining setup defect: both policy files retained `user_tmp_t` after deployment while policy expected `etc_t`. That observation activates implementation; an enforcing production IOC host remains required for final acceptance.
+Items 1 and 2 are examined-Keep decisions, not pending implementation. An enforcing Rocky 8 testbed reproduced the remaining setup defect: both policy files retained `user_tmp_t` after deployment while policy expected `etc_t`. The implementation corrected the deployment path, and an owner-authorized production SELinux-enforcing IOC host passed final acceptance.
 
 ##### Scope
 
@@ -2163,14 +2163,17 @@ Superseded Plan Artifacts: none
 | T3 | 2026-08-31 17:54 PDT | Shipped source regression path on Debian 13 and Rocky 8 testbeds | Pass: S22 exercised the real setup in its private mount namespace; missing `restorecon` and `matchpathcon` stopped before target mutation, a rejected context exited nonzero, and the `Permissive` active-SELinux fixture processed both policy paths | Both source-regression runs in `work/gate-suites-20260901T004837Z-3311446`; the catalog closed at 119 checks and 18 steps |
 | T4 | 2026-08-31 17:54 PDT | Debian 13 testbed without active SELinux | Pass: full setup completed without SELinux tools; system-infrastructure S07 reported all four identities as not applicable and the suite passed | Direct setup observation; Debian system-infrastructure evidence in `work/gate-suites-20260901T004837Z-3311446` |
 | T5 | 2026-08-31 17:54 PDT | Source environment plus Debian 13 and Rocky 8 testbeds | Pass: Bash parse, whitespace, both affected catalogs, and reporting self-tests passed; warning-level shellcheck added no warning relative to `HEAD` and retained the existing SC1090 and SC2034 findings; the unchanged identity failed only against the same new digest on both hosts, and the accepted rerun passed six blocks and 845 checks per host with only documented OS applicability differences | Digest-only evidence in `work/gate-suites-20260901T002208Z-2788177`; final PASS in `work/gate-suites-20260901T004837Z-3311446` |
-| T6 | Not run | Production IOC host | Pending | none |
+| T6 | 2026-08-31 22:24 PDT | Owner-authorized production SELinux-enforcing IOC host | Pass: `getenforce` reported `Enforcing`; both required tools were executable; the shipped `make setup` path passed 13/13; both deployed contexts passed `/usr/sbin/matchpathcon -V`; `visudo -cf` and `logrotate -d` accepted the deployed policies; and the real shipped system-infrastructure suite passed with 40 total, 36 Pass, 0 Fail, and 4 documented S06 applicability NAs | Owner-provided terminal transcript; installed candidate reported `1.3.0-dev (1647f8a)` with install date `2026-09-01T05:23:58Z` |
 
 ##### Closure Evidence
 
 - Items 1 and 2 are retired as examined Keep in `docs/CLOSED_DOORS.md` CI-29.
-- The enforcing Rocky 8 testbed established the defect, D15 selects the correction, and D16 activates implementation; production acceptance remains open.
-- The implementation and testbed verification T1-T5 pass; T6 remains the only
-  M13 completion condition.
+- The enforcing Rocky 8 testbed established the defect, D15 selected the
+  correction, and D16 activated implementation. An owner-authorized production
+  SELinux-enforcing IOC host passed final acceptance.
+- The implementation, testbed verification, and production acceptance T1-T6
+  pass. The evidence update must land and linked issue #120 must close before
+  M13 moves to Complete.
 
 ##### GitHub Projection
 
@@ -2181,7 +2184,7 @@ Observed State: open
 Observed Labels: P3-low, ops
 Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-08-30; remote updated 2026-08-31T05:55:36Z
+Last Compared: 2026-08-31; remote updated 2026-09-01T04:53:28Z
 
 #### M14 - Final release
 
