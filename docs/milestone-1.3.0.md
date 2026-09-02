@@ -12,10 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: execute Gate Step 3, the M15 Release Verification 4
-root_squash deployment, on both fresh release consumers at corrected product
-commit `63c7f82`. Gate Step 4, Release Verification 3 multi-user verification,
-follows it.
+Next session entry point: execute M15 Release Verification 6 against corrected
+product commit `63c7f82`, the release notes, both `iocrunner-nfs` release
+consumers, the canonical references, and the current GitHub milestone state.
 
 ## Milestone
 
@@ -37,7 +36,7 @@ follows it.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20 | Release Verification 1, 2, and 5 are Pass at corrected product commit `63c7f82`; Release Verification 4 is next, and Release Verification 3 and 6 remain Pending; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20 | Release Verification 1-5 are Pass at corrected product commit `63c7f82`; Release Verification 6 is next, and post-release verification remains Pending; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2420,6 +2419,31 @@ own.
   cross-host comparison contained only the established S29, S23, S06, and S07
   OS applicability differences, and both remote workspaces were clean with no
   shared-memory residue after the gate.
+- Observed 2026-09-02 15:04 PDT: Release Verification 4 passed on the same
+  Debian 13 and Rocky 8 consumers after cloud-provision generated their
+  `iocrunner-nfs` runtime inventories and ansible-provision applied the
+  `nfs_sim` operator. The operator recaps reported no unreachable or failed
+  host. Both NFS4 mounts reproduced `root_squash`; exact candidate commit
+  `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remained clean in each NFS-backed
+  checkout; all three deployment entry points completed without a password
+  prompt or error, changed the installed-file timestamp, and retained version
+  `1.3.0 (63c7f82)`. Each host's configuration fingerprint remained identical
+  to its baseline. cloud-provision commit
+  `35c859b17830e976cc09ad95f29051cfd469e61d` and ansible-provision commit
+  `a2af644c9fbd7bb696396390769e45edc5aa6831` were clean and current when the
+  operators ran. Evidence: `work/m15-rv4-20260902T215822Z`; evidence manifest
+  SHA-256 `9d48c55dcde3b1fb87a5d8791e636cd9bdfdd091f292582acded9820ad3bd56a`.
+- Observed 2026-09-02 16:32 PDT: Release Verification 3 passed on both
+  `iocrunner-nfs` release consumers at exact candidate commit
+  `63c7f828f1145bda4036d9f4641ac6f02d647cd6`. The shipped complete multi-user
+  driver printed eleven passing precondition verdicts, all fourteen passing
+  scenario verdicts, and `VERDICT RUN PASS` on each OS. Debian used the
+  anchored sudoers branch and Rocky used its documented glob fallback in S11;
+  both observed the required denial. After the run, only the exact payload
+  directories reported by the cleanup driver were removed, and the shipped
+  leftovers reader returned `P-LEFTOVERS PASS` on both consumers. Evidence:
+  `work/m15-rv3-20260902T232328Z`; evidence manifest SHA-256
+  `0ba28f1d75bdab4e9a52a1b9e5afb867d9bb594c877a223ea9f0134595a8bccd`.
 - Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
   0 open issues and 14 closed issues.
 
@@ -2576,8 +2600,8 @@ labels.
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-09-01 18:49 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both published image pairs passed the shipped pair validator, no-backing check, and `qemu-img check`; both fresh consumers matched their new source images; both remote manifests matched their sidecars; the canonical validator accepted both retained checkouts and installed runners; see the Release Verification 1 Evidence table |
 | Release Verification 2 | 2026-09-02 13:38 PDT | Both fresh Debian 13 and Rocky 8 consumers at corrected product commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6` | Pass | A second, separate complete two-host gate ran after M14 T3. Both clean consumers and installed runners matched the corrected product commit. Full setup passed 9/9 checks on Debian and 12/12 on Rocky; each host passed six suite blocks and 897 checks. Debian had five and Rocky twelve reviewed NA results, with no Fail, Skip, or Script Error. The cross-host comparison contained only the established S29, S23, S06, and S07 OS applicability differences, and both workspaces finished clean. Evidence: `work/m15-rv2-20260902T202917Z`; Debian setup SHA-256 `26061a0bb346e0395032e868a17efb76f846b4b7412159da5c54fc7106f0117f`; Rocky setup SHA-256 `0a23fa988815ff4c0b123008ed5bbe5b9a334019bbcac567bc3626f239186d24`; cross-host comparison SHA-256 `49a38f96afbe69b3fdf9362e03b10d18571124887caf883fc03ce893ffe4fb38` |
-| Release Verification 3 | Not run | Both fresh consumers at the tested corrected product commit | Pending | none |
-| Release Verification 4 | Not run | Both fresh consumers at the tested corrected product commit | Pending | none |
+| Release Verification 3 | 2026-09-02 16:32 PDT | Both `iocrunner-nfs` Debian 13 and Rocky 8 release consumers at corrected product commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6` | Pass | The shipped `gate/drivers/control/run-all.bash` printed eleven passing precondition verdicts, all fourteen passing scenario verdicts, and `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none` on each OS. S11 followed the anchored sudoers branch on Debian and the documented glob fallback on Rocky, with the required denial observed in both cases. The exact post-run payload directories reported by the cleanup driver were removed, and the shipped leftovers reader returned `P-LEFTOVERS PASS` on both consumers. Evidence: `work/m15-rv3-20260902T232328Z`; Debian run log SHA-256 `39ab704ae5bde81695d5ff4a086c483fe1f1cea94fd257e1a5bb09c1d07706ca`; Rocky run log SHA-256 `f3a9a303e2e74502119cbfeeed06dd10f3ff2b0d7da3cbbdae949db51799fdd7`; evidence manifest SHA-256 `0ba28f1d75bdab4e9a52a1b9e5afb867d9bb594c877a223ea9f0134595a8bccd` |
+| Release Verification 4 | 2026-09-02 15:04 PDT | Both `iocrunner-nfs` Debian 13 and Rocky 8 release consumers at corrected product commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6` | Pass | cloud-provision generated the two runtime inventories and ansible-provision applied `op.nfs_sim.debian13` and `op.nfs_sim.rocky8` with no unreachable or failed host. Both NFS4 mounts reproduced the root denial, owner access, and local-control-path access boundary. The exact clean candidate tree was copied into both NFS-backed paths. `bin/run-setup-system-infra.bash`, `make install`, and `make setup` all completed as the invoking user; every installation changed the installed-file timestamp, reported `1.3.0 (63c7f82)`, produced zero invalid-layout or missing-metadata matches, and left setup-owned configuration identical to its per-host baseline. Evidence: `work/m15-rv4-20260902T215822Z`; cloud-provision `35c859b17830e976cc09ad95f29051cfd469e61d`; ansible-provision `a2af644c9fbd7bb696396390769e45edc5aa6831`; evidence manifest SHA-256 `9d48c55dcde3b1fb87a5d8791e636cd9bdfdd091f292582acded9820ad3bd56a` |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
 | Release Verification 6 | Not run | Release branch and both fresh consumers | Pending | none |
 | Release Verification 7 | Not run | Canonical Git remote and GitHub | Pending | none |
