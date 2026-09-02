@@ -12,9 +12,10 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: execute M14 Release Verification 1 by baking new
-Debian 13 and Rocky 8 release-gate images from baseline tag `1.2.4`, then
-create and accept fresh consumers. Release Verification 5 is Pass.
+Next session entry point: plan issue #150 before modifying product code. M14
+Release Verification 2 is Fail at candidate `9890227`; Release Verification 3
+and 4 remain Pending until the corrected candidate passes Release Verification
+2.
 
 ## Milestone
 
@@ -35,7 +36,7 @@ create and accept fresh consumers. Release Verification 5 is Pass.
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
-| Release | M14 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1, D17, D18, D19 | The release-cycle final phase completes with all Release Verification checks Pass; [detail](#m14---final-release) |
+| Release | M14 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1, D17, D18, D19 | Release Verification 1 and 5 are Pass; Release Verification 2 is Fail at `9890227`, and #150 blocks further release verification; [detail](#m14---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2254,6 +2255,16 @@ own.
   local `release-1.3.0` and its upstream agree at the merge commit.
 - Observed 2026-09-01: GitHub milestone 1.3.0, number 16, remains open with
   13 closed issues and no open issues.
+- Observed 2026-09-02: Release Verification 2 failed at clean candidate
+  `98902279e9b3111fa50b3e9dfb339b3fb44de6c7`. The real local source lifecycle
+  failed on Debian 13 and Rocky 8, and the real installed system lifecycle
+  failed on Rocky 8 when `inspect` overlapped a service restart. The restart
+  produced a new `MainPID:starttime`, but a collected process disappeared
+  before `ps` read it and `set -e` terminated `inspect` before the final
+  snapshot comparison. Issue #150 owns the correction and the related test
+  evidence improvements; Release Verification 3 and 4 remain Pending.
+- Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
+  issue #150 as its only open issue.
 
 ##### Implementation Plan
 
@@ -2330,12 +2341,12 @@ labels.
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | pending |
-| M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | pending |
-| M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | pending |
-| M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique for this release line | pending |
-| M12 / T1-T2 | M14 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass; Release Verification 2 pending |
-| M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive-SELinux path; the final two-host gate passes | pending |
+| M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | The checks passed within the failed `9890227` gate; the complete replacement-candidate rerun remains pending under #150 |
+| M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Fail at `9890227`: the M10 restart race terminated `inspect` before its final snapshot comparison; #150 owns the correction |
+| M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | The M4 checks passed within the failed `9890227` gate; the complete replacement-candidate rerun remains pending under #150 |
+| M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique for this release line | Release Verification 5 Pass |
+| M12 / T1-T2 | M14 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass; Release Verification 2 Fail at `9890227`, with the replacement-candidate rerun pending under #150 |
+| M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive-SELinux path; the final two-host gate passes | The M13 checks passed within the failed `9890227` gate; the complete replacement-candidate rerun remains pending under #150 |
 | M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
 
 ##### Production Environment Tests
@@ -2400,7 +2411,7 @@ labels.
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-09-01 18:49 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both published image pairs passed the shipped pair validator, no-backing check, and `qemu-img check`; both fresh consumers matched their new source images; both remote manifests matched their sidecars; the canonical validator accepted both retained checkouts and installed runners; see the Release Verification 1 Evidence table |
-| Release Verification 2 | Not run | Both fresh consumers at the tested version commit | Pending | none |
+| Release Verification 2 | 2026-09-02 01:14 PDT | Both fresh Debian 13 and Rocky 8 consumers at candidate `98902279e9b3111fa50b3e9dfb339b3fb44de6c7` | Fail | The complete two-host gate ran the six declared suite blocks per host. Debian local source failed two M10 race checks; Rocky local source and installed system paths failed the same two checks. Direct tracing of the real Rocky local source path confirmed that restart changed `MainPID:starttime`, then `ps` returned nonzero for a process collected before restart and `set -e` ended `inspect` before the final snapshot comparison. The codebase review found the same volatile lookup only in the server and client process-context `ps` calls; it also found that the M10 race tests combine restart observation with inspect completion and overwrite race output during cleanup. Issue #150 tracks the correction. Evidence: `work/gate-suites-20260902T081436Z-236978` |
 | Release Verification 3 | Not run | Both fresh consumers at the tested version commit | Pending | none |
 | Release Verification 4 | Not run | Both fresh consumers at the tested version commit | Pending | none |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
