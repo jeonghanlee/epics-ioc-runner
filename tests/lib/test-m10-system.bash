@@ -10,6 +10,14 @@ function _m10_system_operator_runner {
         IOC_RUNNER_SYSTEM_USER="${M10_SERVICE_USER}" bash "${RUNNER_SCRIPT}" "$@"
 }
 
+function _m10_system_start_inspect {
+    local output_file="$1"
+
+    IOC_RUNNER_SYSTEM_USER="${M10_SERVICE_USER}" \
+        bash "${RUNNER_SCRIPT}" inspect "${M10_SYSTEM_IOC_NAME}" > "${output_file}" 2>&1 &
+    M10_SYSTEM_INSPECT_PID=$!
+}
+
 function _m10_system_snapshot {
     local unit="$1"
     local pid=""
@@ -298,8 +306,7 @@ EOF
     verify_state "${before}" "${after}" "System drift inspection preserves MainPID:starttime"
 
     : > "${output_file}"
-    _m10_system_runner inspect "${M10_SYSTEM_IOC_NAME}" > "${output_file}" 2>&1 &
-    M10_SYSTEM_INSPECT_PID=$!
+    _m10_system_start_inspect "${output_file}"
     result="false"
     if _m10_system_wait_output "${output_file}" "Target Socket:" &&
        kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null; then
@@ -326,8 +333,7 @@ EOF
 
     before=$(_m10_system_snapshot "${unit}" 2>/dev/null || true)
     : > "${output_file}"
-    _m10_system_runner inspect "${M10_SYSTEM_IOC_NAME}" > "${output_file}" 2>&1 &
-    M10_SYSTEM_INSPECT_PID=$!
+    _m10_system_start_inspect "${output_file}"
     result="false"
     if _m10_system_wait_output "${output_file}" "Target Socket:" &&
        kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null; then
