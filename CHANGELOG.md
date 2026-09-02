@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.3.0 - Reliability and Configuration Contract Release
+
+Align configuration interpretation across validation, deployment, and
+runtime; add bounded reliability diagnostics; and strengthen the release gate
+and installed policy handling on Debian 13 and Rocky 8.
+
+### Fixes
+
+- Configuration validation and runtime lookups now share one bounded,
+  non-executing parser. Both reader APIs normalize accepted values alike, and
+  mode diagnostics report all safe user and group mismatches together.
+  (#113, #129, #142)
+- EPICS-dependent lifecycle suites require `EPICS_BASE` before workspace or
+  systemd setup, while preserving catalog registration and terminal records
+  for checks that cannot run. (#139)
+- System setup restores and verifies the expected SELinux contexts for the
+  sudoers and logrotate policies when SELinux is active, without adding tool
+  requirements on inactive systems. (#120)
+
+### Changed
+
+- Lifecycle transitions resolve the effective systemd launch path, probe log
+  storage availability, and report an active procServ executable mismatch
+  without changing service state. (#102)
+- Human-readable test reports and opt-in machine records use separate output
+  paths, while suite and gate aggregation reject incomplete or inconsistent
+  terminal records. (#144)
+
+### Tests
+
+- Expected check and STEP totals have one maintained CSV authority. Every real
+  suite catalog and the six-run gate verify their independently collected
+  identities and counts against it. (#148)
+- Installed-system coverage exercises child recovery under the same procServ
+  and the deployed local logrotate oneshot through their real systemd paths.
+  (#115, #116)
+- The current Rocky 8 golden image workflow is verified through provenance
+  acceptance and both downstream installed-system suites. (#146)
+
+### Documentation
+
+- Custom service identity teardown now resolves the deployed identity and log
+  path before removal and preserves resources that are not confirmed as
+  dedicated. (#149)
+- Release planning uses the maintained milestone-tracking skill and standing
+  Gate runbook; the obsolete repository working draft is removed. (#132)
+
 ## 1.2.4 - Local Install and Setup Robustness Release
 
 Harden the local-mode install path and the setup deploy against real operator
