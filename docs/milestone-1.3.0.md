@@ -2334,7 +2334,7 @@ labels.
 | M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | pending |
 | M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | pending |
 | M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique for this release line | pending |
-| M12 / T1-T2 | M14 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | pending |
+| M12 / T1-T2 | M14 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass; Release Verification 2 pending |
 | M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive-SELinux path; the final two-host gate passes | pending |
 | M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
 
@@ -2399,7 +2399,7 @@ labels.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | Not run | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pending | none |
+| Release Verification 1 | 2026-09-01 18:49 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both published image pairs passed the shipped pair validator, no-backing check, and `qemu-img check`; both fresh consumers matched their new source images; both remote manifests matched their sidecars; the canonical validator accepted both retained checkouts and installed runners; see the Release Verification 1 Evidence table |
 | Release Verification 2 | Not run | Both fresh consumers at the tested version commit | Pending | none |
 | Release Verification 3 | Not run | Both fresh consumers at the tested version commit | Pending | none |
 | Release Verification 4 | Not run | Both fresh consumers at the tested version commit | Pending | none |
@@ -2408,6 +2408,21 @@ labels.
 | Release Verification 7 | Not run | Canonical Git remote and GitHub | Pending | none |
 | Release Verification 8 | Not run | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | Pending | none |
 | Release Verification 9 | Not run | `master`, canonical documents, and fetched upstream | Pending | none |
+
+##### Release Verification 1 Evidence
+
+| Platform | Published Image and SHA-256 | Creation Record SHA-256 | Manifest SHA-256 | Fresh Consumer Record | Installed Runner | Golden Acceptance Record |
+| --- | --- | --- | --- | --- | --- | --- |
+| Rocky 8 | `iocrunner-rocky8-20260902T013005Z-88835f3f1262.qcow2`; `13320629abb8f3721d7080a0bb3ab6cea86446bf93ea16c827d6b45ed0764048` | `96ba2f063e82824321337c13347daf445c84ada079001b5a632d77b8652d6fcf` | `9f3124e08eff4cd15d0277706274b800e167dbf62c9393127bf6c3ea47e0648e` | `20260902T014421Z-c8e18ed3ac9f`; source image matched | `1.2.4 (1961fbf)` | `work/m14-20260902T014900Z/rocky-golden-acceptance.log`; `e0a79f62467c5d11b23258b7ea5bcd732a4b6efc65beb00a55f400ca3ad7453a` |
+| Debian 13 | `iocrunner-debian13-20260902T013303Z-c23caacf9795.qcow2`; `de05c6f036e57c27bcb81608400eb944b2c399269ae0f1a0af686e12482138aa` | `fc61e7a75fd99b6a8f12e25b1ed1da590495373f55bf235909fdb129fed185ef` | `ea7374a91d60605b59292e0d9a5a7debcf8d8625e05d7b7a1a2b1c398421b78a` | `20260902T014450Z-73c3f395c53e`; source image matched | `1.2.4 (1961fbf)` | `work/m14-20260902T014900Z/debian-golden-acceptance.log`; `e8e612bb14253ae759646a652a28d58a47da46e1ce59f4b13227481568abb7df` |
+
+Both manifests record `requested=1.2.4`, clean tagged runner commit
+`1961fbffbb1c650999b62d562f05363152c6a9cd`, cloud-provision commit
+`35c859b17830e976cc09ad95f29051cfd469e61d`, and ansible-provision commit
+`67bc25c1d9672948cb48827b0afede263fec3296`. The supplier commits remained
+unchanged across the image pair, and neither manifest contains a dirty source
+record. Both images report a 20 GiB virtual size, no backing file, no qcow2
+errors, and no corrupt or dirty flag.
 
 ##### Closure Evidence
 
