@@ -36,6 +36,27 @@ function _m10_wait_for_output {
     return 1
 }
 
+function _m10_wait_for_inspect_stop {
+    local pid="$1"
+    local key=""
+    local state=""
+    local attempt=0
+
+    while (( attempt < 100 )); do
+        [[ -r "/proc/${pid}/status" ]] || return 1
+        state=""
+        while read -r key state _; do
+            [[ "${key}" == "State:" ]] && break
+        done < "/proc/${pid}/status"
+        if [[ "${state}" == "T" || "${state}" == "t" ]]; then
+            return 0
+        fi
+        sleep 0.01
+        attempt=$((attempt + 1))
+    done
+    return 1
+}
+
 function _m10_wait_for_snapshot_change {
     local unit="$1"
     local original="$2"
@@ -228,7 +249,8 @@ EOF
     M10_INSPECT_PID=$!
     result="false"
     if _m10_wait_for_output "${output_file}" "Target Socket:" &&
-       kill -STOP "${M10_INSPECT_PID}" 2>/dev/null; then
+       kill -STOP "${M10_INSPECT_PID}" 2>/dev/null &&
+       _m10_wait_for_inspect_stop "${M10_INSPECT_PID}"; then
         result="true"
     fi
     verify_state "true" "${result}" "Race inspection reaches the documented synchronization line"
@@ -261,7 +283,8 @@ EOF
     M10_INSPECT_PID=$!
     result="false"
     if _m10_wait_for_output "${output_file}" "Target Socket:" &&
-       kill -STOP "${M10_INSPECT_PID}" 2>/dev/null; then
+       kill -STOP "${M10_INSPECT_PID}" 2>/dev/null &&
+       _m10_wait_for_inspect_stop "${M10_INSPECT_PID}"; then
         result="true"
     fi
     verify_state "true" "${result}" "Cleanup probe reaches the synchronization line"

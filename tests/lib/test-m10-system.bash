@@ -108,6 +108,27 @@ function _m10_system_wait_output {
     return 1
 }
 
+function _m10_system_wait_inspect_stopped {
+    local pid="$1"
+    local key=""
+    local state=""
+    local attempt=0
+
+    while (( attempt < 100 )); do
+        [[ -r "/proc/${pid}/status" ]] || return 1
+        state=""
+        while read -r key state _; do
+            [[ "${key}" == "State:" ]] && break
+        done < "/proc/${pid}/status"
+        if [[ "${state}" == "T" || "${state}" == "t" ]]; then
+            return 0
+        fi
+        sleep 0.01
+        attempt=$((attempt + 1))
+    done
+    return 1
+}
+
 function _m10_system_wait_snapshot_change {
     local unit="$1"
     local original="$2"
@@ -309,7 +330,8 @@ EOF
     _m10_system_start_inspect "${output_file}"
     result="false"
     if _m10_system_wait_output "${output_file}" "Target Socket:" &&
-       kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null; then
+       kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null &&
+       _m10_system_wait_inspect_stopped "${M10_SYSTEM_INSPECT_PID}"; then
         result="true"
     fi
     verify_state "true" "${result}" "System race inspection reaches the synchronization line"
@@ -336,7 +358,8 @@ EOF
     _m10_system_start_inspect "${output_file}"
     result="false"
     if _m10_system_wait_output "${output_file}" "Target Socket:" &&
-       kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null; then
+       kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null &&
+       _m10_system_wait_inspect_stopped "${M10_SYSTEM_INSPECT_PID}"; then
         result="true"
     fi
     verify_state "true" "${result}" "System cleanup probe reaches the synchronization line"
