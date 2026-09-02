@@ -12,10 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: plan issue #150 before modifying product code. M14
-Release Verification 2 is Fail at candidate `9890227`; Release Verification 3
-and 4 remain Pending until the corrected candidate passes Release Verification
-2.
+Next session entry point: prepare and push the clean M14 candidate, deploy it
+through full setup, and run M14 T3. M15 Release Verification 2 is Fail at
+candidate `9890227`; Release Verification 3 and 4 remain Pending.
 
 ## Milestone
 
@@ -36,7 +35,8 @@ and 4 remain Pending until the corrected candidate passes Release Verification
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
-| Release | M14 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1, D17, D18, D19 | Release Verification 1 and 5 are Pass; Release Verification 2 is Fail at `9890227`, and #150 blocks further release verification; [detail](#m14---final-release) |
+| Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | In progress | No | M10, D20 | T1-T2 Pass through the shipped source and installed paths on both release consumers; T3 awaits the clean pushed candidate and final gate; [detail](#m14---inspect-process-context-churn) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20 | Release Verification 1 and 5 are Pass; Release Verification 2 is Fail at `9890227`, and M14 blocks further release verification; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -59,15 +59,17 @@ and 4 remain Pending until the corrected candidate passes Release Verification
 | D14 | Produce a new Rocky 8 golden for M12 and pin its `epics-ioc-runner` input to `release-1.3.0`. Do not use an earlier golden as M12 evidence. | Decision Date: 2026-08-31 |
 | D15 | Correct the M13 policy-file context only when SELinux is active: run `restorecon` after deploying `/etc/sudoers.d/10-epics-ioc` and `/etc/logrotate.d/procserv`, then require `matchpathcon -V` to accept each final path. Keep the Debian path unchanged and do not require SELinux tools when SELinux is unavailable. | Decision Date: 2026-08-31 |
 | D16 | Treat the enforcing Rocky 8 testbed observation as the M13 implementation activation condition and move M13 to Not started. Keep an enforcing production IOC host as a completion condition, not an implementation prerequisite. This supersedes only the M13 activation portion of D12. | Decision Date: 2026-08-31 |
-| D17 | Build new Debian 13 and Rocky 8 release-gate images from baseline tag `1.2.4`, then create fresh consumers from that pair for M14. Do not reuse an earlier consumer or accept an unpinned image pair as final release evidence. | Decision Date: 2026-08-31 |
-| D18 | Retain every existing `release-1.2.x` branch during the 1.3.0 release. Do not delete a historical release branch as part of M14. | Owner decision, 2026-08-31 |
+| D17 | Build new Debian 13 and Rocky 8 release-gate images from baseline tag `1.2.4`, then create fresh consumers from that pair for M15. Do not reuse an earlier consumer or accept an unpinned image pair as final release evidence. | Decision Date: 2026-08-31 |
+| D18 | Retain every existing `release-1.2.x` branch during the 1.3.0 release. Do not delete a historical release branch as part of M15. | Owner decision, 2026-08-31 |
 | D19 | Do not open a new release line at 1.3.0 closure. Keep #127 Deferred in the master Backlog, and make that surviving Backlog entry the next canonical entry point. | Owner decision, 2026-08-31 |
+| D20 | Insert issue #150 as M14 before the final release milestone, renumber the final release milestone from M14 to M15, and require M14 to complete before M15 resumes Release Verification 2. | Decision Date: 2026-09-02 |
 
 ### ID Migration
 
 | Old ID | Current ID | Reason | Updated References |
 | --- | --- | --- | --- |
-| M11 | M14 | Insert M11 for custom identity teardown, then M12 and M13 for the two Backlog transfers before the final release phase (D10, D12). | Work table, final release detail, dependencies, and G1 affected work |
+| M11 | M15 | Insert M11 for custom identity teardown, then M12 and M13 for the two Backlog transfers and M14 for issue #150 before the final release phase (D10, D12, D20). | Work table, final release detail, dependencies, and G1 affected work |
+| M14 | M15 | Insert M14 for issue #150 before the final release milestone (D20). | Work table, final release detail, dependencies, and G1 affected work |
 
 ### Assignment History
 
@@ -2196,10 +2198,134 @@ Observed Milestone: 1.3.0
 Observed Assignee: jeonghanlee
 Last Compared: 2026-08-31; remote updated 2026-09-01T05:32:30Z
 
-#### M14 - Final release
+#### M14 - Inspect process-context churn
+
+Origin: 1.3.0 / M14
+Identity History: none
+GitHub Issue: #150, https://github.com/jeonghanlee/epics-ioc-runner/issues/150
+Status: In progress
+
+##### Summary
+
+Keep `inspect` running when a server restart or client disconnect removes a
+process after socket discovery but before process-context rendering.
+
+##### Scope
+
+- The server and client process-context paths in `do_inspect`.
+- Required-tool validation and exit-status handling for the external `ps`
+  boundary.
+- Real local and system M10 lifecycle coverage for server replacement and
+  client disconnect races.
+- Separate race and cleanup evidence files, separate assertions, affected
+  inventories, reporting counts, and gate identity.
+
+##### Out of Scope
+
+- IOC restart policy, procServ supervision, socket ownership, or executable
+  identity rules.
+- Background monitoring, automatic recovery, or a product-only test hook.
+- Release Verification 3 and 4 execution before M15 Release Verification 2
+  passes on the corrected candidate.
+
+##### Completion Criteria
+
+- A server process that disappears after socket discovery does not terminate
+  `inspect`; a changed `MainPID:starttime` reports an unstable snapshot without
+  an executable-drift warning.
+- A real client that disconnects after its PID is discovered does not terminate
+  `inspect`.
+- `ps` is resolved with `command -v`, and the resolved path is required to be
+  executable. Exit status 1 from the fixed PID-selection command is treated as
+  process churn; missing execution or any other nonzero status remains a hard
+  error.
+- Local and system race checks report restart observation and `inspect`
+  completion separately and retain race output independently from cleanup
+  output.
+- T1-T3 Pass through the shipped source and installed paths, and linked issue
+  #150 agrees with the accepted implementation and observed results.
+
+##### Dependencies And Decisions
+
+- M10 is the completed behavioral foundation for log-path and procServ
+  executable-identity inspection.
+- D20 places this correction before the final release milestone.
+- M15 Release Verification 2 failed at clean candidate
+  `98902279e9b3111fa50b3e9dfb339b3fb44de6c7`. The real local source lifecycle
+  failed on Debian 13 and Rocky 8, and the real installed system lifecycle
+  failed on Rocky 8 because `ps` returned nonzero after a collected server
+  process disappeared.
+- The codebase review found the same unguarded volatile lookup only in the
+  server and client process-context `ps` calls. The surrounding `lsof`, `ss`,
+  snapshot, and setup-time systemd paths retain their existing failure policy.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: Owner approved the M14 plan on 2026-09-02.
+Implementation Authorization: Owner authorized the accepted M14 plan on
+2026-09-02.
+Superseded Plan Artifacts: none
+
+1. Add one process-context renderer in `bin/ioc-runner` and route both server
+   and client PID sets through it. Resolve `ps` with `command -v`, require the
+   resolved path to be executable, run the fixed PID-selection command, accept
+   only status 1 as a no-surviving-process observation, and propagate every
+   other nonzero status.
+2. Preserve the existing socket discovery, required `ss` failure, initial and
+   final `MainPID:starttime` snapshots, UDS ownership, and executable-identity
+   decisions. Add no retry, service mutation, or test-only runtime branch.
+3. In `tests/lib/test-m10-local.bash` and
+   `tests/lib/test-m10-system.bash`, give the server race, client race, and
+   cleanup probe separate output files. Split restart observation from
+   `inspect` completion so either failure names its own invariant.
+4. Exercise the real server race after the server PID set is collected. For
+   the client path, attach a real `socat` client and first prove that a baseline
+   `inspect` reports its PID. Use a temporary outer-boundary `ps` wrapper to
+   pause the shipped inspection after its fixed PID selection is received,
+   perform exactly one server restart or client disconnect, then resume the
+   same request through the real `ps`. Require the completed output to exclude
+   the retired PID; add no product test hook or scheduling retry.
+5. Update only the affected lifecycle catalogs, inventories,
+   `tests/reporting-counts.csv`, and gate identity from the resulting real
+   checks. Run focused source and installed lifecycle tests before the full
+   replacement-candidate gate.
+
+##### Test Plan
+
+| ID | Check | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Process-context exit contract and source consistency | Run Bash syntax and ShellCheck gates; exercise the shipped `inspect` path with the external `ps` boundary returning the allowed no-selection status and disallowed execution statuses; verify both server and client paths call the common renderer and no other inspection failure policy changes | Canonical checkout | Syntax and lint pass; `command -v` and executable-path validation both accept the required tool; status 1 continues to the final snapshot; missing or other failing `ps` execution remains nonzero; catalogs, inventories, counts, and gate identity agree |
+| T2 | Real server and client churn | Run the shipped local and system M10 lifecycle paths with a real service restart and a real `socat` client disconnect after confirmed discovery; run source and installed combinations used by the gate | Debian 13 and Rocky 8 release consumers | Every accepted overlap executes the real `inspect`, `ps`, systemd, procServ, and UDS paths; `inspect` returns success for disappearing processes; server churn reports unstable rather than drift; separate evidence files remain available |
+| T3 | Replacement-candidate release gate | Push one clean candidate, deploy it through full setup on both fresh consumers, and run `gate/drivers/control/suites.bash` through all six declared suite blocks per host | Debian 13 and Rocky 8 release consumers | Both host verdicts and the final gate verdict pass; derived counts agree with `tests/reporting-counts.csv`; cross-host differences contain only reviewed applicability states |
+
+##### Verification Results
+
+| ID | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-09-02 11:26 PDT | Canonical checkout and both release consumers | Pass | Bash syntax, ShellCheck, diff whitespace, and real catalog closure passed; local and system catalogs closed at 188 checks/38 steps and 155 checks/35 steps; both source local-lifecycle runs exercised status 1, 2, 127, and non-path `ps` boundary checks. The prior-digest gate observed one common identity `41df722b77a2ba3040e8541e00cfeb0ad5701b5b75e09e6542609e810701704e`; after changing only the fixed digest, `work/gate-suites-20260902T182103Z-587998` passed 6 blocks and 897 checks on each OS family |
+| T2 | 2026-09-02 11:12 PDT | Debian 13 and Rocky 8 release consumers, current candidate based on `f754a95` | Pass | Real local-lifecycle source and installed runs passed on both OS families: Debian 188/188 in each mode, Rocky 184/188 with the four established journal-policy NA results in each mode. Real installed system-lifecycle passed 155/155 on both. Every M14 server-restart, client-disconnect, inspect-completion, PID-exclusion, unstable-snapshot, and cleanup assertion passed through the shipped systemd, procServ, UDS, `socat`, and `ps` paths |
+| T3 | Not run | Debian 13 and Rocky 8 release consumers | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Keep inspect alive when process context changes during restart
+Labels: bug, P2-medium, area/inspect, tests
+GitHub Milestone: 1.3.0
+Observed State: open
+Observed Labels: bug, P2-medium, area/inspect, tests
+Observed Milestone: 1.3.0
+Observed Assignee: jeonghanlee
+Last Compared: 2026-09-02; remote updated 2026-09-02T17:00:29Z
+
+#### M15 - Final release
 
 Origin: 1.3.0 / M11
-Identity History: 1.3.0 / M11 -> 1.3.0 / M12 (new M11 inserted, D10, 2026-08-30); 1.3.0 / M12 -> 1.3.0 / M14 (M12 and M13 inserted, D12, 2026-08-30)
+Identity History: 1.3.0 / M11 -> 1.3.0 / M12 (new M11 inserted, D10, 2026-08-30); 1.3.0 / M12 -> 1.3.0 / M14 (M12 and M13 inserted, D12, 2026-08-30); 1.3.0 / M14 -> 1.3.0 / M15 (new M14 inserted, D20, 2026-09-02)
 GitHub Issue: none
 Status: In progress
 
@@ -2217,7 +2343,7 @@ milestone close, following the release-cycle procedure.
 
 ##### Out of Scope
 
-Individual milestone implementation and verification, which the M1-M13 rows
+Individual milestone implementation and verification, which the M1-M14 rows
 own.
 
 ##### Completion Criteria
@@ -2244,11 +2370,12 @@ own.
 
 ##### Dependencies And Decisions
 
-- M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, G1
+- M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1
 - D1
 - D17
 - D18
 - D19
+- D20
 - Observed 2026-09-01: merge commit
   `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79` integrates fetched
   `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`;
@@ -2269,11 +2396,13 @@ own.
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: Owner approved the reviewed M14 plan on 2026-08-31 and
+Plan Acceptance: Owner approved the reviewed M15 plan, then identified as M14,
+on 2026-08-31 and
 accepted its correction to the current cloud image-pair and manifest-sidecar
 contract on
 2026-09-01.
-Implementation Authorization: Owner authorized M14 implementation on
+Implementation Authorization: Owner authorized M15 implementation, then
+identified as M14, on
 2026-08-31 and the cloud-contract documentation correction on 2026-09-01.
 Superseded Plan Artifacts: none
 
@@ -2299,15 +2428,19 @@ Superseded Plan Artifacts: none
 8. Push that exact version commit to both fresh consumers through
    `gate/drivers/push.bash`, run the shipped full setup, and require source and
    installed runner provenance to match the tested version commit.
-9. Execute Release Verification 2 through 4 through the real standing paths in
-   `gate/RUNBOOK.md`: the complete two-host suite gate, both multi-user
-   scenario runs, and the root_squash deployment path. Record Release
-   Verification 6 from the same tested version commit.
+9. After M14 T3 passes its complete two-host suite gate and M14 is Complete,
+   push the exact corrected product commit to both fresh consumers, deploy it
+   through full setup, and execute Release Verification 2 as a separate
+   complete two-host suite-gate run. Only after that separate run passes,
+   execute Release Verification 3 and 4 through the remaining real standing
+   paths in `gate/RUNBOOK.md`: both multi-user scenario runs and the
+   root_squash deployment path. Record Release Verification 6 from the same
+   corrected product commit.
 10. Review the complete readiness evidence, leave post-release checks Pending,
-    and create and push one readiness-evidence commit. Require its only change
-    from the tested version commit to be the canonical evidence update; its
-    commit ID is the immutable release candidate selected for every release
-    action.
+    and create and push one readiness-evidence commit. Require every commit
+    after the tested corrected product commit to contain only canonical
+    evidence updates; the readiness-evidence commit ID is the immutable release
+    candidate selected for every release action.
 11. Execute only the separately previewed and authorized merge, branch Push,
     annotated tag, tag Push, GitHub release, and remote milestone-close
     actions. After each remotely irreversible result, run repository checks
@@ -2324,9 +2457,9 @@ Superseded Plan Artifacts: none
     IOC host, then verify its retained infrastructure. Both observations
     constitute Release Verification 8.
 13. Record the post-release results, #127 next-entry state, branch-retention
-    result, and issue intent while M14 remains In progress; pass repository
+    result, and issue intent while M15 remains In progress; pass repository
     checks and create a separately authorized source-first preparation commit.
-    Re-read every linked issue, then mark M14 Complete, record Release
+    Re-read every linked issue, then mark M15 Complete, record Release
     Verification 9, and create and push the separately authorized closure
     commit without opening a release line or deleting a release branch.
 
@@ -2334,7 +2467,7 @@ Superseded Plan Artifacts: none
 
 The Release Verification Plan below owns the final checks. Every method runs
 through the shipped repository, gate, installation, Git, or GitHub path and
-uses consecutive `Release Verification <k>` labels; M14 defines no local T
+uses consecutive `Release Verification <k>` labels; M15 defines no local T
 labels.
 
 ##### Integrated Verification
@@ -2344,10 +2477,11 @@ labels.
 | M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | The checks passed within the failed `9890227` gate; the complete replacement-candidate rerun remains pending under #150 |
 | M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Fail at `9890227`: the M10 restart race terminated `inspect` before its final snapshot comparison; #150 owns the correction |
 | M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | The M4 checks passed within the failed `9890227` gate; the complete replacement-candidate rerun remains pending under #150 |
-| M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique for this release line | Release Verification 5 Pass |
-| M12 / T1-T2 | M14 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass; Release Verification 2 Fail at `9890227`, with the replacement-candidate rerun pending under #150 |
+| M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5; Release Verification 6 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique before and after the M14 correction | Release Verification 5 Pass before M14 was inserted; Release Verification 6 recheck pending |
+| M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass; Release Verification 2 Fail at `9890227`, with the replacement-candidate rerun pending under #150 |
 | M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive-SELinux path; the final two-host gate passes | The M13 checks passed within the failed `9890227` gate; the complete replacement-candidate rerun remains pending under #150 |
 | M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
+| M14 / T1-T3 | The final release reruns the complete gate after the focused correction gate | Process-context rendering, lifecycle evidence separation, and full suite aggregation | Release Verification 2 | M14 first closes on its own T1-T3 evidence; a distinct complete two-host suite-gate run then passes as Release Verification 2 | pending |
 
 ##### Production Environment Tests
 
@@ -2376,7 +2510,7 @@ labels.
 | 4 | Push the pre-change evidence commit to `origin/release-1.3.0` | Push delegation | The fetched upstream contains the durable pre-change state | pending |
 | 5 | Commit the accepted 1.3.0 changelog section | Commit delegation | One standalone changelog commit | pending |
 | 6 | Commit the `RUNNER_VERSION` change to 1.3.0 | Commit delegation | One standalone version commit changing only `bin/ioc-runner` | pending |
-| 7 | Commit Release Verification 2-4 and 6 readiness evidence | Commit delegation | One reviewed evidence-only child of the tested version commit names the immutable release candidate | pending |
+| 7 | Commit Release Verification 2-4 and 6 readiness evidence | Commit delegation | The reviewed readiness commit descends from the tested corrected product commit through canonical-evidence-only commits and names the immutable release candidate | pending |
 | 8 | Push the readiness candidate to `origin/release-1.3.0` | Push delegation | The fetched upstream identifies the accepted candidate | pending |
 | 9 | Merge the named release candidate into `master` with `--no-ff` | Release delegation after exact command preview | One release merge commit on `master` | pending |
 | 10 | Push the release merge commit to `origin/master` | Push delegation | Local and upstream master identify the release merge | pending |
@@ -2388,8 +2522,8 @@ labels.
 | 16 | Commit the GitHub-release checkpoint | Commit delegation | The canonical record names the published release URL and target tag | pending |
 | 17 | Close remote GitHub milestone 1.3.0, number 16 | Release delegation after exact command preview | The milestone is closed with no open linked issue | pending |
 | 18 | Commit the remote-milestone checkpoint | Commit delegation | The canonical record contains the observed closed milestone state | pending |
-| 19 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M14 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M14 closure | pending |
-| 20 | Commit M14 completion and Release Verification 9 after final issue and canonical read-back | Commit delegation | One checked cycle-closure commit on `master` points to deferred Backlog issue #127 without branch creation or deletion | pending |
+| 19 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M15 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M15 closure | pending |
+| 20 | Commit M15 completion and Release Verification 9 after final issue and canonical read-back | Commit delegation | One checked cycle-closure commit on `master` points to deferred Backlog issue #127 without branch creation or deletion | pending |
 | 21 | Push the closure commit and accumulated canonical checkpoints to `origin/master` | Push delegation | Local and upstream closure state agree | pending |
 
 ##### Release Verification Plan
@@ -2397,14 +2531,14 @@ labels.
 | Label | Layer | Timing | Method | Environment | Expected Result | Evidence Target |
 | --- | --- | --- | --- | --- | --- | --- |
 | Release Verification 1 | Image and golden acceptance | pre-change | Bake both images with baseline tag `1.2.4`, validate each versioned qcow2 image with its matching creation record and manifest sidecar in `IMAGE_DIR`, create fresh consumers, and run the acceptance sequence in `gate/RUNBOOK.md` before candidate deployment | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Both manifests record baseline `1.2.4`, both image pairs pass validation, and both consumers have accepted provenance and clean retained checkouts | Image-pair names and hashes, manifest-sidecar hashes, and consumer acceptance records |
-| Release Verification 2 | Automated and integrated checks | post-change | Push the exact version commit, run shipped full setup, then run `gate/drivers/control/suites.bash` through the complete six-suite matrix | Both fresh consumers at the tested version commit | Both host verdicts and the final gate verdict pass; derived counts agree with `tests/reporting-counts.csv`; cross-host differences contain only reviewed applicability states | Complete gate evidence directory, setup logs, runner provenance, and cross-host comparison |
-| Release Verification 3 | Standing multi-user scenarios | post-change | Run `gate/drivers/control/run-all.bash` on each fresh consumer | Both fresh consumers at the tested version commit | Every declared scenario has one Pass verdict and no missing or failed scenario | Per-scenario records and each host's final verdict |
-| Release Verification 4 | root_squash deployment | post-change | Run the standing denial precheck and all root_squash deployment entries from `gate/RUNBOOK.md` using the exact version commit | Both fresh consumers at the tested version commit | The denial boundary is reproduced, each documented deployment entry stamps the tested version commit hash, and no unrelated configuration changes | Procedure logs, configuration fingerprints, and deployed `-V` output |
-| Release Verification 5 | Pre-change consistency | pre-change | On the clean integrated release branch, inspect `RUNNER_VERSION`, the absence of a 1.3.0 changelog heading, canonical references, branch ancestry, and tracker state | Release branch, Git, tracked documentation, and GitHub | Version is `1.3.0-dev`; the 1.3.0 changelog section is absent; live references resolve; the release branch contains master; all 13 linked issues are closed and milestone 16 remains open | File reads, tracked-reference checks, commit IDs, ancestry result, and tracker observation |
-| Release Verification 6 | Post-change version and notes | post-change | Inspect the version and changelog commits, review the release-notes file, deploy through full setup on both consumers, and read source and installed version identity | Release branch and both fresh consumers | Changelog has one accepted 1.3.0 section; release notes agree with it and name the `1.2.4...1.3.0` comparison; source and deployed runners report `1.3.0` and the tested version commit hash; the version commit changes only `bin/ioc-runner`; the readiness candidate is its evidence-only child | Commit path lists, changelog and release-notes comparison, source reads, setup logs, and `ioc-runner -V` output |
-| Release Verification 7 | Released objects and tracker | post-release | After the released-object storage preflight, independently read the master merge commit, annotated tag, GitHub release target, milestone, and linked issue states | Canonical Git remote and GitHub | Merge, tag, and release object identify the accepted candidate ancestry; milestone 16 is closed; all 13 linked issues remain closed | Object and peeled commit IDs plus GitHub read-back |
+| Release Verification 2 | Automated and integrated checks | post-change | Push the exact corrected product commit, run shipped full setup, then run `gate/drivers/control/suites.bash` through the complete six-suite matrix | Both fresh consumers at the tested corrected product commit | Both host verdicts and the final gate verdict pass; derived counts agree with `tests/reporting-counts.csv`; cross-host differences contain only reviewed applicability states | Complete gate evidence directory, setup logs, runner provenance, and cross-host comparison |
+| Release Verification 3 | Standing multi-user scenarios | post-change | Run `gate/drivers/control/run-all.bash` on each fresh consumer | Both fresh consumers at the tested corrected product commit | Every declared scenario has one Pass verdict and no missing or failed scenario | Per-scenario records and each host's final verdict |
+| Release Verification 4 | root_squash deployment | post-change | Run the standing denial precheck and all root_squash deployment entries from `gate/RUNBOOK.md` using the exact corrected product commit | Both fresh consumers at the tested corrected product commit | The denial boundary is reproduced, each documented deployment entry stamps the tested corrected product commit hash, and no unrelated configuration changes | Procedure logs, configuration fingerprints, and deployed `-V` output |
+| Release Verification 5 | Pre-change consistency | pre-change | On the clean integrated release branch, inspect `RUNNER_VERSION`, the absence of a 1.3.0 changelog heading, canonical references, branch ancestry, and tracker state | Release branch, Git, tracked documentation, and GitHub | Version is `1.3.0-dev`; the 1.3.0 changelog section is absent; live references resolve; the release branch contains master; the original 13 linked issues are closed and milestone 16 remains open | File reads, tracked-reference checks, commit IDs, ancestry result, and tracker observation |
+| Release Verification 6 | Post-change version, notes, and current release state | post-change | Inspect the version, corrected product, and changelog commits; review the release-notes file; deploy the corrected product through full setup on both consumers; read source and installed version identity; and recheck canonical references and tracker state after M14 | Release branch, both fresh consumers, tracked documentation, and GitHub | Changelog has one accepted 1.3.0 section; release notes agree with it and name the `1.2.4...1.3.0` comparison; source and deployed runners report `1.3.0` and the tested corrected product commit hash; the version commit changes only `bin/ioc-runner`; live references resolve; all 14 linked issues are closed; every later commit through the readiness candidate changes only canonical evidence | Commit path lists and ancestry, changelog and release-notes comparison, source reads, setup logs, `ioc-runner -V` output, tracked-reference checks, and tracker observation |
+| Release Verification 7 | Released objects and tracker | post-release | After the released-object storage preflight, independently read the master merge commit, annotated tag, GitHub release target, milestone, and linked issue states | Canonical Git remote and GitHub | Merge, tag, and release object identify the accepted candidate ancestry; milestone 16 is closed; all 14 linked issues remain closed | Object and peeled commit IDs plus GitHub read-back |
 | Release Verification 8 | Clean installation and production deployment | post-release | Execute both Production Environment Test rows above from the actual released tag | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | The clean initial installation and production CLI update both install the released identity; policy contexts and consumers pass; both real installed-state suites have no failure | Clean-install and production-update version, context, consumer, and suite records without production host identity |
-| Release Verification 9 | Cycle closure | post-release | Compare the checked canonical closure file with its committed copy, read M14 and the release tally, and inspect the master canonical next entry | `master`, canonical documents, and fetched upstream | M14 is Complete; every Release Verification row is Pass; the 1.3.0 record is durable; master points to its surviving Backlog work; local and upstream closure state agree | Closure commit ID, byte comparison, register rows, and upstream read-back |
+| Release Verification 9 | Cycle closure | post-release | Compare the checked canonical closure file with its committed copy, read M15 and the release tally, and inspect the master canonical next entry | `master`, canonical documents, and fetched upstream | M15 is Complete; every Release Verification row is Pass; the 1.3.0 record is durable; master points to its surviving Backlog work; local and upstream closure state agree | Closure commit ID, byte comparison, register rows, and upstream read-back |
 
 ##### Release Verification Results
 
@@ -2412,8 +2546,8 @@ labels.
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-09-01 18:49 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both published image pairs passed the shipped pair validator, no-backing check, and `qemu-img check`; both fresh consumers matched their new source images; both remote manifests matched their sidecars; the canonical validator accepted both retained checkouts and installed runners; see the Release Verification 1 Evidence table |
 | Release Verification 2 | 2026-09-02 01:14 PDT | Both fresh Debian 13 and Rocky 8 consumers at candidate `98902279e9b3111fa50b3e9dfb339b3fb44de6c7` | Fail | The complete two-host gate ran the six declared suite blocks per host. Debian local source failed two M10 race checks; Rocky local source and installed system paths failed the same two checks. Direct tracing of the real Rocky local source path confirmed that restart changed `MainPID:starttime`, then `ps` returned nonzero for a process collected before restart and `set -e` ended `inspect` before the final snapshot comparison. The codebase review found the same volatile lookup only in the server and client process-context `ps` calls; it also found that the M10 race tests combine restart observation with inspect completion and overwrite race output during cleanup. Issue #150 tracks the correction. Evidence: `work/gate-suites-20260902T081436Z-236978` |
-| Release Verification 3 | Not run | Both fresh consumers at the tested version commit | Pending | none |
-| Release Verification 4 | Not run | Both fresh consumers at the tested version commit | Pending | none |
+| Release Verification 3 | Not run | Both fresh consumers at the tested corrected product commit | Pending | none |
+| Release Verification 4 | Not run | Both fresh consumers at the tested corrected product commit | Pending | none |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
 | Release Verification 6 | Not run | Release branch and both fresh consumers | Pending | none |
 | Release Verification 7 | Not run | Canonical Git remote and GitHub | Pending | none |
@@ -2456,7 +2590,7 @@ Repository owner.
 
 ##### Affected Work
 
-M14 (final release) and the GitHub projection of M1-M13. Every linked issue is
+M15 (final release) and the GitHub projection of M1-M14. Every linked issue is
 assigned to the open `1.3.0` milestone.
 
 ##### Completion Criterion

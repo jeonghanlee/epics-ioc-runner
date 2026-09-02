@@ -48,6 +48,7 @@ declare -g SYSTEM_INFRA_READY=0
 declare -g -a SYSTEM_CATALOG_ROWS=(
     "P00|system-lifecycle.P00.epics-base-set|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.lsof-available|REQUIRED|direct-inspection"
+    "P00|system-lifecycle.P00.ps-available|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.runuser-available|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.root-invocation|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.selected-runner-executable|REQUIRED|direct-inspection"
@@ -183,9 +184,19 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S34|system-lifecycle.S34.baseline-inspect-preserves-mainpid|BEHAVIOR|real-path"
     "S34|system-lifecycle.S34.replaced-executable-warns|BEHAVIOR|real-path"
     "S34|system-lifecycle.S34.drift-inspect-preserves-mainpid|BEHAVIOR|real-path"
-    "S34|system-lifecycle.S34.race-reaches-synchronization-line|BEHAVIOR|real-path"
-    "S34|system-lifecycle.S34.race-observes-one-new-mainpid|BEHAVIOR|real-path"
-    "S34|system-lifecycle.S34.race-reports-unstable-not-drift|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-collected-original-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-observes-one-new-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-collected-pids-retire-before-ps|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-inspect-completes|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-output-excludes-retired-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-reports-unstable-not-drift|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.socat-available|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.client-baseline-reports-socat-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-collected-socat-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-socat-disconnects|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-inspect-completes|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-output-excludes-socat-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-preserves-server-snapshot|BEHAVIOR|real-path"
     "S34|system-lifecycle.S34.timeout-cleanup-reaches-synchronization-line|BEHAVIOR|real-path"
     "S34|system-lifecycle.S34.timeout-cleanup-reaps-inspect|BEHAVIOR|real-path"
     "S34|system-lifecycle.S34.timeout-cleanup-preserves-mainpid|BEHAVIOR|real-path"
@@ -254,6 +265,8 @@ declare -g M10_SYSTEM_MOUNT_DIR=""
 declare -g M10_SYSTEM_PROCSERV_COPY=""
 # shellcheck disable=SC2034
 declare -g M10_SYSTEM_INSPECT_PID=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_CLIENT_PID=""
 # shellcheck disable=SC2034
 declare -g M10_SYSTEM_CLEANUP_REQUIRED=0
 # shellcheck disable=SC2034
@@ -416,6 +429,7 @@ function close_catalog_from_index {
 function run_preflight {
     local epics_base_set="false"
     local lsof_available="false"
+    local ps_available="false"
     local runuser_available="false"
     local root_invocation="false"
     local runner_executable="false"
@@ -431,17 +445,20 @@ function run_preflight {
     fi
 
     command -v lsof >/dev/null 2>&1 && lsof_available="true"
+    [[ -x "$(command -v ps 2>/dev/null)" ]] && ps_available="true"
     [[ -x /usr/sbin/runuser ]] && runuser_available="true"
     [[ "${EUID}" -eq 0 ]] && root_invocation="true"
     [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
     verify_state true "${lsof_available}" "lsof is available"
+    verify_state true "${ps_available}" "ps is available and executable"
     verify_state true "${runuser_available}" "runuser is available at /usr/sbin/runuser"
     verify_state true "${root_invocation}" "Effective user is root"
     verify_state true "${runner_executable}" "Selected runner is executable"
-    if [[ "${lsof_available}" != "true" || "${runuser_available}" != "true" ||
+    if [[ "${lsof_available}" != "true" || "${ps_available}" != "true" ||
+          "${runuser_available}" != "true" ||
           "${root_invocation}" != "true" ||
           "${runner_executable}" != "true" ]]; then
-        close_catalog_from_index 5 SKIP "requires system lifecycle P00"
+        close_catalog_from_index 6 SKIP "requires system lifecycle P00"
         return 1
     fi
 }
@@ -2634,6 +2651,8 @@ EOF
     verify_state "true" "${clean}" "Parser agreement probe cleanup is complete"
 }
 
+# shellcheck source=lib/test-m14-process-context.bash
+source "${SC_TOP}/lib/test-m14-process-context.bash"
 # shellcheck source=lib/test-m10-system.bash
 source "${SC_TOP}/lib/test-m10-system.bash"
 

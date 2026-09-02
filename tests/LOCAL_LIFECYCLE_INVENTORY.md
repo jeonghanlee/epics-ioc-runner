@@ -14,8 +14,8 @@ rejected before reporter initialization and is not part of this catalog.
 
 ## Inventory Basis
 
-The current maximum branch contains 121 assertions. The fixed catalog adds
-three P00 checks and eleven prerequisite or applicability checks for logrotate,
+The current maximum branch contains 137 assertions. The fixed catalog includes
+four P00 checks and twelve prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
 camonitor availability and the S15 and S16 configuration requirements. The
@@ -32,15 +32,16 @@ uses hand-built-reproduction.
 
 ## Catalog
 
-### P00 - Invocation Preflight (3)
+### P00 - Invocation Preflight (4)
 
 - `local-lifecycle.P00.epics-base-set` | `REQUIRED` | `EPICS_BASE` is set.
 - `local-lifecycle.P00.lsof-available` | `REQUIRED` | `lsof` is available.
+- `local-lifecycle.P00.ps-available` | `REQUIRED` | `ps` resolves to an executable path.
 - `local-lifecycle.P00.selected-runner-executable` | `REQUIRED` | The selected runner path is executable.
 
 The `EPICS_BASE` check is the first environment boundary after catalog close
 and expected-count comparison. If it fails, the remaining P00 checks and every
-numbered STEP check are `SKIP`; `lsof` and runner executability are not
+numbered STEP check are `SKIP`; `lsof`, `ps`, and runner executability are not
 evaluated.
 
 ### S01 - Setup Test Workspace (0)
@@ -312,7 +313,7 @@ pre-existing override directory.
 - `local-lifecycle.S36.abort-nonzero` | `BEHAVIOR` | A declined reinstall returns nonzero.
 - `local-lifecycle.S36.abort-template-unchanged` | `BEHAVIOR` | The shared template is unchanged on abort.
 
-### S37 - M10 Reliability (23)
+### S37 - M10 and M14 Reliability (38)
 
 - `local-lifecycle.S37.tmpfs-fixture-ready` | `PREREQUISITE` | The gate supplied a writable size-limited tmpfs.
 - `local-lifecycle.S37.procserv-copy-ready` | `PREREQUISITE` | An isolated executable procServ copy exists.
@@ -330,9 +331,24 @@ pre-existing override directory.
 - `local-lifecycle.S37.baseline-inspect-preserves-mainpid` | `BEHAVIOR` | Baseline inspect changes no process identity.
 - `local-lifecycle.S37.replaced-executable-warns` | `BEHAVIOR` | Atomic executable replacement produces a drift warning.
 - `local-lifecycle.S37.drift-inspect-preserves-mainpid` | `BEHAVIOR` | Drift inspection changes no process identity.
-- `local-lifecycle.S37.race-reaches-synchronization-line` | `BEHAVIOR` | Inspect reaches `Target Socket:` before the race action.
-- `local-lifecycle.S37.race-observes-one-new-mainpid` | `BEHAVIOR` | Exactly one real restart produces one new identity.
-- `local-lifecycle.S37.race-reports-unstable-not-drift` | `BEHAVIOR` | The changed snapshot reports unstable rather than drift.
+- `local-lifecycle.S37.server-race-collected-original-pid` | `BEHAVIOR` | The external `ps` boundary pauses after inspect selects the original server PID.
+- `local-lifecycle.S37.server-race-observes-one-new-mainpid` | `BEHAVIOR` | Exactly one real restart produces one new identity.
+- `local-lifecycle.S37.server-race-collected-pids-retire-before-ps` | `BEHAVIOR` | Every collected server PID exits before the real `ps` resumes.
+- `local-lifecycle.S37.server-race-inspect-completes` | `BEHAVIOR` | Inspect accepts the real no-selection result after server replacement.
+- `local-lifecycle.S37.server-race-output-excludes-retired-mainpid` | `BEHAVIOR` | Process context excludes the retired MainPID.
+- `local-lifecycle.S37.server-race-reports-unstable-not-drift` | `BEHAVIOR` | The changed snapshot reports unstable rather than drift.
+- `local-lifecycle.S37.ps-status-one-inspect-completes` | `BEHAVIOR` | External `ps` status 1 does not terminate inspect.
+- `local-lifecycle.S37.ps-status-one-reaches-final-snapshot` | `BEHAVIOR` | Status 1 continues through executable-identity comparison.
+- `local-lifecycle.S37.ps-status-two-hard-error` | `BEHAVIOR` | External `ps` status 2 remains a diagnosed hard error.
+- `local-lifecycle.S37.ps-status-127-hard-error` | `BEHAVIOR` | External `ps` status 127 remains a diagnosed hard error.
+- `local-lifecycle.S37.ps-nonpath-command-rejected` | `BEHAVIOR` | A non-path `ps` command fails executable-path validation.
+- `local-lifecycle.S37.socat-available` | `PREREQUISITE` | A real `socat` client is available for client churn.
+- `local-lifecycle.S37.client-baseline-reports-socat-pid` | `BEHAVIOR` | Baseline inspect reports the connected `socat` PID.
+- `local-lifecycle.S37.client-race-collected-socat-pid` | `BEHAVIOR` | The client `ps` boundary pauses after selecting the `socat` PID.
+- `local-lifecycle.S37.client-race-socat-disconnects` | `BEHAVIOR` | The real client disconnects before `ps` resumes.
+- `local-lifecycle.S37.client-race-inspect-completes` | `BEHAVIOR` | Inspect accepts the real no-selection result after client disconnect.
+- `local-lifecycle.S37.client-race-output-excludes-socat-pid` | `BEHAVIOR` | Process context excludes the disconnected client PID.
+- `local-lifecycle.S37.client-race-preserves-server-snapshot` | `BEHAVIOR` | Client churn leaves the server snapshot stable.
 - `local-lifecycle.S37.timeout-cleanup-reaches-synchronization-line` | `BEHAVIOR` | The cleanup phase reaches the same synchronization line.
 - `local-lifecycle.S37.timeout-cleanup-reaps-inspect` | `BEHAVIOR` | Bounded cleanup resumes, terminates, and reaps inspect.
 - `local-lifecycle.S37.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | Cleanup performs no restart.

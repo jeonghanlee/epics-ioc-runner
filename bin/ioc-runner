@@ -2446,6 +2446,23 @@ function do_view {
 }
 
 
+function render_process_context {
+    local ps_bin="$1"
+    shift
+    local ps_status=0
+    local IFS=,
+
+    "${ps_bin}" -o pid,user,tty,stat,lstart,cmd -p "$*" || ps_status=$?
+    if (( ps_status == 0 || ps_status == 1 )); then
+        return 0
+    fi
+
+    printf "Error: '%s' failed with status %d while rendering process context.\n" \
+        "${ps_bin}" "${ps_status}" >&2
+    return "${ps_status}"
+}
+
+
 function do_inspect {
     local unit=""
     local sock_path=""
@@ -2461,6 +2478,7 @@ function do_inspect {
     local line=""
     local pid=""
     local c_pid=""
+    local ps_bin=""
     local ss_peer_out=""
     local -a server_pids=()
     local -A seen_server_pids=()
@@ -2524,6 +2542,11 @@ function do_inspect {
 
     if ! command -v ss >/dev/null 2>&1; then
         printf "Error: 'ss' utility is required but not found in PATH.\n" >&2
+        exit 1
+    fi
+
+    if ! ps_bin=$(command -v ps 2>/dev/null) || [[ ! -x "${ps_bin}" ]]; then
+        printf "Error: 'ps' utility is required but not found or not executable in PATH.\n" >&2
         exit 1
     fi
 
@@ -2604,11 +2627,7 @@ function do_inspect {
     printf "   - Displays the active daemon and its spawned payload processes.\n"
     print_sub_divider
     if [[ ${#server_pids[@]} -gt 0 ]]; then
-        # Use a subshell to temporarily alter IFS for comma-separated PID formatting
-        (
-            IFS=","
-            ps -o pid,user,tty,stat,lstart,cmd -p "${server_pids[*]}"
-        )
+        render_process_context "${ps_bin}" "${server_pids[@]}"
     else
         printf "No server processes found. The socket might be orphaned.\n"
     fi
@@ -2621,10 +2640,7 @@ function do_inspect {
     printf "   - Displays external processes currently attached to the socket.\n"
     print_sub_divider
     if [[ ${#client_pids[@]} -gt 0 ]]; then
-        (
-            IFS=","
-            ps -o pid,user,tty,stat,lstart,cmd -p "${client_pids[*]}"
-        )
+        render_process_context "${ps_bin}" "${client_pids[@]}"
     else
         printf "No external client connections detected.\n"
     fi

@@ -12,8 +12,13 @@ function _m10_system_operator_runner {
 
 function _m10_system_start_inspect {
     local output_file="$1"
+    local ps_wrapper_dir="${2:-}"
+    local inspect_path="${PATH}"
 
-    IOC_RUNNER_SYSTEM_USER="${M10_SERVICE_USER}" \
+    if [[ -n "${ps_wrapper_dir}" ]]; then
+        inspect_path="${ps_wrapper_dir}:${PATH}"
+    fi
+    PATH="${inspect_path}" IOC_RUNNER_SYSTEM_USER="${M10_SERVICE_USER}" \
         bash "${RUNNER_SCRIPT}" inspect "${M10_SYSTEM_IOC_NAME}" > "${output_file}" 2>&1 &
     M10_SYSTEM_INSPECT_PID=$!
 }
@@ -51,9 +56,26 @@ function _m10_system_terminate_inspect {
     M10_SYSTEM_INSPECT_PID=""
 }
 
+function _m10_system_terminate_client {
+    local attempt=0
+
+    [[ "${M10_SYSTEM_CLIENT_PID}" =~ ^[1-9][0-9]*$ ]] || return 0
+    if kill -0 "${M10_SYSTEM_CLIENT_PID}" 2>/dev/null; then
+        kill -TERM "${M10_SYSTEM_CLIENT_PID}" 2>/dev/null || true
+        while (( attempt < 20 )) && kill -0 "${M10_SYSTEM_CLIENT_PID}" 2>/dev/null; do
+            sleep 0.1
+            attempt=$((attempt + 1))
+        done
+        kill -KILL "${M10_SYSTEM_CLIENT_PID}" 2>/dev/null || true
+    fi
+    wait "${M10_SYSTEM_CLIENT_PID}" 2>/dev/null || true
+    M10_SYSTEM_CLIENT_PID=""
+}
+
 function _cleanup_m10_system {
     local cleanup_rc=0
 
+    _m10_system_terminate_client
     _m10_system_terminate_inspect
     if (( M10_SYSTEM_CLEANUP_REQUIRED )); then
         systemctl stop "epics-@${M10_SYSTEM_IOC_NAME}.service" >/dev/null 2>&1 || true
@@ -170,12 +192,27 @@ function test_m10_system_reliability {
     local saved_dropin_dir=""
     local saved_mount_dir=""
     local saved_procserv_copy=""
-    local output_file="${WORKSPACE}/m10-system-inspect.out"
+    local server_output_file="${WORKSPACE}/m10-system-server-race.out"
+    local client_baseline_output_file="${WORKSPACE}/m10-system-client-baseline.out"
+    local client_output_file="${WORKSPACE}/m10-system-client-race.out"
+    local cleanup_output_file="${WORKSPACE}/m10-system-cleanup.out"
+    local server_control_dir="${WORKSPACE}/m10-system-server-ps"
+    local client_control_dir="${WORKSPACE}/m10-system-client-ps"
+    local socket_path="${RUN_DIR}/${M10_SYSTEM_IOC_NAME}/control"
     local output=""
     local before=""
     local after=""
     local race_snapshot=""
+    local server_selection=""
+    local original_server_pid=""
+    local client_pid=""
+    local ps_real=""
+    local socat_bin=""
+    local attempt=0
     local rc=0
+    local restart_rc=0
+    local server_rc=0
+    local client_rc=0
     local state=""
     local result="false"
 
@@ -326,38 +363,131 @@ EOF
     after=$(_m10_system_snapshot "${unit}" 2>/dev/null || true)
     verify_state "${before}" "${after}" "System drift inspection preserves MainPID:starttime"
 
-    : > "${output_file}"
-    _m10_system_start_inspect "${output_file}"
+    ps_real=$(command -v ps 2>/dev/null || true)
+    original_server_pid="${before%%:*}"
+    _m14_create_ps_wrapper "${server_control_dir}" "${ps_real}" hold 1
+    : > "${server_output_file}"
+    _m10_system_start_inspect "${server_output_file}" "${server_control_dir}"
     result="false"
-    if _m10_system_wait_output "${output_file}" "Target Socket:" &&
-       kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null &&
-       _m10_system_wait_inspect_stopped "${M10_SYSTEM_INSPECT_PID}"; then
+    if _m14_wait_for_file "${server_control_dir}/ready" &&
+       _m14_ps_selection "${server_control_dir}/args" server_selection &&
+       [[ ",${server_selection}," == *",${original_server_pid},"* ]]; then
         result="true"
     fi
-    verify_state "true" "${result}" "System race inspection reaches the synchronization line"
-    race_snapshot=""; rc=0
+    verify_state "true" "${result}" "System server race pauses ps after collecting the original server PID"
+    race_snapshot=""
+    restart_rc=0
     if [[ "${result}" == "true" ]]; then
-        systemctl restart "${unit}"
+        systemctl restart "${unit}" || restart_rc=$?
         _m10_system_wait_snapshot_change "${unit}" "${before}" race_snapshot || true
-        kill -CONT "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null || true
-        wait "${M10_SYSTEM_INSPECT_PID}" || rc=$?
-        M10_SYSTEM_INSPECT_PID=""
     fi
     result="false"
-    if (( rc == 0 )) && [[ -n "${race_snapshot}" && "${race_snapshot}" != "${before}" ]]; then result="true"; fi
+    if (( restart_rc == 0 )) && [[ -n "${race_snapshot}" && "${race_snapshot}" != "${before}" ]]; then
+        result="true"
+    fi
     verify_state "true" "${result}" "Exactly one system restart produces one new MainPID:starttime"
-    output=$(<"${output_file}")
+
+    result="false"
+    if [[ -n "${server_selection}" ]] &&
+       _m14_wait_for_selected_pids_gone "${server_selection}"; then
+        result="true"
+    fi
+    verify_state "true" "${result}" "System restart removes every server PID collected before ps"
+
+    : > "${server_control_dir}/release"
+    server_rc=0
+    if [[ "${M10_SYSTEM_INSPECT_PID}" =~ ^[1-9][0-9]*$ ]]; then
+        wait "${M10_SYSTEM_INSPECT_PID}" || server_rc=$?
+        M10_SYSTEM_INSPECT_PID=""
+    else
+        server_rc=1
+    fi
+    verify_state "0" "${server_rc}" "System inspect completes after collected server processes disappear"
+
+    result="true"
+    if _m14_output_has_pid_row "${server_output_file}" "${original_server_pid}"; then
+        result="false"
+    fi
+    verify_state "true" "${result}" "System server race output excludes the retired MainPID"
+
+    output=$(<"${server_output_file}")
     result="false"
     if [[ "${output}" == *"inspection snapshot became unstable"* &&
           "${output}" != *"active procServ executable is deleted"* &&
           "${output}" != *"active procServ executable differs"* ]]; then result="true"; fi
     verify_state "true" "${result}" "The system race reports unstable rather than drift"
 
+    socat_bin=$(command -v socat 2>/dev/null || true)
+    if [[ -x "${socat_bin}" ]]; then
+        record_current_state PASS
+        "${socat_bin}" -u UNIX-CONNECT:"${socket_path}" /dev/null >/dev/null 2>&1 &
+        M10_SYSTEM_CLIENT_PID=$!
+        client_pid="${M10_SYSTEM_CLIENT_PID}"
+        result="false"
+        for ((attempt = 0; attempt < 50; attempt = attempt + 1)); do
+            rc=0
+            _m10_system_runner inspect "${M10_SYSTEM_IOC_NAME}" \
+                > "${client_baseline_output_file}" 2>&1 || rc=$?
+            if (( rc == 0 )) && _m14_output_has_pid_row "${client_baseline_output_file}" "${client_pid}"; then
+                result="true"
+                break
+            fi
+            sleep 0.02
+        done
+        verify_state "true" "${result}" "System baseline inspect reports the real socat client PID"
+
+        _m14_create_ps_wrapper "${client_control_dir}" "${ps_real}" hold 2
+        : > "${client_output_file}"
+        _m10_system_start_inspect "${client_output_file}" "${client_control_dir}"
+        result="false"
+        server_selection=""
+        if _m14_wait_for_file "${client_control_dir}/ready" &&
+           _m14_ps_selection "${client_control_dir}/args" server_selection &&
+           [[ ",${server_selection}," == *",${client_pid},"* ]]; then
+            result="true"
+        fi
+        verify_state "true" "${result}" "System client race pauses ps after collecting the socat PID"
+
+        kill -TERM "${client_pid}" 2>/dev/null || true
+        result="false"
+        if _m14_wait_for_process_exit "${client_pid}"; then
+            wait "${client_pid}" 2>/dev/null || true
+            M10_SYSTEM_CLIENT_PID=""
+            result="true"
+        fi
+        verify_state "true" "${result}" "The real system socat client disconnects before ps resumes"
+
+        : > "${client_control_dir}/release"
+        client_rc=0
+        if [[ "${M10_SYSTEM_INSPECT_PID}" =~ ^[1-9][0-9]*$ ]]; then
+            wait "${M10_SYSTEM_INSPECT_PID}" || client_rc=$?
+            M10_SYSTEM_INSPECT_PID=""
+        else
+            client_rc=1
+        fi
+        verify_state "0" "${client_rc}" "System inspect completes after the collected client disappears"
+
+        result="true"
+        if _m14_output_has_pid_row "${client_output_file}" "${client_pid}"; then result="false"; fi
+        verify_state "true" "${result}" "System client race output excludes the disconnected socat PID"
+
+        output=$(<"${client_output_file}")
+        result="false"
+        if [[ "${output}" == *"Executable identity matches: ${procserv_copy}"* &&
+              "${output}" != *"inspection snapshot became unstable"* ]]; then result="true"; fi
+        verify_state "true" "${result}" "System client disconnect leaves the server snapshot stable"
+    else
+        record_current_state SKIP "socat is unavailable"
+        for ((attempt = 0; attempt < 6; attempt = attempt + 1)); do
+            record_current_state SKIP "requires ${SUITE_ID}.S34.socat-available"
+        done
+    fi
+
     before=$(_m10_system_snapshot "${unit}" 2>/dev/null || true)
-    : > "${output_file}"
-    _m10_system_start_inspect "${output_file}"
+    : > "${cleanup_output_file}"
+    _m10_system_start_inspect "${cleanup_output_file}"
     result="false"
-    if _m10_system_wait_output "${output_file}" "Target Socket:" &&
+    if _m10_system_wait_output "${cleanup_output_file}" "Target Socket:" &&
        kill -STOP "${M10_SYSTEM_INSPECT_PID}" 2>/dev/null &&
        _m10_system_wait_inspect_stopped "${M10_SYSTEM_INSPECT_PID}"; then
         result="true"

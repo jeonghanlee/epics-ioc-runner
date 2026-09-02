@@ -11,15 +11,15 @@ the same identity set.
 
 ## Inventory Basis
 
-The source contains 93 catalog result assertion call sites. Repeated pipeline
+The source contains 104 catalog result assertion call sites. Repeated pipeline
 functions and the three-call boundary helper add ten runtime occurrences:
 explicit install at S06 and S12, cleanup install at S07, S09, and S13,
 directory install at S08 and S14, and six additional boundary assertions at
 S26. The camonitor
 availability assertion is currently fail-only, so the maximum successful path
-reports 102 assertions although 103 assertion branches exist.
+reports 113 assertions although 114 assertion branches exist.
 
-The fixed catalog adds five P00 checks and eleven prerequisite or required
+The fixed catalog includes six P00 checks and eleven prerequisite or required
 conditions currently represented only by early returns. Its expected check and
 STEP counts are owned by [`reporting-counts.csv`](reporting-counts.csv). S02,
 S03, and S04 are setup-only STEPs and own no checks.
@@ -28,9 +28,9 @@ S03, and S04 are setup-only STEPs and own no checks.
 
 - The `EPICS_BASE` P00 check is the first environment boundary after catalog
   close and expected-count comparison. If it fails, the remaining P00 checks
-  and every numbered STEP check are `SKIP`; `lsof`, `runuser`, root invocation,
-  and runner executability are not evaluated.
-- After `EPICS_BASE` passes, the remaining four P00 checks govern all numbered
+  and every numbered STEP check are `SKIP`; `lsof`, `ps`, `runuser`, root
+  invocation, and runner executability are not evaluated.
+- After `EPICS_BASE` passes, the remaining five P00 checks govern all numbered
   STEPs.
 - S23 camonitor availability governs the Channel Access behavior check.
 - S25 system-journal availability governs both monitor-isolation checks.
@@ -61,6 +61,7 @@ and executable paths directly. No row uses hand-built-reproduction.
 | --- | --- | --- | --- | --- |
 | P00 | `system-lifecycle.P00.epics-base-set` | `REQUIRED` | `direct-inspection` | EPICS_BASE is set. |
 | P00 | `system-lifecycle.P00.lsof-available` | `REQUIRED` | `direct-inspection` | lsof is available. |
+| P00 | `system-lifecycle.P00.ps-available` | `REQUIRED` | `direct-inspection` | ps resolves to an executable path. |
 | P00 | `system-lifecycle.P00.runuser-available` | `REQUIRED` | `direct-inspection` | runuser is executable at `/usr/sbin/runuser`. |
 | P00 | `system-lifecycle.P00.root-invocation` | `REQUIRED` | `direct-inspection` | The effective user is root. |
 | P00 | `system-lifecycle.P00.selected-runner-executable` | `REQUIRED` | `direct-inspection` | The selected source or installed runner is executable. |
@@ -196,9 +197,19 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S34 | `system-lifecycle.S34.baseline-inspect-preserves-mainpid` | `BEHAVIOR` | `real-path` | Baseline inspect changes no process identity. |
 | S34 | `system-lifecycle.S34.replaced-executable-warns` | `BEHAVIOR` | `real-path` | Atomic executable replacement produces a drift warning. |
 | S34 | `system-lifecycle.S34.drift-inspect-preserves-mainpid` | `BEHAVIOR` | `real-path` | Drift inspection changes no process identity. |
-| S34 | `system-lifecycle.S34.race-reaches-synchronization-line` | `BEHAVIOR` | `real-path` | Inspect reaches `Target Socket:` before the race action. |
-| S34 | `system-lifecycle.S34.race-observes-one-new-mainpid` | `BEHAVIOR` | `real-path` | Exactly one real restart produces one new identity. |
-| S34 | `system-lifecycle.S34.race-reports-unstable-not-drift` | `BEHAVIOR` | `real-path` | The changed snapshot reports unstable rather than drift. |
+| S34 | `system-lifecycle.S34.server-race-collected-original-pid` | `BEHAVIOR` | `real-path` | The external `ps` boundary pauses after inspect selects the original server PID. |
+| S34 | `system-lifecycle.S34.server-race-observes-one-new-mainpid` | `BEHAVIOR` | `real-path` | Exactly one real restart produces one new identity. |
+| S34 | `system-lifecycle.S34.server-race-collected-pids-retire-before-ps` | `BEHAVIOR` | `real-path` | Every collected server PID exits before the real `ps` resumes. |
+| S34 | `system-lifecycle.S34.server-race-inspect-completes` | `BEHAVIOR` | `real-path` | Inspect accepts the real no-selection result after server replacement. |
+| S34 | `system-lifecycle.S34.server-race-output-excludes-retired-mainpid` | `BEHAVIOR` | `real-path` | Process context excludes the retired MainPID. |
+| S34 | `system-lifecycle.S34.server-race-reports-unstable-not-drift` | `BEHAVIOR` | `real-path` | The changed snapshot reports unstable rather than drift. |
+| S34 | `system-lifecycle.S34.socat-available` | `PREREQUISITE` | `direct-inspection` | A real `socat` client is available for client churn. |
+| S34 | `system-lifecycle.S34.client-baseline-reports-socat-pid` | `BEHAVIOR` | `real-path` | Baseline inspect reports the connected `socat` PID. |
+| S34 | `system-lifecycle.S34.client-race-collected-socat-pid` | `BEHAVIOR` | `real-path` | The client `ps` boundary pauses after selecting the `socat` PID. |
+| S34 | `system-lifecycle.S34.client-race-socat-disconnects` | `BEHAVIOR` | `real-path` | The real client disconnects before `ps` resumes. |
+| S34 | `system-lifecycle.S34.client-race-inspect-completes` | `BEHAVIOR` | `real-path` | Inspect accepts the real no-selection result after client disconnect. |
+| S34 | `system-lifecycle.S34.client-race-output-excludes-socat-pid` | `BEHAVIOR` | `real-path` | Process context excludes the disconnected client PID. |
+| S34 | `system-lifecycle.S34.client-race-preserves-server-snapshot` | `BEHAVIOR` | `real-path` | Client churn leaves the server snapshot stable. |
 | S34 | `system-lifecycle.S34.timeout-cleanup-reaches-synchronization-line` | `BEHAVIOR` | `real-path` | The cleanup phase reaches the same synchronization line. |
 | S34 | `system-lifecycle.S34.timeout-cleanup-reaps-inspect` | `BEHAVIOR` | `real-path` | Bounded cleanup resumes, terminates, and reaps inspect. |
 | S34 | `system-lifecycle.S34.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | `real-path` | Cleanup performs no restart. |
@@ -208,9 +219,9 @@ and executable paths directly. No row uses hand-built-reproduction.
 
 | Source Shape | Count |
 | --- | ---: |
-| Static assertion call sites | 117 |
+| Static assertion call sites | 128 |
 | Repeated pipeline and boundary-helper occurrences | 10 |
-| Current assertion branches | 127 |
+| Current assertion branches | 138 |
 | Added P00 checks | 4 |
 | Added prerequisite or required conditions | 12 |
 | Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |

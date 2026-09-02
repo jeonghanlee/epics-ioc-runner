@@ -69,6 +69,7 @@ declare -g CURRENT_STEP_CHECK_INDEX=0
 declare -g -a LOCAL_CATALOG_ROWS=(
     "P00|local-lifecycle.P00.epics-base-set|REQUIRED"
     "P00|local-lifecycle.P00.lsof-available|REQUIRED"
+    "P00|local-lifecycle.P00.ps-available|REQUIRED"
     "P00|local-lifecycle.P00.selected-runner-executable|REQUIRED"
     "S04|local-lifecycle.S04.manual-configuration-created|BEHAVIOR"
     "S05|local-lifecycle.S05.explicit-install-succeeded|BEHAVIOR"
@@ -232,9 +233,24 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S37|local-lifecycle.S37.baseline-inspect-preserves-mainpid|BEHAVIOR"
     "S37|local-lifecycle.S37.replaced-executable-warns|BEHAVIOR"
     "S37|local-lifecycle.S37.drift-inspect-preserves-mainpid|BEHAVIOR"
-    "S37|local-lifecycle.S37.race-reaches-synchronization-line|BEHAVIOR"
-    "S37|local-lifecycle.S37.race-observes-one-new-mainpid|BEHAVIOR"
-    "S37|local-lifecycle.S37.race-reports-unstable-not-drift|BEHAVIOR"
+    "S37|local-lifecycle.S37.server-race-collected-original-pid|BEHAVIOR"
+    "S37|local-lifecycle.S37.server-race-observes-one-new-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.server-race-collected-pids-retire-before-ps|BEHAVIOR"
+    "S37|local-lifecycle.S37.server-race-inspect-completes|BEHAVIOR"
+    "S37|local-lifecycle.S37.server-race-output-excludes-retired-mainpid|BEHAVIOR"
+    "S37|local-lifecycle.S37.server-race-reports-unstable-not-drift|BEHAVIOR"
+    "S37|local-lifecycle.S37.ps-status-one-inspect-completes|BEHAVIOR"
+    "S37|local-lifecycle.S37.ps-status-one-reaches-final-snapshot|BEHAVIOR"
+    "S37|local-lifecycle.S37.ps-status-two-hard-error|BEHAVIOR"
+    "S37|local-lifecycle.S37.ps-status-127-hard-error|BEHAVIOR"
+    "S37|local-lifecycle.S37.ps-nonpath-command-rejected|BEHAVIOR"
+    "S37|local-lifecycle.S37.socat-available|PREREQUISITE"
+    "S37|local-lifecycle.S37.client-baseline-reports-socat-pid|BEHAVIOR"
+    "S37|local-lifecycle.S37.client-race-collected-socat-pid|BEHAVIOR"
+    "S37|local-lifecycle.S37.client-race-socat-disconnects|BEHAVIOR"
+    "S37|local-lifecycle.S37.client-race-inspect-completes|BEHAVIOR"
+    "S37|local-lifecycle.S37.client-race-output-excludes-socat-pid|BEHAVIOR"
+    "S37|local-lifecycle.S37.client-race-preserves-server-snapshot|BEHAVIOR"
     "S37|local-lifecycle.S37.timeout-cleanup-reaches-synchronization-line|BEHAVIOR"
     "S37|local-lifecycle.S37.timeout-cleanup-reaps-inspect|BEHAVIOR"
     "S37|local-lifecycle.S37.timeout-cleanup-preserves-mainpid|BEHAVIOR"
@@ -304,7 +320,24 @@ declare -g SUITE_ASSERTION_FAILED=0
 declare -gr M10_IOC_NAME="M10ReliabilityIOC-LOCAL"
 declare -g M10_DROPIN_DIR=""
 declare -g M10_INSPECT_PID=""
+declare -g M10_CLIENT_PID=""
 declare -g M10_CLEANUP_REQUIRED=0
+
+function _m10_terminate_client {
+    local attempt=0
+
+    [[ "${M10_CLIENT_PID}" =~ ^[1-9][0-9]*$ ]] || return 0
+    if kill -0 "${M10_CLIENT_PID}" 2>/dev/null; then
+        kill -TERM "${M10_CLIENT_PID}" 2>/dev/null || true
+        while (( attempt < 20 )) && kill -0 "${M10_CLIENT_PID}" 2>/dev/null; do
+            sleep 0.1
+            attempt=$((attempt + 1))
+        done
+        kill -KILL "${M10_CLIENT_PID}" 2>/dev/null || true
+    fi
+    wait "${M10_CLIENT_PID}" 2>/dev/null || true
+    M10_CLIENT_PID=""
+}
 
 function _m10_terminate_inspect {
     local attempt=0
@@ -326,6 +359,7 @@ function _m10_terminate_inspect {
 function _cleanup_m10_local {
     local cleanup_rc=0
 
+    _m10_terminate_client
     _m10_terminate_inspect
     if (( M10_CLEANUP_REQUIRED == 0 )); then
         return 0
@@ -476,6 +510,7 @@ function close_local_catalog_from_index {
 function run_preflight {
     local epics_base_set="false"
     local lsof_available="false"
+    local ps_available="false"
     local runner_executable="false"
 
     CURRENT_STEP_ID=P00
@@ -489,11 +524,14 @@ function run_preflight {
     fi
 
     command -v lsof >/dev/null 2>&1 && lsof_available="true"
+    [[ -x "$(command -v ps 2>/dev/null)" ]] && ps_available="true"
     [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
     verify_state true "${lsof_available}" "lsof is available"
+    verify_state true "${ps_available}" "ps is available and executable"
     verify_state true "${runner_executable}" "Selected runner is executable"
-    if [[ "${lsof_available}" != "true" || "${runner_executable}" != "true" ]]; then
-        close_local_catalog_from_index 3 SKIP "requires local lifecycle P00"
+    if [[ "${lsof_available}" != "true" || "${ps_available}" != "true" ||
+          "${runner_executable}" != "true" ]]; then
+        close_local_catalog_from_index 4 SKIP "requires local lifecycle P00"
         return 1
     fi
 }
@@ -2326,6 +2364,8 @@ EOF
     rm -rf "${root_dir}"
 }
 
+# shellcheck source=lib/test-m14-process-context.bash
+source "${SC_TOP}/lib/test-m14-process-context.bash"
 # shellcheck source=lib/test-m10-local.bash
 source "${SC_TOP}/lib/test-m10-local.bash"
 
