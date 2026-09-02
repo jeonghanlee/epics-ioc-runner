@@ -12,9 +12,10 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: prepare and push the clean M14 candidate, deploy it
-through full setup, and run M14 T3. M15 Release Verification 2 is Fail at
-candidate `9890227`; Release Verification 3 and 4 remain Pending.
+Next session entry point: reconcile and close issue #150 under Issue authority,
+record the closed read-back, mark M14 Complete, and land its closure evidence.
+M15 Release Verification 2 is Fail at candidate `9890227`; Release
+Verification 3 and 4 remain Pending.
 
 ## Milestone
 
@@ -35,7 +36,7 @@ candidate `9890227`; Release Verification 3 and 4 remain Pending.
 | Install | M11 | (#149) Align custom service identity teardown with installation | Milestone | Complete | No | M10, D1, D10, D13 | Complete in `7894b1d`; T1-T5 Pass on Debian 13 and Rocky 8, and issue #149 is closed; [detail](#m11---custom-identity-teardown-agreement) |
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
-| Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | In progress | No | M10, D20 | T1-T2 Pass through the shipped source and installed paths on both release consumers; T3 awaits the clean pushed candidate and final gate; [detail](#m14---inspect-process-context-churn) |
+| Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | In progress | No | M10, D20 | T1-T3 Pass on clean pushed commit `63c7f82`; issue #150 closure and closure-evidence landing remain; [detail](#m14---inspect-process-context-churn) |
 | Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20 | Release Verification 1 and 5 are Pass; Release Verification 2 is Fail at `9890227`, and M14 blocks further release verification; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
@@ -2305,11 +2306,24 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- |
 | T1 | 2026-09-02 11:26 PDT | Canonical checkout and both release consumers | Pass | Bash syntax, ShellCheck, diff whitespace, and real catalog closure passed; local and system catalogs closed at 188 checks/38 steps and 155 checks/35 steps; both source local-lifecycle runs exercised status 1, 2, 127, and non-path `ps` boundary checks. The prior-digest gate observed one common identity `41df722b77a2ba3040e8541e00cfeb0ad5701b5b75e09e6542609e810701704e`; after changing only the fixed digest, `work/gate-suites-20260902T182103Z-587998` passed 6 blocks and 897 checks on each OS family |
 | T2 | 2026-09-02 11:12 PDT | Debian 13 and Rocky 8 release consumers, current candidate based on `f754a95` | Pass | Real local-lifecycle source and installed runs passed on both OS families: Debian 188/188 in each mode, Rocky 184/188 with the four established journal-policy NA results in each mode. Real installed system-lifecycle passed 155/155 on both. Every M14 server-restart, client-disconnect, inspect-completion, PID-exclusion, unstable-snapshot, and cleanup assertion passed through the shipped systemd, procServ, UDS, `socat`, and `ps` paths |
-| T3 | Not run | Debian 13 and Rocky 8 release consumers | Pending | none |
+| T3 | 2026-09-02 11:53 PDT | Debian 13 and Rocky 8 release consumers at clean commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6` | Pass | Both remote checkouts were clean at the pushed candidate; shipped full setup passed 9/9 on Debian and 12/12 on Rocky; source and installed runner identities matched `63c7f82`; `work/gate-suites-20260902T184643Z-592313` passed all six blocks and 897 checks per host with no FAIL, SKIP, or SCRIPT_ERROR. Debian reported 5 and Rocky 12 reviewed NA results; the 88-line cross-host diff contained only the established S23, S29, S06, and S07 OS applicability differences; both test workspaces cleaned completely |
 
 ##### Closure Evidence
 
-- none
+- Implementation commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6`
+  is present on fetched `origin/release-1.3.0`; local and upstream IDs matched at
+  2026-09-02T11:38:15-0700.
+- Full-setup evidence hashes are
+  `26061a0bb346e0395032e868a17efb76f846b4b7412159da5c54fc7106f0117f`
+  for Debian and
+  `0a23fa988815ff4c0b123008ed5bbe5b9a334019bbcac567bc3626f239186d24`
+  for Rocky.
+- The clean-candidate gate evidence is
+  `work/gate-suites-20260902T184643Z-592313`; its reviewed cross-host diff has
+  SHA-256
+  `49a38f96afbe69b3fdf9362e03b10d18571124887caf883fc03ce893ffe4fb38`.
+- GitHub issue #150 remained open with the projected labels, milestone, and
+  assignee when observed at 2026-09-02 11:53 PDT.
 
 ##### GitHub Projection
 
