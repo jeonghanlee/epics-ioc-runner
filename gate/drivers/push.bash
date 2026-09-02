@@ -14,6 +14,8 @@ set -eu
 
 host="$1"; repo="$2"; dest="$3"
 parent="$(dirname "${repo}")"; name="$(basename "${repo}")"
+source_status=""
+remote_status=""
 # -n is correct for a command-only call and wrong for the one that must read the
 # archive from the pipe, so the two do not share an option list.
 ssh_cmd=(ssh -n -o BatchMode=yes -o ConnectTimeout=10)
@@ -39,6 +41,17 @@ printf '%s\n' "${excludes}" | tar -C "${parent}" --exclude-from=- -cf - "${name}
 printf '%s\n' "### pushed ${name} to ${host}:${dest_abs}"
 
 printf '%s\n' "### source porcelain"
-git -C "${repo}" status --porcelain
+source_status="$(git -C "${repo}" status --porcelain)"
+printf '%s\n' "${source_status}"
 printf '%s\n' "### pushed porcelain"
-"${ssh_cmd[@]}" "${host}" "git -C '${dest_abs}/${name}' status --porcelain"
+remote_status="$("${ssh_cmd[@]}" "${host}" \
+    "git -C '${dest_abs}/${name}' status --porcelain")"
+printf '%s\n' "${remote_status}"
+
+if [[ "${source_status}" != "${remote_status}" ]]; then
+    printf '%s\n' \
+        "Error: source and pushed git status differ; the remote tree is not an exact candidate copy." >&2
+    exit 1
+fi
+
+printf '%s\n' "### source and pushed porcelain match"

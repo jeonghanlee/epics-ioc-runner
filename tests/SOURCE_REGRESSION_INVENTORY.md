@@ -290,7 +290,8 @@ external `restorecon` and `matchpathcon` tools.
 The expected source-regression check and STEP counts are owned by
 [`reporting-counts.csv`](reporting-counts.csv). The catalog comprises the moved
 identities, the source-contract identities in S15 through S21, the M7 and M13
-identities in S22, and the M19 identities in S23.
+identities in S22, the M19 identities in S23, and the release-gate deployment
+and transfer identities in S24 and S25.
 
 ## M19 S23 Addition
 
@@ -305,6 +306,35 @@ verifies destination-parent creation without disturbing the default path
 | `source-regression.S23.absent-parent.runner-deployed` | `BEHAVIOR` | `real-path` | The runner is deployed at the non-default destination. |
 | `source-regression.S23.default.parent-unchanged` | `BEHAVIOR` | `real-path` | An existing destination parent keeps its mode (the guard skips install -d). |
 | `source-regression.S23.symlink.absent-parent-created` | `BEHAVIOR` | `real-path` | On RHEL-family setup the redirected symlink parent is created; NA elsewhere. |
+
+## Release Gate S24 Staged Setup Addition
+
+S24 has two direct source contracts and three real-path behavior identities.
+The behavior path invokes the shipped launcher as the invoking user, crosses
+the real sudo boundary, and executes the shipped setup with only final
+deployment destinations redirected to `/tmp`.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S24.launcher.make-install-contract` | `REQUIRED` | `direct-inspection` | `make install` delegates to the staged setup launcher. |
+| `source-regression.S24.launcher.make-setup-contract` | `REQUIRED` | `direct-inspection` | `make setup` delegates to the staged setup launcher with `--full`. |
+| `source-regression.S24.launcher.setup-exits-zero` | `BEHAVIOR` | `real-path` | The staged CLI-only setup exits 0 through real sudo. |
+| `source-regression.S24.launcher.runner-deployed` | `BEHAVIOR` | `real-path` | The privileged setup deploys the runner from the root-owned local stage. |
+| `source-regression.S24.launcher.metadata-preserved` | `BEHAVIOR` | `real-path` | The deployed runner records the original checkout commit rather than `unknown`. |
+
+## Release Gate S25 Push Status Addition
+
+S25 has one prerequisite and three real-path behavior identities. It runs the
+shipped push driver against a real temporary Git repository. The local SSH
+helper replaces only the network transport and executes every remote command
+unchanged.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S25.transport.fixture-ready` | `PREREQUISITE` | `direct-inspection` | The real Git repository, destination, and local SSH transport are ready. |
+| `source-regression.S25.matching-status.exits-zero` | `BEHAVIOR` | `real-path` | The push driver exits 0 when source and destination porcelain are identical. |
+| `source-regression.S25.mismatching-status.exits-one` | `BEHAVIOR` | `real-path` | The push driver exits 1 when external destination state changes after transfer. |
+| `source-regression.S25.mismatching-status.diagnostic` | `BEHAVIOR` | `real-path` | A status mismatch emits the explicit candidate-copy error. |
 
 ## Move Invariants
 
@@ -321,4 +351,4 @@ verifies destination-parent creation without disturbing the default path
 
 ## Verification Method
 
-Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S07. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the original eleven S22 identities and M13 adds eleven more through the shipped full setup in a private mount namespace. M19 adds the four S23 identities through the shipped setup deploying to an absent destination parent. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S07. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the original eleven S22 identities and M13 adds eleven more through the shipped full setup in a private mount namespace. M19 adds the four S23 identities through the shipped setup deploying to an absent destination parent. The release gate adds five S24 staged-setup identities and four S25 push-status identities. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.

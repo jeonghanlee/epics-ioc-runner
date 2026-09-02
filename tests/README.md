@@ -295,6 +295,12 @@ no active unit or installed configuration.
   mount namespace with only filesystem and SELinux tool boundaries isolated;
   verifies preflight failures, both policy deployments, and final-context
   rejection.
+* **Staged System Setup**: Invokes the shipped staging launcher through real
+  sudo, redirects only final deployment paths to `/tmp`, and verifies that the
+  installed runner retains the original checkout commit.
+* **Candidate Transfer**: Runs the shipped push driver against a real Git
+  repository, replacing only SSH transport, and verifies both identical and
+  externally changed destination states.
 
 ### 5. Infrastructure State (`test-system-infra.bash`)
 

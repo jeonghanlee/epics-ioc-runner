@@ -71,7 +71,8 @@ epics-ioc-runner/
 ├── Makefile                      # Make front end (install / setup / install.user)
 ├── bin/
 │   ├── ioc-runner                # Front-end CLI wrapper
-│   └── setup-system-infra.bash   # Automated system infrastructure setup script
+│   ├── run-setup-system-infra.bash # Root-readable local staging launcher
+│   └── setup-system-infra.bash   # Privileged infrastructure setup
 ├── configure/                    # Modular Makefile system (CONFIG / RULES / .local overrides)
 ├── docs/                         # Detailed system documentation
 ├── policy/                       # RBAC and Sudoers reference configurations

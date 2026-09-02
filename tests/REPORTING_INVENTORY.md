@@ -47,7 +47,9 @@ S18. S22 through S34 have accepted destinations at source-regression S19
 through S21. Two S34 behavior checks duplicate real softIoc coverage in
 local-lifecycle S30 and are removed. No accepted catalog check uses a
 hand-built reproduction. M7 adds eleven source-regression S22 checks that execute
-the shipped full setup in a private mount namespace.
+the shipped full setup in a private mount namespace. S24 executes the staged
+setup path with real sudo, and S25 executes the push driver with only SSH
+transport replaced by a local outer-boundary helper.
 
 ## Completeness Conditions
 
