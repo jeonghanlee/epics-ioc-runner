@@ -14,9 +14,9 @@ and M13 moved in master commit
 `757dcd2464d34d616a32fe7175ba9371ddc8e92c` to target commit
 `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: review, commit, and push the M15 release-action
-recovery record, then execute Release Verification 7 from the recorded master
-merge, annotated tag, GitHub release, and closed milestone.
+Next session entry point: review and commit the M15 post-release preparation
+record containing Release Verification 7-8, then perform the final issue and
+canonical read-back for Release Verification 9.
 
 ## Milestone
 
@@ -38,7 +38,7 @@ merge, annotated tag, GitHub release, and closed milestone.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21, D22 | Release Verification 1-6 Pass; release objects are published and milestone 16 is closed; the recovery checkpoint and Release Verification 7-9 remain; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21, D22 | Release Verification 1-8 Pass; released objects, clean installation, and production installation agree; Release Verification 9 remains; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2535,6 +2535,14 @@ own.
   `2026-09-03T08:14:37Z` with 0 open and 14 closed issues. The checkpoint
   commits intended between these release actions were not created; D22 owns
   the single recovery record before Release Verification 7.
+- Observed 2026-09-03 09:16 PDT: Release Verification 7 passed in a fresh full
+  verification tree fetched from the canonical remote. The released tag,
+  merge ancestry, version output, published GitHub release, closed milestone,
+  and all fourteen linked issue states agree. Storage Gate 1 and Gate 2 passed
+  from measured filesystem allocation and available-byte values.
+- Observed 2026-09-03: issue #127 remains open in the GitHub Backlog milestone
+  and Deferred in the master canonical register. Remote branches
+  `release-1.2.3` and `release-1.2.4` remain present and unchanged.
 
 ##### Implementation Plan
 
@@ -2626,15 +2634,15 @@ labels.
 | M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5; Release Verification 6 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique before and after the M14 correction | Release Verification 5 and 6 Pass; the removed draft remains absent, no live reference names it, and the canonical 1.3.0 path is unique |
 | M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 and 2 Pass with the new D21 image pair; Gate evidence is in `work/m15-rv2-20260903T061752Z` |
 | M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive path; the final two-host gate passes | Pass at D21 candidate `6aafbb8`; Rocky S07 passed and Debian recorded the four reviewed inactive-path NA results |
-| M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
+| M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | Pass; see Current Release Verification 8 Evidence |
 | M14 / T1-T3 | The final release reruns the complete gate after the focused correction gate | Process-context rendering, lifecycle evidence separation, and full suite aggregation | Release Verification 2 | M14 first closes on its own T1-T3 evidence; a distinct complete two-host suite-gate run then passes as Release Verification 2 | M14 T1-T3 remain Pass at `63c7f82`; the distinct D21 candidate gate passed in `work/m15-rv2-20260903T061752Z` |
 
 ##### Production Environment Tests
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 8 | post-release | Fresh plain Rocky 8 production-equivalent consumer created by the cloud-provision `rocky8.main` target | Record `ID` and `VERSION_ID` from `/etc/os-release` before installation | Record `uname -m` before installation | Clean checkout of tag `1.3.0` through the initial `docs/INSTALL.md` full-setup path | Provision only the documented prerequisites; require `ioc-srv`, group `ioc`, `/usr/local/bin/ioc-runner`, `/usr/bin/ioc-runner`, `/etc/procServ.d`, `/etc/sudoers.d/10-epics-ioc`, `/etc/systemd/system/epics-@.service`, `/etc/logrotate.d/procserv`, `/etc/bash_completion.d/ioc-runner`, and `/var/log/procserv` to be absent; follow the documented initial installation; run `matchpathcon -V` for both policy files, `visudo -cf`, `logrotate -d`, and the shipped `tests/test-system-infra.bash` from a root-readable local tree | The clean installation succeeds; `-V` reports `1.3.0` and the released short hash; both context checks, both policy consumers, and the suite pass with no Fail or Script Error | pending |
-| Release Verification 8 | post-release | Owner-authorized SELinux-enforcing production IOC host | Record `ID` and `VERSION_ID` from `/etc/os-release` before deployment | Record `uname -m` before deployment | Clean checkout of tag `1.3.0` through the documented `make install` CLI-update path | After the released-object storage preflight, run `make install`, read `ioc-runner -V`, run `matchpathcon -V` for both retained policy files, `visudo -cf`, `logrotate -d`, and the shipped `tests/test-system-infra.bash` from a root-readable local tree | The CLI update succeeds; `-V` reports `1.3.0` and the released short hash; both retained context checks, both policy consumers, and the suite pass with no Fail or Script Error | pending |
+| Release Verification 8 | post-release | Fresh plain Rocky 8 production-equivalent consumer created by the cloud-provision `rocky8.main` target | Record `ID` and `VERSION_ID` from `/etc/os-release` before installation | Record `uname -m` before installation | Clean checkout of tag `1.3.0` through the initial `docs/INSTALL.md` full-setup path | Provision only the documented prerequisites; require `ioc-srv`, group `ioc`, `/usr/local/bin/ioc-runner`, `/usr/bin/ioc-runner`, `/etc/procServ.d`, `/etc/sudoers.d/10-epics-ioc`, `/etc/systemd/system/epics-@.service`, `/etc/logrotate.d/procserv`, `/etc/bash_completion.d/ioc-runner`, and `/var/log/procserv` to be absent; follow the documented initial installation; run `matchpathcon -V` for both policy files, `visudo -cf`, `logrotate -d`, and the shipped `tests/test-system-infra.bash` from a root-readable local tree | The clean installation succeeds; `-V` reports `1.3.0` and the released short hash; both context checks, both policy consumers, and the suite pass with no Fail or Script Error | Pass; see Current Release Verification 8 Evidence |
+| Release Verification 8 | post-release | Owner-authorized SELinux-enforcing production IOC host | Record `ID` and `VERSION_ID` from `/etc/os-release` before deployment | Record `uname -m` before deployment | Clean checkout of tag `1.3.0` through the documented `make install` CLI-update path | After the released-object storage preflight, run `make install`, read `ioc-runner -V`, run `matchpathcon -V` for both retained policy files, `visudo -cf`, `logrotate -d`, and the shipped `tests/test-system-infra.bash` from a root-readable local tree | The CLI update succeeds; `-V` reports `1.3.0` and the released short hash; both retained context checks, both policy consumers, and the suite pass with no Fail or Script Error | Pass after baseline repair; see Current Release Verification 8 Evidence |
 
 ##### Version Changes
 
@@ -2668,7 +2676,7 @@ labels.
 | 16 | Commit the GitHub-release checkpoint | Commit delegation | The canonical record names the published release URL and target tag | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
 | 17 | Close remote GitHub milestone 1.3.0, number 16 | Release delegation after exact command preview | The milestone is closed with no open linked issue | Pass 2026-09-03: milestone 16 closed at `2026-09-03T08:14:37Z` with 0 open and 14 closed issues |
 | 18 | Commit the remote-milestone checkpoint | Commit delegation | The canonical record contains the observed closed milestone state | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
-| 19 | Commit the release-action recovery record | Commit delegation | One checked canonical commit records steps 7-18, immutable release object identities, and the D22 sequencing deviation before Release Verification 7 | pending |
+| 19 | Commit the release-action recovery record | Commit delegation | One checked canonical commit records steps 7-18, immutable release object identities, and the D22 sequencing deviation before Release Verification 7 | Pass 2026-09-03: `837b1ca86d2efbb93c9980b3b425a28dfb118c82` changes only `docs/milestone-1.3.0.md`; local and remote master agreed after push |
 | 20 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M15 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M15 closure | pending |
 | 21 | Commit M15 completion and Release Verification 9 after final issue and canonical read-back | Commit delegation | One checked cycle-closure commit on `master` points to deferred Backlog issue #127 without branch creation or deletion | pending |
 | 22 | Push the closure commit and accumulated canonical checkpoints to `origin/master` | Push delegation | Local and upstream closure state agree | pending |
@@ -2697,8 +2705,8 @@ labels.
 | Release Verification 4 | 2026-09-02 23:51 PDT | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pass | Both recorded `nfs_sim` operator runs completed with no unreachable or failed host; both NFS4 mounts reproduced `root_squash`; all three NFS-backed deployment entry points advanced the installed timestamp, retained `1.3.0 (6aafbb8)`, and preserved the baseline configuration fingerprint. Evidence: `work/m15-rv4-20260903T064343Z`; manifest SHA-256 `eb7595c5c36d9514bb881ec15a166580a59dd03058e3741f126af88f445ab66e` |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
 | Release Verification 6 | 2026-09-03 00:24 PDT | Release branch commit `9b73c0e`, both fresh consumers at D21 candidate `6aafbb8`, tracked documentation, release notes, and GitHub milestone 1.3.0 | Pass | The version commit changes only `bin/ioc-runner`; D21 changes only `CHANGELOG.md`; every later commit changes only the canonical milestone. The changelog has one accepted 1.3.0 section, and its fourteen issue references match the release notes and all fourteen closed milestone issues. Both shipped full setups passed and source plus installed runners reported `1.3.0` with `6aafbb8`. Live references resolve and the canonical path is unique. Evidence: `work/m15-rv6-20260903T071955Z`; manifest SHA-256 `f2ef3bcbf9686fb366837658c5a5d057f985d96aa402e38c61511c705be5b653` |
-| Release Verification 7 | Not run | Canonical Git remote and GitHub | Pending | none |
-| Release Verification 8 | Not run | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | Pending | none |
+| Release Verification 7 | 2026-09-03 09:16 PDT | Fresh full verification tree on a local temporary filesystem, canonical Git remote, and GitHub | Pass | Both storage gates passed. The checkout is clean at released merge `d925286`; annotated tag object `a343332` peels to that merge; the release is public; milestone 16 is closed with 0 open and 14 closed issues; all fourteen linked issues are CLOSED. |
+| Release Verification 8 | 2026-09-03 09:59 PDT | Fresh Rocky 8.10 `x86_64` production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | Pass | Both final installations reported `1.3.0 (d925286)`; both policy contexts, sudoers, logrotate, and shipped system-infrastructure suites passed. The production baseline required the recorded repair before the prescribed CLI-only rerun. |
 | Release Verification 9 | Not run | `master`, canonical documents, and fetched upstream | Pending | none |
 
 ##### Current Release Verification 1 Evidence
@@ -2797,6 +2805,42 @@ evidence is in `work/m15-rv4-20260903T064343Z`; its
 The complete thirteen-file evidence set is in
 `work/m15-rv6-20260903T071955Z`; its `evidence-sha256.log` SHA-256 is
 `f2ef3bcbf9686fb366837658c5a5d057f985d96aa402e38c61511c705be5b653`.
+
+##### Current Release Verification 7 Evidence
+
+| Surface | Observed Result |
+| --- | --- |
+| Storage selection | Local temporary filesystem; destination absent before creation; full, non-shallow, non-partial fetch from the canonical remote; refspec set `master`, `release-1.3.0`, and tag `1.3.0` |
+| Storage Gate 1 | Available `23642087424` bytes; complete local object bound `9289728` bytes; required object bound plus reserve `1083031552` bytes; Pass |
+| Fetched object database | Actual allocation `2387968` bytes; `git fsck --full --strict` reported no object error |
+| Storage Gate 2 | Available `23639642112` bytes; published working-tree bound `1826816` bytes; conservative workspace and evidence bound `134217728` bytes; required total with reserve `1209786368` bytes; Pass |
+| Canonical refs | Fresh `origin/master` `837b1ca86d2efbb93c9980b3b425a28dfb118c82`; fresh `origin/release-1.3.0` `97a17959902232bef4cab0014b8d8e59e7f82720` |
+| Released checkout | Clean detached checkout at merge `d925286e0d316d76b3b9b426834dfc433cbf1ee1`; parents `757dcd2464d34d616a32fe7175ba9371ddc8e92c` and `97a17959902232bef4cab0014b8d8e59e7f82720`; tree equals the accepted candidate; shipped `bin/ioc-runner -V` reports `1.3.0 (d925286 (live))` |
+| Annotated tag | Tag object `a34333206927ee2a7f871435b3556728876ed5be` peels to `d925286e0d316d76b3b9b426834dfc433cbf1ee1` |
+| GitHub release | `https://github.com/jeonghanlee/epics-ioc-runner/releases/tag/1.3.0`; title and tag `1.3.0`; target branch `master`; draft and prerelease states false |
+| Tracker | Milestone 16, title `1.3.0`, closed at `2026-09-03T08:14:37Z`; 0 open and 14 closed issues |
+| Linked issues | #102, #113, #115, #116, #120, #129, #132, #139, #142, #144, #146, #148, #149, and #150 all reported CLOSED |
+
+##### Current Release Verification 8 Evidence
+
+Purpose: verify release tag `1.3.0` through a clean Rocky 8 installation and
+an existing SELinux-enforcing production installation.
+
+Procedure:
+
+- Created a fresh Rocky 8.10 `x86_64` consumer through cloud-provision
+  `rocky8.main`, applied only the documented prerequisites, and confirmed that
+  no runner-owned installation state existed before the full setup.
+- Ran the documented full setup from clean tag `1.3.0` on the fresh consumer.
+- On an owner-authorized production host, corrected policy-context drift left
+  by an external `1.2.4` full setup, then repeated the documented `make install`
+  path from clean tag `1.3.0`.
+- Verified version identity, both SELinux policy contexts, sudoers, logrotate,
+  and the shipped system-infrastructure suite on both systems.
+
+Summary: Pass. Both systems report `1.3.0 (d925286)`. Both policy contexts,
+sudoers, and logrotate passed. Each shipped suite reported 40 total, 36 passed,
+0 failed, 4 not applicable, and 0 script errors.
 
 ##### Superseded Release Verification 1 Evidence
 
