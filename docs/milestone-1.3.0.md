@@ -7,16 +7,16 @@ Canonical branch or ref: `master`
 Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.3.0`,
 number 16
-Activation state: active on `master` after release merge
+Activation state: complete on `master` after release merge
 `d925286e0d316d76b3b9b426834dfc433cbf1ee1`; initial source authority moved
 in master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12
 and M13 moved in master commit
 `757dcd2464d34d616a32fe7175ba9371ddc8e92c` to target commit
 `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: commit and push the first M15 closure candidate,
-perform Release Verification 9 against that committed state, then commit and
-push the final M15 completion record.
+Next session entry point: release 1.3.0 is complete. Continue from
+`docs/milestone-46790f9.md`; no work is Ready until deferred issue #127 is
+assigned to a later release cycle.
 
 ## Milestone
 
@@ -38,7 +38,7 @@ push the final M15 completion record.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21, D22 | Release Verification 1-8 Pass; final issue and canonical prechecks pass; the two-commit Release Verification 9 closure remains; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | Complete | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21, D22 | Release Verification 1-9 Pass; release objects, installations, linked issues, canonical documents, and the surviving master Backlog entry agree; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2348,7 +2348,7 @@ Last Compared: 2026-09-02; remote updated 2026-09-02T20:07:19Z
 Origin: 1.3.0 / M11
 Identity History: 1.3.0 / M11 -> 1.3.0 / M12 (new M11 inserted, D10, 2026-08-30); 1.3.0 / M12 -> 1.3.0 / M14 (M12 and M13 inserted, D12, 2026-08-30); 1.3.0 / M14 -> 1.3.0 / M15 (new M14 inserted, D20, 2026-09-02)
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -2550,6 +2550,13 @@ own.
   closed in closed milestone 16. Issue #127 remained open in the Backlog
   milestone and Deferred in the master canonical document. The retained
   `release-1.2.3` and `release-1.2.4` remote branches remained present.
+- Observed 2026-09-03 10:31 PDT: Release Verification 9 passed against fetched
+  closure candidate `39396834e1a661b8f3e25e85b204f98ce18f87bd`.
+  Local and upstream commit IDs agreed, both canonical file blob IDs matched
+  their committed copies, all fourteen linked issues remained closed, and
+  milestone 16 remained closed with 0 open and 14 closed issues. Issue #127
+  remained open in the Backlog milestone and Deferred in the master canonical
+  document.
 
 ##### Implementation Plan
 
@@ -2689,11 +2696,11 @@ labels.
 | 18 | Commit the remote-milestone checkpoint | Commit delegation | The canonical record contains the observed closed milestone state | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
 | 19 | Commit the release-action recovery record | Commit delegation | One checked canonical commit records steps 7-18, immutable release object identities, and the D22 sequencing deviation before Release Verification 7 | Pass 2026-09-03: `837b1ca86d2efbb93c9980b3b425a28dfb118c82` changes only `docs/milestone-1.3.0.md`; local and remote master agreed after push |
 | 20 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M15 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M15 closure | Pass 2026-09-03: `0f3ca2a1a6038e51452b3180955c375d520320ad` changes only the two canonical milestone documents; local and fetched `origin/master` agreed after push |
-| 21 | Commit the first closure candidate after final issue and canonical prechecks while M15 remains In progress | Commit delegation | One checked closure candidate on `master` contains the complete precheck evidence and points to deferred Backlog issue #127 | pending |
-| 22 | Push the first closure candidate to `origin/master` | Push delegation | Local and fetched upstream candidate state agree before Release Verification 9 | pending |
-| 23 | Run Release Verification 9 against the committed and pushed closure candidate | Verification | The candidate canonical file matches its committed copy, M15 and the release tally agree, master points to deferred Backlog issue #127, and local and fetched upstream agree | pending |
-| 24 | Commit M15 completion and Release Verification 9 readback evidence | Commit delegation | One checked final readback commit marks M15 Complete and records the candidate commit ID and upstream comparison | pending |
-| 25 | Push the final readback commit to `origin/master` and verify landing | Push delegation | Local and fetched upstream final state agree with no remaining closure-path modification | pending |
+| 21 | Commit the first closure candidate after final issue and canonical prechecks while M15 remains In progress | Commit delegation | One checked closure candidate on `master` contains the complete precheck evidence and points to deferred Backlog issue #127 | Pass 2026-09-03: `39396834e1a661b8f3e25e85b204f98ce18f87bd` changes only the two canonical milestone documents |
+| 22 | Push the first closure candidate to `origin/master` | Push delegation | Local and fetched upstream candidate state agree before Release Verification 9 | Pass 2026-09-03: local and fetched `origin/master` both resolved to `39396834e1a661b8f3e25e85b204f98ce18f87bd` |
+| 23 | Run Release Verification 9 against the committed and pushed closure candidate | Verification | The candidate canonical file matches its committed copy, M15 and the release tally agree, master points to deferred Backlog issue #127, and local and fetched upstream agree | Pass 2026-09-03; see Current Release Verification 9 Evidence |
+| 24 | Commit M15 completion and Release Verification 9 readback evidence | Commit delegation | One checked final readback commit marks M15 Complete and records the candidate commit ID and upstream comparison | Carried by the final readback commit containing this row; Git history supplies its self-identifier |
+| 25 | Push the final readback commit to `origin/master` and verify landing | Push delegation | Local and fetched upstream final state agree with no remaining closure-path modification | Terminal delivery check after the final readback commit; its result is verified from Git history rather than self-recorded |
 
 ##### Release Verification Plan
 
@@ -2721,7 +2728,7 @@ labels.
 | Release Verification 6 | 2026-09-03 00:24 PDT | Release branch commit `9b73c0e`, both fresh consumers at D21 candidate `6aafbb8`, tracked documentation, release notes, and GitHub milestone 1.3.0 | Pass | The version commit changes only `bin/ioc-runner`; D21 changes only `CHANGELOG.md`; every later commit changes only the canonical milestone. The changelog has one accepted 1.3.0 section, and its fourteen issue references match the release notes and all fourteen closed milestone issues. Both shipped full setups passed and source plus installed runners reported `1.3.0` with `6aafbb8`. Live references resolve and the canonical path is unique. Evidence: `work/m15-rv6-20260903T071955Z`; manifest SHA-256 `f2ef3bcbf9686fb366837658c5a5d057f985d96aa402e38c61511c705be5b653` |
 | Release Verification 7 | 2026-09-03 09:16 PDT | Fresh full verification tree on a local temporary filesystem, canonical Git remote, and GitHub | Pass | Both storage gates passed. The checkout is clean at released merge `d925286`; annotated tag object `a343332` peels to that merge; the release is public; milestone 16 is closed with 0 open and 14 closed issues; all fourteen linked issues are CLOSED. |
 | Release Verification 8 | 2026-09-03 09:59 PDT | Fresh Rocky 8.10 `x86_64` production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | Pass | Both final installations reported `1.3.0 (d925286)`; both policy contexts, sudoers, logrotate, and shipped system-infrastructure suites passed. The production baseline required the recorded repair before the prescribed CLI-only rerun. |
-| Release Verification 9 | Not run | `master`, canonical documents, and fetched upstream | Pending | none |
+| Release Verification 9 | 2026-09-03 10:31 PDT | `master`, both canonical documents, fetched upstream, and GitHub | Pass | Candidate `39396834e1a661b8f3e25e85b204f98ce18f87bd` matched fetched `origin/master`; both canonical blob IDs matched their committed copies; fourteen linked issues remained closed; milestone 16 remained closed; master retained deferred Backlog issue #127 as its only unassigned work |
 
 ##### Current Release Verification 1 Evidence
 
@@ -2856,6 +2863,18 @@ Summary: Pass. Both systems report `1.3.0 (d925286)`. Both policy contexts,
 sudoers, and logrotate passed. Each shipped suite reported 40 total, 36 passed,
 0 failed, 4 not applicable, and 0 script errors.
 
+##### Current Release Verification 9 Evidence
+
+| Surface | Observed Result |
+| --- | --- |
+| Closure candidate | Local `HEAD` and fetched `origin/master` both resolved to `39396834e1a661b8f3e25e85b204f98ce18f87bd`; the working tree was clean |
+| Release canonical file | Working and committed blob IDs both resolved to `e2ad74c6bd2e0ea71bf5552803be48a35c06c731` |
+| Master canonical file | Working and committed blob IDs both resolved to `6258a2540d30d823ffa85b0c65d4c219cdaa31d1` |
+| Release state | M1-M14 and G1 were Complete; M15 remained In progress only for the planned final readback record; Release Verification 1-8 were Pass |
+| GitHub state | All fourteen issues assigned to milestone 16 remained closed; milestone 16 remained closed with 0 open and 14 closed issues |
+| Surviving work | Issue #127 remained open in the GitHub Backlog milestone and Deferred as the only unassigned work in `docs/milestone-46790f9.md` |
+| Result | Pass; the committed closure candidate satisfied the two-commit boundary and permits this final record to mark M15 Complete |
+
 ##### Superseded Release Verification 1 Evidence
 
 The following retained evidence passed for the prior `63c7f82` candidate but
@@ -2876,7 +2895,21 @@ errors, and no corrupt or dirty flag.
 
 ##### Closure Evidence
 
-- none
+- The accepted M15 plan, including the two-commit Release Verification 9
+  boundary selected on 2026-09-03, completed without an unresolved gate.
+- Readiness candidate `97a17959902232bef4cab0014b8d8e59e7f82720`,
+  release merge `d925286e0d316d76b3b9b426834dfc433cbf1ee1`, annotated tag object
+  `a34333206927ee2a7f871435b3556728876ed5be`, and the published release agree.
+- Release Verification 8 passed on both the fresh production-equivalent
+  consumer and the owner-authorized SELinux-enforcing production host.
+- Release Verification 9 passed against closure candidate
+  `39396834e1a661b8f3e25e85b204f98ce18f87bd` after its canonical files and
+  fetched upstream matched byte-for-byte.
+- The release table contains 15 Complete work rows and one Complete external
+  gate. The release Backlog is empty; the master canonical document retains
+  deferred issue #127 as its only unassigned work.
+- The final readback commit carries this completion state. Its own commit ID
+  and remote landing are terminal Git observations and are not self-recorded.
 
 #### G1 - GitHub milestone 1.3.0
 
