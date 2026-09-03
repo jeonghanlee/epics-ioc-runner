@@ -12,8 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: restart M15 Release Verification 1 for D21 candidate
-commit `6aafbb8` with a new image pair and fresh consumers.
+Next session entry point: run M15 Release Verification 2 on the fresh consumers
+from the accepted Release Verification 1 image pair at D21 candidate commit
+`6aafbb8`.
 
 ## Milestone
 
@@ -35,7 +36,7 @@ commit `6aafbb8` with a new image pair and fresh consumers.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 5 remains Pass; Release Verification 1-4 must rerun at D21 candidate `6aafbb8`, and Release Verification 6 follows; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1 and 5 Pass; Release Verification 2-4 must rerun at D21 candidate `6aafbb8`, and Release Verification 6 follows; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2456,6 +2457,16 @@ own.
   `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` changes only `CHANGELOG.md` and
   adds the accepted #150 Fixes entry. Release Verification 1-4 must use this
   exact candidate.
+- Observed 2026-09-02 18:31 PDT: Release Verification 1 passed with a new
+  Rocky 8 and Debian 13 image pair built from baseline tag `1.2.4` at unchanged
+  cloud-provision commit `35c859b17830e976cc09ad95f29051cfd469e61d` and
+  ansible-provision commit `e3fbae5621213b52febbcd79d765938d6dc9feba`.
+  Both published image pairs passed the shipped pair validator and
+  `qemu-img check`, reported a 20 GiB virtual size with no backing file, and
+  supplied fresh consumers. Both remote manifest hashes matched their
+  sidecars, both canonical validators accepted the retained checkouts, and
+  both installed runners reported clean tagged baseline `1.2.4 (1961fbf)`.
+  Evidence: `work/m15-rv1-20260903T012405Z`.
 - Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
   0 open issues and 14 closed issues.
 
@@ -2547,7 +2558,7 @@ labels.
 | M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
 | M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
 | M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5; Release Verification 6 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique before and after the M14 correction | Release Verification 5 Pass before M14 was inserted; Release Verification 6 recheck pending |
-| M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Prior Release Verification 1 and 2 Pass results invalidated by D21; new image pair and new-candidate run pending |
+| M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass with the new D21 image pair; Release Verification 2 new-candidate run pending |
 | M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive path; the final two-host gate passes | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
 | M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
 | M14 / T1-T3 | The final release reruns the complete gate after the focused correction gate | Process-context rendering, lifecycle evidence separation, and full suite aggregation | Release Verification 2 | M14 first closes on its own T1-T3 evidence; a distinct complete two-host suite-gate run then passes as Release Verification 2 | M14 T1-T3 remain Pass at `63c7f82`; the prior distinct Release Verification 2 result was invalidated by D21 and its new-candidate rerun is pending |
@@ -2613,7 +2624,7 @@ labels.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | Not run for current candidate | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pending | The 2026-09-01 Pass and its retained evidence were invalidated by the D21 candidate-tree change; a new image pair and fresh consumers are required |
+| Release Verification 1 | 2026-09-02 18:31 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both new baseline `1.2.4` image pairs passed the shipped pair validator and `qemu-img check`; both fresh consumers selected those exact images, matched the published manifest hashes, passed the canonical validator, and reported installed `1.2.4 (1961fbf)`. Evidence: `work/m15-rv1-20260903T012405Z` |
 | Release Verification 2 | Not run for current candidate | Both fresh consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv2-20260902T202917Z` but was invalidated by D21 |
 | Release Verification 3 | Not run for current candidate | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv3-20260902T232328Z` but was invalidated by D21 |
 | Release Verification 4 | Not run for current candidate | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv4-20260902T215822Z` but was invalidated by D21 |
@@ -2622,6 +2633,21 @@ labels.
 | Release Verification 7 | Not run | Canonical Git remote and GitHub | Pending | none |
 | Release Verification 8 | Not run | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | Pending | none |
 | Release Verification 9 | Not run | `master`, canonical documents, and fetched upstream | Pending | none |
+
+##### Current Release Verification 1 Evidence
+
+| Platform | Published Image and SHA-256 | Creation Record SHA-256 | Manifest SHA-256 | Fresh Consumer Record | Installed Runner | Golden Acceptance Record |
+| --- | --- | --- | --- | --- | --- | --- |
+| Rocky 8 | `iocrunner-rocky8-20260903T011356Z-642521bf908d.qcow2`; `3d83959bb608df46e09bc93478c0b0757d91ae9ffc022d3fc1d86e4bbfa0e065` | `54b111aa6b9fc8c03899f9d8db9a2c01d6d5536f14855d6e3131da811537a048` | `4f095cb3bb24a80f57dc61f117fd05bd4d3ccd9d3e5cd76ba5ddf23e8af565eb` | `20260903T012259Z-126c0efda49c`; source image matched | `1.2.4 (1961fbf)` | `work/m15-rv1-20260903T012405Z/rocky-golden-acceptance.log`; `a3796128b959063c747a55ec044fcaacea984fff8968ccbdbd3504e5585dae64` |
+| Debian 13 | `iocrunner-debian13-20260903T011640Z-1703f0e12775.qcow2`; `537096f5c805e7c082b4d06074633cbcd7b4960f7c9e5242ad3eb0c8aadbf138` | `171a72937e565b553afb9793f06b5a0aea529aee7c6921b85de8621f3c61cc7b` | `ecb33aa1b5650a8b0c83ef460f868457b4abb9aaf7de63ee4bf89d7ef2eea293` | `20260903T012332Z-e269bdc3da0e`; source image matched | `1.2.4 (1961fbf)` | `work/m15-rv1-20260903T012405Z/debian-golden-acceptance.log`; `4b663e351b1f6f851896864647378d07abea8b6bfebd5010370d84ac0266e505` |
+
+Both manifests record `requested=1.2.4`, clean tagged runner commit
+`1961fbffbb1c650999b62d562f05363152c6a9cd`, cloud-provision commit
+`35c859b17830e976cc09ad95f29051cfd469e61d`, and ansible-provision commit
+`e3fbae5621213b52febbcd79d765938d6dc9feba`. The supplier commits remained
+unchanged across the image pair, and neither manifest contains a dirty source
+record. Both images report a 20 GiB virtual size, no backing file, no qcow2
+errors, and no corrupt or dirty flag.
 
 ##### Superseded Release Verification 1 Evidence
 
