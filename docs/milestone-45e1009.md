@@ -9,11 +9,9 @@ Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.3.0 reset generation
 
 Next session entry point: the M1 (#127) plan was revised on 2026-09-03 under
-D3 on branch `feature/container-execution` and is `draft`. M1 now depends on
-Backlog M2 (the `systemctl` gate order defect found during plan review), so
-M1 is Not started but not Ready; decide M2's assignment first, then review the
-M1 plan for owner acceptance and obtain separate implementation authorization
-before item 1 of the Implementation Plan starts.
+D3 and D4 on branch `feature/container-execution` and is `draft`. Review it
+for owner acceptance, then obtain separate implementation authorization before
+item 1 of the Implementation Plan starts. M1 is Not started and Ready.
 
 ## Milestone
 
@@ -21,9 +19,9 @@ before item 1 of the Implementation Plan starts.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Runtime | M1 | (#127) Container execution mode without systemd | Milestone | Not started | No | D2, D3, D4, M2 | The runner manages a real soft IOC without systemd, existing modes remain green, and the interface satisfies the downstream Dockerfiles consumer contract; [detail](#m1---container-execution-mode) |
+| Runtime | M1 | (#127) Container execution mode without systemd | Milestone | Not started | Yes | D2, D3, D4 | The runner manages a real soft IOC without systemd, existing modes remain green, and the interface satisfies the downstream Dockerfiles consumer contract; [detail](#m1---container-execution-mode) |
 
-Tally: 1 milestone row - Complete 0, In progress 0, Not started 1, Ready 0.
+Tally: 1 milestone row - Complete 0, In progress 0, Not started 1, Ready 1.
 Backlog is reported separately below and excluded from this tally.
 
 ### Decisions
@@ -65,9 +63,9 @@ through s6 (`s6-svscan` supervising one service directory per IOC under
 configuration, the CLI, and completion while skipping systemd-only assets
 (sudoers policy, unit template, logrotate timer).
 
-Out of scope: behavior changes to system and `--local` modes, the `systemctl`
-gate order defect (Backlog M2), and Dockerfile or runtime image changes owned by
-the Dockerfiles M1 (jeonghanlee/Dockerfiles#28).
+Out of scope: behavior changes to system and `--local` modes, and Dockerfile or
+runtime image changes owned by the Dockerfiles M1
+(jeonghanlee/Dockerfiles#28).
 
 ##### Completion Criteria
 
@@ -87,9 +85,6 @@ the Dockerfiles M1 (jeonghanlee/Dockerfiles#28).
 - Behavioral constraint: system and `--local` modes keep their current
   `systemctl` call route unchanged; the container backend is a parallel
   dispatcher.
-- Work ordering: M2 (Backlog) must move the `systemctl` presence gate after
-  option parsing before `--container` can be parsed on a host without systemd;
-  M1 item 1 builds on that order and does not carry the move itself.
 - Observed 2026-09-03: `debian:trixie-slim` provides s6 2.13.1.0 and execline
   2.9.6.1 through apt (`apt-cache policy s6 execline`), and that build exposes
   `s6-svc -D/-U/-w*/-T`, `s6-svstat -o`, `s6-svscanctl -a/-h`, and
@@ -115,8 +110,9 @@ Superseded Plan Artifacts: none
 
 1. `bin/ioc-runner` mode seam: add `--container` (sets `EXEC_MODE=container`,
    `SCAN_DIR=/run/s6-procserv`, `CONF_DIR=/etc/procServ.d`,
-   `RUN_DIR=/run/procserv`), relying on M2 for the gate order, and gate
-   container mode on EUID 0, the six s6 binaries, and a live
+   `RUN_DIR=/run/procserv`) and make the presence check mode-specific: after
+   option parsing, system and local modes require `/usr/bin/systemctl` as
+   today, and container mode requires EUID 0, the six s6 binaries, and a live
    `s6-svscan` on `SCAN_DIR` (probe with `s6-svscanctl -z SCAN_DIR`, a
    side-effect-free reaper trigger that exits 0 when svscan is listening and
    100 otherwise; the `.s6-svscan/control` fifo outlives svscan, so its
@@ -166,9 +162,10 @@ Superseded Plan Artifacts: none
    convenience only, since the ENTRYPOINT owns its creation at container start
    (a build-time directory under `/run` survives under Docker, where `/run` is
    a plain layer directory, but not under a runtime that mounts `/run` as
-   tmpfs); the preflight requires the six s6 binaries instead of `systemctl`
-   and drops the `setfacl`/`getfacl`/`logrotate`/`sudo` requirement that
-   belongs to the skipped steps (observed 2026-09-03:
+   tmpfs); the preflight, moved after option parsing like the runner's,
+   requires the six s6 binaries instead of `systemctl` and drops the
+   `setfacl`/`getfacl`/`logrotate`/`sudo` requirement that belongs to the
+   skipped steps (observed 2026-09-03:
    `jeonghanlee/debian13-epics` has no `setfacl` or `logrotate`;
    `command -v setfacl logrotate`). Closed by T1.
 5. `tests/test-container-lifecycle.bash` (category `lifecycle-behavior`, method
@@ -234,81 +231,12 @@ the seven-item plan after Plan Acceptance.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Runtime | M2 | `systemctl` presence gate runs before option parsing | Milestone | Open | No | | Owner assigns it to master work; `ioc-runner --help` and `--version` succeed on a host without `systemctl`, and every command reaching the dispatcher still fails with the current message; [detail](#m2---systemctl-gate-before-option-parsing) |
+
+No unassigned work is currently held in Backlog.
 
 ### Backlog Details
 
-#### M2 - systemctl gate before option parsing
-
-Origin: 45e1009 / M2
-Identity History: none
-GitHub Issue: none
-Status: Open
-
-##### Summary
-
-`bin/ioc-runner` and `bin/setup-system-infra.bash` exit 1 with "This script
-requires systemd" before reading any option, so `--help` and `--version` fail
-on a host without `systemctl`. Found 2026-09-03 during the M1 plan review as
-an out-of-scope observation; it is independent of container mode.
-
-##### Scope
-
-Move the `systemctl` presence gate in both scripts after option parsing so
-that `--help` and `--version` answer without systemd, while every command that
-needs `systemctl` keeps failing with the current message.
-
-Out of scope: any new execution mode, and any change to which commands require
-`systemctl`.
-
-##### Completion Criteria
-
-- `ioc-runner --help`, `ioc-runner --version`, and
-  `setup-system-infra.bash --help` exit 0 on a host without
-  `/usr/bin/systemctl`.
-- Every command that reaches the dispatcher on that host still fails with the
-  current message; usage errors for missing or unknown arguments are unchanged.
-- The source regression suite stays green.
-
-##### Dependencies And Decisions
-
-- Assignment to master work is an owner decision; M1 item 1 waits on it.
-- Observed 2026-09-03: in `jeonghanlee/debian13-epics` (no `systemctl`),
-  `bash bin/ioc-runner --help` and `--version` both print the systemd error and
-  exit 1 (`docker run --rm -v "$PWD/bin:/src:ro" jeonghanlee/debian13-epics
-  bash /src/ioc-runner --help`). Gate at `bin/ioc-runner:59-62` and
-  `bin/setup-system-infra.bash:73-76`; the option loop starts at
-  `bin/ioc-runner:262`.
-
-##### Implementation Plan
-
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
-
-1. `bin/ioc-runner`: move the `SYSTEMCTL_BIN` check below the option loop, in
-   front of the command dispatch. Closed by T1 and T2.
-2. `bin/setup-system-infra.bash`: move the matching check below its option
-   loop. Closed by T1 and T2.
-
-##### Test Plan
-
-| Label | Layer | Method | Environment | Expected Result |
-| --- | --- | --- | --- | --- |
-| T1 | Error contract | Run `ioc-runner --help`, `ioc-runner --version`, `setup-system-infra.bash --help`, and one lifecycle verb from the source tree in a container without `systemctl` | `jeonghanlee/debian13-epics` | The three help/version calls exit 0; the verb exits 1 with the systemd message |
-| T2 | Source regression | Run `tests/test-source-regression.bash` | Source tree | Suite green |
-
-##### Verification Results
-
-| Label | Observed At | Environment | Result | Evidence |
-| --- | --- | --- | --- | --- |
-| T1 | Not run | `jeonghanlee/debian13-epics` | Pending | none |
-| T2 | Not run | Source tree | Pending | none |
-
-##### Closure Evidence
-
-- none
+None.
 
 ## History
 
