@@ -12,9 +12,8 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: execute M15 Release Verification 6 against corrected
-product commit `63c7f82`, the release notes, both `iocrunner-nfs` release
-consumers, the canonical references, and the current GitHub milestone state.
+Next session entry point: restart M15 Release Verification 1 for D21 candidate
+commit `6aafbb8` with a new image pair and fresh consumers.
 
 ## Milestone
 
@@ -36,7 +35,7 @@ consumers, the canonical references, and the current GitHub milestone state.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20 | Release Verification 1-5 are Pass at corrected product commit `63c7f82`; Release Verification 6 is next, and post-release verification remains Pending; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 5 remains Pass; Release Verification 1-4 must rerun at D21 candidate `6aafbb8`, and Release Verification 6 follows; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -63,6 +62,7 @@ consumers, the canonical references, and the current GitHub milestone state.
 | D18 | Retain every existing `release-1.2.x` branch during the 1.3.0 release. Do not delete a historical release branch as part of M15. | Owner decision, 2026-08-31 |
 | D19 | Do not open a new release line at 1.3.0 closure. Keep #127 Deferred in the master Backlog, and make that surviving Backlog entry the next canonical entry point. | Owner decision, 2026-08-31 |
 | D20 | Insert issue #150 as M14 before the final release milestone, renumber the final release milestone from M14 to M15, and require M14 to complete before M15 resumes Release Verification 2. | Decision Date: 2026-09-02 |
+| D21 | Add the omitted #150 process-churn fix as a separate Fixes entry in both the 1.3.0 changelog and release notes. Treat the tracked changelog edit as a release-candidate tree change and rerun Release Verification 1-4 before Release Verification 6. | Decision Date: 2026-09-02 |
 
 ### ID Migration
 
@@ -2444,6 +2444,18 @@ own.
   leftovers reader returned `P-LEFTOVERS PASS` on both consumers. Evidence:
   `work/m15-rv3-20260902T232328Z`; evidence manifest SHA-256
   `0ba28f1d75bdab4e9a52a1b9e5afb867d9bb594c877a223ea9f0134595a8bccd`.
+- Observed 2026-09-02 17:05 PDT: Release Verification 6 stopped at its source
+  preflight. GitHub milestone 1.3.0 contained fourteen closed issues, while
+  the accepted changelog and matching release notes contained the same
+  thirteen issue references and omitted the later M14 issue #150. The owner
+  selected a separate Fixes entry in both release records and the strict Gate
+  invalidation path. The tracked changelog correction changes the candidate
+  tree, so the prior Release Verification 1-4 results at `63c7f82` remain
+  historical evidence but no longer satisfy the current release candidate.
+- Observed 2026-09-02 17:54 PDT: D21 candidate commit
+  `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` changes only `CHANGELOG.md` and
+  adds the accepted #150 Fixes entry. Release Verification 1-4 must use this
+  exact candidate.
 - Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
   0 open issues and 14 closed issues.
 
@@ -2454,10 +2466,13 @@ Plan Acceptance: Owner approved the reviewed M15 plan, then identified as M14,
 on 2026-08-31 and
 accepted its correction to the current cloud image-pair and manifest-sidecar
 contract on
-2026-09-01.
+2026-09-01, and accepted the `#150` release-record correction with strict Gate
+invalidation on 2026-09-02.
 Implementation Authorization: Owner authorized M15 implementation, then
 identified as M14, on
-2026-08-31 and the cloud-contract documentation correction on 2026-09-01.
+2026-08-31, the cloud-contract documentation correction on 2026-09-01, and the
+`#150` release-record correction plus Release Verification 1-4 rerun on
+2026-09-02.
 Superseded Plan Artifacts: none
 
 1. Fetch both branches, require clean named worktrees and current upstreams,
@@ -2483,18 +2498,18 @@ Superseded Plan Artifacts: none
    `gate/drivers/push.bash`, run the shipped full setup, and require source and
    installed runner provenance to match the tested version commit.
 9. After M14 T3 passes its complete two-host suite gate and M14 is Complete,
-   push the exact corrected product commit to both fresh consumers, deploy it
-   through full setup, and execute Release Verification 2 as a separate
-   complete two-host suite-gate run. Only after that separate run passes,
-   execute Release Verification 3 and 4 through the remaining real standing
-   paths in `gate/RUNBOOK.md`: both multi-user scenario runs and the
-   root_squash deployment path. Record Release Verification 6 from the same
-   corrected product commit.
+   add the D21 changelog correction, then push that exact candidate to both
+   fresh consumers, deploy it through full setup, and execute Release
+   Verification 2 as a separate complete two-host suite-gate run. Only after
+   that separate run passes, execute Release Verification 3 and 4 through the
+   remaining real standing paths in `gate/RUNBOOK.md`: both multi-user
+   scenario runs and the root_squash deployment path. Record Release
+   Verification 6 from the same accepted candidate.
 10. Review the complete readiness evidence, leave post-release checks Pending,
     and create and push one readiness-evidence commit. Require every commit
-    after the tested corrected product commit to contain only canonical
-    evidence updates; the readiness-evidence commit ID is the immutable release
-    candidate selected for every release action.
+    after the tested D21 candidate to contain only canonical evidence updates;
+    the readiness-evidence commit ID is the immutable release candidate
+    selected for every release action.
 11. Execute only the separately previewed and authorized merge, branch Push,
     annotated tag, tag Push, GitHub release, and remote milestone-close
     actions. After each remotely irreversible result, run repository checks
@@ -2528,14 +2543,14 @@ labels.
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | Pass at `63c7f82`: each fresh consumer passed six suite blocks and 897 checks through the complete gate |
-| M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Pass at `63c7f82`: the complete two-host gate preserved the accepted configuration and reliability behavior after the M14 correction |
-| M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | Pass at `63c7f82`: both fresh consumers passed the complete shipped lifecycle gate |
+| M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
+| M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
+| M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
 | M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5; Release Verification 6 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique before and after the M14 correction | Release Verification 5 Pass before M14 was inserted; Release Verification 6 recheck pending |
-| M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass; Release Verification 2 Pass at `63c7f82` on both fresh consumers |
-| M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive-SELinux path; the final two-host gate passes | Pass at `63c7f82`: Rocky passed active SELinux checks, Debian retained the inactive path, and the final two-host gate passed |
+| M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Prior Release Verification 1 and 2 Pass results invalidated by D21; new image pair and new-candidate run pending |
+| M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive path; the final two-host gate passes | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
 | M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
-| M14 / T1-T3 | The final release reruns the complete gate after the focused correction gate | Process-context rendering, lifecycle evidence separation, and full suite aggregation | Release Verification 2 | M14 first closes on its own T1-T3 evidence; a distinct complete two-host suite-gate run then passes as Release Verification 2 | M14 T1-T3 and the distinct Release Verification 2 gate both Pass at `63c7f82` |
+| M14 / T1-T3 | The final release reruns the complete gate after the focused correction gate | Process-context rendering, lifecycle evidence separation, and full suite aggregation | Release Verification 2 | M14 first closes on its own T1-T3 evidence; a distinct complete two-host suite-gate run then passes as Release Verification 2 | M14 T1-T3 remain Pass at `63c7f82`; the prior distinct Release Verification 2 result was invalidated by D21 and its new-candidate rerun is pending |
 
 ##### Production Environment Tests
 
@@ -2564,7 +2579,7 @@ labels.
 | 4 | Push the pre-change evidence commit to `origin/release-1.3.0` | Push delegation | The fetched upstream contains the durable pre-change state | pending |
 | 5 | Commit the accepted 1.3.0 changelog section | Commit delegation | One standalone changelog commit | pending |
 | 6 | Commit the `RUNNER_VERSION` change to 1.3.0 | Commit delegation | One standalone version commit changing only `bin/ioc-runner` | pending |
-| 7 | Commit Release Verification 2-4 and 6 readiness evidence | Commit delegation | The reviewed readiness commit descends from the tested corrected product commit through canonical-evidence-only commits and names the immutable release candidate | pending |
+| 7 | Commit Release Verification 2-4 and 6 readiness evidence | Commit delegation | The reviewed readiness commit descends from the tested D21 candidate through canonical-evidence-only commits and names the immutable release candidate | pending |
 | 8 | Push the readiness candidate to `origin/release-1.3.0` | Push delegation | The fetched upstream identifies the accepted candidate | pending |
 | 9 | Merge the named release candidate into `master` with `--no-ff` | Release delegation after exact command preview | One release merge commit on `master` | pending |
 | 10 | Push the release merge commit to `origin/master` | Push delegation | Local and upstream master identify the release merge | pending |
@@ -2585,11 +2600,11 @@ labels.
 | Label | Layer | Timing | Method | Environment | Expected Result | Evidence Target |
 | --- | --- | --- | --- | --- | --- | --- |
 | Release Verification 1 | Image and golden acceptance | pre-change | Bake both images with baseline tag `1.2.4`, validate each versioned qcow2 image with its matching creation record and manifest sidecar in `IMAGE_DIR`, create fresh consumers, and run the acceptance sequence in `gate/RUNBOOK.md` before candidate deployment | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Both manifests record baseline `1.2.4`, both image pairs pass validation, and both consumers have accepted provenance and clean retained checkouts | Image-pair names and hashes, manifest-sidecar hashes, and consumer acceptance records |
-| Release Verification 2 | Automated and integrated checks | post-change | Push the exact corrected product commit, run shipped full setup, then run `gate/drivers/control/suites.bash` through the complete six-suite matrix | Both fresh consumers at the tested corrected product commit | Both host verdicts and the final gate verdict pass; derived counts agree with `tests/reporting-counts.csv`; cross-host differences contain only reviewed applicability states | Complete gate evidence directory, setup logs, runner provenance, and cross-host comparison |
-| Release Verification 3 | Standing multi-user scenarios | post-change | Run `gate/drivers/control/run-all.bash` on each fresh consumer | Both fresh consumers at the tested corrected product commit | Every declared scenario has one Pass verdict and no missing or failed scenario | Per-scenario records and each host's final verdict |
-| Release Verification 4 | root_squash deployment | post-change | Run the standing denial precheck and all root_squash deployment entries from `gate/RUNBOOK.md` using the exact corrected product commit | Both fresh consumers at the tested corrected product commit | The denial boundary is reproduced, each documented deployment entry stamps the tested corrected product commit hash, and no unrelated configuration changes | Procedure logs, configuration fingerprints, and deployed `-V` output |
+| Release Verification 2 | Automated and integrated checks | post-change | Push the exact accepted D21 candidate, run shipped full setup, then run `gate/drivers/control/suites.bash` through the complete six-suite matrix | Both fresh consumers at the tested D21 candidate | Both host verdicts and the final gate verdict pass; derived counts agree with `tests/reporting-counts.csv`; cross-host differences contain only reviewed applicability states | Complete gate evidence directory, setup logs, runner provenance, and cross-host comparison |
+| Release Verification 3 | Standing multi-user scenarios | post-change | Run `gate/drivers/control/run-all.bash` on each fresh consumer | Both fresh consumers at the tested D21 candidate | Every declared scenario has one Pass verdict and no missing or failed scenario | Per-scenario records and each host's final verdict |
+| Release Verification 4 | root_squash deployment | post-change | Run the standing denial precheck and all root_squash deployment entries from `gate/RUNBOOK.md` using the exact accepted D21 candidate | Both fresh consumers at the tested D21 candidate | The denial boundary is reproduced, each documented deployment entry stamps the tested D21 candidate hash, and no unrelated configuration changes | Procedure logs, configuration fingerprints, and deployed `-V` output |
 | Release Verification 5 | Pre-change consistency | pre-change | On the clean integrated release branch, inspect `RUNNER_VERSION`, the absence of a 1.3.0 changelog heading, canonical references, branch ancestry, and tracker state | Release branch, Git, tracked documentation, and GitHub | Version is `1.3.0-dev`; the 1.3.0 changelog section is absent; live references resolve; the release branch contains master; the original 13 linked issues are closed and milestone 16 remains open | File reads, tracked-reference checks, commit IDs, ancestry result, and tracker observation |
-| Release Verification 6 | Post-change version, notes, and current release state | post-change | Inspect the version, corrected product, and changelog commits; review the release-notes file; deploy the corrected product through full setup on both consumers; read source and installed version identity; and recheck canonical references and tracker state after M14 | Release branch, both fresh consumers, tracked documentation, and GitHub | Changelog has one accepted 1.3.0 section; release notes agree with it and name the `1.2.4...1.3.0` comparison; source and deployed runners report `1.3.0` and the tested corrected product commit hash; the version commit changes only `bin/ioc-runner`; live references resolve; all 14 linked issues are closed; every later commit through the readiness candidate changes only canonical evidence | Commit path lists and ancestry, changelog and release-notes comparison, source reads, setup logs, `ioc-runner -V` output, tracked-reference checks, and tracker observation |
+| Release Verification 6 | Post-change version, notes, and current release state | post-change | Inspect the version, corrected product, and D21 changelog-correction commits; review the release-notes file; deploy the D21 candidate through full setup on both consumers; read source and installed version identity; and recheck canonical references and tracker state after M14 | Release branch, both fresh consumers, tracked documentation, and GitHub | Changelog has one accepted 1.3.0 section; release notes agree with it and name the `1.2.4...1.3.0` comparison; source and deployed runners report `1.3.0` and the tested D21 candidate hash; the version commit changes only `bin/ioc-runner`; live references resolve; all 14 linked issues are closed; every later commit after the tested D21 candidate through the readiness candidate changes only canonical evidence | Commit path lists and ancestry, changelog and release-notes comparison, source reads, setup logs, `ioc-runner -V` output, tracked-reference checks, and tracker observation |
 | Release Verification 7 | Released objects and tracker | post-release | After the released-object storage preflight, independently read the master merge commit, annotated tag, GitHub release target, milestone, and linked issue states | Canonical Git remote and GitHub | Merge, tag, and release object identify the accepted candidate ancestry; milestone 16 is closed; all 14 linked issues remain closed | Object and peeled commit IDs plus GitHub read-back |
 | Release Verification 8 | Clean installation and production deployment | post-release | Execute both Production Environment Test rows above from the actual released tag | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | The clean initial installation and production CLI update both install the released identity; policy contexts and consumers pass; both real installed-state suites have no failure | Clean-install and production-update version, context, consumer, and suite records without production host identity |
 | Release Verification 9 | Cycle closure | post-release | Compare the checked canonical closure file with its committed copy, read M15 and the release tally, and inspect the master canonical next entry | `master`, canonical documents, and fetched upstream | M15 is Complete; every Release Verification row is Pass; the 1.3.0 record is durable; master points to its surviving Backlog work; local and upstream closure state agree | Closure commit ID, byte comparison, register rows, and upstream read-back |
@@ -2598,17 +2613,20 @@ labels.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | 2026-09-01 18:49 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both published image pairs passed the shipped pair validator, no-backing check, and `qemu-img check`; both fresh consumers matched their new source images; both remote manifests matched their sidecars; the canonical validator accepted both retained checkouts and installed runners; see the Release Verification 1 Evidence table |
-| Release Verification 2 | 2026-09-02 13:38 PDT | Both fresh Debian 13 and Rocky 8 consumers at corrected product commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6` | Pass | A second, separate complete two-host gate ran after M14 T3. Both clean consumers and installed runners matched the corrected product commit. Full setup passed 9/9 checks on Debian and 12/12 on Rocky; each host passed six suite blocks and 897 checks. Debian had five and Rocky twelve reviewed NA results, with no Fail, Skip, or Script Error. The cross-host comparison contained only the established S29, S23, S06, and S07 OS applicability differences, and both workspaces finished clean. Evidence: `work/m15-rv2-20260902T202917Z`; Debian setup SHA-256 `26061a0bb346e0395032e868a17efb76f846b4b7412159da5c54fc7106f0117f`; Rocky setup SHA-256 `0a23fa988815ff4c0b123008ed5bbe5b9a334019bbcac567bc3626f239186d24`; cross-host comparison SHA-256 `49a38f96afbe69b3fdf9362e03b10d18571124887caf883fc03ce893ffe4fb38` |
-| Release Verification 3 | 2026-09-02 16:32 PDT | Both `iocrunner-nfs` Debian 13 and Rocky 8 release consumers at corrected product commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6` | Pass | The shipped `gate/drivers/control/run-all.bash` printed eleven passing precondition verdicts, all fourteen passing scenario verdicts, and `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none` on each OS. S11 followed the anchored sudoers branch on Debian and the documented glob fallback on Rocky, with the required denial observed in both cases. The exact post-run payload directories reported by the cleanup driver were removed, and the shipped leftovers reader returned `P-LEFTOVERS PASS` on both consumers. Evidence: `work/m15-rv3-20260902T232328Z`; Debian run log SHA-256 `39ab704ae5bde81695d5ff4a086c483fe1f1cea94fd257e1a5bb09c1d07706ca`; Rocky run log SHA-256 `f3a9a303e2e74502119cbfeeed06dd10f3ff2b0d7da3cbbdae949db51799fdd7`; evidence manifest SHA-256 `0ba28f1d75bdab4e9a52a1b9e5afb867d9bb594c877a223ea9f0134595a8bccd` |
-| Release Verification 4 | 2026-09-02 15:04 PDT | Both `iocrunner-nfs` Debian 13 and Rocky 8 release consumers at corrected product commit `63c7f828f1145bda4036d9f4641ac6f02d647cd6` | Pass | cloud-provision generated the two runtime inventories and ansible-provision applied `op.nfs_sim.debian13` and `op.nfs_sim.rocky8` with no unreachable or failed host. Both NFS4 mounts reproduced the root denial, owner access, and local-control-path access boundary. The exact clean candidate tree was copied into both NFS-backed paths. `bin/run-setup-system-infra.bash`, `make install`, and `make setup` all completed as the invoking user; every installation changed the installed-file timestamp, reported `1.3.0 (63c7f82)`, produced zero invalid-layout or missing-metadata matches, and left setup-owned configuration identical to its per-host baseline. Evidence: `work/m15-rv4-20260902T215822Z`; cloud-provision `35c859b17830e976cc09ad95f29051cfd469e61d`; ansible-provision `a2af644c9fbd7bb696396390769e45edc5aa6831`; evidence manifest SHA-256 `9d48c55dcde3b1fb87a5d8791e636cd9bdfdd091f292582acded9820ad3bd56a` |
+| Release Verification 1 | Not run for current candidate | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pending | The 2026-09-01 Pass and its retained evidence were invalidated by the D21 candidate-tree change; a new image pair and fresh consumers are required |
+| Release Verification 2 | Not run for current candidate | Both fresh consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv2-20260902T202917Z` but was invalidated by D21 |
+| Release Verification 3 | Not run for current candidate | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv3-20260902T232328Z` but was invalidated by D21 |
+| Release Verification 4 | Not run for current candidate | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv4-20260902T215822Z` but was invalidated by D21 |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
-| Release Verification 6 | Not run | Release branch and both fresh consumers | Pending | none |
+| Release Verification 6 | 2026-09-02 17:05 PDT | Release branch, release notes, and GitHub milestone 1.3.0 | Fail | Source preflight found fourteen closed milestone issues but only thirteen matching changelog and release-note references; #150 was omitted. The owner accepted a separate Fixes entry and strict D21 invalidation. Rerun Release Verification 6 only after Release Verification 1-4 pass on the resulting candidate |
 | Release Verification 7 | Not run | Canonical Git remote and GitHub | Pending | none |
 | Release Verification 8 | Not run | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | Pending | none |
 | Release Verification 9 | Not run | `master`, canonical documents, and fetched upstream | Pending | none |
 
-##### Release Verification 1 Evidence
+##### Superseded Release Verification 1 Evidence
+
+The following retained evidence passed for the prior `63c7f82` candidate but
+was invalidated by D21. It does not satisfy the current Release Verification 1.
 
 | Platform | Published Image and SHA-256 | Creation Record SHA-256 | Manifest SHA-256 | Fresh Consumer Record | Installed Runner | Golden Acceptance Record |
 | --- | --- | --- | --- | --- | --- | --- |
