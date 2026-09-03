@@ -3,18 +3,20 @@
 Release line: 1.3.0
 Milestone index: 1.3.0
 Canonical path: `docs/milestone-1.3.0.md`
-Canonical branch or ref: `release-1.3.0`
-Git upstream: `origin/release-1.3.0`
+Canonical branch or ref: `master`
+Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.3.0`,
 number 16
-Activation state: active on `release-1.3.0`; initial source authority moved in
-master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
-M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
-to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
+Activation state: active on `master` after release merge
+`d925286e0d316d76b3b9b426834dfc433cbf1ee1`; initial source authority moved
+in master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12
+and M13 moved in master commit
+`757dcd2464d34d616a32fe7175ba9371ddc8e92c` to target commit
+`36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: review and commit the checked M15 readiness record
-that carries Release Verification 1-6, then push that immutable release
-candidate under separate Commit and Push authority.
+Next session entry point: review, commit, and push the M15 release-action
+recovery record, then execute Release Verification 7 from the recorded master
+merge, annotated tag, GitHub release, and closed milestone.
 
 ## Milestone
 
@@ -36,7 +38,7 @@ candidate under separate Commit and Push authority.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1-6 Pass; the checked readiness record must be committed and pushed before release execution; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21, D22 | Release Verification 1-6 Pass; release objects are published and milestone 16 is closed; the recovery checkpoint and Release Verification 7-9 remain; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -64,6 +66,7 @@ candidate under separate Commit and Push authority.
 | D19 | Do not open a new release line at 1.3.0 closure. Keep #127 Deferred in the master Backlog, and make that surviving Backlog entry the next canonical entry point. | Owner decision, 2026-08-31 |
 | D20 | Insert issue #150 as M14 before the final release milestone, renumber the final release milestone from M14 to M15, and require M14 to complete before M15 resumes Release Verification 2. | Decision Date: 2026-09-02 |
 | D21 | Add the omitted #150 process-churn fix as a separate Fixes entry in both the 1.3.0 changelog and release notes. Treat the tracked changelog edit as a release-candidate tree change and rerun Release Verification 1-4 before Release Verification 6. | Decision Date: 2026-09-02 |
+| D22 | Do not reconstruct the four checkpoint commits omitted at Release Execution steps 11, 14, 16, and 18. Record the completed release actions, immutable object identities, and sequencing deviation in one recovery checkpoint before Release Verification 7. | Owner decision, 2026-09-03 |
 
 ### ID Migration
 
@@ -2394,6 +2397,8 @@ own.
 - D18
 - D19
 - D20
+- D21
+- D22
 - Observed 2026-09-01: merge commit
   `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79` integrates fetched
   `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`;
@@ -2516,6 +2521,20 @@ own.
   `f2ef3bcbf9686fb366837658c5a5d057f985d96aa402e38c61511c705be5b653`.
 - Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
   0 open issues and 14 closed issues.
+- Observed 2026-09-03: readiness candidate
+  `97a17959902232bef4cab0014b8d8e59e7f82720` was pushed to
+  `origin/release-1.3.0` and merged into `master` as
+  `d925286e0d316d76b3b9b426834dfc433cbf1ee1`; local and remote master
+  agreed after the push.
+- Observed 2026-09-03: annotated tag object
+  `a34333206927ee2a7f871435b3556728876ed5be` peels to the recorded release
+  merge and matches `refs/tags/1.3.0` on `origin`. The published GitHub
+  release is
+  `https://github.com/jeonghanlee/epics-ioc-runner/releases/tag/1.3.0`.
+- Observed 2026-09-03: GitHub milestone 1.3.0, number 16, closed at
+  `2026-09-03T08:14:37Z` with 0 open and 14 closed issues. The checkpoint
+  commits intended between these release actions were not created; D22 owns
+  the single recovery record before Release Verification 7.
 
 ##### Implementation Plan
 
@@ -2637,21 +2656,22 @@ labels.
 | 4 | Push the pre-change evidence commit to `origin/release-1.3.0` | Push delegation | The fetched upstream contains the durable pre-change state | Pass observed 2026-09-03: fetched `origin/release-1.3.0` contains `d8b2b5ad39e18577a9c6b358820e324334e3a3bf` |
 | 5 | Commit the accepted 1.3.0 changelog section | Commit delegation | One standalone changelog commit | Pass 2026-09-02: `2cd168161ec88404af4bd9e438fb397236d08322` changes only `CHANGELOG.md` |
 | 6 | Commit the `RUNNER_VERSION` change to 1.3.0 | Commit delegation | One standalone version commit changing only `bin/ioc-runner` | Pass 2026-09-02: `dd337b55756780fc019360a0c483d469046ede4c` changes only `bin/ioc-runner` |
-| 7 | Commit Release Verification 2-4 and 6 readiness evidence | Commit delegation | The reviewed readiness commit descends from the tested D21 candidate through canonical-evidence-only commits and names the immutable release candidate | pending |
-| 8 | Push the readiness candidate to `origin/release-1.3.0` | Push delegation | The fetched upstream identifies the accepted candidate | pending |
-| 9 | Merge the named release candidate into `master` with `--no-ff` | Release delegation after exact command preview | One release merge commit on `master` | pending |
-| 10 | Push the release merge commit to `origin/master` | Push delegation | Local and upstream master identify the release merge | pending |
-| 11 | Commit the release-merge checkpoint | Commit delegation | The canonical record names the candidate, merge commit, and observed upstream master | pending |
-| 12 | Create annotated tag `1.3.0` on the recorded release merge commit | Release delegation after exact command preview | One annotated tag with the accepted release title targets the recorded merge, not the checkpoint `HEAD` | pending |
-| 13 | Push exactly `refs/tags/1.3.0` to `origin` | Tag Push delegation | The remote tag object ID matches the inspected local tag object | pending |
-| 14 | Commit the tag checkpoint | Commit delegation | The canonical record names the tag object and peeled release merge commit | pending |
-| 15 | Create the GitHub 1.3.0 release from reviewed `work/release-notes-1.3.0.md` | Release delegation after exact command preview | One published release object targets tag `1.3.0` and carries the accepted notes | pending |
-| 16 | Commit the GitHub-release checkpoint | Commit delegation | The canonical record names the published release URL and target tag | pending |
-| 17 | Close remote GitHub milestone 1.3.0, number 16 | Release delegation after exact command preview | The milestone is closed with no open linked issue | pending |
-| 18 | Commit the remote-milestone checkpoint | Commit delegation | The canonical record contains the observed closed milestone state | pending |
-| 19 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M15 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M15 closure | pending |
-| 20 | Commit M15 completion and Release Verification 9 after final issue and canonical read-back | Commit delegation | One checked cycle-closure commit on `master` points to deferred Backlog issue #127 without branch creation or deletion | pending |
-| 21 | Push the closure commit and accumulated canonical checkpoints to `origin/master` | Push delegation | Local and upstream closure state agree | pending |
+| 7 | Commit Release Verification 2-4 and 6 readiness evidence | Commit delegation | The reviewed readiness commit descends from the tested D21 candidate through canonical-evidence-only commits and names the immutable release candidate | Pass 2026-09-03: `97a17959902232bef4cab0014b8d8e59e7f82720` changes only `docs/milestone-1.3.0.md` and names D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` |
+| 8 | Push the readiness candidate to `origin/release-1.3.0` | Push delegation | The fetched upstream identifies the accepted candidate | Pass 2026-09-03: local and fetched `origin/release-1.3.0` both resolved to `97a17959902232bef4cab0014b8d8e59e7f82720` |
+| 9 | Merge the named release candidate into `master` with `--no-ff` | Release delegation after exact command preview | One release merge commit on `master` | Pass 2026-09-03: merge `d925286e0d316d76b3b9b426834dfc433cbf1ee1` has first parent `757dcd2464d34d616a32fe7175ba9371ddc8e92c`, second parent `97a17959902232bef4cab0014b8d8e59e7f82720`, and the same tree as the accepted candidate |
+| 10 | Push the release merge commit to `origin/master` | Push delegation | Local and upstream master identify the release merge | Pass 2026-09-03: local and remote `master` both resolved to `d925286e0d316d76b3b9b426834dfc433cbf1ee1` |
+| 11 | Commit the release-merge checkpoint | Commit delegation | The canonical record names the candidate, merge commit, and observed upstream master | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
+| 12 | Create annotated tag `1.3.0` on the recorded release merge commit | Release delegation after exact command preview | One annotated tag with the accepted release title targets the recorded merge, not the checkpoint `HEAD` | Pass 2026-09-03: annotated tag object `a34333206927ee2a7f871435b3556728876ed5be` has title `EPICS IOC Runner 1.3.0` and peels to `d925286e0d316d76b3b9b426834dfc433cbf1ee1` |
+| 13 | Push exactly `refs/tags/1.3.0` to `origin` | Tag Push delegation | The remote tag object ID matches the inspected local tag object | Pass 2026-09-03: local and remote tag object IDs both resolved to `a34333206927ee2a7f871435b3556728876ed5be` |
+| 14 | Commit the tag checkpoint | Commit delegation | The canonical record names the tag object and peeled release merge commit | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
+| 15 | Create the GitHub 1.3.0 release from reviewed `work/release-notes-1.3.0.md` | Release delegation after exact command preview | One published release object targets tag `1.3.0` and carries the accepted notes | Pass 2026-09-03: published release `https://github.com/jeonghanlee/epics-ioc-runner/releases/tag/1.3.0` targets `master` through tag `1.3.0`; draft and prerelease states are false |
+| 16 | Commit the GitHub-release checkpoint | Commit delegation | The canonical record names the published release URL and target tag | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
+| 17 | Close remote GitHub milestone 1.3.0, number 16 | Release delegation after exact command preview | The milestone is closed with no open linked issue | Pass 2026-09-03: milestone 16 closed at `2026-09-03T08:14:37Z` with 0 open and 14 closed issues |
+| 18 | Commit the remote-milestone checkpoint | Commit delegation | The canonical record contains the observed closed milestone state | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
+| 19 | Commit the release-action recovery record | Commit delegation | One checked canonical commit records steps 7-18, immutable release object identities, and the D22 sequencing deviation before Release Verification 7 | pending |
+| 20 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M15 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M15 closure | pending |
+| 21 | Commit M15 completion and Release Verification 9 after final issue and canonical read-back | Commit delegation | One checked cycle-closure commit on `master` points to deferred Backlog issue #127 without branch creation or deletion | pending |
+| 22 | Push the closure commit and accumulated canonical checkpoints to `origin/master` | Push delegation | Local and upstream closure state agree | pending |
 
 ##### Release Verification Plan
 
@@ -2834,8 +2854,9 @@ returned milestone number 16, title `1.3.0`, state `open`, created
 
 ##### Closure Evidence
 
-- Open GitHub milestone `1.3.0`, number 16, created by the repository owner
-  on 2026-08-18 (creation response recorded above).
+- GitHub milestone `1.3.0`, number 16, was created open by the repository
+  owner on 2026-08-18 and closed on 2026-09-03 at
+  `2026-09-03T08:14:37Z` with 0 open and 14 closed issues.
 
 ## Backlog
 
