@@ -152,7 +152,38 @@ Displays external processes (e.g., `con`, `socat`, `nc`) currently attached to t
   4. Filters out known server PIDs to isolate true external clients.
 - **Purpose**: Identifies active users or automated scripts occupying the console, bypassing the path-stripping limitation of anonymous client sockets in UNIX domain communications.
 
-## 3. Console Access Commands (`attach` vs `monitor`)
+#### 4. procServ Executable Identity
+
+`inspect` captures systemd `MainPID:starttime`, confirms that `MainPID` owns
+the target UDS, and compares the device and inode of `/proc/<MainPID>/exe`
+with the procServ path in the effective `ExecStart`. A missing, unreadable,
+deleted, or replaced executable produces a warning without changing service
+state. If `MainPID:starttime` changes while inspection is running, the result
+is reported as an unstable snapshot rather than executable drift.
+
+Before the socket and process report, `inspect` also probes the effective
+`--logfile` directory with a create, one-byte write, filesystem sync, and
+delete transaction. Local mode runs the probe as the local owner. System mode
+runs it with both the effective unit `User=` and `Group=`. Probe failure is a
+warning; `inspect` continues and returns success when no independent fatal
+inspection error occurs. The already-root system command uses
+`/usr/sbin/runuser` for this one probe, so it requires no nested sudoers rule
+or additional password prompt.
+
+## 3. Lifecycle Preflight Diagnostics
+
+`start` and `restart` resolve procServ and `--logfile` from the effective
+systemd `ExecStart`. They run the same create-write-sync-delete log-path probe
+before calling systemd, then use that exact logfile for readiness and startup
+failure scans. Probe failure blocks the requested transition.
+
+In system mode the ordinary authorized operator runs the probe before the
+restricted `sudo systemctl` transition. This checks the established
+group-writable shared-filesystem path; it is not a service-UID quota check.
+Local mode runs the probe as the local owner. Direct `systemctl` commands
+remain supported but bypass these diagnostics and readiness reporting.
+
+## 4. Console Access Commands (`attach` vs `monitor`)
 
 The `epics-ioc-runner` provides two distinct methods for interacting with an active IOC console via its UNIX Domain Socket. These commands differ fundamentally in their data flow architecture and input handling to prevent operational conflicts.
 

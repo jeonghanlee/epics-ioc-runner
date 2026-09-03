@@ -8,10 +8,9 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.2.4 reset generation
 
-Next session entry point: continue active 1.3.0 work at M11 (#149) in
-`docs/milestone-1.3.0.md`. Authority for M3 (#146) and M1 (#120 item 3)
-moved to that register at target commit `36396b3`. M2 (#127) remains the only
-unassigned Backlog item.
+Next session entry point: continue active 1.3.0 work at M14 in
+`docs/milestone-1.3.0.md`; Release Verification 1 is next. M2 (#127) remains
+the only unassigned Backlog item and stays Deferred until a later cycle.
 
 ## Milestone
 

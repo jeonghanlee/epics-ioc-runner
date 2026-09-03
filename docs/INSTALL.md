@@ -7,43 +7,53 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
 * Bash 4.3+ (the runner relies on `local -n` namerefs, introduced in Bash 4.3). Debian 8+, Ubuntu 14.04+, and RHEL/Rocky/AlmaLinux 8+ qualify; RHEL 7 / CentOS 7 ship Bash 4.2 and are not supported.
 * Basic build tools installed (`gcc`, `g++`, `make`, `git`).
 * Core utilities (`procServ` and `con`) compiled and installed system-wide.
+* `util-linux` installed with `/usr/sbin/runuser` for system `inspect` identity switching.
+* On a host with active SELinux, executable `/usr/sbin/restorecon` and
+  `/usr/sbin/matchpathcon`. Hosts without active SELinux do not require these
+  tools.
 
 ---
 
 ## 1. Automated Infrastructure Setup (Recommended)
-We provide a hardened, idempotent setup script that automatically configures isolated service accounts, strict directory permissions, and validated sudoers policies.
+We provide a hardened, idempotent setup path that automatically configures isolated service accounts, strict directory permissions, and validated sudoers policies.
 
-From the root of the repository, execute the following script as root using the `--full` flag for the initial complete setup:
+From the repository root, cache sudo credentials and run the staging launcher as the checkout owner for the initial complete setup:
 ```bash
-sudo ./bin/setup-system-infra.bash --full
+sudo -v
+./bin/run-setup-system-infra.bash --full
 ```
 
-The script verifies every artefact it deploys and **exits 1 if any
+The privileged setup verifies every artefact it deploys and **exits 1 if any
 verification check fails** — automated provisioning (ansible, CI) can trust
 the exit status directly; a non-zero exit means the reported items must be
 fixed and the script re-run.
 
+When SELinux is active, the full setup restores the policy-defined context of
+`/etc/sudoers.d/10-epics-ioc` and `/etc/logrotate.d/procserv` after each atomic
+deployment and requires `matchpathcon -V` to accept both final paths. The
+preflight requires both SELinux tools before any system mutation.
+
 > **Important (custom service identity):** the service account and group are
 > configurable via `IOC_RUNNER_SYSTEM_USER` / `IOC_RUNNER_SYSTEM_GROUP`, but
-> sudo's default `env_reset` drops shell-exported values before the script
-> runs. Pass them explicitly on the sudo command line:
-> `sudo IOC_RUNNER_SYSTEM_USER=myuser IOC_RUNNER_SYSTEM_GROUP=mygroup ./bin/setup-system-infra.bash --full`
+> the staging launcher forwards only its documented setup variables across
+> the sudo boundary. Set both variables on the launcher invocation:
+> `IOC_RUNNER_SYSTEM_USER=myuser IOC_RUNNER_SYSTEM_GROUP=mygroup ./bin/run-setup-system-infra.bash --full`
 > The script prints the resolved identity as its first banner — confirm it
 > before the run proceeds. The same overrides must then accompany every
 > `ioc-runner` invocation (both scripts resolve the same variables).
 
 ### Makefile front end
-A `configure/` Makefile wraps these invocations. Run the targets as your user (each calls `sudo` inside the recipe, so it works in place even on an NFS `root_squash` home):
+A `configure/` Makefile wraps the staging launcher. Cache sudo credentials, then run the targets as the checkout owner:
 
 ```bash
-make setup     # same as: sudo ./bin/setup-system-infra.bash --full
-make install   # same as: sudo ./bin/setup-system-infra.bash (CLI update only)
+sudo -v
+make setup     # full system infrastructure
+make install   # CLI update only
 ```
 
 `make help` lists targets; `make vars` prints the resolved paths.
 
-> **Tip for Operations:** Later, if you only need to update the `ioc-runner` CLI script and its Bash completion to a newer version without touching the underlying systemd templates or permissions, simply run the script without any arguments:
-> `sudo ./bin/setup-system-infra.bash`
+> **Tip for Operations:** To update only `ioc-runner`, Bash completion, and the RHEL secure-path symlink without changing the remaining infrastructure, run `./bin/run-setup-system-infra.bash` without arguments.
 
 Once the script completes successfully, manually add your authorized engineers to the `ioc` management group:
 ```bash
@@ -56,19 +66,22 @@ newgrp ioc
 ```
 
 ### NFS `root_squash`
-On an NFS home exported with `root_squash`, `sudo` is downgraded to the
-anonymous `nobody` user, which cannot traverse a `0700` home by absolute path
-or `execve` a user-owned binary from it.
+On an NFS export with `root_squash`, server-side access maps root requests to
+the anonymous identity. Root therefore may be unable to traverse or read a
+checkout that remains readable to its owning user.
 
-The setup script is unaffected when run from the repository root: it reads its
-files by relative path (they are world-readable) and runs both the version-stamp
-git queries and the layout checks that gate them as the invoking owner, not as
-`nobody`. `sudo ./bin/setup-system-infra.bash [--full]`, and `make install` /
-`make setup` run as your user, therefore work in place from an NFS home and
-stamp a real version — verified on both golden images (Rocky 8, Debian 13) with
-`root_squash` active. Run the Make targets as your user, not under `sudo`: `sudo
-make setup` makes `make` itself run as `nobody`, which cannot read the Makefile
-includes and aborts before the script.
+`run-setup-system-infra.bash` reads three fixed setup sources as the checkout
+owner and sends them to a root-owned temporary directory under `/tmp`. The
+privileged setup runs from that local directory. Git metadata and layout checks
+refer to the original checkout and execute as the invoking owner, so the
+installed version still identifies the candidate repository. The temporary
+directory is removed on exit.
+
+Use the launcher directly, or use `make install` and `make setup`, as the
+checkout owner. Do not run the Make targets under `sudo`: root may be unable to
+read the Makefile includes before the launcher can establish the local staging
+boundary. Direct execution of `setup-system-infra.bash` is reserved for a
+root-readable local source tree.
 
 If the version ever stamps as `unknown` (for example the checkout is not a git
 tree, or its metadata is unreadable), the setup emits a WARN naming the repair:
@@ -77,8 +90,8 @@ deployed script from `git -C bin rev-parse --short HEAD` and the UTC-normalized
 `git -C bin show -s --format=%ct HEAD`. This is the same procedure as the manual
 injection block below.
 
-The remaining `root_squash` constraint affects the system test suite instead;
-see `tests/README.md`.
+The system test execution boundary is documented separately in
+`tests/README.md`.
 
 ---
 
@@ -122,6 +135,10 @@ cat <<EOF > /etc/sudoers.d/10-epics-ioc
 EOF
 
 chmod 0440 /etc/sudoers.d/10-epics-ioc
+
+# Required when SELinux is active
+/usr/sbin/restorecon /etc/sudoers.d/10-epics-ioc
+/usr/sbin/matchpathcon -V /etc/sudoers.d/10-epics-ioc
 ```
 
 On hosts with sudo < 1.9.10, replace each `^<verb> ... $` form with the glob form (`<verb> epics-@*.service`); the deployment script handles this automatically and emits a `WARN` line plus a residual-risk header comment. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
@@ -210,12 +227,16 @@ cat <<EOF > /etc/logrotate.d/procserv
 EOF
 
 chmod 0644 /etc/logrotate.d/procserv
+
+# Required when SELinux is active
+/usr/sbin/restorecon /etc/logrotate.d/procserv
+/usr/sbin/matchpathcon -V /etc/logrotate.d/procserv
 ```
 
 ---
 
 ## 3. CLI Wrapper & Bash Completion Deployment
-Deploy the frontend management script `ioc-runner` to a standard binary path, and install the Bash completion script to provide context-aware suggestions. The automated setup in Section 1 (`setup-system-infra.bash`) performs the steps below, including injecting the Git hash, commit date, and install date for traceability. The manual procedure is documented for reference.
+Deploy the frontend management script `ioc-runner` to a standard binary path, and install the Bash completion script to provide context-aware suggestions. The staging launcher in Section 1 calls `setup-system-infra.bash` to perform the steps below, including injecting the Git hash, commit date, and install date for traceability. The manual procedure is documented for reference.
 
 ```bash
 # 1. Copy the main script to the system path
@@ -302,6 +323,4 @@ chmod o+x /home/username
 
 Install mode (the world-readable `/usr/local/bin/ioc-runner`) and local mode
 (each user runs its own IOCs, traversing its own home as owner) do not need
-this. The gate reproduces this condition on its `0700`-home goldens; maintainers
-see the matching prerequisite in `gate/RUNBOOK.md` ("System mode and the
-engineer home").
+this.

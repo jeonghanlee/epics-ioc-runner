@@ -43,11 +43,12 @@ This directory contains the complete documentation for deploying, managing, and 
   The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
 
 ### 7. Milestone Registers
+* **[milestone-1.3.0.md](milestone-1.3.0.md)**
+  Active canonical register for the 1.3.0 line on `release-1.3.0`. Authority
+  moved from master in commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
 * **[milestone-46790f9.md](milestone-46790f9.md)**
-  Active master register: the post-1.2.4 reset generation carrying the
-  surviving Backlog and the confirmed 1.3.0 selection. The closed 1.2.4
-  register and the prior master generation are preserved in Git history at
-  the commit named in its History table.
+  Master-generation register snapshot carried on this release branch. It is
+  not authoritative for 1.3.0; read the current master register from `master`.
 
 ## Upgrading from 1.0.x
 

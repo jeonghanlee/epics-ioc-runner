@@ -1,7 +1,7 @@
 # Test Reporting Contract
 
-This document defines the producer contract for machine-readable test results.
-It applies to the test suites under `tests/`.
+This document defines the producer contract for human-readable and
+machine-readable test results. It applies to the test suites under `tests/`.
 
 ## Result Dimensions
 
@@ -89,17 +89,39 @@ system.
 Each suite follows one ordered lifecycle:
 
 1. Declare the complete ordered STEP and check catalog.
-2. Evaluate declared applicability and prerequisite checks.
-3. Execute each permitted check through the real shipped path.
-4. Close every declared check exactly once in catalog order.
-5. Complete every producer cleanup action that can change suite status.
-6. Resolve the ledger, clean the reporter workspace, emit the projections,
+2. Close the catalog and compare its check and STEP counts with
+   `reporting-counts.csv`.
+3. Evaluate declared applicability and prerequisite checks.
+4. Execute each permitted check through the real shipped path.
+5. Close every declared check exactly once in catalog order.
+6. Complete every producer cleanup action that can change suite status.
+7. Resolve the ledger, clean the reporter workspace, emit the projections,
    and exit with the status represented by the final SUITE record.
 
 No check is created after execution begins. A missing prerequisite or an
 inapplicable boundary closes only already-declared checks according to the
 dependency rules. An unexpected exit before finalization is invalid and the
 reporter closes remaining declared checks as `SCRIPT_ERROR`.
+
+## Catalog Count Boundary
+
+`reporting-counts.csv` is the only current expected check and STEP count
+source. `lib/reporting-suites.bash` owns the supported suite set independently,
+and the CSV parser requires exactly one row for each supported suite. Runtime
+catalog registration remains the independent actual side of the comparison.
+
+Every normal suite invocation compares its closed runtime catalog before its
+environment preflight. A mismatch exits nonzero and produces no valid `SUITE`
+record. `REPORT_CATALOG_ONLY=1` performs the same registration, close, and
+comparison, cleans the reporter workspace, and exits before environment,
+privilege, systemd, or IOC setup. Its only machine record is:
+
+```text
+CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS
+```
+
+An unset or `0` value continues through normal execution. Any other value is
+invalid.
 
 ## Stable Check Catalog
 
@@ -255,6 +277,23 @@ Records are emitted in this order:
 
 No reporter record may follow `SUITE`.
 
+## Output Surfaces
+
+The default producer invocation emits the human report and no `TEST`, `STEP`,
+or `SUITE` records. Setting `REPORT_MACHINE_OUTPUT=1` before the reporting
+library is sourced reserves the process's original standard output for the
+complete machine-record block and routes subsequent human output to standard
+error. Unset, empty, and `0` select the default. Any other value is rejected
+before producer execution.
+
+`REPORT_CATALOG_ONLY=1` has precedence over machine mode. It preserves the
+single `CATALOG` record on standard output, emits no execution records, and
+does not change the output descriptor used by catalog registration.
+
+The producer does not accept an output pathname. A caller that needs retained
+evidence opens and owns the standard-output and standard-error destinations
+outside any producer privilege boundary.
+
 ## Shared Reporter Interface
 
 The producer suites use `lib/test-reporting.bash` through this ordered
@@ -265,15 +304,17 @@ report_init suite run scope runner os arch ledger_dir
 report_register_step step_id description
 report_register_check check_id step_id category check_kind test_method description
 report_close_catalog
+report_verify_catalog_counts
 report_record check_id state [reason]
 report_finalize original_exit_status
 ```
 
 `report_register_step` permits a declared setup-only STEP with zero checks.
 Every check references a previously declared STEP. `report_close_catalog`
-ends registration before any result event. `report_record` is the only path
-for a test-owned terminal state; `PASS` carries no reason and every other
-state requires one non-empty, single-line reason.
+ends registration before any result event. `report_verify_catalog_counts`
+enforces the Catalog Count Boundary before execution. `report_record` is the
+only path for a test-owned terminal state; `PASS` carries no reason and every
+other state requires one non-empty, single-line reason.
 
 The caller supplies a dedicated real directory for the private file-backed
 ledger. The directory must be owned by the current effective user, must not be
@@ -294,7 +335,8 @@ producer integration rather than by the shared library.
 `report_finalize` preserves completed states, turns every unclosed declared
 check into `SCRIPT_ERROR`, validates the ledger, calculates one complete
 vector, cleans the reporter workspace, derives the final suite state, and
-emits both projections. A recoverable event defect tied to a known check
+emits the human projection plus the selected machine projection. A recoverable
+event defect tied to a known check
 resolves that check to `SCRIPT_ERROR`. An unknown identity or invalid catalog
 prevents a valid projection, exits nonzero, and emits no `SUITE` record for a
 consumer to mistake as complete.
@@ -351,13 +393,21 @@ projections must reconcile with the ledger before `SUITE` is emitted.
 ## Producer and Consumer Boundary
 
 The test suites and shared reporter own the catalog, recording path, ledger,
-and both output projections. Gate consumption is separate and reads only the
-machine-readable records after M8 implements this producer contract; it does
-not infer states from human-readable prose.
+and both output projections. `lib/test-record-validator.bash` owns structural
+acceptance of one machine-record file. It requires exact record grammar and
+phase order, unique identities, complete count and state vectors, expected
+suite dimensions, a final `SUITE`, and agreement with the producer exit
+status. It loads supported suites and expected counts from the maintained
+reporting libraries and does not carry a second identity catalog.
 
-`run-all-tests.bash` collects the final record together with the producer exit
-status. It accepts `state=PASS` only with producer status zero and no `FAIL` or
-`SCRIPT_ERROR` count. It accepts `state=FAIL` only with a nonzero producer
-status. An all-PASS check vector may therefore carry suite state `FAIL` when
-producer or reporter cleanup failed, while the fixed check identities remain
-unchanged.
+`run-all-tests.bash` opens private machine and human files for each selected
+child, injects machine mode inside the final child process, and validates the
+machine file with the child exit status before accepting it. Default dispatcher
+mode displays human output and emits no machine records. Dispatcher machine
+mode emits only validated child blocks on standard output, in selected-suite
+order, while dispatcher and child human output uses standard error.
+
+The two-host gate uses the same validator on every per-run machine file before
+aggregation. Runner-path evidence is read only from human files. Count, state,
+identity, matrix, and cross-host checks read only structurally validated
+machine files and never infer states from human-readable text.

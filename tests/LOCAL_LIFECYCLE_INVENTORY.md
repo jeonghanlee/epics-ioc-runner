@@ -2,7 +2,7 @@
 
 Status: M8 step 1 inventory
 Source: `tests/test-local-lifecycle.bash`
-Fixed Total: 146
+Expected Counts: [`reporting-counts.csv`](reporting-counts.csv)
 
 ## Runner Policy
 
@@ -14,12 +14,13 @@ rejected before reporter initialization and is not part of this catalog.
 
 ## Inventory Basis
 
-The current maximum branch contains 118 assertions. The fixed catalog adds
-three P00 checks and eleven prerequisite or applicability checks for logrotate,
+The current maximum branch contains 137 assertions. The fixed catalog includes
+four P00 checks and twelve prerequisite or applicability checks for logrotate,
 socat, journal, softIoc, truncate, and the non-root history boundary. It also
 declares three REQUIRED checks that the current script emits only on failure:
 camonitor availability and the S15 and S16 configuration requirements. The
-resulting catalog contains 146 identities.
+resulting expected check and STEP counts are owned by
+[`reporting-counts.csv`](reporting-counts.csv).
 
 ## Test Method Assignment
 
@@ -31,11 +32,17 @@ uses hand-built-reproduction.
 
 ## Catalog
 
-### P00 - Invocation Preflight (3)
+### P00 - Invocation Preflight (4)
 
 - `local-lifecycle.P00.epics-base-set` | `REQUIRED` | `EPICS_BASE` is set.
 - `local-lifecycle.P00.lsof-available` | `REQUIRED` | `lsof` is available.
+- `local-lifecycle.P00.ps-available` | `REQUIRED` | `ps` resolves to an executable path.
 - `local-lifecycle.P00.selected-runner-executable` | `REQUIRED` | The selected runner path is executable.
+
+The `EPICS_BASE` check is the first environment boundary after catalog close
+and expected-count comparison. If it fails, the remaining P00 checks and every
+numbered STEP check are `SKIP`; `lsof`, `ps`, and runner executability are not
+evaluated.
 
 ### S01 - Setup Test Workspace (0)
 
@@ -107,12 +114,22 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S14.repeat-install-succeeded` | `BEHAVIOR` | Repeated installation exits successfully.
 - `local-lifecycle.S14.repeat-install-stable` | `BEHAVIOR` | Repeated installation rewrites no rotation artifact.
 
-### S15 - Copytruncate Rotation (4)
+### S15 - User-Service Copytruncate Rotation (7)
+
+The normal path starts the deployed `epics-logrotate.service`. Setting
+`IOC_RUNNER_TEST_BREAK_LOGROTATE_EXECSTART=1` installs a temporary systemd
+drop-in with `ExecStart=/bin/false`; the same oneshot-result check must fail,
+and the suite restores the effective unit and runtime state during cleanup.
+The mutation refuses a pre-existing override file or symlink and preserves a
+pre-existing override directory.
 
 - `local-lifecycle.S15.logrotate-available` | `PREREQUISITE` | `logrotate` is available.
 - `local-lifecycle.S15.rotation-config-exists` | `REQUIRED` | User logrotate configuration exists for the probe.
-- `local-lifecycle.S15.compressed-archive-created` | `BEHAVIOR` | Forced rotation creates `.1.gz`.
-- `local-lifecycle.S15.live-log-truncated` | `BEHAVIOR` | `copytruncate` leaves the live log empty in place.
+- `local-lifecycle.S15.oneshot-result-success` | `BEHAVIOR` | The deployed oneshot succeeds through the user manager.
+- `local-lifecycle.S15.compressed-archive-created` | `BEHAVIOR` | The deployed service creates `.1.gz`.
+- `local-lifecycle.S15.live-log-truncated` | `BEHAVIOR` | The deployed service leaves the live log empty in place.
+- `local-lifecycle.S15.runtime-state-created` | `BEHAVIOR` | The deployed service creates `%t/ioc-runner-logrotate.state`.
+- `local-lifecycle.S15.system-default-state-unchanged` | `BEHAVIOR` | The deployed service leaves system logrotate state unchanged.
 
 ### S16 - Maxsize Rotation (3)
 
@@ -296,9 +313,51 @@ skips, every dependent S14 check also skips.
 - `local-lifecycle.S36.abort-nonzero` | `BEHAVIOR` | A declined reinstall returns nonzero.
 - `local-lifecycle.S36.abort-template-unchanged` | `BEHAVIOR` | The shared template is unchanged on abort.
 
+### S37 - M10 and M14 Reliability (38)
+
+- `local-lifecycle.S37.tmpfs-fixture-ready` | `PREREQUISITE` | The gate supplied a writable size-limited tmpfs.
+- `local-lifecycle.S37.procserv-copy-ready` | `PREREQUISITE` | An isolated executable procServ copy exists.
+- `local-lifecycle.S37.probe-ioc-installed` | `BEHAVIOR` | The real dedicated IOC and instance drop-in are installed.
+- `local-lifecycle.S37.full-filesystem-start-blocked` | `BEHAVIOR` | The real runner blocks start when the effective log filesystem is full.
+- `local-lifecycle.S37.blocked-start-remains-inactive` | `BEHAVIOR` | A blocked start leaves the unit inactive.
+- `local-lifecycle.S37.restored-filesystem-starts-active` | `BEHAVIOR` | Restored capacity permits a real active start.
+- `local-lifecycle.S37.full-filesystem-restart-blocked` | `BEHAVIOR` | The real runner blocks restart when the filesystem is full.
+- `local-lifecycle.S37.blocked-restart-preserves-mainpid` | `BEHAVIOR` | A blocked restart preserves `MainPID:starttime`.
+- `local-lifecycle.S37.full-filesystem-inspect-warns-and-succeeds` | `BEHAVIOR` | Inspect warns and succeeds on the full filesystem.
+- `local-lifecycle.S37.inspect-warning-preserves-mainpid` | `BEHAVIOR` | Warning-only inspect preserves `MainPID:starttime`.
+- `local-lifecycle.S37.failed-probe-leaves-no-residue` | `BEHAVIOR` | The failed probe leaves no temporary file.
+- `local-lifecycle.S37.restored-filesystem-restart-changes-mainpid` | `BEHAVIOR` | Restored capacity permits restart with a new identity.
+- `local-lifecycle.S37.baseline-inspect-matches-executable` | `BEHAVIOR` | Baseline inspect matches the effective procServ executable.
+- `local-lifecycle.S37.baseline-inspect-preserves-mainpid` | `BEHAVIOR` | Baseline inspect changes no process identity.
+- `local-lifecycle.S37.replaced-executable-warns` | `BEHAVIOR` | Atomic executable replacement produces a drift warning.
+- `local-lifecycle.S37.drift-inspect-preserves-mainpid` | `BEHAVIOR` | Drift inspection changes no process identity.
+- `local-lifecycle.S37.server-race-collected-original-pid` | `BEHAVIOR` | The external `ps` boundary pauses after inspect selects the original server PID.
+- `local-lifecycle.S37.server-race-observes-one-new-mainpid` | `BEHAVIOR` | Exactly one real restart produces one new identity.
+- `local-lifecycle.S37.server-race-collected-pids-retire-before-ps` | `BEHAVIOR` | Every collected server PID exits before the real `ps` resumes.
+- `local-lifecycle.S37.server-race-inspect-completes` | `BEHAVIOR` | Inspect accepts the real no-selection result after server replacement.
+- `local-lifecycle.S37.server-race-output-excludes-retired-mainpid` | `BEHAVIOR` | Process context excludes the retired MainPID.
+- `local-lifecycle.S37.server-race-reports-unstable-not-drift` | `BEHAVIOR` | The changed snapshot reports unstable rather than drift.
+- `local-lifecycle.S37.ps-status-one-inspect-completes` | `BEHAVIOR` | External `ps` status 1 does not terminate inspect.
+- `local-lifecycle.S37.ps-status-one-reaches-final-snapshot` | `BEHAVIOR` | Status 1 continues through executable-identity comparison.
+- `local-lifecycle.S37.ps-status-two-hard-error` | `BEHAVIOR` | External `ps` status 2 remains a diagnosed hard error.
+- `local-lifecycle.S37.ps-status-127-hard-error` | `BEHAVIOR` | External `ps` status 127 remains a diagnosed hard error.
+- `local-lifecycle.S37.ps-nonpath-command-rejected` | `BEHAVIOR` | A non-path `ps` command fails executable-path validation.
+- `local-lifecycle.S37.socat-available` | `PREREQUISITE` | A real `socat` client is available for client churn.
+- `local-lifecycle.S37.client-baseline-reports-socat-pid` | `BEHAVIOR` | Baseline inspect reports the connected `socat` PID.
+- `local-lifecycle.S37.client-race-collected-socat-pid` | `BEHAVIOR` | The client `ps` boundary pauses after selecting the `socat` PID.
+- `local-lifecycle.S37.client-race-socat-disconnects` | `BEHAVIOR` | The real client disconnects before `ps` resumes.
+- `local-lifecycle.S37.client-race-inspect-completes` | `BEHAVIOR` | Inspect accepts the real no-selection result after client disconnect.
+- `local-lifecycle.S37.client-race-output-excludes-socat-pid` | `BEHAVIOR` | Process context excludes the disconnected client PID.
+- `local-lifecycle.S37.client-race-preserves-server-snapshot` | `BEHAVIOR` | Client churn leaves the server snapshot stable.
+- `local-lifecycle.S37.timeout-cleanup-reaches-synchronization-line` | `BEHAVIOR` | The cleanup phase reaches the same synchronization line.
+- `local-lifecycle.S37.timeout-cleanup-reaps-inspect` | `BEHAVIOR` | Bounded cleanup resumes, terminates, and reaps inspect.
+- `local-lifecycle.S37.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | Cleanup performs no restart.
+- `local-lifecycle.S37.fixture-cleanup-complete` | `BEHAVIOR` | No service or drop-in residue remains.
+
 ## Fixed Vector Rule
 
-Every source and installed invocation declares these 146 identities in this
-order. Runner origin changes the selected binary and the SUITE `runner` field,
-not the identity set. Missing prerequisites and non-applicable permission
-branches close their declared dependent checks without changing `Total`.
+Every source and installed invocation declares the same identities in this
+order and compares the closed catalog with `reporting-counts.csv`. Runner
+origin changes the selected binary and the SUITE `runner` field, not the
+identity set. Missing prerequisites and non-applicable permission branches
+close their declared dependent checks without changing `Total`.

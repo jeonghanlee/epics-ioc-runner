@@ -112,6 +112,17 @@ See [REPORTING_CONTRACT.md](REPORTING_CONTRACT.md) for the stable catalog,
 result dimensions, terminal states, machine-readable grammar, invariants, and
 producer boundary.
 
+Normal suite and dispatcher invocations emit the operator report without the
+full machine-record sequence. For a retained machine interface, set
+`REPORT_MACHINE_OUTPUT=1`, capture standard output as machine records, and
+capture standard error as the human report. `REPORT_CATALOG_ONLY=1` takes
+precedence and still emits exactly one `CATALOG` record on standard output.
+
+The dispatcher validates every child machine file with
+`lib/test-record-validator.bash` before accepting or forwarding it. In machine
+mode, its standard output contains only validated child blocks in selected
+suite order; its own messages and child human output use standard error.
+
 ---
 
 ## Debugging and Workspace Retention
@@ -160,6 +171,11 @@ Invoke the master script as the current non-root user. It invokes `sudo`
 internally for source-regression and system phases. Do not prefix the master
 command with `sudo`: a nested `sudo` invocation sets `SUDO_USER` to `root` and
 violates the source-regression invoking-user boundary.
+
+Before system phases are captured, the dispatcher checks `sudo -n true`.
+Accounts with a non-interactive sudo route continue without a credential
+prompt; otherwise the dispatcher runs `sudo -v` before capture so any required
+authentication remains attached to the operator terminal.
 
 ```bash
 # Default: both modes, source binary.
@@ -245,9 +261,22 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **EPICS Functionality**: Live PV reads via `caget` ensuring actual Channel Access (CA) broadcasting.
 * **Teardown**: Verifies `enable`/`disable` persistence in systemd `.wants` and complete `remove` cleanup.
 
+The system lifecycle suite also installs a dedicated healthy `softIoc`, sends
+`SIGKILL` only to its verified child, and proves procServ recovery through a
+new ready child while the unit remains active and the procServ `MainPID` and
+systemd `NRestarts` remain unchanged.
+
+It also installs a dedicated configuration-parser probe through the shipped
+runner. The probe proves that install validation, runtime lookup, and the real
+systemd `EnvironmentFile` consumer agree for surrounding spaces and tabs,
+single and double quotes, CRLF, empty values, embedded `=`, later duplicate
+values, and escaped regular-expression backslashes. Probe removal must leave
+no active unit or installed configuration.
+
 ### 3. Error Handling (`test-error-handling.bash`)
 * **Interactive Protections**: Verifies safe aborts and infinite-loop prevention (EOF handling) during non-interactive piping (`< /dev/null`).
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
+* **Configuration Parser**: Drives spaces, tabs, matching quotes, CRLF, empty values, embedded `=`, duplicates, and double-quoted escaped regex backslashes through real file-direct installs; unsupported multiline, continuation, and unmatched-quote forms must preserve the prior target. A separate logic-level STEP extracts the exact shipped parser and reader definitions, requires one valid definition of each, and verifies both reader APIs against independent whitespace, quote, empty, and missing-key expectations.
 * **Diff Engine**: Evaluates ANSI-colored diff output prompting and force-overwrite (`-f`) bypass mechanisms.
 
 ### 4. Source Regression (`test-source-regression.bash`)
@@ -262,6 +291,16 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
   runner source change.
 * **Source Boundary**: Verifies the root-to-invoking-user Git boundary and test
   path-safety contracts.
+* **SELinux Deployment Boundary**: Runs the shipped full setup in a private
+  mount namespace with only filesystem and SELinux tool boundaries isolated;
+  verifies preflight failures, both policy deployments, and final-context
+  rejection.
+* **Staged System Setup**: Invokes the shipped staging launcher through real
+  sudo, redirects only final deployment paths to `/tmp`, and verifies that the
+  installed runner retains the original checkout commit.
+* **Candidate Transfer**: Runs the shipped push driver against a real Git
+  repository, replacing only SSH transport, and verifies both identical and
+  externally changed destination states.
 
 ### 5. Infrastructure State (`test-system-infra.bash`)
 
@@ -271,3 +310,6 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **Installed Files**: Confirms installed runner, completion, systemd,
   logrotate, configuration, and log paths with their required ownership and
   permissions.
+* **SELinux Contexts**: On an active SELinux host, requires
+  `/usr/sbin/matchpathcon -V` to accept the deployed sudoers and logrotate
+  policies; records the checks as not applicable when SELinux is inactive.

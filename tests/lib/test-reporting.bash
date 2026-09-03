@@ -4,8 +4,14 @@
 # observed terminal state once, and finalizes human and machine projections
 # from one file-backed ledger.
 
+# shellcheck source=reporting-counts.bash
+source "${BASH_SOURCE[0]%/*}/reporting-counts.bash"
+
 declare -g REPORT_INITIALIZED=0
 declare -g REPORT_CATALOG_CLOSED=0
+# Read by suite exit handlers after sourcing this library.
+# shellcheck disable=SC2034
+declare -g REPORT_CATALOG_ONLY_COMPLETED=0
 declare -g REPORT_FINALIZED=0
 declare -g REPORT_CATALOG_VALID=1
 declare -g REPORT_SUITE=""
@@ -22,6 +28,9 @@ declare -g REPORT_RM_BIN=""
 declare -g REPORT_RMDIR_BIN=""
 declare -g REPORT_STAT_BIN=""
 declare -g REPORT_FINAL_STATUS=1
+declare -g REPORT_COUNTS_FILE="${BASH_SOURCE[0]%/*}/../reporting-counts.csv"
+declare -g REPORT_MACHINE_OUTPUT_ACTIVE=0
+declare -g REPORT_MACHINE_OUTPUT_FD=""
 declare -g -a REPORT_STEP_IDS=()
 declare -g -a REPORT_CHECK_IDS=()
 declare -g -A REPORT_STEP_SEEN=()
@@ -32,6 +41,41 @@ declare -g -A REPORT_CHECK_CATEGORY=()
 declare -g -A REPORT_CHECK_KIND=()
 declare -g -A REPORT_CHECK_METHOD=()
 declare -g -A REPORT_CHECK_DESCRIPTION=()
+
+function _report_initialize_output_boundary {
+    local catalog_mode="${REPORT_CATALOG_ONLY:-0}"
+    local machine_mode="${REPORT_MACHINE_OUTPUT:-0}"
+
+    case "${machine_mode}" in
+        ""|0) return 0 ;;
+        1) ;;
+        *)
+            printf 'REPORTING ERROR: REPORT_MACHINE_OUTPUT must be 0, 1, or unset: %s\n' \
+                "${machine_mode}" >&2
+            return 1
+            ;;
+    esac
+
+    if [[ "${catalog_mode}" == "1" ]]; then
+        return 0
+    fi
+
+    if ! exec {REPORT_MACHINE_OUTPUT_FD}>&1; then
+        printf '%s\n' "REPORTING ERROR: cannot reserve standard output for machine records" >&2
+        return 1
+    fi
+    if ! exec 1>&2; then
+        exec {REPORT_MACHINE_OUTPUT_FD}>&- || true
+        REPORT_MACHINE_OUTPUT_FD=""
+        printf '%s\n' "REPORTING ERROR: cannot route human output to standard error" >&2
+        return 1
+    fi
+    REPORT_MACHINE_OUTPUT_ACTIVE=1
+}
+
+if ! _report_initialize_output_boundary; then
+    return 1 2>/dev/null || exit 1
+fi
 
 function _report_scalar_is_valid {
     local value="$1"
@@ -160,6 +204,7 @@ function report_init {
 
     REPORT_INITIALIZED=0
     REPORT_CATALOG_CLOSED=0
+    REPORT_CATALOG_ONLY_COMPLETED=0
     REPORT_FINALIZED=0
     REPORT_CATALOG_VALID=1
     REPORT_FINAL_STATUS=1
@@ -201,8 +246,12 @@ function report_init {
         printf '%s\n' "REPORTING ERROR: stat is unavailable or not executable" >&2
         return 1
     fi
-    if ! expected_category=$(_report_expected_category "${suite}"); then
+    if ! reporting_suite_is_supported "${suite}"; then
         printf 'REPORTING ERROR: unsupported suite: %s\n' "${suite}" >&2
+        return 1
+    fi
+    if ! expected_category=$(_report_expected_category "${suite}"); then
+        printf 'REPORTING ERROR: suite category mapping is missing: %s\n' "${suite}" >&2
         return 1
     fi
     if ! _report_scalar_is_valid "${run_id}" || ! _report_scalar_is_valid "${os_id}" || ! _report_scalar_is_valid "${arch_id}"; then
@@ -361,6 +410,70 @@ function report_close_catalog {
         return 1
     fi
     REPORT_CATALOG_CLOSED=1
+}
+
+function _report_finish_catalog_only {
+    local final_status="$1"
+
+    # shellcheck disable=SC2034
+    REPORT_CATALOG_ONLY_COMPLETED=1
+    REPORT_FINALIZED=1
+    REPORT_FINAL_STATUS="${final_status}"
+    if ! _report_cleanup_workspace; then
+        REPORT_FINAL_STATUS=1
+    fi
+    return "${REPORT_FINAL_STATUS}"
+}
+
+function report_verify_catalog_counts {
+    local mode="${REPORT_CATALOG_ONLY:-0}"
+    local expected_checks=0
+    local expected_steps=0
+    local actual_checks=0
+    local actual_steps=0
+
+    _report_require_lifetime "report_verify_catalog_counts" || return 1
+    if (( ! REPORT_CATALOG_CLOSED )); then
+        _report_append_error "event-before-catalog-close" "-" \
+            "catalog count verification before catalog close"
+        return 1
+    fi
+    actual_checks=${#REPORT_CHECK_IDS[@]}
+    actual_steps=${#REPORT_STEP_IDS[@]}
+    if ! reporting_counts_load "${REPORT_COUNTS_FILE}" ||
+       ! reporting_counts_lookup "${REPORT_SUITE}" expected_checks expected_steps; then
+        REPORT_CATALOG_VALID=0
+        if [[ "${mode}" == "1" ]]; then
+            _report_finish_catalog_only 1 || true
+        fi
+        return 1
+    fi
+    if (( actual_checks != expected_checks || actual_steps != expected_steps )); then
+        printf 'REPORTING ERROR: catalog count mismatch for %s: expected checks=%d steps=%d, actual checks=%d steps=%d\n' \
+            "${REPORT_SUITE}" "${expected_checks}" "${expected_steps}" \
+            "${actual_checks}" "${actual_steps}" >&2
+        REPORT_CATALOG_VALID=0
+        if [[ "${mode}" == "1" ]]; then
+            _report_finish_catalog_only 1 || true
+        fi
+        return 1
+    fi
+    case "${mode}" in
+        ""|0) return 0 ;;
+        1)
+            if ! _report_finish_catalog_only 0; then
+                return 1
+            fi
+            printf 'CATALOG suite=%s checks=%d steps=%d state=PASS\n' \
+                "${REPORT_SUITE}" "${actual_checks}" "${actual_steps}"
+            ;;
+        *)
+            printf 'REPORTING ERROR: REPORT_CATALOG_ONLY must be 0, 1, or unset: %s\n' \
+                "${mode}" >&2
+            REPORT_CATALOG_VALID=0
+            return 1
+            ;;
+    esac
 }
 
 function _report_ledger_has_state {
@@ -693,43 +806,45 @@ function report_finalize {
     fi
     printf '%s\n' "===================================================================================================="
 
-    for check_id in "${REPORT_CHECK_IDS[@]}"; do
-        printf 'TEST suite=%s run=%s step=%s id=%s category=%s kind=%s method=%s state=%s reason_b64=%s\n' \
+    if (( REPORT_MACHINE_OUTPUT_ACTIVE )); then
+        for check_id in "${REPORT_CHECK_IDS[@]}"; do
+            printf 'TEST suite=%s run=%s step=%s id=%s category=%s kind=%s method=%s state=%s reason_b64=%s\n' \
+                "${REPORT_SUITE}" \
+                "${REPORT_RUN_ID}" \
+                "${REPORT_CHECK_STEP[${check_id}]}" \
+                "${check_id}" \
+                "${REPORT_CHECK_CATEGORY[${check_id}]}" \
+                "${REPORT_CHECK_KIND[${check_id}]}" \
+                "${REPORT_CHECK_METHOD[${check_id}]}" \
+                "${resolved_state[${check_id}]}" \
+                "${resolved_reason_b64[${check_id}]}" >&"${REPORT_MACHINE_OUTPUT_FD}"
+        done
+        for step_id in "${REPORT_STEP_IDS[@]}"; do
+            printf 'STEP suite=%s run=%s step=%s pass=%d fail=%d skip=%d na=%d err=%d\n' \
+                "${REPORT_SUITE}" \
+                "${REPORT_RUN_ID}" \
+                "${step_id}" \
+                "${step_pass[${step_id}]}" \
+                "${step_fail[${step_id}]}" \
+                "${step_skip[${step_id}]}" \
+                "${step_na[${step_id}]}" \
+                "${step_error[${step_id}]}" >&"${REPORT_MACHINE_OUTPUT_FD}"
+        done
+        printf 'SUITE suite=%s run=%s scope=%s runner=%s os=%s arch=%s total=%d pass=%d fail=%d skip=%d na=%d err=%d state=%s\n' \
             "${REPORT_SUITE}" \
             "${REPORT_RUN_ID}" \
-            "${REPORT_CHECK_STEP[${check_id}]}" \
-            "${check_id}" \
-            "${REPORT_CHECK_CATEGORY[${check_id}]}" \
-            "${REPORT_CHECK_KIND[${check_id}]}" \
-            "${REPORT_CHECK_METHOD[${check_id}]}" \
-            "${resolved_state[${check_id}]}" \
-            "${resolved_reason_b64[${check_id}]}"
-    done
-    for step_id in "${REPORT_STEP_IDS[@]}"; do
-        printf 'STEP suite=%s run=%s step=%s pass=%d fail=%d skip=%d na=%d err=%d\n' \
-            "${REPORT_SUITE}" \
-            "${REPORT_RUN_ID}" \
-            "${step_id}" \
-            "${step_pass[${step_id}]}" \
-            "${step_fail[${step_id}]}" \
-            "${step_skip[${step_id}]}" \
-            "${step_na[${step_id}]}" \
-            "${step_error[${step_id}]}"
-    done
-    printf 'SUITE suite=%s run=%s scope=%s runner=%s os=%s arch=%s total=%d pass=%d fail=%d skip=%d na=%d err=%d state=%s\n' \
-        "${REPORT_SUITE}" \
-        "${REPORT_RUN_ID}" \
-        "${REPORT_SCOPE}" \
-        "${REPORT_RUNNER}" \
-        "${REPORT_OS}" \
-        "${REPORT_ARCH}" \
-        "${total}" \
-        "${pass_count}" \
-        "${fail_count}" \
-        "${skip_count}" \
-        "${na_count}" \
-        "${error_count}" \
-        "${suite_state}"
+            "${REPORT_SCOPE}" \
+            "${REPORT_RUNNER}" \
+            "${REPORT_OS}" \
+            "${REPORT_ARCH}" \
+            "${total}" \
+            "${pass_count}" \
+            "${fail_count}" \
+            "${skip_count}" \
+            "${na_count}" \
+            "${error_count}" \
+            "${suite_state}" >&"${REPORT_MACHINE_OUTPUT_FD}"
+    fi
 
     return "${REPORT_FINAL_STATUS}"
 }

@@ -47,6 +47,7 @@ declare -g LOGROTATE_FILE="/etc/logrotate.d/procserv"
 declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 declare -g RUNNER_SCRIPT_DEST="/usr/local/bin/ioc-runner"
 declare -g BASH_COMPLETION_DEST="/etc/bash_completion.d/ioc-runner"
+declare -gr MATCHPATHCON_BIN="/usr/sbin/matchpathcon"
 
 declare -g PERM_CONF_DIR="2770"
 declare -g PERM_SUDOERS="0440"
@@ -63,6 +64,9 @@ function _handle_exit {
     local final_status="${exit_code}"
 
     trap - EXIT
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
     if [[ -n "${C57_CREATED_USER:-}" ]]; then
         userdel "${C57_CREATED_USER}" 2>/dev/null || true
         C57_CREATED_USER=""
@@ -136,6 +140,7 @@ function register_reporting_catalog {
     report_register_step S04 "Verify logrotate policy"
     report_register_step S05 "Verify sudoers include directive ordering"
     report_register_step S06 "Verify anchored sudoers authorization"
+    report_register_step S07 "Verify SELinux policy contexts"
 
     register_catalog_check "${SUITE_ID}.P00.root-required" P00 REQUIRED direct-inspection "Effective user is root."
     register_catalog_check "${SUITE_ID}.S01.ioc-group-exists" S01 BEHAVIOR direct-inspection "System group ioc exists."
@@ -173,7 +178,12 @@ function register_reporting_catalog {
     register_catalog_check "${SUITE_ID}.S06.probe-user-available" S06 PREREQUISITE direct-inspection "A safe ioc-group probe user is available."
     register_catalog_check "${SUITE_ID}.S06.bad-name-denied" S06 BEHAVIOR real-path "Anchored policy denies an out-of-model service name."
     register_catalog_check "${SUITE_ID}.S06.good-name-allowed" S06 BEHAVIOR real-path "Anchored policy allows a valid service name."
+    register_catalog_check "${SUITE_ID}.S07.selinux-active" S07 APPLICABILITY direct-inspection "SELinux is active on the installed host."
+    register_catalog_check "${SUITE_ID}.S07.matchpathcon-available" S07 PREREQUISITE direct-inspection "/usr/sbin/matchpathcon is executable when SELinux is active."
+    register_catalog_check "${SUITE_ID}.S07.sudoers-policy-context-valid" S07 BEHAVIOR real-path "The sudoers policy context matches active SELinux policy."
+    register_catalog_check "${SUITE_ID}.S07.logrotate-policy-context-valid" S07 BEHAVIOR real-path "The logrotate policy context matches active SELinux policy."
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function read_os_release_value {
@@ -478,6 +488,66 @@ function test_sudoers_regex_denies_bad_name {
     fi
 }
 
+function test_selinux_contexts {
+    local step="$1"
+    local selinux_enforce=""
+    local context_ok="false"
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify SELinux Policy Contexts"
+    print_sub_divider
+
+    if [[ -r /sys/fs/selinux/enforce ]]; then
+        read -r selinux_enforce < /sys/fs/selinux/enforce || true
+    fi
+    if [[ ! "${selinux_enforce}" =~ ^[01]$ ]]; then
+        _log "INFO" "SELinux is not active; policy context checks do not apply."
+        report_record "${SUITE_ID}.S07.selinux-active" NA "SELinux is not active"
+        report_record "${SUITE_ID}.S07.matchpathcon-available" NA \
+            "requires ${SUITE_ID}.S07.selinux-active"
+        report_record "${SUITE_ID}.S07.sudoers-policy-context-valid" NA \
+            "requires ${SUITE_ID}.S07.selinux-active"
+        report_record "${SUITE_ID}.S07.logrotate-policy-context-valid" NA \
+            "requires ${SUITE_ID}.S07.selinux-active"
+        return
+    fi
+    report_record "${SUITE_ID}.S07.selinux-active" PASS
+
+    if [[ ! -x "${MATCHPATHCON_BIN}" ]]; then
+        verify_state "true" "false" "${SUITE_ID}.S07.matchpathcon-available"
+        report_record "${SUITE_ID}.S07.sudoers-policy-context-valid" SKIP \
+            "requires ${SUITE_ID}.S07.matchpathcon-available"
+        report_record "${SUITE_ID}.S07.logrotate-policy-context-valid" SKIP \
+            "requires ${SUITE_ID}.S07.matchpathcon-available"
+        return
+    fi
+    verify_state "true" "true" "${SUITE_ID}.S07.matchpathcon-available"
+
+    if [[ ! -f "${SUDOERS_FILE}" ]]; then
+        report_record "${SUITE_ID}.S07.sudoers-policy-context-valid" SKIP \
+            "requires ${SUITE_ID}.S02.sudoers-policy.exists"
+    else
+        context_ok="false"
+        if "${MATCHPATHCON_BIN}" -V "${SUDOERS_FILE}" >/dev/null 2>&1; then
+            context_ok="true"
+        fi
+        verify_state "true" "${context_ok}" \
+            "${SUITE_ID}.S07.sudoers-policy-context-valid"
+    fi
+
+    if [[ ! -f "${LOGROTATE_FILE}" ]]; then
+        report_record "${SUITE_ID}.S07.logrotate-policy-context-valid" SKIP \
+            "requires ${SUITE_ID}.S02.logrotate-policy.exists"
+    else
+        context_ok="false"
+        if "${MATCHPATHCON_BIN}" -V "${LOGROTATE_FILE}" >/dev/null 2>&1; then
+            context_ok="true"
+        fi
+        verify_state "true" "${context_ok}" \
+            "${SUITE_ID}.S07.logrotate-policy-context-valid"
+    fi
+}
+
 function run_all_tests {
     local -a pipeline=(
         "test_service_accounts"
@@ -486,12 +556,16 @@ function run_all_tests {
         "test_logrotate_syntax"
         "test_sudoers_includedir_order"
         "test_sudoers_regex_denies_bad_name"
+        "test_selinux_contexts"
     )
     local step=1
     local func=""
     local root_invocation="false"
 
     initialize_reporting
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        return "${REPORT_FINAL_STATUS}"
+    fi
     [[ ${EUID} -eq 0 ]] && root_invocation="true"
     verify_state "true" "${root_invocation}" "${SUITE_ID}.P00.root-required"
     if [[ "${root_invocation}" != "true" ]]; then

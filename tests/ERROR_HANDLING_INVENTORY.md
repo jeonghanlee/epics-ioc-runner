@@ -13,16 +13,18 @@ runner=source. Its primary category is error-contract.
 
 ## Inventory Basis
 
-The source pipeline contains S01 through S37. Its full non-root branch contains
-143 current assertion calls. Source review adds seven result-producing
+The source pipeline contains S01 through S40. Its full non-root branch contains
+190 current behavior identities. Source review adds eight result-producing
 conditions that currently disappear from the counters:
 
 - one P00 required runner-source check;
 - one S23 required completion-script check;
+- one S40 required exact-function extraction check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-The fixed catalog therefore contains 150 identities. S01, S12, S13, S14, S15,
-S16, S18, S20, S22, S33, and S34 are setup-only and own no check. Each loop case has its own semantic key. The 30
+The current expected check and STEP counts are owned by
+[`reporting-counts.csv`](reporting-counts.csv). S01, S12, S13, S14, S15, S16,
+S18, S20, S22, S33, and S34 are setup-only and own no check. Each loop case has its own semantic key. The 30
 interruption trials inside S06 remain evidence for two aggregate checks and
 are not separate catalog identities.
 
@@ -35,6 +37,12 @@ are not separate catalog identities.
 - Each nonroot-permission-probes-applicable check governs only the permission
   branch in its own STEP. Under effective UID 0, that applicability check and
   its dependent behavior checks are NA.
+- The three S38 non-writable-`IOC_CHDIR` behavior identities are NA under
+  effective UID 0 because Bash `-w` cannot reproduce the non-root permission
+  boundary there; the remaining S38 identities still execute.
+- `error-handling.S40.reader-equivalence.exact-function-extraction` governs the
+  eight direct reader fixtures. If exact extraction fails, the required check
+  is FAIL and the dependent checks are SKIP.
 - An unexpected abort preserves closed states and closes every remaining open
   identity as SCRIPT_ERROR.
 
@@ -258,9 +266,9 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S10 | `error-handling.S10.view-on-a-never-installed-name-exits-1` | `BEHAVIOR` | `real-path` | view on a never-installed name exits 1 |
 | S10 | `error-handling.S10.gate-message-names-the-missing-configuration` | `BEHAVIOR` | `real-path` | gate message names the missing configuration |
 | S11 | `error-handling.S11.exactly-one-ioc-port-replacement-warning` | `BEHAVIOR` | `real-path` | exactly one IOC_PORT replacement warning |
-| S17 | `error-handling.S17.system-differing-ioc-runner-log-dir-triggers-warning` | `BEHAVIOR` | `real-path` | system + differing IOC_RUNNER_LOG_DIR triggers warning |
-| S17 | `error-handling.S17.system-matching-ioc-runner-log-dir-suppresses-warning` | `BEHAVIOR` | `real-path` | system + matching IOC_RUNNER_LOG_DIR suppresses warning |
-| S17 | `error-handling.S17.local-mode-suppresses-log-dir-guard` | `BEHAVIOR` | `real-path` | --local mode suppresses LOG_DIR guard |
+| S17 | `error-handling.S17.system-status-ignores-caller-log-dir-difference` | `BEHAVIOR` | `real-path` | system status ignores caller LOG_DIR difference |
+| S17 | `error-handling.S17.system-status-with-matching-log-dirs-emits-no-warning` | `BEHAVIOR` | `real-path` | system status with matching LOG_DIR values emits no warning |
+| S17 | `error-handling.S17.local-status-with-log-dir-override-emits-no-system-warning` | `BEHAVIOR` | `real-path` | local status with LOG_DIR override emits no system warning |
 | S19 | `error-handling.S19.relative-ioc-runner-conf-dir-exits-1-on-list` | `BEHAVIOR` | `real-path` | relative IOC_RUNNER_CONF_DIR exits 1 on list |
 | S19 | `error-handling.S19.relative-conf-dir-error-names-the-resolved-directory` | `BEHAVIOR` | `real-path` | relative CONF_DIR error names the resolved directory |
 | S19 | `error-handling.S19.whitespace-conf-dir-exits-1-on-status` | `BEHAVIOR` | `real-path` | whitespace CONF_DIR exits 1 on status |
@@ -283,6 +291,8 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S24 | `error-handling.S24.view-bad-name-produces-invalid-ioc-name-error-message` | `BEHAVIOR` | `real-path` | view 'bad@name' produces 'Invalid IOC name' error message |
 | S25 | `error-handling.S25.install-with-illegal-characters-in-cmd-exits-1` | `BEHAVIOR` | `real-path` | Install with illegal characters in CMD exits 1 |
 | S25 | `error-handling.S25.install-with-wrong-local-user-exits-1` | `BEHAVIOR` | `real-path` | Install with wrong local user exits 1 |
+| S25 | `error-handling.S25.wrong-local-user-field-error-retained` | `BEHAVIOR` | `real-path` | Wrong local user retains the field-level error |
+| S25 | `error-handling.S25.wrong-local-user-summary-singular` | `BEHAVIOR` | `real-path` | Wrong local user reports the singular validation summary |
 | S25 | `error-handling.S25.install-without-directory-execute-permission-exits-1` | `BEHAVIOR` | `real-path` | Install without directory execute permission exits 1 |
 | S25 | `error-handling.S25.install-with-missing-required-key-ioc-cmd-exits-1` | `BEHAVIOR` | `real-path` | Install with missing required key (IOC_CMD) exits 1 |
 | S25 | `error-handling.S25.install-with-in-system-ioc-chdir-exits-1` | `BEHAVIOR` | `real-path` | Install with '..' in system IOC_CHDIR exits 1 |
@@ -347,17 +357,63 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S37 | `error-handling.S37.rotation-cfg-deployed` | `BEHAVIOR` | `real-path` | Rotation config is deployed after validation |
 | S37 | `error-handling.S37.debug-validation-passes-explicit-state` | `BEHAVIOR` | `real-path` | Debug validation passes an explicit --state |
 | S37 | `error-handling.S37.state-off-system-default` | `BEHAVIOR` | `real-path` | Validation state is off the system default |
+| S38 | `error-handling.S38.local-mode-mismatch-exits-1` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch exits 1 |
+| S38 | `error-handling.S38.local-mode-mismatch-diagnostic-exact` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch diagnostic is exact |
+| S38 | `error-handling.S38.local-mode-mismatch-summary-singular` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch reports the singular summary |
+| S38 | `error-handling.S38.local-mode-mismatch-source-preserved` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch preserves its source configuration |
+| S38 | `error-handling.S38.local-mode-mismatch-target-absent` | `BEHAVIOR` | `real-path` | Local-mode pair mismatch creates no installed configuration |
+| S38 | `error-handling.S38.system-mode-mismatch-exits-1` | `BEHAVIOR` | `real-path` | System-mode pair mismatch exits 1 |
+| S38 | `error-handling.S38.system-mode-mismatch-diagnostic-exact` | `BEHAVIOR` | `real-path` | System-mode pair mismatch diagnostic is exact |
+| S38 | `error-handling.S38.system-mode-mismatch-summary-singular` | `BEHAVIOR` | `real-path` | System-mode pair mismatch reports the singular summary |
+| S38 | `error-handling.S38.system-mode-mismatch-source-preserved` | `BEHAVIOR` | `real-path` | System-mode pair mismatch preserves its source configuration |
+| S38 | `error-handling.S38.system-mode-mismatch-target-absent` | `BEHAVIOR` | `real-path` | System-mode pair mismatch creates no installed configuration |
+| S38 | `error-handling.S38.third-account-mismatch-exits-1` | `BEHAVIOR` | `real-path` | Third-account pair mismatch exits 1 |
+| S38 | `error-handling.S38.third-account-mismatch-diagnostic-exact` | `BEHAVIOR` | `real-path` | Third-account pair mismatch diagnostic is exact |
+| S38 | `error-handling.S38.third-account-mismatch-summary-singular` | `BEHAVIOR` | `real-path` | Third-account pair mismatch reports the singular summary |
+| S38 | `error-handling.S38.third-account-mismatch-source-preserved` | `BEHAVIOR` | `real-path` | Third-account pair mismatch preserves its source configuration |
+| S38 | `error-handling.S38.third-account-mismatch-target-absent` | `BEHAVIOR` | `real-path` | Third-account pair mismatch creates no installed configuration |
+| S38 | `error-handling.S38.relative-chdir-pair-not-aggregated` | `BEHAVIOR` | `real-path` | Relative IOC_CHDIR pair mismatch is not aggregated |
+| S38 | `error-handling.S38.relative-chdir-pair-retains-field-and-path-errors` | `BEHAVIOR` | `real-path` | Relative IOC_CHDIR pair mismatch retains field and path errors |
+| S38 | `error-handling.S38.relative-chdir-pair-summary-three-errors` | `BEHAVIOR` | `real-path` | Relative IOC_CHDIR pair mismatch reports three errors |
+| S38 | `error-handling.S38.non-writable-chdir-pair-not-aggregated` | `BEHAVIOR` | `real-path` | Non-writable IOC_CHDIR pair mismatch is not aggregated |
+| S38 | `error-handling.S38.non-writable-chdir-pair-retains-field-errors` | `BEHAVIOR` | `real-path` | Non-writable IOC_CHDIR pair mismatch retains field errors |
+| S38 | `error-handling.S38.non-writable-chdir-pair-summary-two-errors` | `BEHAVIOR` | `real-path` | Non-writable IOC_CHDIR pair mismatch reports two errors |
+| S38 | `error-handling.S38.invalid-identity-whitelist-error-retained` | `BEHAVIOR` | `real-path` | Invalid identity retains its whitelist error |
+| S38 | `error-handling.S38.invalid-identity-not-rendered` | `BEHAVIOR` | `real-path` | Invalid identity is not rendered in a combined diagnostic |
+| S38 | `error-handling.S38.invalid-identity-summary-three-errors` | `BEHAVIOR` | `real-path` | Invalid identity pair mismatch reports three errors |
+| S39 | `error-handling.S39.conf-parser.spaces-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Surrounding spaces are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.tabs-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Surrounding tabs are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.single-quotes-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Matching single quotes are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.double-quotes-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Matching double quotes are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.crlf-accepted-and-deployed` | `BEHAVIOR` | `real-path` | CRLF assignments are accepted through file-direct install and reach the deployed target. |
+| S39 | `error-handling.S39.conf-parser.empty-value-accepted-and-deployed` | `BEHAVIOR` | `real-path` | An empty optional value is accepted and deployed. |
+| S39 | `error-handling.S39.conf-parser.embedded-equals-accepted-and-deployed` | `BEHAVIOR` | `real-path` | A quoted value containing `=` is accepted and deployed. |
+| S39 | `error-handling.S39.conf-parser.duplicate-last-assignment-accepted-and-deployed` | `BEHAVIOR` | `real-path` | The later duplicate assignment supplies the valid install value. |
+| S39 | `error-handling.S39.conf-parser.regex-backslashes-accepted-and-deployed` | `BEHAVIOR` | `real-path` | Double-quoted escaped regex backslashes are accepted and decoded consistently. |
+| S39 | `error-handling.S39.conf-parser.empty-key-remains-present-at-runtime-lookup` | `BEHAVIOR` | `real-path` | Runtime lookup distinguishes an empty IOC_PORT from a missing IOC_PORT. |
+| S39 | `error-handling.S39.conf-parser.unmatched-quote-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | An unmatched quote is rejected before the prior target changes. |
+| S39 | `error-handling.S39.conf-parser.continuation-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | A backslash continuation is rejected before the prior target changes. |
+| S39 | `error-handling.S39.conf-parser.multiline-quote-rejected-and-target-preserved` | `BEHAVIOR` | `real-path` | A multiline quoted value is rejected before the prior target changes. |
+| S40 | `error-handling.S40.reader-equivalence.exact-function-extraction` | `REQUIRED` | `direct-inspection` | The selected runner contains exactly one complete definition of each reader function, and the generated source is nonempty and valid Bash. |
+| S40 | `error-handling.S40.reader-equivalence.surrounding-spaces` | `BEHAVIOR` | `real-path` | Both shipped reader APIs return the independent expected value for an assignment with surrounding spaces. |
+| S40 | `error-handling.S40.reader-equivalence.surrounding-tabs` | `BEHAVIOR` | `real-path` | Both shipped reader APIs return the independent expected value for an assignment with surrounding tabs. |
+| S40 | `error-handling.S40.reader-equivalence.single-quoted-interior-whitespace` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve the expected single-quoted interior whitespace. |
+| S40 | `error-handling.S40.reader-equivalence.double-quoted-interior-whitespace` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve the expected double-quoted interior whitespace. |
+| S40 | `error-handling.S40.reader-equivalence.single-quoted-whitespace-only` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve a single-quoted whitespace-only value. |
+| S40 | `error-handling.S40.reader-equivalence.double-quoted-whitespace-only` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve a double-quoted whitespace-only value. |
+| S40 | `error-handling.S40.reader-equivalence.quoted-empty-present` | `BEHAVIOR` | `real-path` | Both shipped reader APIs retain a quoted empty value as present. |
+| S40 | `error-handling.S40.reader-equivalence.missing-key-api-states` | `BEHAVIOR` | `real-path` | Full-file parsing leaves a missing key absent while the single-key reader returns 1. |
 
 ## Completeness Cross-check
 
 | Source Shape | Count |
 | --- | ---: |
-| Current non-root assertion calls | 139 |
+| Current BEHAVIOR identities | 190 |
 | P00 required condition | 1 |
 | S23 required condition | 1 |
 | Per-STEP applicability conditions | 5 |
-| Fixed catalog total | 150 |
+| Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
-The mapping is complete only while all 143 current assertion descriptions map
-once, the seven added conditions map once, no STEP-local key is duplicated,
-and the source pipeline remains S01 through S37.
+The mapping is complete only while all 190 current behavior identities map
+once, the eight added conditions map once, no STEP-local key is duplicated,
+and the source pipeline remains S01 through S40.

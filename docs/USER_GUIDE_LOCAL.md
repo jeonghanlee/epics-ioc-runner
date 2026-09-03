@@ -42,6 +42,12 @@ Prepare the configuration file for the local isolated environment.
   EOF
   ```
 
+The bounded configuration syntax, quote handling, CRLF support, and last-wins
+duplicate rule are identical in local and system mode. See
+[Configuration File Syntax](USER_GUIDE.md#configuration-file-syntax). Files
+using multiline values, continuations, or unsupported quote and escape forms
+are rejected before the installed local configuration is replaced.
+
 ## 3. Install the Configuration (Local Mode)
 Deploy the configuration to the user-level systemd directory. The wrapper automatically generates the local `epics-@.service` template if missing.
 
@@ -74,6 +80,11 @@ Once the configuration is installed, start the IOC process explicitly.
 ```bash
 ~/epics-ioc-runner/bin/ioc-runner --local start iocctrlslab-tcmd
 ```
+
+Local `start` and `restart` verify the logfile directory encoded in the
+effective user unit before changing service state. `--local inspect` reports
+the same log-path condition as a warning and checks the running procServ
+executable identity without changing the service.
 
 ## 6. Enable Auto-Start on Boot (Persistence)
 By default, the `install` command deploys the configuration but does not enable it for auto-start. To ensure the IOC starts automatically after a system reboot, use the `enable` command.
@@ -129,6 +140,11 @@ When the local testing is completely finished and you want to clean up the envir
 
 ## 11. Direct systemd Control (Alternative)
 Since the architecture relies on standard systemd templates, you can also use native `systemctl` commands directly. Just remember to use the `--user` flag and the `epics-@` prefix for the service name.
+
+Direct `systemctl --user` lifecycle commands bypass `ioc-runner` preflight
+checks, warnings, and readiness reporting. Use `ioc-runner --local start` and
+`ioc-runner --local restart` for normal lifecycle operations; use direct
+`systemctl --user` when that bypass is intentional.
 
 ```bash
 # Start, stop, or restart the service directly
@@ -236,15 +252,19 @@ export IOC_RUNNER_LOCAL_SYSTEMD_DIR="/tmp/sandbox/systemd"
 
 The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, moving the runtime directory off `/run/procserv` via `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` would split the `IOC_PORT` socket path from where the kernel creates the UDS, so the runner now rejects it with a hard error. Use these overrides only in `--local` mode or for test scaffolding.
 
-**Drift warnings: install-time values are baked**
+**Install-time paths are read from the effective unit**
 
-The local unit and conf bake paths at install time, so changing an override afterwards silently splits the writer from the reader. The runner detects this at `start`/`restart` and warns instead of guessing:
+The local unit and conf bake paths at install time. Runtime commands use the
+effective installed unit rather than reconstructing its logfile from the
+current environment:
 
-- If the resolved log directory no longer matches the one baked into the installed unit, it prints `Warning: LOG_DIR resolves to ... but the installed user unit logs to ... (baked at install).` — the startup poll would watch the wrong file; export the install-time value or re-run `install`.
+- `start`, `restart`, and `inspect` resolve `--logfile` from effective
+  `ExecStart`; startup readiness scans therefore follow the same path procServ
+  uses.
 - If the installed `IOC_PORT` socket path no longer matches the current `RUN_DIR` resolution, it prints `Warning: the installed IOC_PORT socket (...) does not match the current RUN_DIR resolution (...).` — `attach`/`list` would look in the wrong place; re-run `install` after changing `IOC_RUNNER_LOCAL_RUN_DIR` / `IOC_RUNNER_RUN_DIR`.
-- Independently of any divergence, local mode reminds you at conf parse time whenever `IOC_RUNNER_LOG_DIR` / `IOC_RUNNER_LOCAL_LOG_DIR` is set at all that the value is baked into the user unit's `--logfile` at install time — export the same value when you start or restart the IOC.
 
-Treat either warning as "install and runtime disagree": re-export the install-time environment or re-run `ioc-runner --local install` before relying on `start` verdicts, `attach`, or `list`.
+After changing any install-time override, re-run `ioc-runner --local install`
+so the unit, configuration, socket lookup, and log path remain aligned.
 
 ## 15. Local Log Rotation
 

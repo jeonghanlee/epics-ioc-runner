@@ -11,25 +11,32 @@ the same identity set.
 
 ## Inventory Basis
 
-The source contains 77 catalog behavior assertion call sites. Repeated pipeline
+The source contains 104 catalog result assertion call sites. Repeated pipeline
 functions and the three-call boundary helper add ten runtime occurrences:
 explicit install at S06 and S12, cleanup install at S07, S09, and S13,
 directory install at S08 and S14, and six additional boundary assertions at
 S26. The camonitor
 availability assertion is currently fail-only, so the maximum successful path
-reports 86 assertions although 87 assertion branches exist.
+reports 113 assertions although 114 assertion branches exist.
 
-The fixed catalog adds four P00 checks and eleven prerequisite or required
-conditions currently represented only by early returns. The resulting catalog
-contains 102 identities. S02, S03, and S04 are setup-only STEPs and own no
-checks.
+The fixed catalog includes six P00 checks and eleven prerequisite or required
+conditions currently represented only by early returns. Its expected check and
+STEP counts are owned by [`reporting-counts.csv`](reporting-counts.csv). S02,
+S03, and S04 are setup-only STEPs and own no checks.
 
 ## Dependency Policy
 
-- The four P00 checks govern all numbered STEPs.
+- The `EPICS_BASE` P00 check is the first environment boundary after catalog
+  close and expected-count comparison. If it fails, the remaining P00 checks
+  and every numbered STEP check are `SKIP`; `lsof`, `ps`, `runuser`, root
+  invocation, and runner executability are not evaluated.
+- After `EPICS_BASE` passes, the remaining five P00 checks govern all numbered
+  STEPs.
 - S23 camonitor availability governs the Channel Access behavior check.
 - S25 system-journal availability governs both monitor-isolation checks.
-- S26 softIoc availability governs all eleven crash-detection checks.
+- S26 softIoc availability governs all nineteen crash-detection and
+  restart-supervision checks. The verified-child SIGKILL condition governs the
+  seven recovery observations that follow it.
 - S27 softIoc and probe-user-name prerequisites govern its four behavior
   checks.
 - S28 the installed policy, softIoc, and logrotate conditions govern its ten
@@ -54,6 +61,8 @@ and executable paths directly. No row uses hand-built-reproduction.
 | --- | --- | --- | --- | --- |
 | P00 | `system-lifecycle.P00.epics-base-set` | `REQUIRED` | `direct-inspection` | EPICS_BASE is set. |
 | P00 | `system-lifecycle.P00.lsof-available` | `REQUIRED` | `direct-inspection` | lsof is available. |
+| P00 | `system-lifecycle.P00.ps-available` | `REQUIRED` | `direct-inspection` | ps resolves to an executable path. |
+| P00 | `system-lifecycle.P00.runuser-available` | `REQUIRED` | `direct-inspection` | runuser is executable at `/usr/sbin/runuser`. |
 | P00 | `system-lifecycle.P00.root-invocation` | `REQUIRED` | `direct-inspection` | The effective user is root. |
 | P00 | `system-lifecycle.P00.selected-runner-executable` | `REQUIRED` | `direct-inspection` | The selected source or installed runner is executable. |
 | S01 | `system-lifecycle.S01.system-configuration-directory-exists-conf-dir` | `REQUIRED` | `direct-inspection` | System configuration directory exists (${CONF_DIR}) |
@@ -109,6 +118,14 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S26 | `system-lifecycle.S26.identifier-contained-fatal-emitted` | `BEHAVIOR` | `real-path` | The both-sides identifier fixture is present in the procServ log. |
 | S26 | `system-lifecycle.S26.broken-softioc-fatal-pre-init-exit-1` | `BEHAVIOR` | `real-path` | Broken softIoc (FATAL pre-init) -> exit 1 |
 | S26 | `system-lifecycle.S26.broken-softioc-failed-to-initialize-verdict` | `BEHAVIOR` | `real-path` | Broken softIoc -> failed-to-initialize verdict |
+| S26 | `system-lifecycle.S26.restart-probe-verified-softioc-child-sigkill-delivered` | `REQUIRED` | `real-path` | The installed healthy probe starts successfully, resolves one verified direct softIoc child, revalidates its identity, and delivers `SIGKILL` only to that child. |
+| S26 | `system-lifecycle.S26.restart-probe-child-death-banner-count-increases-once` | `BEHAVIOR` | `real-path` | Exactly one child-death banner appears after the rotation-safe pre-signal log boundary. |
+| S26 | `system-lifecycle.S26.restart-probe-replacement-child-has-new-identity` | `BEHAVIOR` | `real-path` | procServ creates a verified direct softIoc child with a new `PID:starttime` identity. |
+| S26 | `system-lifecycle.S26.restart-probe-replacement-child-reaches-readiness-after-death` | `BEHAVIOR` | `real-path` | A new readiness marker appears after the child-death banner. |
+| S26 | `system-lifecycle.S26.restart-probe-unit-remains-active` | `BEHAVIOR` | `real-path` | The systemd unit remains active throughout child recovery. |
+| S26 | `system-lifecycle.S26.restart-probe-procserv-mainpid-remains-unchanged` | `BEHAVIOR` | `real-path` | The procServ `MainPID:starttime` identity remains unchanged throughout child recovery. |
+| S26 | `system-lifecycle.S26.restart-probe-systemd-nrestarts-remains-unchanged` | `BEHAVIOR` | `real-path` | systemd `NRestarts` remains unchanged, proving that systemd did not replace procServ. |
+| S26 | `system-lifecycle.S26.restart-probe-recovery-remains-stable-for-three-seconds` | `BEHAVIOR` | `real-path` | The replacement child, unit state, procServ identity, `NRestarts`, and one-banner boundary remain stable for three seconds. |
 | S27 | `system-lifecycle.S27.softioc-available` | `PREREQUISITE` | `direct-inspection` | softIoc is executable. |
 | S27 | `system-lifecycle.S27.probe-user-name-available` | `PREREQUISITE` | `direct-inspection` | The journal-less probe user name is not already in use. |
 | S27 | `system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable` | `BEHAVIOR` | `real-path` | Operator is an ioc-group member (sudoers gate reachable) |
@@ -154,18 +171,61 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S31 | `system-lifecycle.S31.symlink-strictly-removed-disable` | `BEHAVIOR` | `real-path` | Symlink strictly removed (Disable) |
 | S32 | `system-lifecycle.S32.configuration-file-safely-removed` | `BEHAVIOR` | `real-path` | Configuration file safely removed |
 | S32 | `system-lifecycle.S32.service-completely-stopped-inactive` | `BEHAVIOR` | `real-path` | Service completely stopped (inactive) |
+| S33 | `system-lifecycle.S33.conf-parser-probe-install-selects-last-valid-chdir` | `BEHAVIOR` | `real-path` | File-direct install selects the later valid IOC_CHDIR assignment. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-deployed-file-retains-duplicate-assignments` | `BEHAVIOR` | `real-path` | The one deployed EnvironmentFile retains each duplicate pair consumed by the runner and systemd. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-service-active` | `BEHAVIOR` | `real-path` | The dedicated probe remains active under the real systemd manager. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-runtime-lookup-selects-last-valid-extra-pattern` | `BEHAVIOR` | `real-path` | Runtime lookup selects the later valid CRASH_LOG_PATTERNS_EXTRA assignment without a rejection warning. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-systemd-emits-accepted-fixture-matrix` | `BEHAVIOR` | `real-path` | systemd emits every accepted parser fixture value, including the escaped regex backslash, without value drift. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-systemd-emits-last-value-with-embedded-equals` | `BEHAVIOR` | `real-path` | The probe process receives the later systemd value with its embedded equals sign intact. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-systemd-uses-last-chdir` | `BEHAVIOR` | `real-path` | systemd starts the probe in the later IOC_CHDIR assignment. |
+| S33 | `system-lifecycle.S33.conf-parser-probe-cleanup-complete` | `BEHAVIOR` | `real-path` | Removal leaves no probe configuration or active unit. |
+| S34 | `system-lifecycle.S34.identity-names-available` | `PREREQUISITE` | `direct-inspection` | Dedicated service and operator names are unused. |
+| S34 | `system-lifecycle.S34.service-primary-group-differs-from-unit-group` | `BEHAVIOR` | `real-path` | The temporary service account primary group differs from unit `Group=`. |
+| S34 | `system-lifecycle.S34.tmpfs-fixture-ready` | `PREREQUISITE` | `direct-inspection` | A size-limited tmpfs is mounted. |
+| S34 | `system-lifecycle.S34.procserv-copy-ready` | `PREREQUISITE` | `direct-inspection` | An isolated executable procServ copy exists. |
+| S34 | `system-lifecycle.S34.probe-ioc-installed` | `BEHAVIOR` | `real-path` | The real dedicated IOC and instance drop-in are installed. |
+| S34 | `system-lifecycle.S34.full-filesystem-start-blocked` | `BEHAVIOR` | `real-path` | An ordinary authorized operator is blocked before start. |
+| S34 | `system-lifecycle.S34.blocked-start-remains-inactive` | `BEHAVIOR` | `real-path` | The blocked start leaves the unit inactive. |
+| S34 | `system-lifecycle.S34.restored-filesystem-starts-active` | `BEHAVIOR` | `real-path` | Restored capacity permits an operator start. |
+| S34 | `system-lifecycle.S34.full-filesystem-restart-blocked` | `BEHAVIOR` | `real-path` | An ordinary authorized operator is blocked before restart. |
+| S34 | `system-lifecycle.S34.blocked-restart-preserves-mainpid` | `BEHAVIOR` | `real-path` | The blocked restart preserves `MainPID:starttime`. |
+| S34 | `system-lifecycle.S34.full-filesystem-inspect-warns-and-succeeds` | `BEHAVIOR` | `real-path` | Root inspect warns and succeeds on the full filesystem. |
+| S34 | `system-lifecycle.S34.inspect-warning-preserves-mainpid` | `BEHAVIOR` | `real-path` | Warning-only inspect preserves `MainPID:starttime`. |
+| S34 | `system-lifecycle.S34.failed-probe-leaves-no-residue` | `BEHAVIOR` | `real-path` | The service-identity probe leaves no temporary file. |
+| S34 | `system-lifecycle.S34.restored-filesystem-restart-changes-mainpid` | `BEHAVIOR` | `real-path` | Restored capacity permits restart with a new identity. |
+| S34 | `system-lifecycle.S34.baseline-inspect-matches-executable` | `BEHAVIOR` | `real-path` | Effective `User=` and `Group=` probe succeeds and executable identity matches. |
+| S34 | `system-lifecycle.S34.baseline-inspect-preserves-mainpid` | `BEHAVIOR` | `real-path` | Baseline inspect changes no process identity. |
+| S34 | `system-lifecycle.S34.replaced-executable-warns` | `BEHAVIOR` | `real-path` | Atomic executable replacement produces a drift warning. |
+| S34 | `system-lifecycle.S34.drift-inspect-preserves-mainpid` | `BEHAVIOR` | `real-path` | Drift inspection changes no process identity. |
+| S34 | `system-lifecycle.S34.server-race-collected-original-pid` | `BEHAVIOR` | `real-path` | The external `ps` boundary pauses after inspect selects the original server PID. |
+| S34 | `system-lifecycle.S34.server-race-observes-one-new-mainpid` | `BEHAVIOR` | `real-path` | Exactly one real restart produces one new identity. |
+| S34 | `system-lifecycle.S34.server-race-collected-pids-retire-before-ps` | `BEHAVIOR` | `real-path` | Every collected server PID exits before the real `ps` resumes. |
+| S34 | `system-lifecycle.S34.server-race-inspect-completes` | `BEHAVIOR` | `real-path` | Inspect accepts the real no-selection result after server replacement. |
+| S34 | `system-lifecycle.S34.server-race-output-excludes-retired-mainpid` | `BEHAVIOR` | `real-path` | Process context excludes the retired MainPID. |
+| S34 | `system-lifecycle.S34.server-race-reports-unstable-not-drift` | `BEHAVIOR` | `real-path` | The changed snapshot reports unstable rather than drift. |
+| S34 | `system-lifecycle.S34.socat-available` | `PREREQUISITE` | `direct-inspection` | A real `socat` client is available for client churn. |
+| S34 | `system-lifecycle.S34.client-baseline-reports-socat-pid` | `BEHAVIOR` | `real-path` | Baseline inspect reports the connected `socat` PID. |
+| S34 | `system-lifecycle.S34.client-race-collected-socat-pid` | `BEHAVIOR` | `real-path` | The client `ps` boundary pauses after selecting the `socat` PID. |
+| S34 | `system-lifecycle.S34.client-race-socat-disconnects` | `BEHAVIOR` | `real-path` | The real client disconnects before `ps` resumes. |
+| S34 | `system-lifecycle.S34.client-race-inspect-completes` | `BEHAVIOR` | `real-path` | Inspect accepts the real no-selection result after client disconnect. |
+| S34 | `system-lifecycle.S34.client-race-output-excludes-socat-pid` | `BEHAVIOR` | `real-path` | Process context excludes the disconnected client PID. |
+| S34 | `system-lifecycle.S34.client-race-preserves-server-snapshot` | `BEHAVIOR` | `real-path` | Client churn leaves the server snapshot stable. |
+| S34 | `system-lifecycle.S34.timeout-cleanup-reaches-synchronization-line` | `BEHAVIOR` | `real-path` | The cleanup phase reaches the same synchronization line. |
+| S34 | `system-lifecycle.S34.timeout-cleanup-reaps-inspect` | `BEHAVIOR` | `real-path` | Bounded cleanup resumes, terminates, and reaps inspect. |
+| S34 | `system-lifecycle.S34.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | `real-path` | Cleanup performs no restart. |
+| S34 | `system-lifecycle.S34.fixture-cleanup-complete` | `BEHAVIOR` | `real-path` | No service, executable, mount, drop-in, or identity residue remains. |
 
 ## Completeness Cross-check
 
 | Source Shape | Count |
 | --- | ---: |
-| Static assertion call sites | 77 |
+| Static assertion call sites | 128 |
 | Repeated pipeline and boundary-helper occurrences | 10 |
-| Current assertion branches | 87 |
+| Current assertion branches | 138 |
 | Added P00 checks | 4 |
-| Added prerequisite or required conditions | 11 |
-| Fixed catalog total | 102 |
+| Added prerequisite or required conditions | 12 |
+| Expected catalog counts | See [`reporting-counts.csv`](reporting-counts.csv) |
 
 The mapping is complete only while every source assertion branch maps once,
 every early return maps to its governing identity, repeated functions retain
-their STEP-specific IDs, and the pipeline remains S01 through S32.
+their STEP-specific IDs, and the pipeline remains S01 through S34.

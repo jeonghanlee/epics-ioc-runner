@@ -21,15 +21,15 @@ help: ## Show available targets
 
 ## System CLI install: ioc-runner + completion + RHEL secure_path symlink.
 ## Delegates to setup-system-infra.bash STEP 7 (no --full). Invoked from $(TOP)
-## with a relative script path and sudo internally, so it works in place even
-## on an NFS root_squash home (where 'sudo make' cannot read the includes).
+## through a local staging launcher, so root never reads the source checkout on
+## an NFS root_squash home (where 'sudo make' cannot read the includes).
 install:
-	$(QUIET) cd "$(TOP)" && if sudo -n true 2>/dev/null; then sudo -n bash bin/setup-system-infra.bash; else printf "%s\n" "sudo credentials are not cached; run one of:" "  sudo -v && make install" "  sudo make install"; exit 1; fi
+	$(QUIET) cd "$(TOP)" && bin/run-setup-system-infra.bash
 
 ## Full system infrastructure setup: accounts, group, dirs, sudoers, systemd,
-## logrotate, plus the CLI install above. Same relative-path sudo invocation.
+## logrotate, plus the CLI install above. Uses the same staging launcher.
 setup:
-	$(QUIET) cd "$(TOP)" && if sudo -n true 2>/dev/null; then sudo -n bash bin/setup-system-infra.bash --full; else printf "%s\n" "sudo credentials are not cached; run one of:" "  sudo -v && make setup" "  sudo make setup"; exit 1; fi
+	$(QUIET) cd "$(TOP)" && bin/run-setup-system-infra.bash --full
 
 ## User-home install: ioc-runner + completion under $(HOME)/.local (no root).
 install.user:

@@ -48,6 +48,8 @@ declare -g SYSTEM_INFRA_READY=0
 declare -g -a SYSTEM_CATALOG_ROWS=(
     "P00|system-lifecycle.P00.epics-base-set|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.lsof-available|REQUIRED|direct-inspection"
+    "P00|system-lifecycle.P00.ps-available|REQUIRED|direct-inspection"
+    "P00|system-lifecycle.P00.runuser-available|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.root-invocation|REQUIRED|direct-inspection"
     "P00|system-lifecycle.P00.selected-runner-executable|REQUIRED|direct-inspection"
     "S01|system-lifecycle.S01.system-configuration-directory-exists-conf-dir|REQUIRED|direct-inspection"
@@ -103,6 +105,14 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S26|system-lifecycle.S26.identifier-contained-fatal-emitted|BEHAVIOR|real-path"
     "S26|system-lifecycle.S26.broken-softioc-fatal-pre-init-exit-1|BEHAVIOR|real-path"
     "S26|system-lifecycle.S26.broken-softioc-failed-to-initialize-verdict|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.restart-probe-verified-softioc-child-sigkill-delivered|REQUIRED|real-path"
+    "S26|system-lifecycle.S26.restart-probe-child-death-banner-count-increases-once|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.restart-probe-replacement-child-has-new-identity|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.restart-probe-replacement-child-reaches-readiness-after-death|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.restart-probe-unit-remains-active|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.restart-probe-procserv-mainpid-remains-unchanged|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.restart-probe-systemd-nrestarts-remains-unchanged|BEHAVIOR|real-path"
+    "S26|system-lifecycle.S26.restart-probe-recovery-remains-stable-for-three-seconds|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.softioc-available|PREREQUISITE|direct-inspection"
     "S27|system-lifecycle.S27.probe-user-name-available|PREREQUISITE|direct-inspection"
     "S27|system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable|BEHAVIOR|real-path"
@@ -148,6 +158,49 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S31|system-lifecycle.S31.symlink-strictly-removed-disable|BEHAVIOR|real-path"
     "S32|system-lifecycle.S32.configuration-file-safely-removed|BEHAVIOR|real-path"
     "S32|system-lifecycle.S32.service-completely-stopped-inactive|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-install-selects-last-valid-chdir|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-deployed-file-retains-duplicate-assignments|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-service-active|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-runtime-lookup-selects-last-valid-extra-pattern|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-systemd-emits-accepted-fixture-matrix|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-systemd-emits-last-value-with-embedded-equals|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-systemd-uses-last-chdir|BEHAVIOR|real-path"
+    "S33|system-lifecycle.S33.conf-parser-probe-cleanup-complete|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.identity-names-available|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.service-primary-group-differs-from-unit-group|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.tmpfs-fixture-ready|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.procserv-copy-ready|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.probe-ioc-installed|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.full-filesystem-start-blocked|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.blocked-start-remains-inactive|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.restored-filesystem-starts-active|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.full-filesystem-restart-blocked|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.blocked-restart-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.full-filesystem-inspect-warns-and-succeeds|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.inspect-warning-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.failed-probe-leaves-no-residue|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.restored-filesystem-restart-changes-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.baseline-inspect-matches-executable|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.baseline-inspect-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.replaced-executable-warns|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.drift-inspect-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-collected-original-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-observes-one-new-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-collected-pids-retire-before-ps|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-inspect-completes|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-output-excludes-retired-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.server-race-reports-unstable-not-drift|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.socat-available|PREREQUISITE|direct-inspection"
+    "S34|system-lifecycle.S34.client-baseline-reports-socat-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-collected-socat-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-socat-disconnects|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-inspect-completes|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-output-excludes-socat-pid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.client-race-preserves-server-snapshot|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.timeout-cleanup-reaches-synchronization-line|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.timeout-cleanup-reaps-inspect|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.timeout-cleanup-preserves-mainpid|BEHAVIOR|real-path"
+    "S34|system-lifecycle.S34.fixture-cleanup-complete|BEHAVIOR|real-path"
 )
 declare -g -A SYSTEM_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -189,6 +242,37 @@ declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 declare -g SUDOERS_FILE_PATH="/etc/sudoers.d/10-epics-ioc"
 declare -g T5_CREATED_USER=""
 declare -g T1_CREATED_USER=""
+declare -gr RESTART_PROBE_IOC_NAME="RestartProbeIOC-SYS"
+declare -gr CONF_PARSER_PROBE_IOC_NAME="ConfParserProbeIOC-SYS"
+declare -gr IOC_READY_MARKER="All initialization complete"
+declare -gr IOC_DEATH_BANNER="@@@ Child process is shutting down"
+declare -g RESTART_PROBE_CLEANUP_REQUIRED=0
+declare -g RESTART_PROBE_CLEANUP_FAILED=0
+declare -g CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+declare -g CONF_PARSER_PROBE_CLEANUP_FAILED=0
+# These globals are consumed by the separately sourced M10 system helper.
+# shellcheck disable=SC2034
+declare -gr M10_SYSTEM_IOC_NAME="M10ReliabilityIOC-SYS"
+# shellcheck disable=SC2034
+declare -gr M10_SERVICE_USER="epics-m10-service"
+# shellcheck disable=SC2034
+declare -gr M10_OPERATOR_USER="epics-m10-operator"
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_DROPIN_DIR=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_MOUNT_DIR=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_PROCSERV_COPY=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_INSPECT_PID=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_CLIENT_PID=""
+# shellcheck disable=SC2034
+declare -g M10_SYSTEM_CLEANUP_REQUIRED=0
+# shellcheck disable=SC2034
+declare -g M10_SERVICE_USER_CREATED=0
+# shellcheck disable=SC2034
+declare -g M10_OPERATOR_USER_CREATED=0
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
@@ -250,7 +334,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 32; index += 1)); do
+    for ((index = 1; index <= 34; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -281,6 +365,7 @@ function initialize_reporting {
         fi
     done
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function next_current_check_id {
@@ -344,22 +429,36 @@ function close_catalog_from_index {
 function run_preflight {
     local epics_base_set="false"
     local lsof_available="false"
+    local ps_available="false"
+    local runuser_available="false"
     local root_invocation="false"
     local runner_executable="false"
 
     CURRENT_STEP_ID=P00
     CURRENT_STEP_CHECK_INDEX=0
     [[ -n "${EPICS_BASE:-}" ]] && epics_base_set="true"
+    verify_state true "${epics_base_set}" "EPICS_BASE is set"
+    if [[ "${epics_base_set}" != "true" ]]; then
+        close_catalog_from_index 1 SKIP \
+            "requires ${SUITE_ID}.P00.epics-base-set"
+        return 1
+    fi
+
     command -v lsof >/dev/null 2>&1 && lsof_available="true"
+    [[ -x "$(command -v ps 2>/dev/null)" ]] && ps_available="true"
+    [[ -x /usr/sbin/runuser ]] && runuser_available="true"
     [[ "${EUID}" -eq 0 ]] && root_invocation="true"
     [[ -x "${RUNNER_SCRIPT}" ]] && runner_executable="true"
-    verify_state true "${epics_base_set}" "EPICS_BASE is set"
     verify_state true "${lsof_available}" "lsof is available"
+    verify_state true "${ps_available}" "ps is available and executable"
+    verify_state true "${runuser_available}" "runuser is available at /usr/sbin/runuser"
     verify_state true "${root_invocation}" "Effective user is root"
     verify_state true "${runner_executable}" "Selected runner is executable"
-    if [[ "${epics_base_set}" != "true" || "${lsof_available}" != "true" ||
-          "${root_invocation}" != "true" || "${runner_executable}" != "true" ]]; then
-        close_catalog_from_index 4 SKIP "requires system lifecycle P00"
+    if [[ "${lsof_available}" != "true" || "${ps_available}" != "true" ||
+          "${runuser_available}" != "true" ||
+          "${root_invocation}" != "true" ||
+          "${runner_executable}" != "true" ]]; then
+        close_catalog_from_index 6 SKIP "requires system lifecycle P00"
         return 1
     fi
 }
@@ -381,6 +480,28 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
+
+    if ! _cleanup_m10_system; then
+        final_status=1
+        _log "ERROR" "Failed to clean up the M10 system reliability fixture."
+    fi
+
+    if ! _cleanup_restart_probe; then
+        final_status=1
+    fi
+    if (( RESTART_PROBE_CLEANUP_FAILED )); then
+        final_status=1
+    fi
+    if ! _cleanup_conf_parser_probe; then
+        final_status=1
+    fi
+    if (( CONF_PARSER_PROBE_CLEANUP_FAILED )); then
+        final_status=1
+    fi
 
     # T5 may create a throwaway non-ioc account; remove only the one this run
     # created (a pre-existing account of the same name is left untouched).
@@ -484,6 +605,49 @@ function wait_for_state {
     return 1
 }
 
+# Remove the dedicated restart probe only when this run may have installed it.
+# Keep the flag set on failure so the EXIT handler can retry once.
+function _cleanup_restart_probe {
+    local conf_file="${CONF_DIR}/${RESTART_PROBE_IOC_NAME}.conf"
+
+    if (( RESTART_PROBE_CLEANUP_REQUIRED == 0 )); then
+        return 0
+    fi
+    if [[ ! -e "${conf_file}" && ! -L "${conf_file}" ]]; then
+        RESTART_PROBE_CLEANUP_REQUIRED=0
+        return 0
+    fi
+    if bash "${RUNNER_SCRIPT}" remove "${RESTART_PROBE_IOC_NAME}" >/dev/null 2>&1; then
+        RESTART_PROBE_CLEANUP_REQUIRED=0
+        return 0
+    fi
+
+    RESTART_PROBE_CLEANUP_FAILED=1
+    _log "ERROR" "Failed to remove restart probe IOC ${RESTART_PROBE_IOC_NAME}."
+    return 1
+}
+
+# Remove the M5 parser agreement probe only when this run may have installed it.
+function _cleanup_conf_parser_probe {
+    local conf_file="${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf"
+
+    if (( CONF_PARSER_PROBE_CLEANUP_REQUIRED == 0 )); then
+        return 0
+    fi
+    if [[ ! -e "${conf_file}" && ! -L "${conf_file}" ]]; then
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+        return 0
+    fi
+    if bash "${RUNNER_SCRIPT}" remove "${CONF_PARSER_PROBE_IOC_NAME}" >/dev/null 2>&1; then
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+        return 0
+    fi
+
+    CONF_PARSER_PROBE_CLEANUP_FAILED=1
+    _log "ERROR" "Failed to remove parser agreement probe IOC ${CONF_PARSER_PROBE_IOC_NAME}."
+    return 1
+}
+
 function verify_infrastructure {
     local step="$1"
     print_divider
@@ -552,6 +716,16 @@ function cleanup_previous_state {
     print_sub_divider
 
     bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}" >/dev/null 2>&1 || true
+    if [[ -e "${CONF_DIR}/${RESTART_PROBE_IOC_NAME}.conf" ||
+          -L "${CONF_DIR}/${RESTART_PROBE_IOC_NAME}.conf" ]]; then
+        RESTART_PROBE_CLEANUP_REQUIRED=1
+        _cleanup_restart_probe
+    fi
+    if [[ -e "${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf" ||
+          -L "${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf" ]]; then
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=1
+        _cleanup_conf_parser_probe
+    fi
     _log "SUCCESS" "Cleaned up residual processes and configurations."
 }
 
@@ -859,8 +1033,12 @@ function test_console_attach {
     done
     verify_state "true" "${con_ok}" "con utility is available"
 
+    local ss_lx_out=""
     local socket_listening="false"
-    if ss -lx 2>/dev/null | grep -q "${UDS_PATH}"; then socket_listening="true"; fi
+    if ss_lx_out=$(ss -lx 2>/dev/null) &&
+       grep -qF -- "${UDS_PATH}" <<< "${ss_lx_out}"; then
+        socket_listening="true"
+    fi
     verify_state "true" "${socket_listening}" "UDS socket is in listening state"
 }
 
@@ -1068,7 +1246,486 @@ EOF
     verify_state "true" "${emitted}" "${assertion_name}: fixture emitted"
 }
 
-# Exercises each benign FATAL token boundary and a true pre-init fatal token.
+function _restart_probe_file_size {
+    local path="$1"
+    local size="0"
+
+    if [[ -f "${path}" ]]; then
+        size=$(stat -c '%s' "${path}" 2>/dev/null || printf "0")
+        [[ "${size}" =~ ^[0-9]+$ ]] || size="0"
+    fi
+    printf '%s' "${size}"
+}
+
+function _restart_probe_file_inode {
+    local path="$1"
+    local inode=""
+
+    if [[ -f "${path}" ]]; then
+        inode=$(stat -c '%i' "${path}" 2>/dev/null || printf "")
+        [[ "${inode}" =~ ^[0-9]+$ ]] || inode=""
+    fi
+    printf '%s' "${inode}"
+}
+
+function _restart_probe_file_tailhash {
+    local path="$1"
+    local end_offset="$2"
+    local byte_count=64
+    local start_offset=0
+    local hash=""
+
+    if [[ ! -r "${path}" || "${end_offset}" -le 0 ]]; then
+        printf '%s' ''
+        return 0
+    fi
+    if [[ "${end_offset}" -lt "${byte_count}" ]]; then
+        byte_count="${end_offset}"
+    fi
+    start_offset=$((end_offset - byte_count))
+    if ! hash=$(dd if="${path}" bs=1 count="${byte_count}" skip="${start_offset}" \
+                      iflag=skip_bytes,count_bytes status=none 2>/dev/null \
+                      | sha256sum 2>/dev/null | cut -d' ' -f1); then
+        hash=""
+    fi
+    printf '%s' "${hash}"
+}
+
+# Read the post-boundary window from the active log, or from the current
+# rotated copy followed by the active log after copytruncate. The rotated copy
+# must contain the captured tail fingerprint before it can supply evidence.
+function _restart_probe_log_window {
+    local log_file="$1"
+    local start_offset="$2"
+    local start_inode="$3"
+    local start_tailhash="$4"
+    local archive_file=""
+    local archive_snapshot="${WORKSPACE}/restart_probe_ioc/rotated.log"
+    local archive_size=""
+    local archive_tailhash=""
+    local archive_window=""
+    local active_window=""
+    local current_size=""
+    local current_inode=""
+    local current_tailhash=""
+    local current_end_tailhash=""
+    local post_size=""
+    local post_inode=""
+    local post_boundary_tailhash=""
+    local post_end_tailhash=""
+    local rotation_detected="false"
+
+    [[ -r "${log_file}" && "${start_offset}" =~ ^[1-9][0-9]*$ &&
+       "${start_inode}" =~ ^[1-9][0-9]*$ &&
+       "${start_tailhash}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    current_size=$(_restart_probe_file_size "${log_file}")
+    current_inode=$(_restart_probe_file_inode "${log_file}")
+    [[ "${current_size}" =~ ^[0-9]+$ && "${current_inode}" =~ ^[1-9][0-9]*$ ]] || return 1
+    if [[ "${current_inode}" != "${start_inode}" ]]; then
+        rotation_detected="true"
+    fi
+    if [[ "${current_size}" -lt "${start_offset}" ]]; then
+        rotation_detected="true"
+    fi
+    if [[ "${rotation_detected}" == "false" ]]; then
+        current_tailhash=$(_restart_probe_file_tailhash "${log_file}" "${start_offset}")
+        [[ "${current_tailhash}" =~ ^[0-9a-f]{64}$ ]] || return 1
+        if [[ "${current_tailhash}" != "${start_tailhash}" ]]; then
+            rotation_detected="true"
+        fi
+    fi
+    if [[ "${current_size}" -gt 0 ]]; then
+        current_end_tailhash=$(_restart_probe_file_tailhash "${log_file}" "${current_size}")
+        [[ "${current_end_tailhash}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    fi
+
+    if [[ "${rotation_detected}" == "false" ]]; then
+        active_window=$(tail -c "+$((start_offset + 1))" "${log_file}" 2>/dev/null) || return 1
+    else
+        if [[ -r "${log_file}.1" ]]; then
+            archive_file="${log_file}.1"
+        elif [[ -r "${log_file}.1.gz" ]]; then
+            if ! gzip -cd -- "${log_file}.1.gz" > "${archive_snapshot}" 2>/dev/null; then
+                return 1
+            fi
+            archive_file="${archive_snapshot}"
+        else
+            return 1
+        fi
+        archive_size=$(_restart_probe_file_size "${archive_file}")
+        [[ "${archive_size}" -ge "${start_offset}" ]] || return 1
+        archive_tailhash=$(_restart_probe_file_tailhash "${archive_file}" "${start_offset}")
+        [[ "${archive_tailhash}" == "${start_tailhash}" ]] || return 1
+        archive_window=$(tail -c "+$((start_offset + 1))" "${archive_file}" 2>/dev/null) || return 1
+        active_window=$(cat -- "${log_file}" 2>/dev/null) || return 1
+    fi
+
+    post_size=$(_restart_probe_file_size "${log_file}")
+    post_inode=$(_restart_probe_file_inode "${log_file}")
+    [[ "${post_size}" =~ ^[0-9]+$ && "${post_inode}" == "${current_inode}" &&
+       "${post_size}" -ge "${current_size}" ]] || return 1
+    if [[ "${current_size}" -gt 0 ]]; then
+        post_end_tailhash=$(_restart_probe_file_tailhash "${log_file}" "${current_size}")
+        [[ "${post_end_tailhash}" == "${current_end_tailhash}" ]] || return 1
+    fi
+    if [[ "${rotation_detected}" == "false" ]]; then
+        post_boundary_tailhash=$(_restart_probe_file_tailhash "${log_file}" "${start_offset}")
+        [[ "${post_boundary_tailhash}" == "${start_tailhash}" ]] || return 1
+        printf '%s' "${active_window}"
+    else
+        printf '%s\n%s' "${archive_window}" "${active_window}"
+    fi
+}
+
+# Return the procServ log signals observed after the captured boundary as
+# "<death-count> <ready-after-death>".
+function _restart_probe_log_signals {
+    local log_file="$1"
+    local start_offset="$2"
+    local start_inode="$3"
+    local start_tailhash="$4"
+    local window=""
+    local death_count=0
+    local ready_after_death="false"
+
+    window=$(_restart_probe_log_window \
+        "${log_file}" "${start_offset}" "${start_inode}" "${start_tailhash}") || return 1
+    death_count=$(grep -aFc -- "${IOC_DEATH_BANNER}" 2>/dev/null <<< "${window}" || true)
+    if awk -v death="${IOC_DEATH_BANNER}" -v ready="${IOC_READY_MARKER}" '
+        index($0, death) { death_seen = 1; next }
+        death_seen && index($0, ready) { ready_seen = 1; exit }
+        END { exit ready_seen ? 0 : 1 }
+    ' <<< "${window}"; then
+        ready_after_death="true"
+    fi
+    printf '%s %s' "${death_count}" "${ready_after_death}"
+}
+
+function _restart_probe_process_starttime {
+    local pid="$1"
+    local stat_line=""
+    local stat_rest=""
+    local -a stat_fields=()
+
+    [[ "${pid}" =~ ^[1-9][0-9]*$ && -r "/proc/${pid}/stat" ]] || return 1
+    IFS= read -r stat_line < "/proc/${pid}/stat" || return 1
+    stat_rest="${stat_line##*) }"
+    read -r -a stat_fields <<< "${stat_rest}"
+    (( ${#stat_fields[@]} > 19 )) || return 1
+    [[ "${stat_fields[19]}" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' "${stat_fields[19]}"
+}
+
+# Identify exactly one direct procServ child and prove that it is the selected
+# softIoc executable before returning its PID and PID:starttime identity.
+function _restart_probe_softioc_child {
+    local result_pid_name="$1"
+    local result_identity_name="$2"
+    local main_pid="$3"
+    local softioc_bin="$4"
+    local children_line=""
+    local child_pid=""
+    local child_ppid=""
+    local child_starttime=""
+    local child_exe_identity=""
+    local expected_exe_identity=""
+    local key=""
+    local value=""
+    local -a child_pids=()
+
+    [[ "${main_pid}" =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ -r "/proc/${main_pid}/task/${main_pid}/children" ]] || return 1
+    IFS= read -r children_line < "/proc/${main_pid}/task/${main_pid}/children" || true
+    read -r -a child_pids <<< "${children_line}"
+    (( ${#child_pids[@]} == 1 )) || return 1
+    child_pid="${child_pids[0]}"
+    [[ "${child_pid}" =~ ^[1-9][0-9]*$ && -r "/proc/${child_pid}/status" ]] || return 1
+    while read -r key value _; do
+        if [[ "${key}" == "PPid:" ]]; then
+            child_ppid="${value}"
+            break
+        fi
+    done < "/proc/${child_pid}/status"
+    [[ "${child_ppid}" == "${main_pid}" ]] || return 1
+    child_exe_identity=$(stat -Lc '%d:%i' "/proc/${child_pid}/exe" 2>/dev/null || printf "")
+    expected_exe_identity=$(stat -Lc '%d:%i' "${softioc_bin}" 2>/dev/null || printf "")
+    [[ -n "${child_exe_identity}" && "${child_exe_identity}" == "${expected_exe_identity}" ]] || return 1
+    child_starttime=$(_restart_probe_process_starttime "${child_pid}") || return 1
+
+    printf -v "${result_pid_name}" '%s' "${child_pid}"
+    printf -v "${result_identity_name}" '%s:%s' "${child_pid}" "${child_starttime}"
+}
+
+function _restart_probe_systemd_snapshot {
+    local result_state_name="$1"
+    local result_mainpid_name="$2"
+    local result_nrestarts_name="$3"
+    local unit="$4"
+    local output=""
+    local key=""
+    local value=""
+    local state=""
+    local mainpid=""
+    local nrestarts=""
+
+    output=$("${SYSTEMCTL_CMD[@]}" show "${unit}" \
+        --property=ActiveState --property=MainPID --property=NRestarts 2>/dev/null) || return 1
+    while IFS='=' read -r key value; do
+        case "${key}" in
+            ActiveState) state="${value}" ;;
+            MainPID) mainpid="${value}" ;;
+            NRestarts) nrestarts="${value}" ;;
+        esac
+    done <<< "${output}"
+    [[ -n "${state}" && "${mainpid}" =~ ^[0-9]+$ && "${nrestarts}" =~ ^[0-9]+$ ]] || return 1
+    printf -v "${result_state_name}" '%s' "${state}"
+    printf -v "${result_mainpid_name}" '%s' "${mainpid}"
+    printf -v "${result_nrestarts_name}" '%s' "${nrestarts}"
+}
+
+# Verify that MainPID is the procServ executable pinned in the deployed system
+# template and return its PID:starttime identity.
+function _restart_probe_procserv_identity {
+    local result_identity_name="$1"
+    local mainpid="$2"
+    local template_file="${SYSTEMD_DIR}/epics-@.service"
+    local line=""
+    local procserv_bin=""
+    local process_exe_identity=""
+    local expected_exe_identity=""
+    local starttime=""
+
+    [[ "${mainpid}" =~ ^[1-9][0-9]*$ && -r "${template_file}" ]] || return 1
+    while IFS= read -r line; do
+        if [[ "${line}" == ExecStart=* ]]; then
+            procserv_bin="${line#ExecStart=}"
+            procserv_bin="${procserv_bin%% *}"
+            break
+        fi
+    done < "${template_file}"
+    [[ -x "${procserv_bin}" ]] || return 1
+    process_exe_identity=$(stat -Lc '%d:%i' "/proc/${mainpid}/exe" 2>/dev/null || printf "")
+    expected_exe_identity=$(stat -Lc '%d:%i' "${procserv_bin}" 2>/dev/null || printf "")
+    [[ -n "${process_exe_identity}" &&
+       "${process_exe_identity}" == "${expected_exe_identity}" ]] || return 1
+    starttime=$(_restart_probe_process_starttime "${mainpid}") || return 1
+    printf -v "${result_identity_name}" '%s:%s' "${mainpid}" "${starttime}"
+}
+
+# Kill a verified healthy softIoc child and prove that procServ, rather than
+# systemd, creates the ready and stable replacement child.
+function _run_restart_supervision_probe {
+    local softioc_bin="$1"
+    local probe_dir="${WORKSPACE}/restart_probe_ioc"
+    local probe_conf="${WORKSPACE}/${RESTART_PROBE_IOC_NAME}.conf"
+    local log_file="${SYSTEM_LOG_DIR}/${RESTART_PROBE_IOC_NAME}.log"
+    local unit="epics-@${RESTART_PROBE_IOC_NAME}.service"
+    local start_output=""
+    local start_rc=0
+    local signal_delivered="false"
+    local death_once="false"
+    local replacement_new="false"
+    local replacement_ready="false"
+    local unit_remained_active="true"
+    local mainpid_unchanged="true"
+    local nrestarts_unchanged="true"
+    local recovery_stable="false"
+    local baseline_state=""
+    local baseline_mainpid=""
+    local baseline_main_identity=""
+    local baseline_nrestarts=""
+    local baseline_child_pid=""
+    local baseline_child_identity=""
+    local confirm_child_pid=""
+    local confirm_child_identity=""
+    local confirm_state=""
+    local confirm_mainpid=""
+    local confirm_main_identity=""
+    local confirm_nrestarts=""
+    local replacement_child_identity=""
+    local current_state=""
+    local current_mainpid=""
+    local current_main_identity=""
+    local current_nrestarts=""
+    local current_child_pid=""
+    local current_child_identity=""
+    local log_start_offset=0
+    local log_start_inode=""
+    local log_start_tailhash=""
+    local signals=""
+    local death_count=0
+    local ready_after_death="false"
+    local log_sample_valid="false"
+    local deadline=0
+    local sample=0
+    local stable_samples=0
+    local stable_deadline=0
+
+    print_sub_divider
+    _log "INFO" "S26 restart supervision probe: verified softIoc child SIGKILL"
+
+    rm -f -- "${log_file}" "${log_file}.1" "${log_file}.1.gz"
+    mkdir -p "${probe_dir}"
+    chown "${OWNER_WORKSPACE}" "${probe_dir}"
+    chmod 2775 "${probe_dir}"
+    cat << EOF > "${probe_dir}/st.cmd"
+#!${softioc_bin}
+iocInit()
+EOF
+    chown "${OWNER_WORKSPACE}" "${probe_dir}/st.cmd"
+    chmod 0750 "${probe_dir}/st.cmd"
+    cat << EOF > "${probe_conf}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="${probe_dir}"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
+
+    RESTART_PROBE_CLEANUP_REQUIRED=1
+    if ! bash "${RUNNER_SCRIPT}" -f install "${probe_conf}" >/dev/null 2>&1; then
+        start_rc=1
+        _log "ERROR" "Restart probe installation failed."
+    else
+        start_output=$(bash "${RUNNER_SCRIPT}" start "${RESTART_PROBE_IOC_NAME}" 2>&1) || start_rc=$?
+        if (( start_rc != 0 )); then
+            _log "ERROR" "Restart probe startup failed: ${start_output}"
+        fi
+    fi
+
+    if (( start_rc == 0 )) && grep -qF "successfully started." <<< "${start_output}"; then
+        if _restart_probe_systemd_snapshot \
+               baseline_state baseline_mainpid baseline_nrestarts "${unit}" &&
+           [[ "${baseline_state}" == "active" ]] &&
+           _restart_probe_procserv_identity baseline_main_identity "${baseline_mainpid}" &&
+           _restart_probe_softioc_child baseline_child_pid baseline_child_identity \
+               "${baseline_mainpid}" "${softioc_bin}" && [[ -r "${log_file}" ]]; then
+            log_start_offset=$(_restart_probe_file_size "${log_file}")
+            log_start_inode=$(_restart_probe_file_inode "${log_file}")
+            log_start_tailhash=$(_restart_probe_file_tailhash "${log_file}" "${log_start_offset}")
+            if [[ "${log_start_offset}" =~ ^[1-9][0-9]*$ &&
+                  "${log_start_inode}" =~ ^[1-9][0-9]*$ &&
+                  "${log_start_tailhash}" =~ ^[0-9a-f]{64}$ ]] &&
+               _restart_probe_systemd_snapshot \
+                   confirm_state confirm_mainpid confirm_nrestarts "${unit}" &&
+               [[ "${confirm_state}" == "active" &&
+                  "${confirm_mainpid}" == "${baseline_mainpid}" &&
+                  "${confirm_nrestarts}" == "${baseline_nrestarts}" ]] &&
+               _restart_probe_procserv_identity confirm_main_identity "${confirm_mainpid}" &&
+               [[ "${confirm_main_identity}" == "${baseline_main_identity}" ]] &&
+               _restart_probe_softioc_child confirm_child_pid confirm_child_identity \
+                    "${baseline_mainpid}" "${softioc_bin}" &&
+               [[ "${confirm_child_pid}" == "${baseline_child_pid}" ]] &&
+               [[ "${confirm_child_identity}" == "${baseline_child_identity}" ]] &&
+               kill -KILL -- "${confirm_child_pid}"; then
+                signal_delivered="true"
+            fi
+        fi
+    fi
+
+    if [[ "${signal_delivered}" == "true" ]]; then
+        deadline=$((SECONDS + 30))
+        while (( SECONDS < deadline )); do
+            current_state=""
+            current_mainpid=""
+            current_nrestarts=""
+            current_main_identity=""
+            _restart_probe_systemd_snapshot \
+                current_state current_mainpid current_nrestarts "${unit}" || true
+            _restart_probe_procserv_identity current_main_identity "${current_mainpid}" || true
+            [[ "${current_state}" == "active" ]] || unit_remained_active="false"
+            [[ "${current_main_identity}" == "${baseline_main_identity}" ]] || mainpid_unchanged="false"
+            [[ "${current_nrestarts}" == "${baseline_nrestarts}" ]] || nrestarts_unchanged="false"
+
+            current_child_pid=""
+            current_child_identity=""
+            _restart_probe_softioc_child current_child_pid current_child_identity \
+                "${current_mainpid}" "${softioc_bin}" || true
+            log_sample_valid="false"
+            if signals=$(_restart_probe_log_signals \
+                    "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}"); then
+                log_sample_valid="true"
+                read -r death_count ready_after_death <<< "${signals}"
+                death_once="false"
+                [[ "${death_count}" == "1" ]] && death_once="true"
+            fi
+            if [[ "${current_child_pid}" =~ ^[1-9][0-9]*$ &&
+                  -n "${current_child_identity}" &&
+                  "${current_child_identity}" != "${baseline_child_identity}" ]]; then
+                replacement_new="true"
+                replacement_child_identity="${current_child_identity}"
+            fi
+            if [[ "${log_sample_valid}" == "true" &&
+                  "${replacement_new}" == "true" && "${ready_after_death}" == "true" ]]; then
+                replacement_ready="true"
+            fi
+            if [[ "${death_once}" == "true" && "${replacement_ready}" == "true" ]]; then
+                break
+            fi
+            sleep 0.2
+        done
+
+        if [[ "${death_once}" == "true" && "${replacement_ready}" == "true" ]]; then
+            recovery_stable="true"
+            stable_deadline=$((SECONDS + 8))
+            while (( stable_samples < 15 && SECONDS < stable_deadline )); do
+                sleep 0.2
+                current_state=""
+                current_mainpid=""
+                current_nrestarts=""
+                current_main_identity=""
+                _restart_probe_systemd_snapshot \
+                    current_state current_mainpid current_nrestarts "${unit}" || true
+                _restart_probe_procserv_identity current_main_identity "${current_mainpid}" || true
+                [[ "${current_state}" == "active" ]] || unit_remained_active="false"
+                [[ "${current_main_identity}" == "${baseline_main_identity}" ]] || mainpid_unchanged="false"
+                [[ "${current_nrestarts}" == "${baseline_nrestarts}" ]] || nrestarts_unchanged="false"
+                current_child_pid=""
+                current_child_identity=""
+                _restart_probe_softioc_child current_child_pid current_child_identity \
+                    "${current_mainpid}" "${softioc_bin}" || true
+                if ! signals=$(_restart_probe_log_signals \
+                        "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}"); then
+                    continue
+                fi
+                read -r death_count ready_after_death <<< "${signals}"
+                if [[ "${current_child_identity}" != "${replacement_child_identity}" ||
+                      "${death_count}" != "1" || "${ready_after_death}" != "true" ||
+                      "${current_state}" != "active" ||
+                      "${current_main_identity}" != "${baseline_main_identity}" ||
+                      "${current_nrestarts}" != "${baseline_nrestarts}" ]]; then
+                    recovery_stable="false"
+                    break
+                fi
+                stable_samples=$((stable_samples + 1))
+            done
+            if (( stable_samples < 15 )); then
+                recovery_stable="false"
+            fi
+        fi
+    fi
+
+    _cleanup_restart_probe || true
+
+    verify_state "true" "${signal_delivered}" "Verified softIoc child receives SIGKILL"
+    if [[ "${signal_delivered}" != "true" ]]; then
+        for ((sample = 0; sample < 7; sample += 1)); do
+            record_current_state SKIP \
+                "requires ${SUITE_ID}.S26.restart-probe-verified-softioc-child-sigkill-delivered"
+        done
+        return 0
+    fi
+    verify_state "true" "${death_once}" "Child-death banner count increases once after the captured log boundary"
+    verify_state "true" "${replacement_new}" "Replacement softIoc child has a new PID:starttime identity"
+    verify_state "true" "${replacement_ready}" "Replacement child reaches readiness after the death banner"
+    verify_state "true" "${unit_remained_active}" "Unit remains active throughout child recovery"
+    verify_state "true" "${mainpid_unchanged}" "procServ MainPID and process identity remain unchanged"
+    verify_state "true" "${nrestarts_unchanged}" "systemd NRestarts remains unchanged"
+    verify_state "true" "${recovery_stable}" "Replacement child remains stable for three seconds"
+}
+
+# Exercises each benign FATAL token boundary, a true pre-init fatal token, and
+# procServ recovery of a verified healthy softIoc child.
 # The runner reads procServ logs as the invoking engineer, independent of
 # system-journal or adm group membership.
 function test_crash_detection {
@@ -1145,6 +1802,8 @@ EOF
     if printf "%s" "${output}" | grep -q "failed to initialize"; then msg_ok="true"; fi
     verify_state "true" "${rc_ok}" "Broken softIoc (FATAL pre-init) -> exit 1"
     verify_state "true" "${msg_ok}" "Broken softIoc -> failed-to-initialize verdict"
+
+    _run_restart_supervision_probe "${softioc_bin}"
 }
 
 # T1 (Phase E): crash detection without journal access. An operator who is an
@@ -1840,6 +2499,163 @@ function test_remove {
     verify_state "inactive" "${state}"   "Service completely stopped (inactive)"
 }
 
+# Verify that the runner and systemd select the same values from one deployed
+# configuration file. The first IOC_CHDIR is deliberately invalid, so install
+# succeeds only when the runner uses the last assignment. The probe process then
+# records the values systemd supplied from that same file.
+function test_conf_parser_systemd_agreement {
+    local step="$1"
+    local probe_dir="${WORKSPACE}/conf_parser_probe_ioc"
+    local probe_script="${probe_dir}/probe.bash"
+    local probe_output="${probe_dir}/runtime.env"
+    local probe_conf="${WORKSPACE}/${CONF_PARSER_PROBE_IOC_NAME}.conf"
+    local deployed_conf="${CONF_DIR}/${CONF_PARSER_PROBE_IOC_NAME}.conf"
+    local unit="epics-@${CONF_PARSER_PROBE_IOC_NAME}.service"
+    local install_rc=0
+    local start_rc=0
+    local remove_rc=0
+    local installed="false"
+    local duplicate_assignments="false"
+    local active="false"
+    local runtime_lookup_agrees="false"
+    local fixture_matrix="false"
+    local start_output=""
+    local emitted_value=""
+    local emitted_chdir=""
+    local state=""
+    local clean="false"
+    local attempt=0
+
+    print_divider
+    _log "INFO" "STEP ${step}: Runner and systemd Configuration Parser Agreement"
+    print_sub_divider
+
+    mkdir -p "${probe_dir}"
+    chown "${OWNER_WORKSPACE}" "${probe_dir}"
+    chmod 2775 "${probe_dir}"
+cat <<'EOF' > "${probe_script}"
+#!/usr/bin/env bash
+set -eu
+{
+    printf 'M5_SPACES=%s\n' "${M5_SPACES-missing}"
+    printf 'M5_TABS=%s\n' "${M5_TABS-missing}"
+    printf 'M5_SINGLE=%s\n' "${M5_SINGLE-missing}"
+    printf 'M5_DOUBLE=%s\n' "${M5_DOUBLE-missing}"
+    printf 'M5_CRLF=%s\n' "${M5_CRLF-missing}"
+    printf 'M5_EMPTY=<%s>\n' "${M5_EMPTY-missing}"
+    printf 'M5_EQUALS=%s\n' "${M5_EQUALS-missing}"
+    printf 'M5_DUP=%s\n' "${M5_DUP-missing}"
+    printf 'M5_REGEX=%s\n' "${M5_REGEX-missing}"
+    printf 'M5_PARSER_VALUE=%s\n' "${M5_PARSER_VALUE-missing}"
+    printf 'PWD=%s\n' "${PWD}"
+} > "${M5_PROBE_OUTPUT}"
+printf 'All initialization complete\n'
+while :; do
+    sleep 60
+done
+EOF
+    chown "${OWNER_WORKSPACE}" "${probe_script}"
+    chmod 0750 "${probe_script}"
+
+    cat <<EOF > "${probe_conf}"
+IOC_NAME="${CONF_PARSER_PROBE_IOC_NAME}"
+IOC_USER="${SYSTEM_USER}"
+IOC_GROUP="${SYSTEM_GROUP}"
+IOC_CHDIR="/missing/m5-first-assignment"
+IOC_CHDIR = "${probe_dir}"
+IOC_PORT=""
+IOC_CMD="./probe.bash"
+M5_PARSER_VALUE="first"
+M5_PARSER_VALUE = "final=systemd"
+M5_SPACES = "spaces"
+M5_SINGLE='single'
+M5_DOUBLE="double"
+M5_EMPTY=""
+M5_EQUALS="alpha=omega"
+M5_DUP="first"
+M5_DUP="last"
+M5_REGEX="net_ex\\\\(status\\\\)"
+M5_PROBE_OUTPUT="${probe_output}"
+CRASH_LOG_PATTERNS_EXTRA="("
+CRASH_LOG_PATTERNS_EXTRA = "Broken pipe|net_ex"
+EOF
+    printf 'M5_TABS\t=\t"tabs"\t\n' >> "${probe_conf}"
+    printf 'M5_CRLF="crlf"\r\n' >> "${probe_conf}"
+    chown "${OWNER_WORKSPACE}" "${probe_conf}"
+
+    CONF_PARSER_PROBE_CLEANUP_REQUIRED=1
+    bash "${RUNNER_SCRIPT}" -f install "${probe_conf}" >/dev/null 2>&1 || install_rc=$?
+    if (( install_rc == 0 )) && [[ -f "${deployed_conf}" ]]; then
+        installed="true"
+    fi
+    verify_state "true" "${installed}" \
+        "Parser probe install selects the last valid IOC_CHDIR assignment"
+
+    if [[ -f "${deployed_conf}" ]] &&
+       [[ $(grep -cE '^IOC_CHDIR[[:blank:]]*=' "${deployed_conf}" 2>/dev/null || true) -eq 2 ]] &&
+       [[ $(grep -cE '^M5_PARSER_VALUE[[:blank:]]*=' "${deployed_conf}" 2>/dev/null || true) -eq 2 ]] &&
+       [[ $(grep -cE '^CRASH_LOG_PATTERNS_EXTRA[[:blank:]]*=' "${deployed_conf}" 2>/dev/null || true) -eq 2 ]]; then
+        duplicate_assignments="true"
+    fi
+    verify_state "true" "${duplicate_assignments}" \
+        "Deployed parser probe file retains both duplicate assignment pairs"
+
+    if [[ "${installed}" == "true" ]]; then
+        start_output=$(bash "${RUNNER_SCRIPT}" start "${CONF_PARSER_PROBE_IOC_NAME}" 2>&1) || start_rc=$?
+        state=$(systemctl is-active "${unit}" 2>/dev/null || true)
+        if (( start_rc == 0 )) && [[ "${state}" == "active" ]]; then
+            active="true"
+        fi
+    fi
+    verify_state "true" "${active}" "Parser probe service is active"
+    if [[ "${active}" == "true" &&
+          "${start_output}" != *"CRASH_LOG_PATTERNS_EXTRA"*"ignoring it for this run"* ]]; then
+        runtime_lookup_agrees="true"
+    fi
+    verify_state "true" "${runtime_lookup_agrees}" \
+        "Runtime lookup selects the last valid CRASH_LOG_PATTERNS_EXTRA assignment"
+
+    while (( attempt < 25 )) && [[ ! -s "${probe_output}" ]]; do
+        sleep 0.2
+        attempt=$((attempt + 1))
+    done
+    if [[ -r "${probe_output}" ]]; then
+        emitted_value=$(sed -n 's/^M5_PARSER_VALUE=//p' "${probe_output}")
+        emitted_chdir=$(sed -n 's/^PWD=//p' "${probe_output}")
+        if grep -Fqx 'M5_SPACES=spaces' "${probe_output}" &&
+           grep -Fqx 'M5_TABS=tabs' "${probe_output}" &&
+           grep -Fqx 'M5_SINGLE=single' "${probe_output}" &&
+           grep -Fqx 'M5_DOUBLE=double' "${probe_output}" &&
+           grep -Fqx 'M5_CRLF=crlf' "${probe_output}" &&
+           grep -Fqx 'M5_EMPTY=<>' "${probe_output}" &&
+           grep -Fqx 'M5_EQUALS=alpha=omega' "${probe_output}" &&
+           grep -Fqx 'M5_DUP=last' "${probe_output}" &&
+           grep -Fqx 'M5_REGEX=net_ex\(status\)' "${probe_output}"; then
+            fixture_matrix="true"
+        fi
+    fi
+    verify_state "true" "${fixture_matrix}" \
+        "systemd emits the accepted parser fixture matrix without value drift"
+    verify_state "final=systemd" "${emitted_value}" \
+        "systemd emits the last parser probe value with its embedded equals sign"
+    verify_state "${probe_dir}" "${emitted_chdir}" \
+        "systemd starts the probe in the last IOC_CHDIR assignment"
+
+    bash "${RUNNER_SCRIPT}" remove "${CONF_PARSER_PROBE_IOC_NAME}" >/dev/null 2>&1 || remove_rc=$?
+    state=$(systemctl is-active "${unit}" 2>/dev/null || true)
+    if (( remove_rc == 0 )) && [[ ! -e "${deployed_conf}" && ! -L "${deployed_conf}" ]] &&
+       [[ "${state}" == "inactive" ]]; then
+        clean="true"
+        CONF_PARSER_PROBE_CLEANUP_REQUIRED=0
+    fi
+    verify_state "true" "${clean}" "Parser agreement probe cleanup is complete"
+}
+
+# shellcheck source=lib/test-m14-process-context.bash
+source "${SC_TOP}/lib/test-m14-process-context.bash"
+# shellcheck source=lib/test-m10-system.bash
+source "${SC_TOP}/lib/test-m10-system.bash"
+
 function run_all_tests {
     local -a pipeline=(
         "verify_infrastructure"
@@ -1874,12 +2690,17 @@ function run_all_tests {
         "test_chdir_precheck"
         "test_persistence"
         "test_remove"
+        "test_conf_parser_systemd_agreement"
+        "test_m10_system_reliability"
     )
 
     local step=1
     local func=""
 
     initialize_reporting
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        return "${REPORT_FINAL_STATUS}"
+    fi
     if ! run_preflight; then
         return
     fi

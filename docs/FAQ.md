@@ -39,7 +39,7 @@ IOC_META_GROUP="time-travel"
 IOC_META_CONTACT="jeonghan.lee@gmail.com"
 ```
 
-This approach lets the `.conf` file serve as the single source of truth. Because the `IOC_META_` prefix is the documented convention for metadata, external tools (Python scripts, web dashboards, CI/CD pipelines) can parse these files directly — and IOC-side logic can read the same values from its environment — to generate or sync with legacy databases like `siocmgr`, following the DRY principle. Note that only the `IOC_*` operational keys and `CRASH_LOG_PATTERNS_EXTRA` are validated at install time; `IOC_META_*` values pass only the shell-syntax check.
+This approach lets the `.conf` file serve as the single source of truth. Because the `IOC_META_` prefix is the documented convention for metadata, external tools (Python scripts, web dashboards, CI/CD pipelines) can parse these files directly — and IOC-side logic can read the same values from its environment — to generate or sync with legacy databases like `siocmgr`, following the DRY principle. Every assignment must pass the runner's bounded, non-executing configuration parser; only the `IOC_*` operational keys and `CRASH_LOG_PATTERNS_EXTRA` receive additional field-specific validation. See [Configuration File Syntax](USER_GUIDE.md#configuration-file-syntax) for the accepted single-line forms. Full systemd multiline, continuation, quote, and escape grammar is intentionally not accepted.
 
 ---
 

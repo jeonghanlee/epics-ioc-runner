@@ -1,0 +1,6 @@
+suite,checks,steps
+error-handling,198,41
+local-lifecycle,188,38
+source-regression,128,20
+system-infra,40,8
+system-lifecycle,155,35

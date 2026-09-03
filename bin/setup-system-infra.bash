@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 #
 # Automated system infrastructure setup for EPICS IOC Runner.
 # Deploys service accounts, shared directories, sudoers policies, systemd templates,
@@ -7,6 +7,9 @@
 # Must be executed with root privileges.
 
 set -e
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+umask 022
+unset BASH_ENV ENV CDPATH
 
 declare -g RED='\033[0;31m'
 declare -g GREEN='\033[0;32m'
@@ -28,6 +31,7 @@ declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 
 declare -g SC_DIR
 SC_DIR="$(dirname "${BASH_SOURCE[0]}")"
+declare -g METADATA_DIR="${IOC_RUNNER_METADATA_DIR:-${SC_DIR}}"
 
 if [[ -n "${IOC_RUNNER_PROCSERV_PATH:-}" ]]; then
     declare -g -a PROCSERV_SEARCH_PATHS=("${IOC_RUNNER_PROCSERV_PATH}")
@@ -40,9 +44,13 @@ declare -g BASH_COMP_SRC="${IOC_RUNNER_BASH_COMP_SRC:-${SC_DIR}/ioc-runner-compl
 declare -g BASH_COMP_DEST="${IOC_RUNNER_BASH_COMP_DEST:-/etc/bash_completion.d/ioc-runner}"
 declare -g RUNNER_SCRIPT_SYMLINK="${IOC_RUNNER_SCRIPT_SYMLINK:-/usr/bin/ioc-runner}"
 declare -g OS_RELEASE_FILE="/etc/os-release"
+declare -g SELINUX_ENFORCE_FILE="/sys/fs/selinux/enforce"
 
 
 declare -g RESOLVED_PROCSERV_BIN=""
+declare -gr RESTORECON_BIN="/usr/sbin/restorecon"
+declare -gr MATCHPATHCON_BIN="/usr/sbin/matchpathcon"
+declare -g SELINUX_ACTIVE=0
 
 declare -g VERIFY_PASS=0
 declare -g VERIFY_FAIL=0
@@ -69,7 +77,7 @@ fi
 
 if [[ $EUID -ne 0 ]]; then
     printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
-    printf "%s\n" "Usage: sudo bash $(basename "$0")" >&2
+    printf "%s\n" "Usage: sudo /bin/bash -p $(basename "$0")" >&2
     exit 1
 fi
 
@@ -83,7 +91,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            printf "Usage: sudo bash %s [--full]\n" "$(basename "$0")"
+            printf "Usage: sudo /bin/bash -p %s [--full]\n" "$(basename "$0")"
             printf "  (Running without arguments safely updates the CLI wrapper only)\n"
             exit 0
             ;;
@@ -116,18 +124,34 @@ function print_sub_divider {
     printf "${BLUE}%s${NC}\n" "----------------------------------------------------------------------------------------------------"
 }
 
-function is_rhel_family {
-    [[ -f "${OS_RELEASE_FILE}" ]] || return 1
+function read_os_release_value {
+    local wanted="$1"
+    local key=""
+    local value=""
 
-    # Execute in subshell so sourced variables do not leak to caller
-    (
-        . "${OS_RELEASE_FILE}"
-        [[ "${ID:-}" == "rhel" ]] && exit 0
-        case " ${ID_LIKE:-} " in
-            *" rhel "*) exit 0 ;;
-        esac
-        exit 1
-    )
+    while IFS='=' read -r key value || [[ -n "${key:-}" ]]; do
+        if [[ "${key}" == "${wanted}" ]]; then
+            value="${value#\"}"
+            value="${value%\"}"
+            printf '%s' "${value}"
+            return 0
+        fi
+    done < "${OS_RELEASE_FILE}"
+    return 1
+}
+
+function is_rhel_family {
+    local os_id=""
+    local os_id_like=""
+
+    [[ -f "${OS_RELEASE_FILE}" ]] || return 1
+    os_id=$(read_os_release_value ID || true)
+    os_id_like=$(read_os_release_value ID_LIKE || true)
+    [[ "${os_id}" == "rhel" ]] && return 0
+    case " ${os_id_like} " in
+        *" rhel "*) return 0 ;;
+    esac
+    return 1
 }
 
 function sudo_supports_regex_args {
@@ -222,6 +246,28 @@ function verify_path {
     if [[ -n "${success_message}" ]]; then
         _log "SUCCESS" "${success_message}"
     fi
+}
+
+function restore_and_verify_selinux_context {
+    local path="$1"
+
+    if (( ! SELINUX_ACTIVE )); then
+        return
+    fi
+
+    if ! "${RESTORECON_BIN}" "${path}" >/dev/null 2>&1; then
+        _log "ERROR" "Verify FAILED : restorecon rejected ${path}"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+    if ! "${MATCHPATHCON_BIN}" -V "${path}" >/dev/null 2>&1; then
+        _log "ERROR" "Verify FAILED : SELinux policy context on ${path}"
+        (( VERIFY_FAIL++ )) || true
+        return
+    fi
+
+    _log "SUCCESS" "Verify PASSED : SELinux policy context on ${path}"
+    (( VERIFY_PASS++ )) || true
 }
 
 function verify_symlink {
@@ -383,6 +429,22 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
         fi
     done
 
+    selinux_enforce=""
+    if [[ -r "${SELINUX_ENFORCE_FILE}" ]]; then
+        read -r selinux_enforce < "${SELINUX_ENFORCE_FILE}" || true
+    fi
+    if [[ "${selinux_enforce}" =~ ^[01]$ ]]; then
+        SELINUX_ACTIVE=1
+        if [[ ! -x "${RESTORECON_BIN}" ]]; then
+            _log "ERROR" "Required SELinux tool 'restorecon' not found or not executable."
+            exit 1
+        fi
+        if [[ ! -x "${MATCHPATHCON_BIN}" ]]; then
+            _log "ERROR" "Required SELinux tool 'matchpathcon' not found or not executable."
+            exit 1
+        fi
+    fi
+
     # Resolve procServ here too: STEP 5 hardcodes its absolute path into
     # the unit template, so a missing binary must abort before STEP 1-4
     # mutate accounts, sudoers, and the log directory.
@@ -477,6 +539,7 @@ EOF
         backup_if_exists "${SUDOERS_FILE}" "${tmp_sudoers}"
         mv "${tmp_sudoers}" "${SUDOERS_FILE}"
         tmp_sudoers=""   # consumed by mv; keep the EXIT trap from re-acting
+        restore_and_verify_selinux_context "${SUDOERS_FILE}"
         verify_path "${SUDOERS_FILE}" "${OWNER_SYSTEM}" "${PERM_SUDOERS}" file \
             "Validated and deployed sudoers policy to ${SUDOERS_FILE}"
         verify_sudoers_includedir_order "/etc/sudoers"
@@ -622,6 +685,7 @@ EOF
         backup_if_exists "${LOGROTATE_FILE}" "${tmp_logrotate}"
         mv "${tmp_logrotate}" "${LOGROTATE_FILE}"
         tmp_logrotate=""   # consumed by mv; keep the EXIT trap from re-acting
+        restore_and_verify_selinux_context "${LOGROTATE_FILE}"
         verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" file \
             "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
     else
@@ -658,8 +722,8 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     cp "${RUNNER_SCRIPT_SRC}" "${tmp_runner}"
 
     # Inject version and build information into the deployed script.
-    # Use -C "${SC_DIR}" so the metadata reflects the epics-ioc-runner repo
-    # regardless of the caller's working directory.
+    # Use the original metadata directory so a locally staged setup reflects
+    # the epics-ioc-runner checkout regardless of the caller's directory.
     # Run git as the invoking user (the repo owner). On NFS root_squash
     # mounts (Rocky 8 autofs), root maps to nobody and cannot even stat
     # the work tree, so safe.directory does not help: the failure happens
@@ -674,7 +738,7 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # delegation target from the repository owner, when that owner is a
     # resolvable account.
     if [[ ${EUID} -eq 0 && "${invoker}" == "root" ]]; then
-        repo_owner=$(stat -c %U "${SC_DIR}" 2>/dev/null || printf "root")
+        repo_owner=$(stat -c %U "${METADATA_DIR}" 2>/dev/null || printf "root")
         if id -u "${repo_owner}" >/dev/null 2>&1; then
             invoker="${repo_owner}"
         fi
@@ -684,19 +748,20 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     # cannot, so a root-side check fails on a valid layout and stamps "unknown"
     # (#128); delegate both to the owner. test is the external binary because
     # sudo cannot run the [ ] builtin.
-    git_cmd=(git -C "${SC_DIR}")
+    git_cmd=(git -C "${METADATA_DIR}")
     test_cmd=(/usr/bin/test)
     if [[ "${invoker}" != "$(id -un)" ]] && command -v sudo >/dev/null 2>&1; then
-        git_cmd=(sudo -u "${invoker}" -n git -C "${SC_DIR}")
+        git_cmd=(sudo -u "${invoker}" -n git -C "${METADATA_DIR}")
         test_cmd=(sudo -u "${invoker}" -n /usr/bin/test)
     fi
 
-    # Stamp only when SC_DIR's enclosing repository has the epics-ioc-runner
-    # structure shape (R7-F9): a bin/ copied into an unrelated checkout must not
+    # Stamp only when the metadata directory's enclosing repository has the
+    # epics-ioc-runner structure shape (R7-F9): a bin/ copied into an unrelated
+    # checkout must not
     # stamp that repository's HEAD as the runner version. Both checks run through
     # the delegated principal so they agree with the stamping queries: a
     # tracked-file lookup (repo-top-anchored :/ pathspecs, no on-disk stat) and a
-    # same-inode -ef that SC_DIR is this repo's own bin/. A non-empty toplevel
+    # same-inode -ef that METADATA_DIR is this repo's own bin/. A non-empty toplevel
     # that fails the shape is a real mismatch and warns; an empty toplevel is
     # "not a git checkout (or unreadable)" and falls to the WARN below, which
     # carries the manual-repair guidance for a genuinely stuck checkout.
@@ -705,11 +770,11 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     repo_top=$("${git_cmd[@]}" rev-parse --show-toplevel 2>/dev/null || printf "")
     if [[ -n "${repo_top}" ]] \
        && "${git_cmd[@]}" ls-files --error-unmatch :/configure/RULES_INSTALL :/bin/ioc-runner >/dev/null 2>&1 \
-       && "${test_cmd[@]}" "${SC_DIR}" -ef "${repo_top}/bin"; then
+       && "${test_cmd[@]}" "${METADATA_DIR}" -ef "${repo_top}/bin"; then
         layout_confirmed=1
     fi
     if [[ ${layout_confirmed} -eq 0 && -n "${repo_top}" ]]; then
-        _log "WARN" "Repository at ${SC_DIR} (toplevel: ${repo_top}) does not have the epics-ioc-runner layout; version stamped as unknown."
+        _log "WARN" "Repository at ${METADATA_DIR} (toplevel: ${repo_top}) does not have the epics-ioc-runner layout; version stamped as unknown."
         git_cmd=(false)
         stamp_warned=1
     fi
@@ -727,7 +792,7 @@ if [[ -f "${RUNNER_SCRIPT_SRC}" ]]; then
     fi
 
     if [[ "${current_git_hash}" == "unknown" && ${stamp_warned} -eq 0 ]]; then
-        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable). If this is a valid checkout, repair as ${invoker}: set RUNNER_GIT_HASH and RUNNER_COMMIT_DATE in ${RUNNER_SCRIPT_DEST} from 'git -C ${SC_DIR} rev-parse --short HEAD' and 'date -u -d @\$(git -C ${SC_DIR} show -s --format=%ct HEAD) +%Y-%m-%dT%H:%M:%SZ'."
+        _log "WARN" "Git metadata unavailable as user '${invoker}'; version stamped as unknown (not a git checkout, or repository unreadable). If this is a valid checkout, repair as ${invoker}: set RUNNER_GIT_HASH and RUNNER_COMMIT_DATE in ${RUNNER_SCRIPT_DEST} from 'git -C ${METADATA_DIR} rev-parse --short HEAD' and 'date -u -d @\$(git -C ${METADATA_DIR} show -s --format=%ct HEAD) +%Y-%m-%dT%H:%M:%SZ'."
     fi
 
     # Commit date of the deployed hash; install date of this run. The two

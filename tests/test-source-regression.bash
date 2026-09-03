@@ -130,10 +130,30 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S22.valid.setup-exits-zero"
     "${SUITE_ID}.S22.valid.configuration-directory-accepted"
     "${SUITE_ID}.S22.valid.log-directory-accepted"
+    "${SUITE_ID}.S22.selinux-valid.setup-exits-zero"
+    "${SUITE_ID}.S22.selinux-valid.policy-paths-processed"
+    "${SUITE_ID}.S22.missing-restorecon.setup-exits-one"
+    "${SUITE_ID}.S22.missing-restorecon.preflight-error"
+    "${SUITE_ID}.S22.missing-restorecon.targets-unchanged"
+    "${SUITE_ID}.S22.missing-matchpathcon.setup-exits-one"
+    "${SUITE_ID}.S22.missing-matchpathcon.preflight-error"
+    "${SUITE_ID}.S22.missing-matchpathcon.targets-unchanged"
+    "${SUITE_ID}.S22.reject-context.setup-exits-one"
+    "${SUITE_ID}.S22.reject-context.verification-failed"
+    "${SUITE_ID}.S22.reject-context.success-banner-absent"
     "${SUITE_ID}.S23.absent-parent.setup-exits-zero"
     "${SUITE_ID}.S23.absent-parent.runner-deployed"
     "${SUITE_ID}.S23.default.parent-unchanged"
     "${SUITE_ID}.S23.symlink.absent-parent-created"
+    "${SUITE_ID}.S24.launcher.make-install-contract"
+    "${SUITE_ID}.S24.launcher.make-setup-contract"
+    "${SUITE_ID}.S24.launcher.setup-exits-zero"
+    "${SUITE_ID}.S24.launcher.runner-deployed"
+    "${SUITE_ID}.S24.launcher.metadata-preserved"
+    "${SUITE_ID}.S25.transport.fixture-ready"
+    "${SUITE_ID}.S25.matching-status.exits-zero"
+    "${SUITE_ID}.S25.mismatching-status.exits-one"
+    "${SUITE_ID}.S25.mismatching-status.diagnostic"
 )
 SC_PATH="${BASH_SOURCE[0]}"
 if [[ "${SC_PATH}" != /* ]]; then
@@ -154,6 +174,9 @@ function _handle_exit {
     local final_status="${exit_code}"
 
     trap - EXIT
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
     if (( REPORT_READY )); then
         report_finalize "${exit_code}" || final_status=1
     fi
@@ -185,7 +208,8 @@ function source_check_metadata {
     local method_name="$3"
     local required_direct="false"
 
-    if [[ "${check_id}" == "${SUITE_ID}.S22.isolation.prerequisites" ]]; then
+    if [[ "${check_id}" == "${SUITE_ID}.S22.isolation.prerequisites" ]] ||
+       [[ "${check_id}" == "${SUITE_ID}.S25.transport.fixture-ready" ]]; then
         printf -v "${kind_name}" '%s' PREREQUISITE
         printf -v "${method_name}" '%s' direct-inspection
         return
@@ -206,7 +230,9 @@ function source_check_metadata {
         "${SUITE_ID}.S18."*|\
         "${SUITE_ID}.S19."*|\
         "${SUITE_ID}.S20."*|\
-        "${SUITE_ID}.S21."*) required_direct="true" ;;
+        "${SUITE_ID}.S21."*|\
+        "${SUITE_ID}.S24.launcher.make-install-contract"|\
+        "${SUITE_ID}.S24.launcher.make-setup-contract") required_direct="true" ;;
     esac
     if [[ "${required_direct}" == "true" ]]; then
         printf -v "${kind_name}" '%s' REQUIRED
@@ -224,13 +250,13 @@ function register_reporting_catalog {
     local method=""
     local remainder=""
     local step_id=""
-    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22 S23)
+    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22 S23 S24 S25)
 
     for step_id in "${step_ids[@]}"; do
         report_register_step "${step_id}" "Source regression ${step_id}"
     done
     for check_id in "${SOURCE_CHECK_IDS[@]}"; do
-        remainder="${check_id#${SUITE_ID}.}"
+        remainder="${check_id#"${SUITE_ID}".}"
         step_id="${remainder%%.*}"
         description="${remainder#*.}"
         source_check_metadata "${check_id}" kind method
@@ -238,6 +264,7 @@ function register_reporting_catalog {
             "${kind}" "${method}" "${description}"
     done
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function read_os_release_value {
@@ -398,8 +425,11 @@ function test_preflight {
     local path
     for path in \
         "${REPO_TOP}/bin/setup-system-infra.bash" \
+        "${REPO_TOP}/bin/run-setup-system-infra.bash" \
         "${REPO_TOP}/bin/ioc-runner" \
         "${REPO_TOP}/configure/inject-runner-version.bash" \
+        "${REPO_TOP}/gate/drivers/push.bash" \
+        "${SC_TOP}/lib/local-ssh-transport.bash" \
         "${SC_TOP}/lib/setup-type-isolation.bash" \
         "${SC_TOP}/test-system-lifecycle.bash"; do
         if ! run_as_invoker test -f "${path}"; then
@@ -1538,6 +1568,16 @@ function test_setup_path_type_expectations {
     local impostor_rc=0
     local valid_output=""
     local valid_rc=0
+    local selinux_valid_output=""
+    local selinux_valid_rc=0
+    local missing_restorecon_output=""
+    local missing_restorecon_rc=0
+    local missing_matchpathcon_output=""
+    local missing_matchpathcon_rc=0
+    local reject_context_output=""
+    local reject_context_rc=0
+    local policy_paths_processed="false"
+    local sentinel_state=""
     local check_id=""
     local -a behavior_ids=(
         "${SUITE_ID}.S22.impostor.setup-exits-one"
@@ -1550,6 +1590,17 @@ function test_setup_path_type_expectations {
         "${SUITE_ID}.S22.valid.setup-exits-zero"
         "${SUITE_ID}.S22.valid.configuration-directory-accepted"
         "${SUITE_ID}.S22.valid.log-directory-accepted"
+        "${SUITE_ID}.S22.selinux-valid.setup-exits-zero"
+        "${SUITE_ID}.S22.selinux-valid.policy-paths-processed"
+        "${SUITE_ID}.S22.missing-restorecon.setup-exits-one"
+        "${SUITE_ID}.S22.missing-restorecon.preflight-error"
+        "${SUITE_ID}.S22.missing-restorecon.targets-unchanged"
+        "${SUITE_ID}.S22.missing-matchpathcon.setup-exits-one"
+        "${SUITE_ID}.S22.missing-matchpathcon.preflight-error"
+        "${SUITE_ID}.S22.missing-matchpathcon.targets-unchanged"
+        "${SUITE_ID}.S22.reject-context.setup-exits-one"
+        "${SUITE_ID}.S22.reject-context.verification-failed"
+        "${SUITE_ID}.S22.reject-context.success-banner-absent"
     )
 
     print_divider
@@ -1628,6 +1679,67 @@ function test_setup_path_type_expectations {
         "Verify PASSED : ${work}/valid/targets/procserv-log (" \
         "${SUITE_ID}.S22.valid.log-directory-accepted"
 
+    selinux_valid_output=$(unshare --mount --propagation private -- /bin/bash -p \
+        "${helper}" "${REPO_TOP}" "${work}/selinux-valid" selinux-valid \
+        "${INVOKING_USER}" 2>&1) || selinux_valid_rc=$?
+    verify_state "0" "${selinux_valid_rc}" \
+        "${SUITE_ID}.S22.selinux-valid.setup-exits-zero"
+    if [[ "${selinux_valid_output}" == *"Verify PASSED : SELinux policy context on /etc/sudoers.d/10-epics-ioc"* ]] &&
+       [[ "${selinux_valid_output}" == *"Verify PASSED : SELinux policy context on /etc/logrotate.d/procserv"* ]] &&
+       [[ -f "${work}/selinux-valid/selinux-tools.log" ]] &&
+       [[ $(wc -l < "${work}/selinux-valid/selinux-tools.log") -eq 4 ]] &&
+       grep -qFx "restorecon /etc/sudoers.d/10-epics-ioc" \
+           "${work}/selinux-valid/selinux-tools.log" &&
+       grep -qFx "matchpathcon -V /etc/sudoers.d/10-epics-ioc" \
+           "${work}/selinux-valid/selinux-tools.log" &&
+       grep -qFx "restorecon /etc/logrotate.d/procserv" \
+           "${work}/selinux-valid/selinux-tools.log" &&
+       grep -qFx "matchpathcon -V /etc/logrotate.d/procserv" \
+           "${work}/selinux-valid/selinux-tools.log"; then
+        policy_paths_processed="true"
+    fi
+    verify_state "true" "${policy_paths_processed}" \
+        "${SUITE_ID}.S22.selinux-valid.policy-paths-processed"
+
+    missing_restorecon_output=$(unshare --mount --propagation private -- \
+        /bin/bash -p "${helper}" "${REPO_TOP}" \
+        "${work}/missing-restorecon" selinux-missing-restorecon \
+        "${INVOKING_USER}" 2>&1) || missing_restorecon_rc=$?
+    verify_state "1" "${missing_restorecon_rc}" \
+        "${SUITE_ID}.S22.missing-restorecon.setup-exits-one"
+    verify_output_contains "${missing_restorecon_output}" \
+        "Required SELinux tool 'restorecon' not found or not executable." \
+        "${SUITE_ID}.S22.missing-restorecon.preflight-error"
+    sentinel_state="$(<"${work}/missing-restorecon/mounts/sudoers.d/10-epics-ioc")|$(<"${work}/missing-restorecon/mounts/logrotate.d/procserv")"
+    verify_state "sudoers-sentinel|logrotate-sentinel" "${sentinel_state}" \
+        "${SUITE_ID}.S22.missing-restorecon.targets-unchanged"
+
+    missing_matchpathcon_output=$(unshare --mount --propagation private -- \
+        /bin/bash -p "${helper}" "${REPO_TOP}" \
+        "${work}/missing-matchpathcon" selinux-missing-matchpathcon \
+        "${INVOKING_USER}" 2>&1) || missing_matchpathcon_rc=$?
+    verify_state "1" "${missing_matchpathcon_rc}" \
+        "${SUITE_ID}.S22.missing-matchpathcon.setup-exits-one"
+    verify_output_contains "${missing_matchpathcon_output}" \
+        "Required SELinux tool 'matchpathcon' not found or not executable." \
+        "${SUITE_ID}.S22.missing-matchpathcon.preflight-error"
+    sentinel_state="$(<"${work}/missing-matchpathcon/mounts/sudoers.d/10-epics-ioc")|$(<"${work}/missing-matchpathcon/mounts/logrotate.d/procserv")"
+    verify_state "sudoers-sentinel|logrotate-sentinel" "${sentinel_state}" \
+        "${SUITE_ID}.S22.missing-matchpathcon.targets-unchanged"
+
+    reject_context_output=$(unshare --mount --propagation private -- \
+        /bin/bash -p "${helper}" "${REPO_TOP}" \
+        "${work}/reject-context" selinux-reject-context \
+        "${INVOKING_USER}" 2>&1) || reject_context_rc=$?
+    verify_state "1" "${reject_context_rc}" \
+        "${SUITE_ID}.S22.reject-context.setup-exits-one"
+    verify_output_contains "${reject_context_output}" \
+        "Verify FAILED : SELinux policy context on /etc/sudoers.d/10-epics-ioc" \
+        "${SUITE_ID}.S22.reject-context.verification-failed"
+    verify_output_absent "${reject_context_output}" \
+        "Secure system infrastructure setup completed." \
+        "${SUITE_ID}.S22.reject-context.success-banner-absent"
+
     case "${work}" in
         /tmp/ioc-runner-setup-type.*) rm -rf -- "${work}" ;;
         *) _log "ERROR" "Refusing to remove unexpected S22 workspace: ${work}" ;;
@@ -1646,6 +1758,10 @@ function test_setup_destination_parent {
     local absent_rc=0
     local absent_deployed="false"
     local preexisting_mode=""
+    local is_rhel="false"
+    local os_id=""
+    local os_id_like=""
+    local symlink_ok="false"
 
     print_divider
     _log "INFO" "STEP ${step}: Verify Destination Parent Creation"
@@ -1676,17 +1792,13 @@ function test_setup_destination_parent {
     # isolate the symlink guard from the runner guard by keeping the destination
     # parent present while the symlink parent is absent. On other families the
     # branch never runs, so the check is not applicable.
-    local is_rhel="false"
-    if [[ -f /etc/os-release ]] && (
-            . /etc/os-release
-            [[ "${ID:-}" == "rhel" ]] && exit 0
-            case " ${ID_LIKE:-} " in *" rhel "*) exit 0 ;; esac
-            exit 1
-        ); then
+    os_id=$(read_os_release_value ID || true)
+    os_id_like=$(read_os_release_value ID_LIKE || true)
+    if [[ "${os_id}" == "rhel" ]] ||
+       [[ " ${os_id_like} " == *" rhel "* ]]; then
         is_rhel="true"
     fi
     if [[ "${is_rhel}" == "true" ]]; then
-        local symlink_ok="false"
         mkdir -p "${work}/sym-present"
         (
             cd /tmp
@@ -1708,8 +1820,161 @@ function test_setup_destination_parent {
     rm -rf "${work}"
 }
 
+# Exercises the shipped local-staging launcher with real sudo and the real
+# setup script. Only final deployment destinations are redirected to /tmp.
+function test_staged_setup_launcher {
+    local step="$1"
+    local launcher="${REPO_TOP}/bin/run-setup-system-infra.bash"
+    local work=""
+    local output=""
+    local setup_rc=0
+    local expected_hash=""
+    local stamped_hash=""
+    local install_recipe=""
+    local setup_recipe=""
+    local make_install_contract="false"
+    local make_setup_contract="false"
+    local runner_deployed="false"
+    local metadata_preserved="false"
+    local -a setup_env=()
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Staged System Setup Launcher"
+    print_sub_divider
+
+    install_recipe=$(run_as_invoker make -s -n -C "${REPO_TOP}" install)
+    if [[ "${install_recipe}" == *"bin/run-setup-system-infra.bash"* ]] &&
+       [[ "${install_recipe}" != *"--full"* ]]; then
+        make_install_contract="true"
+    fi
+    verify_state "true" "${make_install_contract}" \
+        "${SUITE_ID}.S24.launcher.make-install-contract"
+
+    setup_recipe=$(run_as_invoker make -s -n -C "${REPO_TOP}" setup)
+    if [[ "${setup_recipe}" == *"bin/run-setup-system-infra.bash --full"* ]]; then
+        make_setup_contract="true"
+    fi
+    verify_state "true" "${make_setup_contract}" \
+        "${SUITE_ID}.S24.launcher.make-setup-contract"
+
+    work=$(run_as_invoker mktemp -d /tmp/ioc-runner-staged-setup.XXXXXX)
+    output="${work}/launcher.out"
+    setup_env=(
+        "IOC_RUNNER_SCRIPT_DEST=${work}/installed/ioc-runner"
+        "IOC_RUNNER_SCRIPT_SYMLINK=${work}/installed/ioc-runner-link"
+        "IOC_RUNNER_BASH_COMP_DEST=${work}/installed/ioc-runner-completion.bash"
+        "IOC_RUNNER_BACKUP_DIR=${work}/backups"
+    )
+    run_as_invoker env "${setup_env[@]}" "${launcher}" \
+        >"${output}" 2>&1 || setup_rc=$?
+    verify_state "0" "${setup_rc}" \
+        "${SUITE_ID}.S24.launcher.setup-exits-zero"
+
+    if [[ -s "${work}/installed/ioc-runner" ]]; then
+        runner_deployed="true"
+        stamped_hash=$(read_runner_value \
+            "${work}/installed/ioc-runner" RUNNER_GIT_HASH || true)
+    fi
+    verify_state "true" "${runner_deployed}" \
+        "${SUITE_ID}.S24.launcher.runner-deployed"
+
+    expected_hash=$(run_as_invoker git -C "${REPO_TOP}" rev-parse --short HEAD)
+    stamped_hash="${stamped_hash%-dirty}"
+    if [[ "${stamped_hash}" == "${expected_hash}" ]]; then
+        metadata_preserved="true"
+    fi
+    verify_state "true" "${metadata_preserved}" \
+        "${SUITE_ID}.S24.launcher.metadata-preserved"
+
+    case "${work}" in
+        /tmp/ioc-runner-staged-setup.*) rm -rf -- "${work}" ;;
+        *) _log "ERROR" "Refusing to remove unexpected S24 workspace: ${work}" ;;
+    esac
+}
+
+# Runs the shipped push driver against a real Git repository. The SSH helper
+# replaces only network transport and executes each remote command unchanged.
+function test_push_status_comparison {
+    local step="$1"
+    local driver="${REPO_TOP}/gate/drivers/push.bash"
+    local transport="${SC_TOP}/lib/local-ssh-transport.bash"
+    local work=""
+    local repo=""
+    local remote_parent=""
+    local fake_bin=""
+    local match_output=""
+    local mismatch_output=""
+    local fixture_ready="false"
+    local mismatch_diagnostic="false"
+    local match_rc=0
+    local mismatch_rc=0
+
+    print_divider
+    _log "INFO" "STEP ${step}: Verify Push Status Comparison"
+    print_sub_divider
+
+    work=$(run_as_invoker mktemp -d /tmp/ioc-runner-push-status.XXXXXX)
+    repo="${work}/source/candidate"
+    remote_parent="${work}/remote"
+    fake_bin="${work}/bin"
+    match_output="${work}/match.out"
+    mismatch_output="${work}/mismatch.out"
+
+    if run_as_invoker mkdir -p "${repo}" "${remote_parent}" "${fake_bin}" &&
+       run_as_invoker ln -s "${transport}" "${fake_bin}/ssh" &&
+       run_as_invoker git -C "${repo}" init -q &&
+       run_as_invoker git -C "${repo}" config user.name "Push Driver Test" &&
+       run_as_invoker git -C "${repo}" config user.email \
+           "push-driver@example.invalid" &&
+       run_as_invoker touch "${repo}/tracked.txt" &&
+       run_as_invoker git -C "${repo}" add tracked.txt &&
+       run_as_invoker git -C "${repo}" commit -qm "Create push fixture"; then
+        fixture_ready="true"
+    fi
+    verify_state "true" "${fixture_ready}" \
+        "${SUITE_ID}.S25.transport.fixture-ready"
+
+    if [[ "${fixture_ready}" != "true" ]]; then
+        report_record "${SUITE_ID}.S25.matching-status.exits-zero" SKIP \
+            "requires ${SUITE_ID}.S25.transport.fixture-ready"
+        report_record "${SUITE_ID}.S25.mismatching-status.exits-one" SKIP \
+            "requires ${SUITE_ID}.S25.transport.fixture-ready"
+        report_record "${SUITE_ID}.S25.mismatching-status.diagnostic" SKIP \
+            "requires ${SUITE_ID}.S25.transport.fixture-ready"
+    else
+        run_as_invoker env "PATH=${fake_bin}:${PATH}" bash "${driver}" \
+            local-transport "${repo}" "${remote_parent}" \
+            >"${match_output}" 2>&1 || match_rc=$?
+        verify_state "0" "${match_rc}" \
+            "${SUITE_ID}.S25.matching-status.exits-zero"
+
+        run_as_invoker env \
+            "PATH=${fake_bin}:${PATH}" \
+            "PUSH_TEST_MUTATE_REMOTE=1" \
+            "PUSH_TEST_MUTATE_PATH=${remote_parent}/candidate/tracked.txt" \
+            bash "${driver}" local-transport "${repo}" "${remote_parent}" \
+            >"${mismatch_output}" 2>&1 || mismatch_rc=$?
+        verify_state "1" "${mismatch_rc}" \
+            "${SUITE_ID}.S25.mismatching-status.exits-one"
+        if grep -Fq \
+            "Error: source and pushed git status differ" "${mismatch_output}"; then
+            mismatch_diagnostic="true"
+        fi
+        verify_state "true" "${mismatch_diagnostic}" \
+            "${SUITE_ID}.S25.mismatching-status.diagnostic"
+    fi
+
+    case "${work}" in
+        /tmp/ioc-runner-push-status.*) rm -rf -- "${work}" ;;
+        *) _log "ERROR" "Refusing to remove unexpected S25 workspace: ${work}" ;;
+    esac
+}
+
 function run_all_tests {
     initialize_reporting
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        return "${REPORT_FINAL_STATUS}"
+    fi
     if ! test_preflight; then
         return
     fi
@@ -1730,6 +1995,8 @@ function run_all_tests {
     test_crash_exclusion_source_contract "S21"
     test_setup_path_type_expectations "S22"
     test_setup_destination_parent "S23"
+    test_staged_setup_launcher "S24"
+    test_push_status_comparison "S25"
 }
 
 run_all_tests

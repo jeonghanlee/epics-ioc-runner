@@ -96,9 +96,9 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S10|error-handling.S10.view-on-a-never-installed-name-exits-1|BEHAVIOR|real-path"
     "S10|error-handling.S10.gate-message-names-the-missing-configuration|BEHAVIOR|real-path"
     "S11|error-handling.S11.exactly-one-ioc-port-replacement-warning|BEHAVIOR|real-path"
-    "S17|error-handling.S17.system-differing-ioc-runner-log-dir-triggers-warning|BEHAVIOR|real-path"
-    "S17|error-handling.S17.system-matching-ioc-runner-log-dir-suppresses-warning|BEHAVIOR|real-path"
-    "S17|error-handling.S17.local-mode-suppresses-log-dir-guard|BEHAVIOR|real-path"
+    "S17|error-handling.S17.system-status-ignores-caller-log-dir-difference|BEHAVIOR|real-path"
+    "S17|error-handling.S17.system-status-with-matching-log-dirs-emits-no-warning|BEHAVIOR|real-path"
+    "S17|error-handling.S17.local-status-with-log-dir-override-emits-no-system-warning|BEHAVIOR|real-path"
     "S19|error-handling.S19.relative-ioc-runner-conf-dir-exits-1-on-list|BEHAVIOR|real-path"
     "S19|error-handling.S19.relative-conf-dir-error-names-the-resolved-directory|BEHAVIOR|real-path"
     "S19|error-handling.S19.whitespace-conf-dir-exits-1-on-status|BEHAVIOR|real-path"
@@ -121,6 +121,8 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S24|error-handling.S24.view-bad-name-produces-invalid-ioc-name-error-message|BEHAVIOR|real-path"
     "S25|error-handling.S25.install-with-illegal-characters-in-cmd-exits-1|BEHAVIOR|real-path"
     "S25|error-handling.S25.install-with-wrong-local-user-exits-1|BEHAVIOR|real-path"
+    "S25|error-handling.S25.wrong-local-user-field-error-retained|BEHAVIOR|real-path"
+    "S25|error-handling.S25.wrong-local-user-summary-singular|BEHAVIOR|real-path"
     "S25|error-handling.S25.install-without-directory-execute-permission-exits-1|BEHAVIOR|real-path"
     "S25|error-handling.S25.install-with-missing-required-key-ioc-cmd-exits-1|BEHAVIOR|real-path"
     "S25|error-handling.S25.install-with-in-system-ioc-chdir-exits-1|BEHAVIOR|real-path"
@@ -185,6 +187,52 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S37|error-handling.S37.rotation-cfg-deployed|BEHAVIOR|real-path"
     "S37|error-handling.S37.debug-validation-passes-explicit-state|BEHAVIOR|real-path"
     "S37|error-handling.S37.state-off-system-default|BEHAVIOR|real-path"
+    "S38|error-handling.S38.local-mode-mismatch-exits-1|BEHAVIOR|real-path"
+    "S38|error-handling.S38.local-mode-mismatch-diagnostic-exact|BEHAVIOR|real-path"
+    "S38|error-handling.S38.local-mode-mismatch-summary-singular|BEHAVIOR|real-path"
+    "S38|error-handling.S38.local-mode-mismatch-source-preserved|BEHAVIOR|real-path"
+    "S38|error-handling.S38.local-mode-mismatch-target-absent|BEHAVIOR|real-path"
+    "S38|error-handling.S38.system-mode-mismatch-exits-1|BEHAVIOR|real-path"
+    "S38|error-handling.S38.system-mode-mismatch-diagnostic-exact|BEHAVIOR|real-path"
+    "S38|error-handling.S38.system-mode-mismatch-summary-singular|BEHAVIOR|real-path"
+    "S38|error-handling.S38.system-mode-mismatch-source-preserved|BEHAVIOR|real-path"
+    "S38|error-handling.S38.system-mode-mismatch-target-absent|BEHAVIOR|real-path"
+    "S38|error-handling.S38.third-account-mismatch-exits-1|BEHAVIOR|real-path"
+    "S38|error-handling.S38.third-account-mismatch-diagnostic-exact|BEHAVIOR|real-path"
+    "S38|error-handling.S38.third-account-mismatch-summary-singular|BEHAVIOR|real-path"
+    "S38|error-handling.S38.third-account-mismatch-source-preserved|BEHAVIOR|real-path"
+    "S38|error-handling.S38.third-account-mismatch-target-absent|BEHAVIOR|real-path"
+    "S38|error-handling.S38.relative-chdir-pair-not-aggregated|BEHAVIOR|real-path"
+    "S38|error-handling.S38.relative-chdir-pair-retains-field-and-path-errors|BEHAVIOR|real-path"
+    "S38|error-handling.S38.relative-chdir-pair-summary-three-errors|BEHAVIOR|real-path"
+    "S38|error-handling.S38.non-writable-chdir-pair-not-aggregated|BEHAVIOR|real-path"
+    "S38|error-handling.S38.non-writable-chdir-pair-retains-field-errors|BEHAVIOR|real-path"
+    "S38|error-handling.S38.non-writable-chdir-pair-summary-two-errors|BEHAVIOR|real-path"
+    "S38|error-handling.S38.invalid-identity-whitelist-error-retained|BEHAVIOR|real-path"
+    "S38|error-handling.S38.invalid-identity-not-rendered|BEHAVIOR|real-path"
+    "S38|error-handling.S38.invalid-identity-summary-three-errors|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.spaces-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.tabs-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.single-quotes-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.double-quotes-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.crlf-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.empty-value-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.embedded-equals-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.duplicate-last-assignment-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.regex-backslashes-accepted-and-deployed|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.empty-key-remains-present-at-runtime-lookup|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.unmatched-quote-rejected-and-target-preserved|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.continuation-rejected-and-target-preserved|BEHAVIOR|real-path"
+    "S39|error-handling.S39.conf-parser.multiline-quote-rejected-and-target-preserved|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.exact-function-extraction|REQUIRED|direct-inspection"
+    "S40|error-handling.S40.reader-equivalence.surrounding-spaces|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.surrounding-tabs|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.single-quoted-interior-whitespace|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.double-quoted-interior-whitespace|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.single-quoted-whitespace-only|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.double-quoted-whitespace-only|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.quoted-empty-present|BEHAVIOR|real-path"
+    "S40|error-handling.S40.reader-equivalence.missing-key-api-states|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -198,6 +246,9 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+    if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+        exit "${REPORT_FINAL_STATUS}"
+    fi
     if ! _cleanup; then
         final_status=1
         _log "ERROR" "Failed to remove the error-handling workspace."
@@ -249,7 +300,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 37; index += 1)); do
+    for ((index = 1; index <= 40; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -273,6 +324,7 @@ function initialize_reporting {
         fi
     done
     report_close_catalog
+    report_verify_catalog_counts
 }
 
 function next_current_check_id {
@@ -896,40 +948,39 @@ function no_error_contract_checks {
     :
 }
 
-# Validates the system-mode foot-gun warning for IOC_RUNNER_LOG_DIR:
-# warning fires when IOC_RUNNER_LOG_DIR diverges from SYSTEM_LOG_DIR in
-# system mode; suppressed when they match; suppressed in --local mode.
-function test_log_dir_guard {
+# Validates that runtime status does not compare caller log-directory values.
+# Lifecycle commands resolve the effective log path from the installed unit.
+function test_log_dir_runtime_boundary {
     local step="$1"
     local stderr_cap
     stderr_cap=$(mktemp)
     local has_warn
 
     print_divider
-    _log "INFO" "STEP ${step}: LOG_DIR Foot-Gun Guard"
+    _log "INFO" "STEP ${step}: Runtime LOG_DIR Boundary"
     print_sub_divider
 
-    # Case 1: system mode + IOC_RUNNER_LOG_DIR differs from default SYSTEM_LOG_DIR.
+    # Case 1: system mode with caller and system values that differ.
     IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_diff \
         bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
     has_warn="false"
     grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
-    verify_state "true" "${has_warn}" "system + differing IOC_RUNNER_LOG_DIR triggers warning"
+    verify_state "false" "${has_warn}" "system status ignores caller LOG_DIR difference"
 
-    # Case 2: system mode + IOC_RUNNER_LOG_DIR matches overridden SYSTEM_LOG_DIR.
+    # Case 2: system mode with caller and system values that match.
     IOC_RUNNER_SYSTEM_LOG_DIR=/tmp/log_dir_guard_test_match \
     IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_match \
         bash "${RUNNER_SCRIPT}" status fake-ioc >/dev/null 2>"${stderr_cap}" || true
     has_warn="false"
     grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
-    verify_state "false" "${has_warn}" "system + matching IOC_RUNNER_LOG_DIR suppresses warning"
+    verify_state "false" "${has_warn}" "system status with matching LOG_DIR values emits no warning"
 
-    # Case 3: --local mode + IOC_RUNNER_LOG_DIR set to non-default.
+    # Case 3: local mode with a caller override.
     IOC_RUNNER_LOG_DIR=/tmp/log_dir_guard_test_local \
         bash "${RUNNER_SCRIPT}" --local status fake-ioc >/dev/null 2>"${stderr_cap}" || true
     has_warn="false"
     grep -q 'IOC_RUNNER_LOG_DIR.*differs from SYSTEM_LOG_DIR' "${stderr_cap}" && has_warn="true"
-    verify_state "false" "${has_warn}" "--local mode suppresses LOG_DIR guard"
+    verify_state "false" "${has_warn}" "local status with LOG_DIR override emits no system warning"
 
     rm -f "${stderr_cap}"
 }
@@ -979,6 +1030,7 @@ function test_completion {
 
     # S2: "ioc-runner -<TAB>" -> global options are offered.
     got=$(
+        # shellcheck source=/dev/null
         source "${comp_script}"
         COMP_WORDS=(ioc-runner "-")
         COMP_CWORD=1
@@ -990,6 +1042,7 @@ function test_completion {
 
     # S3: system mode reads IOC_RUNNER_SYSTEM_CONF_DIR.
     got=$(
+        # shellcheck source=/dev/null
         source "${comp_script}"
         unset IOC_RUNNER_CONF_DIR
         export IOC_RUNNER_SYSTEM_CONF_DIR="${sys_conf}"
@@ -1003,6 +1056,7 @@ function test_completion {
 
     # S4: --local mode reads IOC_RUNNER_LOCAL_CONF_DIR.
     got=$(
+        # shellcheck source=/dev/null
         source "${comp_script}"
         unset IOC_RUNNER_CONF_DIR
         export IOC_RUNNER_LOCAL_CONF_DIR="${loc_conf}"
@@ -1016,6 +1070,7 @@ function test_completion {
 
     # S5: unified IOC_RUNNER_CONF_DIR overrides LOCAL_CONF_DIR in completion.
     got=$(
+        # shellcheck source=/dev/null
         source "${comp_script}"
         export IOC_RUNNER_CONF_DIR="${unified_conf}"
         export IOC_RUNNER_LOCAL_CONF_DIR="${loc_conf}"
@@ -1029,6 +1084,7 @@ function test_completion {
 
     # S6: "list <TAB>" -> verbosity flags.
     got=$(
+        # shellcheck source=/dev/null
         source "${comp_script}"
         COMP_WORDS=(ioc-runner list "")
         COMP_CWORD=2
@@ -1040,6 +1096,7 @@ function test_completion {
 
     # S7: prefix filter "st<TAB>" narrows to start/stop/status.
     got=$(
+        # shellcheck source=/dev/null
         source "${comp_script}"
         COMP_WORDS=(ioc-runner "st")
         COMP_CWORD=1
@@ -1051,6 +1108,7 @@ function test_completion {
 
     # S8: nonexistent conf dir yields empty completion, not an error.
     got=$(
+        # shellcheck source=/dev/null
         source "${comp_script}"
         unset IOC_RUNNER_CONF_DIR
         export IOC_RUNNER_SYSTEM_CONF_DIR="${TEST_TMPDIR}/does_not_exist"
@@ -1100,14 +1158,21 @@ function test_ioc_name_validation {
 
 function test_validation_errors {
     local step="$1"
+    local exit_code
+    local bad_conf="${TEST_TMPDIR}/bad_validation.conf"
+    local dummy_dir="${TEST_TMPDIR}/dummy_ioc"
+    local wrong_user_stderr="${TEST_TMPDIR}/wrong_user_stderr"
+    local wrong_user_ec=0
+    local wrong_user_field_error="false"
+    local wrong_user_singular="false"
+
     print_divider
     _log "INFO" "STEP ${step}: Configuration Validation Errors"
     print_sub_divider
 
-    local exit_code
-    local bad_conf="${TEST_TMPDIR}/bad_validation.conf"
-    local dummy_dir="${TEST_TMPDIR}/dummy_ioc"
     mkdir -p "${dummy_dir}"
+    touch "${dummy_dir}/st.cmd"
+    chmod +x "${dummy_dir}/st.cmd"
 
     # 1. Illegal characters check
     cat <<EOF > "${bad_conf}"
@@ -1128,8 +1193,19 @@ IOC_GROUP="$(id -gn)"
 IOC_CHDIR="${dummy_dir}"
 IOC_CMD="./st.cmd"
 EOF
-    exit_code=$(_run bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}")
-    verify_exit_code "1" "${exit_code}" "Install with wrong local user exits 1"
+    bash "${RUNNER_SCRIPT}" --local -f install "${bad_conf}" \
+        >/dev/null 2>"${wrong_user_stderr}" || wrong_user_ec=$?
+    verify_exit_code "1" "${wrong_user_ec}" "Install with wrong local user exits 1"
+
+    grep -Fqx -- "Error: Local IOCs must run as $(id -un)" \
+        "${wrong_user_stderr}" && wrong_user_field_error="true"
+    verify_state "true" "${wrong_user_field_error}" \
+        "Wrong local user retains the field-level error"
+
+    grep -Fqx -- "Validation failed with 1 error. Installation aborted." \
+        "${wrong_user_stderr}" && wrong_user_singular="true"
+    verify_state "true" "${wrong_user_singular}" \
+        "Wrong local user reports the singular validation summary"
 
 # 3. Missing execute permission check
     chmod -x "${dummy_dir}"
@@ -1825,6 +1901,544 @@ MOCK
     verify_state "true" "${off_default}" "validation state is off the system default"
 }
 
+function test_conf_mode_mismatch_diagnosis {
+    local step="$1"
+    local case_root="${TEST_TMPDIR}/mode-mismatch"
+    local system_user="ioc system"
+    local system_group="ioc group"
+    local local_user local_group
+    local local_boot="${case_root}/local-boot"
+    local local_source="${case_root}/local_mode.conf"
+    local local_source_before="${case_root}/local_mode.before"
+    local local_target_dir="${case_root}/local-target"
+    local local_stderr="${case_root}/local.stderr"
+    local local_ec=0
+    local local_source_q system_user_q system_group_q
+    local local_user_q local_group_q local_boot_q
+    local local_expected local_actual
+    local local_singular="false"
+    local local_source_preserved="false"
+    local local_target_absent="true"
+    local system_boot="${case_root}/system-boot"
+    local system_source="${case_root}/system_mode.conf"
+    local system_source_before="${case_root}/system_mode.before"
+    local system_target_dir="${case_root}/system-target"
+    local system_stderr="${case_root}/system.stderr"
+    local system_ec=0
+    local system_source_q system_boot_q
+    local system_expected system_actual
+    local system_singular="false"
+    local system_source_preserved="false"
+    local system_target_absent="true"
+    local third_source_dir="${case_root}/source with space"
+    local third_boot="${case_root}/boot with space"
+    local third_source="${third_source_dir}/third_case.conf"
+    local third_source_before="${case_root}/third_case.before"
+    local third_target_dir="${case_root}/third-target"
+    local third_stderr="${case_root}/third.stderr"
+    local third_user="third_account_user"
+    local third_group="third_account_group"
+    local third_ec=0
+    local third_source_q third_user_q third_group_q third_boot_q
+    local third_expected third_actual
+    local third_singular="false"
+    local third_source_preserved="false"
+    local third_target_absent="true"
+    local relative_source="${case_root}/relative_case.conf"
+    local relative_stderr="${case_root}/relative.stderr"
+    local relative_not_aggregated="false"
+    local relative_errors_retained="false"
+    local relative_summary="false"
+    local non_writable_boot="${case_root}/non-writable-boot"
+    local non_writable_source="${case_root}/non_writable_case.conf"
+    local non_writable_stderr="${case_root}/non_writable.stderr"
+    local root_reason="requires a non-root effective user"
+    local non_writable_not_aggregated="false"
+    local non_writable_errors_retained="false"
+    local non_writable_summary="false"
+    local invalid_source="${case_root}/invalid_identity_case.conf"
+    local invalid_stderr="${case_root}/invalid_identity.stderr"
+    local invalid_user='invalid$(mode_marker)'
+    local invalid_whitelist_error="false"
+    local invalid_not_rendered="true"
+    local invalid_summary="false"
+
+    local_user=$(id -un)
+    local_group=$(id -gn)
+
+    print_divider
+    _log "INFO" "STEP ${step}: Configuration Mode Mismatch Diagnosis"
+    print_sub_divider
+
+    mkdir -p "${case_root}"
+
+    # T1: a supported system pair installed in local mode. Whitespace in the
+    # supported overrides makes escaping of both Found identity values visible.
+    mkdir -p "${local_boot}"
+    printf 'IOC_NAME="local_mode"\nIOC_USER="%s"\nIOC_GROUP="%s"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="true"\n' \
+        "${system_user}" "${system_group}" "${local_boot}" > "${local_source}"
+    cp "${local_source}" "${local_source_before}"
+
+    IOC_RUNNER_SYSTEM_USER="${system_user}" \
+    IOC_RUNNER_SYSTEM_GROUP="${system_group}" \
+    IOC_RUNNER_CONF_DIR="${local_target_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${local_source}" \
+        >/dev/null 2>"${local_stderr}" || local_ec=$?
+    verify_exit_code "1" "${local_ec}" "Local-mode pair mismatch exits 1"
+
+    printf -v local_source_q '%q' "${local_source}"
+    printf -v system_user_q '%q' "${system_user}"
+    printf -v system_group_q '%q' "${system_group}"
+    printf -v local_user_q '%q' "${local_user}"
+    printf -v local_group_q '%q' "${local_group}"
+    printf -v local_boot_q '%q' "${local_boot}"
+    printf -v local_expected \
+        'Error: Configuration mode mismatch\n       Config     : %s\n       Found      : IOC_USER=%s, IOC_GROUP=%s (system mode)\n       Required   : IOC_USER=%s, IOC_GROUP=%s (local mode)\n       Regenerate : ioc-runner --local generate %s' \
+        "${local_source_q}" "${system_user_q}" "${system_group_q}" \
+        "${local_user_q}" "${local_group_q}" "${local_boot_q}"
+    local_actual=$(grep -F -A4 -- "Error: Configuration mode mismatch" \
+        "${local_stderr}" || true)
+    verify_state "${local_expected}" "${local_actual}" \
+        "Local-mode pair mismatch diagnostic is exact"
+
+    grep -Fqx -- "Validation failed with 1 error. Installation aborted." \
+        "${local_stderr}" && local_singular="true"
+    verify_state "true" "${local_singular}" \
+        "Local-mode pair mismatch reports the singular summary"
+
+    cmp -s "${local_source_before}" "${local_source}" && local_source_preserved="true"
+    verify_state "true" "${local_source_preserved}" \
+        "Local-mode pair mismatch preserves its source configuration"
+
+    [[ -e "${local_target_dir}/local_mode.conf" ]] && local_target_absent="false"
+    verify_state "true" "${local_target_absent}" \
+        "Local-mode pair mismatch creates no installed configuration"
+
+    # T2: the invoking local pair installed in system mode. The same supported
+    # overrides make escaping of both Required identity values visible.
+    mkdir -p "${system_boot}"
+    printf 'IOC_NAME="system_mode"\nIOC_USER="%s"\nIOC_GROUP="%s"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="true"\n' \
+        "${local_user}" "${local_group}" "${system_boot}" > "${system_source}"
+    cp "${system_source}" "${system_source_before}"
+
+    IOC_RUNNER_SYSTEM_USER="${system_user}" \
+    IOC_RUNNER_SYSTEM_GROUP="${system_group}" \
+    IOC_RUNNER_CONF_DIR="${system_target_dir}" \
+        bash "${RUNNER_SCRIPT}" -f install "${system_source}" \
+        >/dev/null 2>"${system_stderr}" || system_ec=$?
+    verify_exit_code "1" "${system_ec}" "System-mode pair mismatch exits 1"
+
+    printf -v system_source_q '%q' "${system_source}"
+    printf -v system_boot_q '%q' "${system_boot}"
+    printf -v system_expected \
+        'Error: Configuration mode mismatch\n       Config     : %s\n       Found      : IOC_USER=%s, IOC_GROUP=%s (local mode)\n       Required   : IOC_USER=%s, IOC_GROUP=%s (system mode)\n       Regenerate : ioc-runner generate %s' \
+        "${system_source_q}" "${local_user_q}" "${local_group_q}" \
+        "${system_user_q}" "${system_group_q}" "${system_boot_q}"
+    system_actual=$(grep -F -A4 -- "Error: Configuration mode mismatch" \
+        "${system_stderr}" || true)
+    verify_state "${system_expected}" "${system_actual}" \
+        "System-mode pair mismatch diagnostic is exact"
+
+    grep -Fqx -- "Validation failed with 1 error. Installation aborted." \
+        "${system_stderr}" && system_singular="true"
+    verify_state "true" "${system_singular}" \
+        "System-mode pair mismatch reports the singular summary"
+
+    cmp -s "${system_source_before}" "${system_source}" && system_source_preserved="true"
+    verify_state "true" "${system_source_preserved}" \
+        "System-mode pair mismatch preserves its source configuration"
+
+    [[ -e "${system_target_dir}/system_mode.conf" ]] && system_target_absent="false"
+    verify_state "true" "${system_target_absent}" \
+        "System-mode pair mismatch creates no installed configuration"
+
+    # T3: a complete third-account pair omits the unsupported source-mode
+    # claim. Whitespace in Config and IOC_CHDIR pins their shell-safe rendering.
+    mkdir -p "${third_source_dir}" "${third_boot}"
+    printf 'IOC_NAME="third_case"\nIOC_USER="%s"\nIOC_GROUP="%s"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="true"\n' \
+        "${third_user}" "${third_group}" "${third_boot}" > "${third_source}"
+    cp "${third_source}" "${third_source_before}"
+
+    IOC_RUNNER_CONF_DIR="${third_target_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${third_source}" \
+        >/dev/null 2>"${third_stderr}" || third_ec=$?
+    verify_exit_code "1" "${third_ec}" "Third-account pair mismatch exits 1"
+
+    printf -v third_source_q '%q' "${third_source}"
+    printf -v third_user_q '%q' "${third_user}"
+    printf -v third_group_q '%q' "${third_group}"
+    printf -v third_boot_q '%q' "${third_boot}"
+    printf -v third_expected \
+        'Error: Configuration mode mismatch\n       Config     : %s\n       Found      : IOC_USER=%s, IOC_GROUP=%s\n       Required   : IOC_USER=%s, IOC_GROUP=%s (local mode)\n       Regenerate : ioc-runner --local generate %s' \
+        "${third_source_q}" "${third_user_q}" "${third_group_q}" \
+        "${local_user_q}" "${local_group_q}" "${third_boot_q}"
+    third_actual=$(grep -F -A4 -- "Error: Configuration mode mismatch" \
+        "${third_stderr}" || true)
+    verify_state "${third_expected}" "${third_actual}" \
+        "Third-account pair mismatch diagnostic is exact"
+
+    grep -Fqx -- "Validation failed with 1 error. Installation aborted." \
+        "${third_stderr}" && third_singular="true"
+    verify_state "true" "${third_singular}" \
+        "Third-account pair mismatch reports the singular summary"
+
+    cmp -s "${third_source_before}" "${third_source}" && third_source_preserved="true"
+    verify_state "true" "${third_source_preserved}" \
+        "Third-account pair mismatch preserves its source configuration"
+
+    [[ -e "${third_target_dir}/third_case.conf" ]] && third_target_absent="false"
+    verify_state "true" "${third_target_absent}" \
+        "Third-account pair mismatch creates no installed configuration"
+
+    # T4a: a relative IOC_CHDIR keeps both field errors and the existing path
+    # error, without presenting a regeneration command that cannot be used.
+    printf 'IOC_NAME="relative_case"\nIOC_USER="mode_user"\nIOC_GROUP="mode_group"\nIOC_CHDIR="relative/boot"\nIOC_PORT=""\nIOC_CMD="true"\n' \
+        > "${relative_source}"
+    IOC_RUNNER_CONF_DIR="${case_root}/relative-target" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${relative_source}" \
+        >/dev/null 2>"${relative_stderr}" || true
+
+    if ! grep -Fq -- "Error: Configuration mode mismatch" "${relative_stderr}" \
+       && ! grep -Fq -- "       Regenerate :" "${relative_stderr}"; then
+        relative_not_aggregated="true"
+    fi
+    verify_state "true" "${relative_not_aggregated}" \
+        "Relative IOC_CHDIR pair mismatch is not aggregated"
+
+    if grep -Fqx -- "Error: Local IOCs must run as ${local_user}" "${relative_stderr}" \
+       && grep -Fqx -- "Error: Local IOCs must run under group ${local_group}" "${relative_stderr}" \
+       && grep -Fqx -- "Error: IOC_CHDIR must be an absolute path: relative/boot" "${relative_stderr}"; then
+        relative_errors_retained="true"
+    fi
+    verify_state "true" "${relative_errors_retained}" \
+        "Relative IOC_CHDIR pair mismatch retains field and path errors"
+
+    grep -Fqx -- "Validation failed with 3 errors. Installation aborted." \
+        "${relative_stderr}" && relative_summary="true"
+    verify_state "true" "${relative_summary}" \
+        "Relative IOC_CHDIR pair mismatch reports three errors"
+
+    # T4b: an executable but non-writable directory keeps the two field errors.
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: marking non-writable IOC_CHDIR checks NA."
+        record_current_state NA "${root_reason}"
+        record_current_state NA "${root_reason}"
+        record_current_state NA "${root_reason}"
+    else
+        mkdir -p "${non_writable_boot}"
+        chmod 0500 "${non_writable_boot}"
+        printf 'IOC_NAME="non_writable_case"\nIOC_USER="mode_user"\nIOC_GROUP="mode_group"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="true"\n' \
+            "${non_writable_boot}" > "${non_writable_source}"
+        IOC_RUNNER_CONF_DIR="${case_root}/non-writable-target" \
+            bash "${RUNNER_SCRIPT}" --local -f install "${non_writable_source}" \
+            >/dev/null 2>"${non_writable_stderr}" || true
+        chmod 0700 "${non_writable_boot}"
+
+        if ! grep -Fq -- "Error: Configuration mode mismatch" "${non_writable_stderr}" \
+           && ! grep -Fq -- "       Regenerate :" "${non_writable_stderr}"; then
+            non_writable_not_aggregated="true"
+        fi
+        verify_state "true" "${non_writable_not_aggregated}" \
+            "Non-writable IOC_CHDIR pair mismatch is not aggregated"
+
+        if grep -Fqx -- "Error: Local IOCs must run as ${local_user}" "${non_writable_stderr}" \
+           && grep -Fqx -- "Error: Local IOCs must run under group ${local_group}" "${non_writable_stderr}"; then
+            non_writable_errors_retained="true"
+        fi
+        verify_state "true" "${non_writable_errors_retained}" \
+            "Non-writable IOC_CHDIR pair mismatch retains field errors"
+
+        grep -Fqx -- "Validation failed with 2 errors. Installation aborted." \
+            "${non_writable_stderr}" && non_writable_summary="true"
+        verify_state "true" "${non_writable_summary}" \
+            "Non-writable IOC_CHDIR pair mismatch reports two errors"
+    fi
+
+    # T4c: an invalid identity cannot enter the combined diagnostic or be
+    # echoed back to the terminal.
+    printf 'IOC_NAME="invalid_identity_case"\nIOC_USER=\047%s\047\nIOC_GROUP="mode_group"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="true"\n' \
+        "${invalid_user}" "${local_boot}" > "${invalid_source}"
+    IOC_RUNNER_CONF_DIR="${case_root}/invalid-target" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${invalid_source}" \
+        >/dev/null 2>"${invalid_stderr}" || true
+
+    grep -Fqx -- "Error: Illegal characters detected in variable IOC_USER" \
+        "${invalid_stderr}" && invalid_whitelist_error="true"
+    verify_state "true" "${invalid_whitelist_error}" \
+        "Invalid identity retains its whitelist error"
+
+    if grep -Fq -- "Error: Configuration mode mismatch" "${invalid_stderr}" \
+       || grep -Fq -- "${invalid_user}" "${invalid_stderr}"; then
+        invalid_not_rendered="false"
+    fi
+    verify_state "true" "${invalid_not_rendered}" \
+        "Invalid identity is not rendered in a combined diagnostic"
+
+    grep -Fqx -- "Validation failed with 3 errors. Installation aborted." \
+        "${invalid_stderr}" && invalid_summary="true"
+    verify_state "true" "${invalid_summary}" \
+        "Invalid identity pair mismatch reports three errors"
+}
+
+
+# Exercise the shipped file-direct install path against the complete bounded
+# configuration grammar. Accepted fixtures must reach the deployed target;
+# rejected fixtures must leave the last accepted target intact. Local install
+# intentionally rewrites IOC_PORT, so source-to-target byte equality is not a
+# parser contract.
+function test_conf_parser_contract {
+    local step="$1"
+    local test_dir="${TEST_TMPDIR}/m5_conf_parser_ioc"
+    local mock_conf_dir="${TEST_TMPDIR}/m5_conf_parser_etc"
+    local mock_sysd_dir="${TEST_TMPDIR}/m5_conf_parser_sysd"
+    local conf_file="${test_dir}/m5_conf_parser.conf"
+    local target_conf="${mock_conf_dir}/m5_conf_parser.conf"
+    local current_user=""
+    local current_group=""
+    local fixture=""
+    local exit_code=0
+    local accepted="false"
+    local lookup_output=""
+    local lookup_present="false"
+    local before_hash=""
+    local after_hash=""
+    local rejected="false"
+    local -a accepted_fixtures=(
+        spaces
+        tabs
+        single-quotes
+        double-quotes
+        crlf
+        empty-value
+        embedded-equals
+        duplicate-last
+        regex-backslashes
+    )
+    local -a rejected_fixtures=(unmatched-quote continuation multiline-quote)
+
+    print_divider
+    _log "INFO" "STEP ${step}: Unified Configuration Parser Contract"
+    print_sub_divider
+
+    current_user=$(id -un)
+    current_group=$(id -gn)
+    mkdir -p "${test_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    for fixture in "${accepted_fixtures[@]}"; do
+        case "${fixture}" in
+            spaces)
+                printf 'IOC_USER = %s\nIOC_GROUP = %s\nIOC_CHDIR = %s\nIOC_PORT = \nIOC_CMD = ./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            tabs)
+                printf 'IOC_USER\t=\t%s\nIOC_GROUP\t=\t%s\nIOC_CHDIR\t=\t%s\nIOC_PORT\t=\t\nIOC_CMD\t=\t./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            single-quotes)
+                printf "IOC_USER='%s'\nIOC_GROUP='%s'\nIOC_CHDIR='%s'\nIOC_PORT=''\nIOC_CMD='./st.cmd'\n" \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            double-quotes)
+                printf 'IOC_USER="%s"\nIOC_GROUP="%s"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="./st.cmd"\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            crlf)
+                printf 'IOC_USER=%s\r\nIOC_GROUP=%s\r\nIOC_CHDIR=%s\r\nIOC_PORT=\r\nIOC_CMD=./st.cmd\r\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            empty-value)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_EMPTY=\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            embedded-equals)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_VALUE="alpha=omega"\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            duplicate-last)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=/missing/m5-first\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            regex-backslashes)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                printf '%s\n' 'CRASH_LOG_PATTERNS_EXTRA="Broken pipe|net_ex\\(status\\)"' >> "${conf_file}"
+                ;;
+        esac
+
+        exit_code=0
+        IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>&1 || exit_code=$?
+        accepted="false"
+        if (( exit_code == 0 )) && [[ -f "${target_conf}" ]]; then
+            accepted="true"
+        fi
+        verify_state "true" "${accepted}" \
+            "Configuration parser fixture '${fixture}' is accepted and deployed"
+    done
+
+    lookup_output=$(IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local attach m5_conf_parser 2>&1 || true)
+    if [[ "${lookup_output}" == *"Socket file not found or invalid:"* &&
+          "${lookup_output}" != *"IOC_PORT not configured"* ]]; then
+        lookup_present="true"
+    fi
+    verify_state "true" "${lookup_present}" \
+        "An empty IOC_PORT remains present at the runtime lookup"
+
+    before_hash=$(sha256sum "${target_conf}")
+    before_hash="${before_hash%% *}"
+    for fixture in "${rejected_fixtures[@]}"; do
+        case "${fixture}" in
+            unmatched-quote)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD="./st.cmd\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            continuation)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_VALUE=first\\\nsecond\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+            multiline-quote)
+                printf 'IOC_USER=%s\nIOC_GROUP=%s\nIOC_CHDIR=%s\nIOC_PORT=\nIOC_CMD=./st.cmd\nM5_VALUE="first\nsecond"\n' \
+                    "${current_user}" "${current_group}" "${test_dir}" > "${conf_file}"
+                ;;
+        esac
+
+        exit_code=0
+        IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" >/dev/null 2>&1 || exit_code=$?
+        after_hash=$(sha256sum "${target_conf}")
+        after_hash="${after_hash%% *}"
+        rejected="false"
+        if (( exit_code != 0 )) && [[ "${after_hash}" == "${before_hash}" ]]; then
+            rejected="true"
+        fi
+        verify_state "true" "${rejected}" \
+            "Configuration parser fixture '${fixture}' is rejected before target replacement"
+    done
+}
+
+function extract_reader_functions {
+    local output_file="$1"
+    local function_name=""
+    local start_line=""
+    local source_count=0
+    local generated_count=0
+    local -a function_names=(parse_conf_file read_conf_var read_conf_all)
+
+    : > "${output_file}"
+    for function_name in "${function_names[@]}"; do
+        start_line="function ${function_name} {"
+        if ! source_count=$(awk -v start="${start_line}" \
+            '$0 == start { count += 1 } END { print count + 0 }' "${RUNNER_SCRIPT}"); then
+            return 1
+        fi
+        if (( source_count != 1 )); then
+            return 1
+        fi
+        if ! awk -v start="${start_line}" '
+            $0 == start { capture = 1 }
+            capture { print }
+            capture && $0 == "}" { complete = 1; exit }
+            END { if (!complete) exit 1 }
+        ' "${RUNNER_SCRIPT}" >> "${output_file}"; then
+            return 1
+        fi
+        printf '\n' >> "${output_file}"
+    done
+
+    [[ -s "${output_file}" ]] || return 1
+    for function_name in "${function_names[@]}"; do
+        start_line="function ${function_name} {"
+        if ! generated_count=$(awk -v start="${start_line}" \
+            '$0 == start { count += 1 } END { print count + 0 }' "${output_file}"); then
+            return 1
+        fi
+        if (( generated_count != 1 )); then
+            return 1
+        fi
+    done
+    bash -n "${output_file}"
+}
+
+function verify_reader_fixture {
+    local input_line="$1"
+    local expected_value="$2"
+    local description="$3"
+    local fixture_file="${TEST_TMPDIR}/m6-reader-equivalence.conf"
+    local reader_value=""
+    local map_rc=0
+    local reader_rc=0
+    local result="false"
+    local -A values=()
+
+    printf '%s\n' "${input_line}" > "${fixture_file}"
+    read_conf_all "${fixture_file}" values || map_rc=$?
+    reader_value=$(read_conf_var "${fixture_file}" M6_VALUE) || reader_rc=$?
+    if (( map_rc == 0 && reader_rc == 0 )) \
+       && [[ -v 'values[M6_VALUE]' ]] \
+       && [[ "${values[M6_VALUE]}" == "${expected_value}" ]] \
+       && [[ "${reader_value}" == "${expected_value}" ]]; then
+        result="true"
+    fi
+    verify_state "true" "${result}" "${description}"
+}
+
+function test_reader_equivalence {
+    local step="$1"
+    local reader_source="${TEST_TMPDIR}/m6-reader-functions.bash"
+    local fixture_file="${TEST_TMPDIR}/m6-reader-equivalence.conf"
+    local extraction_ok="false"
+    local reader_value=""
+    local map_rc=0
+    local reader_rc=0
+    local missing_states_ok="false"
+    local -A values=()
+
+    print_divider
+    _log "INFO" "STEP ${step}: Configuration Reader Equivalence"
+    print_sub_divider
+
+    if extract_reader_functions "${reader_source}"; then
+        # shellcheck disable=SC1090
+        if source "${reader_source}"; then
+            extraction_ok="true"
+        fi
+    fi
+    verify_state "true" "${extraction_ok}" \
+        "Exact shipped configuration reader functions are extracted"
+    if [[ "${extraction_ok}" != "true" ]]; then
+        close_current_remaining SKIP "requires exact reader-function extraction"
+        return 0
+    fi
+
+    verify_reader_fixture 'M6_VALUE = alpha' 'alpha' \
+        "Both readers normalize surrounding spaces"
+    verify_reader_fixture $'M6_VALUE\t=\tbravo' 'bravo' \
+        "Both readers normalize surrounding tabs"
+    verify_reader_fixture "M6_VALUE = ' charlie '" ' charlie ' \
+        "Both readers preserve single-quoted interior whitespace"
+    verify_reader_fixture 'M6_VALUE = " delta "' ' delta ' \
+        "Both readers preserve double-quoted interior whitespace"
+    verify_reader_fixture "M6_VALUE = '   '" '   ' \
+        "Both readers preserve single-quoted whitespace-only values"
+    verify_reader_fixture 'M6_VALUE = "   "' '   ' \
+        "Both readers preserve double-quoted whitespace-only values"
+    verify_reader_fixture 'M6_VALUE = ""' '' \
+        "Both readers preserve a quoted empty value as present"
+
+    printf '%s\n' 'M6_OTHER=present' > "${fixture_file}"
+    read_conf_all "${fixture_file}" values || map_rc=$?
+    reader_value=$(read_conf_var "${fixture_file}" M6_VALUE) || reader_rc=$?
+    if (( map_rc == 0 && reader_rc == 1 )) && [[ ! -v 'values[M6_VALUE]' ]]; then
+        missing_states_ok="true"
+    fi
+    verify_state "true" "${missing_states_ok}" \
+        "Both readers preserve their intentional missing-key API states"
+}
+
+
 function run_all_tests {
     local -a pipeline=(
         "_setup"
@@ -1843,7 +2457,7 @@ function run_all_tests {
         "no_error_contract_checks"
         "no_error_contract_checks"
         "no_error_contract_checks"
-        "test_log_dir_guard"
+        "test_log_dir_runtime_boundary"
         "no_error_contract_checks"
         "test_conf_dir_guard"
         "no_error_contract_checks"
@@ -1864,6 +2478,9 @@ function run_all_tests {
         "test_crash_pattern_extra"
         "test_tool_resolution"
         "test_logrotate_debug_state_isolation"
+        "test_conf_mode_mismatch_diagnosis"
+        "test_conf_parser_contract"
+        "test_reader_equivalence"
     )
     local step=1
     local func
@@ -1876,6 +2493,9 @@ function run_all_tests {
 }
 
 initialize_reporting
+if (( REPORT_CATALOG_ONLY_COMPLETED )); then
+    exit "${REPORT_FINAL_STATUS}"
+fi
 if ! run_preflight; then
     exit 1
 fi
