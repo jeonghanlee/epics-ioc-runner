@@ -14,9 +14,9 @@ and M13 moved in master commit
 `757dcd2464d34d616a32fe7175ba9371ddc8e92c` to target commit
 `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: review and commit the M15 post-release preparation
-record containing Release Verification 7-8, then perform the final issue and
-canonical read-back for Release Verification 9.
+Next session entry point: commit and push the first M15 closure candidate,
+perform Release Verification 9 against that committed state, then commit and
+push the final M15 completion record.
 
 ## Milestone
 
@@ -38,7 +38,7 @@ canonical read-back for Release Verification 9.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21, D22 | Release Verification 1-8 Pass; released objects, clean installation, and production installation agree; Release Verification 9 remains; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21, D22 | Release Verification 1-8 Pass; final issue and canonical prechecks pass; the two-commit Release Verification 9 closure remains; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2543,6 +2543,13 @@ own.
 - Observed 2026-09-03: issue #127 remains open in the GitHub Backlog milestone
   and Deferred in the master canonical register. Remote branches
   `release-1.2.3` and `release-1.2.4` remain present and unchanged.
+- Observed 2026-09-03 10:25 PDT: fetched `origin/master` and local `master`
+  both resolved to post-release preparation commit
+  `0f3ca2a1a6038e51452b3180955c375d520320ad`; both canonical documents
+  matched their committed copies. All fourteen linked 1.3.0 issues remained
+  closed in closed milestone 16. Issue #127 remained open in the Backlog
+  milestone and Deferred in the master canonical document. The retained
+  `release-1.2.3` and `release-1.2.4` remote branches remained present.
 
 ##### Implementation Plan
 
@@ -2552,12 +2559,14 @@ on 2026-08-31 and
 accepted its correction to the current cloud image-pair and manifest-sidecar
 contract on
 2026-09-01, and accepted the `#150` release-record correction with strict Gate
-invalidation on 2026-09-02.
+invalidation on 2026-09-02. Owner selected the two-commit Release Verification
+9 closure on 2026-09-03.
 Implementation Authorization: Owner authorized M15 implementation, then
 identified as M14, on
 2026-08-31, the cloud-contract documentation correction on 2026-09-01, and the
 `#150` release-record correction plus Release Verification 1-4 rerun on
-2026-09-02.
+2026-09-02. Owner authorized continuation, then selected the two-commit closure
+on 2026-09-03.
 Superseded Plan Artifacts: none
 
 1. Fetch both branches, require clean named worktrees and current upstreams,
@@ -2613,9 +2622,11 @@ Superseded Plan Artifacts: none
 13. Record the post-release results, #127 next-entry state, branch-retention
     result, and issue intent while M15 remains In progress; pass repository
     checks and create a separately authorized source-first preparation commit.
-    Re-read every linked issue, then mark M15 Complete, record Release
-    Verification 9, and create and push the separately authorized closure
-    commit without opening a release line or deleting a release branch.
+    Re-read every linked issue, create and push a separately authorized closure
+    candidate while M15 remains In progress, then compare that committed file
+    with the checked file and fetched upstream. Record Release Verification 9,
+    mark M15 Complete, and create and push a second separately authorized final
+    readback commit without opening a release line or deleting a release branch.
 
 ##### Test Plan
 
@@ -2677,9 +2688,12 @@ labels.
 | 17 | Close remote GitHub milestone 1.3.0, number 16 | Release delegation after exact command preview | The milestone is closed with no open linked issue | Pass 2026-09-03: milestone 16 closed at `2026-09-03T08:14:37Z` with 0 open and 14 closed issues |
 | 18 | Commit the remote-milestone checkpoint | Commit delegation | The canonical record contains the observed closed milestone state | Not performed at the intended boundary; superseded by D22 and recovery step 19 |
 | 19 | Commit the release-action recovery record | Commit delegation | One checked canonical commit records steps 7-18, immutable release object identities, and the D22 sequencing deviation before Release Verification 7 | Pass 2026-09-03: `837b1ca86d2efbb93c9980b3b425a28dfb118c82` changes only `docs/milestone-1.3.0.md`; local and remote master agreed after push |
-| 20 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M15 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M15 closure | pending |
-| 21 | Commit M15 completion and Release Verification 9 after final issue and canonical read-back | Commit delegation | One checked cycle-closure commit on `master` points to deferred Backlog issue #127 without branch creation or deletion | pending |
-| 22 | Push the closure commit and accumulated canonical checkpoints to `origin/master` | Push delegation | Local and upstream closure state agree | pending |
+| 20 | Commit the post-release preparation record with Release Verification 7-8, #127 next-entry state, branch retention, and issue intent while M15 remains In progress | Commit delegation | One checked source-first preparation commit precedes final issue read-back and M15 closure | Pass 2026-09-03: `0f3ca2a1a6038e51452b3180955c375d520320ad` changes only the two canonical milestone documents; local and fetched `origin/master` agreed after push |
+| 21 | Commit the first closure candidate after final issue and canonical prechecks while M15 remains In progress | Commit delegation | One checked closure candidate on `master` contains the complete precheck evidence and points to deferred Backlog issue #127 | pending |
+| 22 | Push the first closure candidate to `origin/master` | Push delegation | Local and fetched upstream candidate state agree before Release Verification 9 | pending |
+| 23 | Run Release Verification 9 against the committed and pushed closure candidate | Verification | The candidate canonical file matches its committed copy, M15 and the release tally agree, master points to deferred Backlog issue #127, and local and fetched upstream agree | pending |
+| 24 | Commit M15 completion and Release Verification 9 readback evidence | Commit delegation | One checked final readback commit marks M15 Complete and records the candidate commit ID and upstream comparison | pending |
+| 25 | Push the final readback commit to `origin/master` and verify landing | Push delegation | Local and fetched upstream final state agree with no remaining closure-path modification | pending |
 
 ##### Release Verification Plan
 
@@ -2693,7 +2707,7 @@ labels.
 | Release Verification 6 | Post-change version, notes, and current release state | post-change | Inspect the version, corrected product, and D21 changelog-correction commits; review the release-notes file; deploy the D21 candidate through full setup on both consumers; read source and installed version identity; and recheck canonical references and tracker state after M14 | Release branch, both fresh consumers, tracked documentation, and GitHub | Changelog has one accepted 1.3.0 section; release notes agree with it and name the `1.2.4...1.3.0` comparison; source and deployed runners report `1.3.0` and the tested D21 candidate hash; the version commit changes only `bin/ioc-runner`; live references resolve; all 14 linked issues are closed; every later commit after the tested D21 candidate through the readiness candidate changes only canonical evidence | Commit path lists and ancestry, changelog and release-notes comparison, source reads, setup logs, `ioc-runner -V` output, tracked-reference checks, and tracker observation |
 | Release Verification 7 | Released objects and tracker | post-release | After the released-object storage preflight, independently read the master merge commit, annotated tag, GitHub release target, milestone, and linked issue states | Canonical Git remote and GitHub | Merge, tag, and release object identify the accepted candidate ancestry; milestone 16 is closed; all 14 linked issues remain closed | Object and peeled commit IDs plus GitHub read-back |
 | Release Verification 8 | Clean installation and production deployment | post-release | Execute both Production Environment Test rows above from the actual released tag | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | The clean initial installation and production CLI update both install the released identity; policy contexts and consumers pass; both real installed-state suites have no failure | Clean-install and production-update version, context, consumer, and suite records without production host identity |
-| Release Verification 9 | Cycle closure | post-release | Compare the checked canonical closure file with its committed copy, read M15 and the release tally, and inspect the master canonical next entry | `master`, canonical documents, and fetched upstream | M15 is Complete; every Release Verification row is Pass; the 1.3.0 record is durable; master points to its surviving Backlog work; local and upstream closure state agree | Closure commit ID, byte comparison, register rows, and upstream read-back |
+| Release Verification 9 | Cycle closure | post-release | Push the first closure candidate while M15 remains In progress, compare its canonical file with the committed copy, read M15 and the release tally, and inspect the master canonical next entry; record the result and M15 completion in a second commit | `master`, canonical documents, and fetched upstream | The candidate comparison passes; every Release Verification row can be recorded Pass; the 1.3.0 record is durable; master points to its surviving Backlog work; local and upstream candidate state agree before the final readback commit | Candidate commit ID, byte comparison, register rows, and upstream read-back |
 
 ##### Release Verification Results
 
