@@ -15,7 +15,7 @@ and M13 moved in master commit
 `36396b371464575ad325d3ed0bd18b02281495d8`.
 
 Next session entry point: release 1.3.0 is complete. Continue from
-`docs/milestone-46790f9.md`; no work is Ready until deferred issue #127 is
+[`milestone-45e1009.md`](milestone-45e1009.md); no work is Ready until deferred issue #127 is
 assigned to a later release cycle.
 
 ## Milestone
@@ -45,7 +45,7 @@ assigned to a later release cycle.
 
 | ID | Decision | Source |
 | --- | --- | --- |
-| D1 | Open 1.3.0 as a reliability-and-configuration-contract line carrying #102, #115, #113, #129, #142, #139, #116, #144, #148, and #132. #127 (container execution mode) is excluded to a later cycle as a standalone feature. | Owner decision, 2026-08-17; recorded as D2 in `docs/milestone-46790f9.md` |
+| D1 | Open 1.3.0 as a reliability-and-configuration-contract line carrying #102, #115, #113, #129, #142, #139, #116, #144, #148, and #132. #127 (container execution mode) is excluded to a later cycle as a standalone feature. | Owner decision, 2026-08-17; recorded as D2 in the [pre-reset master register] |
 | D2 | Run M5 and M6 as one configuration-contract lane: M6 is the narrow two-reader case that M5's shared parse core subsumes, so M6 follows M5 and closes on the shared core's evidence plus its own reader-equivalence fixtures. | Owner-accepted lane pairing, 2026-08-17 |
 | D3 | Execute the cycle in local ID order M1 (#148), M2 (#139), M3 (#142), M4 (#115), M5+M6 (#113/#129 lane), M7 (#116), M8 (#144), M9 (#132); M10 (#102) runs its design conversation from cycle start with implementation placed after the mid-cycle. Local IDs were renumbered to match this order; each detail's Identity History records its prior ID. | Owner decision, 2026-08-18 |
 | D4 | M1 centralizes expected check and STEP counts in `tests/reporting-counts.csv`. Runtime catalogs remain the independent actual values, and the CSV is initially populated only from pre-change observations of the five real shipped suite paths. The reporter's existing five-suite set becomes a public supported-suite contract that independently validates CSV membership. Normal suite runs compare immediately after catalog close; `REPORT_CATALOG_ONLY=1` performs the same comparison and then exits through a reporter-owned cleanup state before environment preflight, emitting exactly one `CATALOG suite=<suite> checks=<checks> steps=<steps> state=PASS` line on success. The gate's six-run execution set remains independent and joins to the CSV for per-suite expectations and derived totals. Live expectation documents reference the CSV; historical observed counts remain unchanged. | Owner design direction, 2026-08-18; third-person and second-person review findings accepted 2026-08-18 |
@@ -79,25 +79,25 @@ assigned to a later release cycle.
 
 | Identity | From | To | Target Commit | Authority Moved At |
 | --- | --- | --- | --- | --- |
-| 46790f9 / M4 -> 1.3.0 / M1 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M5 -> 1.3.0 / M2 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M6 -> 1.3.0 / M3 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M7 -> 1.3.0 / M4 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M8 -> 1.3.0 / M5 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M9 -> 1.3.0 / M6 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M10 -> 1.3.0 / M7 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M11 -> 1.3.0 / M8 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M12 -> 1.3.0 / M9 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M13 -> 1.3.0 / M10 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
-| 46790f9 / M3 -> 1.3.0 / M12 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | `36396b371464575ad325d3ed0bd18b02281495d8` | `757dcd2464d34d616a32fe7175ba9371ddc8e92c` |
-| 46790f9 / M1 -> 1.3.0 / M13 | `master`, `docs/milestone-46790f9.md` | `release-1.3.0`, `docs/milestone-1.3.0.md` | `36396b371464575ad325d3ed0bd18b02281495d8` | `757dcd2464d34d616a32fe7175ba9371ddc8e92c` |
+| 46790f9 / M4 -> 1.3.0 / M1 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M5 -> 1.3.0 / M2 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M6 -> 1.3.0 / M3 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M7 -> 1.3.0 / M4 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M8 -> 1.3.0 / M5 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M9 -> 1.3.0 / M6 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M10 -> 1.3.0 / M7 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M11 -> 1.3.0 / M8 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M12 -> 1.3.0 / M9 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M13 -> 1.3.0 / M10 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | this synchronization commit | source transfer commit naming this target commit |
+| 46790f9 / M3 -> 1.3.0 / M12 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | `36396b371464575ad325d3ed0bd18b02281495d8` | `757dcd2464d34d616a32fe7175ba9371ddc8e92c` |
+| 46790f9 / M1 -> 1.3.0 / M13 | `master`, [pre-reset master register] | `release-1.3.0`, `docs/milestone-1.3.0.md` | `36396b371464575ad325d3ed0bd18b02281495d8` | `757dcd2464d34d616a32fe7175ba9371ddc8e92c` |
 
 ### Milestone Details
 
 #### M1 - Suite count coherence guard
 
 Origin: 1.3.0 / M9
-Identity History: staged from `docs/milestone-46790f9.md` M12; 1.3.0 / M9 -> 1.3.0 / M1 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M12; 1.3.0 / M9 -> 1.3.0 / M1 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 148, https://github.com/jeonghanlee/epics-ioc-runner/issues/148
 Status: Complete
 
@@ -299,7 +299,7 @@ Last Compared: 2026-08-19; remote updated 2026-08-19T08:05:10Z
 #### M2 - EPICS_BASE entry boundary
 
 Origin: 1.3.0 / M6
-Identity History: staged from `docs/milestone-46790f9.md` M9; 1.3.0 / M6 -> 1.3.0 / M2 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M9; 1.3.0 / M6 -> 1.3.0 / M2 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 139, https://github.com/jeonghanlee/epics-ioc-runner/issues/139
 Status: Complete
 
@@ -433,7 +433,7 @@ Last Compared: 2026-08-19; remote updated 2026-08-19T08:05:20Z
 #### M3 - Conf mode mismatch diagnosis
 
 Origin: 1.3.0 / M5
-Identity History: staged from `docs/milestone-46790f9.md` M8; 1.3.0 / M5 -> 1.3.0 / M3 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M8; 1.3.0 / M5 -> 1.3.0 / M3 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 142, https://github.com/jeonghanlee/epics-ioc-runner/issues/142
 Status: Complete
 
@@ -659,7 +659,7 @@ Last Compared: 2026-08-19; remote updated 2026-08-20T03:44:27Z
 #### M4 - Restart supervision probe
 
 Origin: 1.3.0 / M2
-Identity History: staged from `docs/milestone-46790f9.md` M5; 1.3.0 / M2 -> 1.3.0 / M4 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M5; 1.3.0 / M2 -> 1.3.0 / M4 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 115, https://github.com/jeonghanlee/epics-ioc-runner/issues/115
 Status: Complete
 
@@ -771,7 +771,7 @@ Last Compared: 2026-08-23; remote updated 2026-08-23T21:59:39Z
 #### M5 - Conf parser unification
 
 Origin: 1.3.0 / M3
-Identity History: staged from `docs/milestone-46790f9.md` M6; 1.3.0 / M3 -> 1.3.0 / M5 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M6; 1.3.0 / M3 -> 1.3.0 / M5 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 113, https://github.com/jeonghanlee/epics-ioc-runner/issues/113
 Status: Complete
 
@@ -899,7 +899,7 @@ Last Compared: 2026-08-24; remote updated 2026-08-24T17:16:05Z
 #### M6 - Conf value normalization
 
 Origin: 1.3.0 / M4
-Identity History: staged from `docs/milestone-46790f9.md` M7; 1.3.0 / M4 -> 1.3.0 / M6 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M7; 1.3.0 / M4 -> 1.3.0 / M6 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 129, https://github.com/jeonghanlee/epics-ioc-runner/issues/129
 Status: Complete
 
@@ -1035,7 +1035,7 @@ Last Compared: 2026-08-24; remote updated 2026-08-25T01:17:08Z
 #### M7 - Suite integrity
 
 Origin: 1.3.0 / M7
-Identity History: staged from `docs/milestone-46790f9.md` M10
+Identity History: staged from [pre-reset master register] M10
 GitHub Issue: 116, https://github.com/jeonghanlee/epics-ioc-runner/issues/116
 Status: Complete
 
@@ -1146,7 +1146,7 @@ Last Compared: 2026-08-25; remote updated 2026-08-25T17:58:39Z
 #### M8 - Human and machine output separation
 
 Origin: 1.3.0 / M8
-Identity History: staged from `docs/milestone-46790f9.md` M11
+Identity History: staged from [pre-reset master register] M11
 GitHub Issue: 144, https://github.com/jeonghanlee/epics-ioc-runner/issues/144
 Status: Complete
 
@@ -1256,7 +1256,7 @@ Last Compared: 2026-08-26; remote updated 2026-08-26T16:09:47Z
 #### M9 - Milestone procedure draft fate
 
 Origin: 1.3.0 / M10
-Identity History: staged from `docs/milestone-46790f9.md` M13; 1.3.0 / M10 -> 1.3.0 / M9 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M13; 1.3.0 / M10 -> 1.3.0 / M9 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 132, https://github.com/jeonghanlee/epics-ioc-runner/issues/132
 Status: Complete
 
@@ -1487,7 +1487,7 @@ Superseded Plan Artifacts: none
 | T1 | 2026-08-27 00:56 PDT | Both source repository working trees | Pass: all 21 fixed ledger IDs had one inspected owner or explicit rejection; DR20 preserved distinct Commit and Push authorities plus configured-upstream readback, no candidate or destination was missing, all four rejections had a rationale, and no repository history entered the shared skill | Direct inspection of the byte-identical restored draft, fixed Source Rule Inventory, and every declared destination |
 | T2 | 2026-08-27 00:57 PDT | Shared skill source tree and installed skill entries | Pass: both skill validators exited 0, `make render.check` reported projections in sync, and all four source-to-installed identity checks exited 0 | Direct execution of both package validators, `make render.check`, and the four source-to-installed identity checks |
 | T3 | 2026-08-27 00:58 PDT | Fresh read-only context starting from the installed `milestone-tracking` skill and `docs/README.md` | Pass: the reader found the active 1.3.0 register and M9, reached `references/plan.md` and `references/procedure.md`, kept `conceptual-integrity` conditional, distinguished plan acceptance, implementation authorization, Commit, Push, and Issue authorities, and required upstream readback before Complete | Independent route inspection through the installed skill and tracked repository documentation from a fresh context |
-| T4 | 2026-08-27 00:58 PDT | Tracked Markdown in both source repositories | Pass: the shared skill source repository had zero removed-path hits; release-branch hits were the current M9 removal record or the non-authoritative master snapshot, and `docs/README.md` agreed with both register headers about authority | Direct tracked-file searches, including a no-match `git grep`, plus inspection of `docs/README.md`, `docs/milestone-1.3.0.md`, and `docs/milestone-46790f9.md` headers |
+| T4 | 2026-08-27 00:58 PDT | Tracked Markdown in both source repositories | Pass: the shared skill source repository had zero removed-path hits; release-branch hits were the current M9 removal record or the non-authoritative master snapshot, and `docs/README.md` agreed with both register headers about authority | Direct tracked-file searches, including a no-match `git grep`, plus inspection of `docs/README.md`, `docs/milestone-1.3.0.md`, and the [pre-reset master register] headers |
 | T5 | 2026-08-27 00:58 PDT | Both source repository working trees | Pass: `milestone-tracking` owned per-milestone planning and closure with distinct Commit, Push, and Issue authorities and required landing evidence; `gate/RUNBOOK.md` owned Gate operation, `release-cycle` owned release-wide execution, and `git-workflow` owned git and GitHub mutations | Direct cross-file inspection of all four ownership surfaces |
 | T6 | 2026-08-27 01:00 PDT | Canonical checkout | Pass: the canonical M9 detail and generated local issue body each contained the nine required projected sections, their complete projected content matched, excluded GitHub metadata was absent from the body, and no GitHub mutation was issued | Direct section counts and byte comparison of the nine canonical projected sections against the generated body before GitHub mutation |
 
@@ -1521,7 +1521,7 @@ Last Compared: 2026-08-27; remote updated 2026-08-27T16:05:43Z
 #### M10 - Fleet-layer reliability
 
 Origin: 1.3.0 / M1
-Identity History: staged from `docs/milestone-46790f9.md` M4; 1.3.0 / M1 -> 1.3.0 / M10 (execution-order renumbering, D3, 2026-08-18)
+Identity History: staged from [pre-reset master register] M4; 1.3.0 / M1 -> 1.3.0 / M10 (execution-order renumbering, D3, 2026-08-18)
 GitHub Issue: 102, https://github.com/jeonghanlee/epics-ioc-runner/issues/102
 Status: Complete
 
@@ -1936,8 +1936,8 @@ Last Compared: 2026-08-31; remote updated 2026-08-31T10:01:57Z
 
 #### M12 - Current Rocky golden downstream validation
 
-Origin: 46790f9 / M3
-Identity History: 46790f9 / M3 -> 1.3.0 / M12 (staged target, D12, 2026-08-30)
+Origin: 46790f9 / M3 ([pre-reset master register])
+Identity History: 46790f9 / M3 ([pre-reset master register]) -> 1.3.0 / M12 (staged target, D12, 2026-08-30)
 GitHub Issue: 146, https://github.com/jeonghanlee/epics-ioc-runner/issues/146
 Status: Complete
 
@@ -2098,8 +2098,8 @@ Last Compared: 2026-08-31; remote updated 2026-08-31T22:39:10Z
 
 #### M13 - SELinux context
 
-Origin: 46790f9 / M1
-Identity History: 46790f9 / M1 -> 1.3.0 / M13 (staged target, D12, 2026-08-30)
+Origin: 46790f9 / M1 ([pre-reset master register])
+Identity History: 46790f9 / M1 ([pre-reset master register]) -> 1.3.0 / M13 (staged target, D12, 2026-08-30)
 GitHub Issue: 120, https://github.com/jeonghanlee/epics-ioc-runner/issues/120
 Status: Complete
 
@@ -2872,7 +2872,7 @@ sudoers, and logrotate passed. Each shipped suite reported 40 total, 36 passed,
 | Master canonical file | Working and committed blob IDs both resolved to `6258a2540d30d823ffa85b0c65d4c219cdaa31d1` |
 | Release state | M1-M14 and G1 were Complete; M15 remained In progress only for the planned final readback record; Release Verification 1-8 were Pass |
 | GitHub state | All fourteen issues assigned to milestone 16 remained closed; milestone 16 remained closed with 0 open and 14 closed issues |
-| Surviving work | Issue #127 remained open in the GitHub Backlog milestone and Deferred as the only unassigned work in `docs/milestone-46790f9.md` |
+| Surviving work | Issue #127 remained open in the GitHub Backlog milestone and Deferred as the only unassigned work in the [pre-reset master register] |
 | Result | Pass; the committed closure candidate satisfied the two-commit boundary and permits this final record to mark M15 Complete |
 
 ##### Superseded Release Verification 1 Evidence
@@ -2957,8 +2957,10 @@ returned milestone number 16, title `1.3.0`, state `open`, created
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
 No unassigned work is held on this release line; the master register
-`docs/milestone-46790f9.md` owns the Backlog.
+[`milestone-45e1009.md`](milestone-45e1009.md) owns the Backlog.
 
 ### Backlog Details
 
 None.
+
+[pre-reset master register]: https://github.com/jeonghanlee/epics-ioc-runner/blob/45e10098cba886433c831e4e54c1f903b0ee8cf2/docs/milestone-46790f9.md

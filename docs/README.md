@@ -44,11 +44,10 @@ This directory contains the complete documentation for deploying, managing, and 
 
 ### 7. Milestone Registers
 * **[milestone-1.3.0.md](milestone-1.3.0.md)**
-  Active canonical register for the 1.3.0 line on `release-1.3.0`. Authority
-  moved from master in commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`.
-* **[milestone-46790f9.md](milestone-46790f9.md)**
-  Master-generation register snapshot carried on this release branch. It is
-  not authoritative for 1.3.0; read the current master register from `master`.
+  Completed canonical register for release 1.3.0.
+* **[milestone-45e1009.md](milestone-45e1009.md)**
+  Active master-generation register after release 1.3.0. It owns the current
+  Backlog.
 
 ## Upgrading from 1.0.x
 
