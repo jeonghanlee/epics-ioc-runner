@@ -12,9 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: run M15 Release Verification 3 on the same
-`iocrunner-nfs` consumers at D21 candidate commit `6aafbb8` through Gate step
-4.
+Next session entry point: rerun M15 Release Verification 6 against D21
+candidate commit `6aafbb8`, the same `iocrunner-nfs` consumers, and the current
+release branch.
 
 ## Milestone
 
@@ -36,7 +36,7 @@ Next session entry point: run M15 Release Verification 3 on the same
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1, 2, 4, and 5 Pass at D21 candidate `6aafbb8`; Release Verification 3 and 6 remain; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1-5 Pass as recorded at the D21 readiness boundary; Release Verification 6 must be rerun; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2490,6 +2490,17 @@ own.
   equal to its baseline. Evidence: `work/m15-rv4-20260903T064343Z`; evidence
   manifest SHA-256
   `eb7595c5c36d9514bb881ec15a166580a59dd03058e3741f126af88f445ab66e`.
+- Observed 2026-09-03 00:10 PDT: Release Verification 3 passed on both
+  `iocrunner-nfs` release consumers at exact D21 candidate commit
+  `6aafbb8f8d5d80ba387fefe32234e78f4289c02b`. Each shipped complete
+  multi-user driver began with `P-LEFTOVERS PASS`, printed fourteen passing
+  precondition verdicts and all fourteen passing scenario verdicts, and ended
+  with `VERDICT RUN PASS`. Debian exercised the anchored sudoers branch and
+  Rocky exercised the documented glob fallback; both observed the required
+  S11 denial. After removing only the exact payload directories listed by the
+  cleanup driver, the shipped leftovers reader returned `P-LEFTOVERS PASS` on
+  both consumers. Evidence: `work/m15-rv3-20260903T070337Z`; evidence manifest
+  SHA-256 `a1b1009cfe5b97292abee6b4048e9d11cf53af8abf530813a38a1b9e021e60b7`.
 - Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
   0 open issues and 14 closed issues.
 
@@ -2649,7 +2660,7 @@ labels.
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-09-02 18:31 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both new baseline `1.2.4` image pairs passed the shipped pair validator and `qemu-img check`; both fresh consumers selected those exact images, matched the published manifest hashes, passed the canonical validator, and reported installed `1.2.4 (1961fbf)`. Evidence: `work/m15-rv1-20260903T012405Z` |
 | Release Verification 2 | 2026-09-02 23:29 PDT | Both fresh consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pass | Full setup passed 9/9 on Debian and 12/12 on Rocky. Both source and installed runner bodies matched and reported `6aafbb8`. Each host passed six blocks and 897 checks with no Fail, Skip, or Script Error; Debian had five reviewed NA results and Rocky had twelve. The 88-line cross-host comparison contained only S29, S23, S06, and S07 applicability differences. Evidence: `work/m15-rv2-20260903T061752Z` |
-| Release Verification 3 | Not run for current candidate | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv3-20260902T232328Z` but was invalidated by D21 |
+| Release Verification 3 | 2026-09-03 00:10 PDT | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pass | Both NFS-backed checkouts were clean and both installed runners reported `1.3.0 (6aafbb8)`. Each shipped complete multi-user driver began clean, printed fourteen passing precondition verdicts and fourteen passing scenario verdicts, and ended with `VERDICT RUN PASS`; the shipped post-cleanup leftovers check passed on both consumers. Evidence: `work/m15-rv3-20260903T070337Z`; manifest SHA-256 `a1b1009cfe5b97292abee6b4048e9d11cf53af8abf530813a38a1b9e021e60b7` |
 | Release Verification 4 | 2026-09-02 23:51 PDT | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pass | Both recorded `nfs_sim` operator runs completed with no unreachable or failed host; both NFS4 mounts reproduced `root_squash`; all three NFS-backed deployment entry points advanced the installed timestamp, retained `1.3.0 (6aafbb8)`, and preserved the baseline configuration fingerprint. Evidence: `work/m15-rv4-20260903T064343Z`; manifest SHA-256 `eb7595c5c36d9514bb881ec15a166580a59dd03058e3741f126af88f445ab66e` |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
 | Release Verification 6 | 2026-09-02 17:05 PDT | Release branch, release notes, and GitHub milestone 1.3.0 | Fail | Source preflight found fourteen closed milestone issues but only thirteen matching changelog and release-note references; #150 was omitted. The owner accepted a separate Fixes entry and strict D21 invalidation. Rerun Release Verification 6 only after Release Verification 1-4 pass on the resulting candidate |
@@ -2703,6 +2714,23 @@ Its `cross-host.diff` SHA-256 is
 Both source and installed runner bodies have SHA-256
 `2d5359818adbdf572655cfc41dd25aa7053cbe1e98fe1f633ab4ec55dcd7b2b2`
 and report candidate identity `6aafbb8`.
+
+##### Current Release Verification 3 Evidence
+
+| Platform | Candidate State | Preconditions | Scenarios | S11 Branch | Cleanup |
+| --- | --- | --- | --- | --- | --- |
+| Debian 13 | Clean NFS-backed checkout; installed `1.3.0 (6aafbb8)` | 14 Pass, 0 Fail; initial `P-LEFTOVERS PASS` | 14 Pass, 0 Fail, 0 missing; `VERDICT RUN PASS` | Anchored sudoers denial Pass | Post-cleanup `P-LEFTOVERS PASS` |
+| Rocky 8 | Clean NFS-backed checkout; installed `1.3.0 (6aafbb8)` | 14 Pass, 0 Fail; initial `P-LEFTOVERS PASS` | 14 Pass, 0 Fail, 0 missing; `VERDICT RUN PASS` | Glob fallback and systemd refusal Pass | Post-cleanup `P-LEFTOVERS PASS` |
+
+Both runs used shipped `gate/drivers/control/run-all.bash` from exact candidate
+commit `6aafbb8f8d5d80ba387fefe32234e78f4289c02b`. Only the seven exact payload
+directories reported by each cleanup driver were removed before the shipped
+leftovers recheck. The Debian and Rocky `run-all.log` SHA-256 values are
+`f9255ad3a2ba117ce78d295cf76106c19686b5ff41899a350f20412d97c14fba` and
+`5e71199327a11f4a1ae51a471d8695b9177178a06cce3a639933fa00b2441eef`,
+respectively. The 252-file evidence set is in
+`work/m15-rv3-20260903T070337Z`; its `evidence-sha256.log` SHA-256 is
+`a1b1009cfe5b97292abee6b4048e9d11cf53af8abf530813a38a1b9e021e60b7`.
 
 ##### Current Release Verification 4 Evidence
 
