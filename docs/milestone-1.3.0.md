@@ -12,9 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: run M15 Release Verification 2 on the fresh consumers
-from the accepted Release Verification 1 image pair at D21 candidate commit
-`6aafbb8`.
+Next session entry point: run M15 Release Verification 4 on the same fresh
+consumers at D21 candidate commit `6aafbb8`, following Gate step 3 before the
+Release Verification 3 multi-user run.
 
 ## Milestone
 
@@ -36,7 +36,7 @@ from the accepted Release Verification 1 image pair at D21 candidate commit
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1 and 5 Pass; Release Verification 2-4 must rerun at D21 candidate `6aafbb8`, and Release Verification 6 follows; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1, 2, and 5 Pass at D21 candidate `6aafbb8`; Release Verification 4, 3, and 6 remain; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2467,6 +2467,16 @@ own.
   sidecars, both canonical validators accepted the retained checkouts, and
   both installed runners reported clean tagged baseline `1.2.4 (1961fbf)`.
   Evidence: `work/m15-rv1-20260903T012405Z`.
+- Observed 2026-09-02 23:29 PDT: Release Verification 2 passed on both fresh
+  consumers at exact D21 candidate commit
+  `6aafbb8f8d5d80ba387fefe32234e78f4289c02b`. Shipped full setup passed 9/9
+  checks on Debian 13 and 12/12 checks on Rocky 8. Source and installed runner
+  bodies matched on both hosts and reported candidate identity `6aafbb8`.
+  Each host passed all six suite blocks and 897 checks; Debian reported five
+  reviewed NA results and Rocky reported twelve. No Fail, Skip, or Script
+  Error result occurred. The complete 88-line cross-host comparison contained
+  only the established S29, S23, S06, and S07 OS applicability differences.
+  Evidence: `work/m15-rv2-20260903T061752Z`.
 - Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
   0 open issues and 14 closed issues.
 
@@ -2554,14 +2564,14 @@ labels.
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
-| M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
-| M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
+| M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | Pass at D21 candidate `6aafbb8`; six blocks and 897 checks passed per host in `work/m15-rv2-20260903T061752Z` |
+| M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Pass at D21 candidate `6aafbb8`; both complete real-path host runs passed in `work/m15-rv2-20260903T061752Z` |
+| M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | Pass at D21 candidate `6aafbb8`; both installed system-lifecycle runs passed 155/155 in `work/m15-rv2-20260903T061752Z` |
 | M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5; Release Verification 6 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique before and after the M14 correction | Release Verification 5 Pass before M14 was inserted; Release Verification 6 recheck pending |
-| M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 Pass with the new D21 image pair; Release Verification 2 new-candidate run pending |
-| M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive path; the final two-host gate passes | Prior Pass at `63c7f82` invalidated by D21; new-candidate rerun pending |
+| M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 and 2 Pass with the new D21 image pair; Gate evidence is in `work/m15-rv2-20260903T061752Z` |
+| M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive path; the final two-host gate passes | Pass at D21 candidate `6aafbb8`; Rocky S07 passed and Debian recorded the four reviewed inactive-path NA results |
 | M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
-| M14 / T1-T3 | The final release reruns the complete gate after the focused correction gate | Process-context rendering, lifecycle evidence separation, and full suite aggregation | Release Verification 2 | M14 first closes on its own T1-T3 evidence; a distinct complete two-host suite-gate run then passes as Release Verification 2 | M14 T1-T3 remain Pass at `63c7f82`; the prior distinct Release Verification 2 result was invalidated by D21 and its new-candidate rerun is pending |
+| M14 / T1-T3 | The final release reruns the complete gate after the focused correction gate | Process-context rendering, lifecycle evidence separation, and full suite aggregation | Release Verification 2 | M14 first closes on its own T1-T3 evidence; a distinct complete two-host suite-gate run then passes as Release Verification 2 | M14 T1-T3 remain Pass at `63c7f82`; the distinct D21 candidate gate passed in `work/m15-rv2-20260903T061752Z` |
 
 ##### Production Environment Tests
 
@@ -2625,7 +2635,7 @@ labels.
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-09-02 18:31 PDT | New Debian 13 and Rocky 8 release-gate images and fresh consumers | Pass | Both new baseline `1.2.4` image pairs passed the shipped pair validator and `qemu-img check`; both fresh consumers selected those exact images, matched the published manifest hashes, passed the canonical validator, and reported installed `1.2.4 (1961fbf)`. Evidence: `work/m15-rv1-20260903T012405Z` |
-| Release Verification 2 | Not run for current candidate | Both fresh consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv2-20260902T202917Z` but was invalidated by D21 |
+| Release Verification 2 | 2026-09-02 23:29 PDT | Both fresh consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pass | Full setup passed 9/9 on Debian and 12/12 on Rocky. Both source and installed runner bodies matched and reported `6aafbb8`. Each host passed six blocks and 897 checks with no Fail, Skip, or Script Error; Debian had five reviewed NA results and Rocky had twelve. The 88-line cross-host comparison contained only S29, S23, S06, and S07 applicability differences. Evidence: `work/m15-rv2-20260903T061752Z` |
 | Release Verification 3 | Not run for current candidate | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv3-20260902T232328Z` but was invalidated by D21 |
 | Release Verification 4 | Not run for current candidate | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pending | The 2026-09-02 Pass at `63c7f828f1145bda4036d9f4641ac6f02d647cd6` remains historical evidence in `work/m15-rv4-20260902T215822Z` but was invalidated by D21 |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
@@ -2648,6 +2658,38 @@ Both manifests record `requested=1.2.4`, clean tagged runner commit
 unchanged across the image pair, and neither manifest contains a dirty source
 record. Both images report a 20 GiB virtual size, no backing file, no qcow2
 errors, and no corrupt or dirty flag.
+
+##### Current Release Verification 2 Evidence
+
+| Platform | Suite | Scope | Runner | PASS | FAIL | SKIP | NA | SCRIPT_ERROR | State | Elapsed |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| Debian 13 | error-handling | none | source | 198 | 0 | 0 | 0 | 0 | Pass | 4s |
+| Debian 13 | source-regression | system | source | 127 | 0 | 0 | 1 | 0 | Pass | 2s |
+| Debian 13 | local-lifecycle | local | source | 188 | 0 | 0 | 0 | 0 | Pass | 108s |
+| Debian 13 | local-lifecycle | local | installed | 188 | 0 | 0 | 0 | 0 | Pass | 107s |
+| Debian 13 | system-infra | system | none | 36 | 0 | 0 | 4 | 0 | Pass | 0s |
+| Debian 13 | system-lifecycle | system | installed | 155 | 0 | 0 | 0 | 0 | Pass | 122s |
+| Rocky 8 | error-handling | none | source | 198 | 0 | 0 | 0 | 0 | Pass | 3s |
+| Rocky 8 | source-regression | system | source | 128 | 0 | 0 | 0 | 0 | Pass | 2s |
+| Rocky 8 | local-lifecycle | local | source | 184 | 0 | 0 | 4 | 0 | Pass | 102s |
+| Rocky 8 | local-lifecycle | local | installed | 184 | 0 | 0 | 4 | 0 | Pass | 97s |
+| Rocky 8 | system-infra | system | none | 36 | 0 | 0 | 4 | 0 | Pass | 0s |
+| Rocky 8 | system-lifecycle | system | installed | 155 | 0 | 0 | 0 | 0 | Pass | 118s |
+
+Candidate commit
+`6aafbb8f8d5d80ba387fefe32234e78f4289c02b` was clean in the control
+checkout and both remote checkouts. Full-setup evidence is
+`work/m15-rv2-20260903T061752Z/debian-full-setup.log` with SHA-256
+`0a02cc7ac1ce15dd6642e6b4b6cf9010c719b78f6ce0244555d288019ff4f901`
+and `work/m15-rv2-20260903T061752Z/rocky-full-setup.log` with SHA-256
+`3a659b2de70f54b1b749d01556f5d9ee852df01278d8db32898fe92fbf465047`.
+The complete suite evidence is
+`work/m15-rv2-20260903T061752Z/gate-suites-20260903T061947Z-1049537`.
+Its `cross-host.diff` SHA-256 is
+`49a38f96afbe69b3fdf9362e03b10d18571124887caf883fc03ce893ffe4fb38`.
+Both source and installed runner bodies have SHA-256
+`2d5359818adbdf572655cfc41dd25aa7053cbe1e98fe1f633ab4ec55dcd7b2b2`
+and report candidate identity `6aafbb8`.
 
 ##### Superseded Release Verification 1 Evidence
 
