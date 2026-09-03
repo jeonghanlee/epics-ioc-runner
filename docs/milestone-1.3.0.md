@@ -12,9 +12,9 @@ master commit `05c49629e2cbc2a61414303a1c26fbd3b9acc601`. Authority for M12 and
 M13 moved in master commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c`
 to target commit `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: rerun M15 Release Verification 6 against D21
-candidate commit `6aafbb8`, the same `iocrunner-nfs` consumers, and the current
-release branch.
+Next session entry point: review and commit the checked M15 readiness record
+that carries Release Verification 1-6, then push that immutable release
+candidate under separate Commit and Push authority.
 
 ## Milestone
 
@@ -36,7 +36,7 @@ release branch.
 | Tests | M12 | (#146) Validate the current Rocky 8 golden through downstream runner suites | Carry-forward | Complete | No | M11, D12, D14 | Complete in `86094f0`; T1-T2 Pass on a fresh Rocky 8 consumer from the current image workflow, and issue #146 is closed; [detail](#m12---current-rocky-golden-downstream-validation) |
 | Install | M13 | (#120 item 3) Validate SELinux contexts on system policy deployments | Milestone | Complete | No | M12, D12, D15, D16 | Complete in `1647f8a` and `7c9f590`; T1-T6 Pass, including production acceptance on an owner-authorized SELinux-enforcing IOC host, and issue #120 is closed; [detail](#m13---selinux-context) |
 | Reliability | M14 | (#150) Keep inspect alive when process context changes during restart | Milestone | Complete | No | M10, D20 | Complete in `63c7f82` and `86b68c5`; T1-T3 Pass on both release consumers, and issue #150 is closed; [detail](#m14---inspect-process-context-churn) |
-| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1-5 Pass as recorded at the D21 readiness boundary; Release Verification 6 must be rerun; [detail](#m15---final-release) |
+| Release | M15 | Final release 1.3.0 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, G1, D17, D18, D19, D20, D21 | Release Verification 1-6 Pass; the checked readiness record must be committed and pushed before release execution; [detail](#m15---final-release) |
 | Tracker | G1 | GitHub milestone 1.3.0 exists | External gate | Complete | No | | Repository owner created open GitHub milestone 1.3.0, number 16, on 2026-08-18; [detail](#g1---github-milestone-1.3.0) |
 
 ### Decisions
@@ -2501,6 +2501,19 @@ own.
   cleanup driver, the shipped leftovers reader returned `P-LEFTOVERS PASS` on
   both consumers. Evidence: `work/m15-rv3-20260903T070337Z`; evidence manifest
   SHA-256 `a1b1009cfe5b97292abee6b4048e9d11cf53af8abf530813a38a1b9e021e60b7`.
+- Observed 2026-09-03 00:24 PDT: Release Verification 6 passed against D21
+  candidate commit `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` and release branch commit
+  `9b73c0ed004c2f60de0cb2d688582e374e465d39`. The version commit changed only
+  `bin/ioc-runner`, D21 changed only `CHANGELOG.md`, and every later commit
+  changed only `docs/milestone-1.3.0.md`. The changelog contains one accepted
+  1.3.0 section; its fourteen issue references match the reviewed release notes
+  and all fourteen closed GitHub milestone issues; the notes carry the
+  `1.2.4...1.3.0` comparison. Shipped full setup passed 9/9 on Debian and 12/12
+  on Rocky. Both clean NFS-backed source trees and installed runners reported
+  version 1.3.0 and candidate `6aafbb8`. The removed draft remains absent, no
+  live reference names it, and the canonical release path is unique. Evidence:
+  `work/m15-rv6-20260903T071955Z`; evidence manifest SHA-256
+  `f2ef3bcbf9686fb366837658c5a5d057f985d96aa402e38c61511c705be5b653`.
 - Observed 2026-09-02: GitHub milestone 1.3.0, number 16, remains open with
   0 open issues and 14 closed issues.
 
@@ -2591,7 +2604,7 @@ labels.
 | M1 / T1-T5; M7 / T1-T3; M8 / T1-T4 | Later runner, reporter, and gate changes plus the final version mutation | Reporter ledger, catalogs, machine output, installed logrotate service, and gate aggregation | Release Verification 2 | Every real catalog agrees with `tests/reporting-counts.csv`; all six suite blocks close through the shared ledger and the deployed logrotate path remains green | Pass at D21 candidate `6aafbb8`; six blocks and 897 checks passed per host in `work/m15-rv2-20260903T061752Z` |
 | M2 / T1-T5; M3 / T1-T6; M5 / T1-T4; M6 / T1-T3; M10 / T1-T3 | Later changes to the shared runner, setup, systemd, and installed executable | EPICS entry boundary, conf parser, diagnosis, log path, and procServ identity | Release Verification 2 | The final combined candidate preserves every accepted configuration and reliability behavior on both supported OS families | Pass at D21 candidate `6aafbb8`; both complete real-path host runs passed in `work/m15-rv2-20260903T061752Z` |
 | M4 / T1-T2 | Later runner, conf, and test changes reach procServ supervision | Real systemd to procServ to child restart path | Release Verification 2 | The shipped lifecycle path still observes child recovery under the same procServ on both consumers | Pass at D21 candidate `6aafbb8`; both installed system-lifecycle runs passed 155/155 in `work/m15-rv2-20260903T061752Z` |
-| M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5; Release Verification 6 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique before and after the M14 correction | Release Verification 5 Pass before M14 was inserted; Release Verification 6 recheck pending |
+| M9 / T1-T6 | Later canonical and documentation edits could reintroduce a removed live reference | Tracked documentation authority and reference integrity | Release Verification 5; Release Verification 6 | The removed draft stays absent, every live reference resolves, and the canonical path remains unique before and after the M14 correction | Release Verification 5 and 6 Pass; the removed draft remains absent, no live reference names it, and the canonical 1.3.0 path is unique |
 | M12 / T1-T2 | M15 selects a newly baked two-image pair and fresh consumers | Image provenance and downstream runner suites | Release Verification 1; Release Verification 2 | Both new images validate against baseline `1.2.4`, and both fresh consumers pass the final combined candidate | Release Verification 1 and 2 Pass with the new D21 image pair; Gate evidence is in `work/m15-rv2-20260903T061752Z` |
 | M13 / T1-T5 | The final versioned candidate is redeployed after the M13 implementation commit | SELinux-active policy deployment and installed context checks | Release Verification 2 | Rocky accepts both deployed contexts; Debian retains the inactive path; the final two-host gate passes | Pass at D21 candidate `6aafbb8`; Rocky S07 passed and Debian recorded the four reviewed inactive-path NA results |
 | M13 / T6 | The tagged release replaces the pre-release production candidate | Documented production setup and SELinux-enforcing consumer acceptance | Release Verification 8 | The actual released tag installs with accepted contexts and passes the shipped installed-state suite | pending |
@@ -2620,10 +2633,10 @@ labels.
 | --- | --- | --- | --- | --- |
 | 1 | Merge fetched `master` into `release-1.3.0` before pre-change verification | Release delegation after exact command preview | The release branch contains current master and preserves both canonical paths | Pass 2026-09-01: `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79` has parents `8d87048714a260f46fd8d85243d10eaa9672d865` and `757dcd2464d34d616a32fe7175ba9371ddc8e92c`; the merge completed without conflict |
 | 2 | Push the integration merge to `origin/release-1.3.0` | Push delegation | Local and upstream release refs agree | Pass 2026-09-01: fetched `origin/release-1.3.0` and local `HEAD` both resolve to `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79` |
-| 3 | Commit Release Verification 1 and 5 pre-change evidence | Commit delegation | One checked pre-change evidence commit precedes every version mutation | pending |
-| 4 | Push the pre-change evidence commit to `origin/release-1.3.0` | Push delegation | The fetched upstream contains the durable pre-change state | pending |
-| 5 | Commit the accepted 1.3.0 changelog section | Commit delegation | One standalone changelog commit | pending |
-| 6 | Commit the `RUNNER_VERSION` change to 1.3.0 | Commit delegation | One standalone version commit changing only `bin/ioc-runner` | pending |
+| 3 | Commit Release Verification 1 and 5 pre-change evidence | Commit delegation | One checked pre-change evidence commit precedes every version mutation | Pass 2026-09-01: `d8b2b5ad39e18577a9c6b358820e324334e3a3bf` changes only `docs/milestone-1.3.0.md` and precedes both version mutations |
+| 4 | Push the pre-change evidence commit to `origin/release-1.3.0` | Push delegation | The fetched upstream contains the durable pre-change state | Pass observed 2026-09-03: fetched `origin/release-1.3.0` contains `d8b2b5ad39e18577a9c6b358820e324334e3a3bf` |
+| 5 | Commit the accepted 1.3.0 changelog section | Commit delegation | One standalone changelog commit | Pass 2026-09-02: `2cd168161ec88404af4bd9e438fb397236d08322` changes only `CHANGELOG.md` |
+| 6 | Commit the `RUNNER_VERSION` change to 1.3.0 | Commit delegation | One standalone version commit changing only `bin/ioc-runner` | Pass 2026-09-02: `dd337b55756780fc019360a0c483d469046ede4c` changes only `bin/ioc-runner` |
 | 7 | Commit Release Verification 2-4 and 6 readiness evidence | Commit delegation | The reviewed readiness commit descends from the tested D21 candidate through canonical-evidence-only commits and names the immutable release candidate | pending |
 | 8 | Push the readiness candidate to `origin/release-1.3.0` | Push delegation | The fetched upstream identifies the accepted candidate | pending |
 | 9 | Merge the named release candidate into `master` with `--no-ff` | Release delegation after exact command preview | One release merge commit on `master` | pending |
@@ -2663,7 +2676,7 @@ labels.
 | Release Verification 3 | 2026-09-03 00:10 PDT | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pass | Both NFS-backed checkouts were clean and both installed runners reported `1.3.0 (6aafbb8)`. Each shipped complete multi-user driver began clean, printed fourteen passing precondition verdicts and fourteen passing scenario verdicts, and ended with `VERDICT RUN PASS`; the shipped post-cleanup leftovers check passed on both consumers. Evidence: `work/m15-rv3-20260903T070337Z`; manifest SHA-256 `a1b1009cfe5b97292abee6b4048e9d11cf53af8abf530813a38a1b9e021e60b7` |
 | Release Verification 4 | 2026-09-02 23:51 PDT | Both fresh `iocrunner-nfs` consumers at D21 candidate `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` | Pass | Both recorded `nfs_sim` operator runs completed with no unreachable or failed host; both NFS4 mounts reproduced `root_squash`; all three NFS-backed deployment entry points advanced the installed timestamp, retained `1.3.0 (6aafbb8)`, and preserved the baseline configuration fingerprint. Evidence: `work/m15-rv4-20260903T064343Z`; manifest SHA-256 `eb7595c5c36d9514bb881ec15a166580a59dd03058e3741f126af88f445ab66e` |
 | Release Verification 5 | 2026-09-01 08:54 PDT | Integrated `release-1.3.0`, Git, tracked documentation, and GitHub | Pass | `RUNNER_VERSION` is `1.3.0-dev`; `CHANGELOG.md` has zero 1.3.0 headings; `origin/master` commit `757dcd2464d34d616a32fe7175ba9371ddc8e92c` is an ancestor of merge commit `d926ee9b4dc3a306729d3ba94d07afdc25c0aa79`; local and upstream release refs agree; both canonical paths and their documented authority resolve; GitHub milestone 16 is open with 0 open and 13 closed issues |
-| Release Verification 6 | 2026-09-02 17:05 PDT | Release branch, release notes, and GitHub milestone 1.3.0 | Fail | Source preflight found fourteen closed milestone issues but only thirteen matching changelog and release-note references; #150 was omitted. The owner accepted a separate Fixes entry and strict D21 invalidation. Rerun Release Verification 6 only after Release Verification 1-4 pass on the resulting candidate |
+| Release Verification 6 | 2026-09-03 00:24 PDT | Release branch commit `9b73c0e`, both fresh consumers at D21 candidate `6aafbb8`, tracked documentation, release notes, and GitHub milestone 1.3.0 | Pass | The version commit changes only `bin/ioc-runner`; D21 changes only `CHANGELOG.md`; every later commit changes only the canonical milestone. The changelog has one accepted 1.3.0 section, and its fourteen issue references match the release notes and all fourteen closed milestone issues. Both shipped full setups passed and source plus installed runners reported `1.3.0` with `6aafbb8`. Live references resolve and the canonical path is unique. Evidence: `work/m15-rv6-20260903T071955Z`; manifest SHA-256 `f2ef3bcbf9686fb366837658c5a5d057f985d96aa402e38c61511c705be5b653` |
 | Release Verification 7 | Not run | Canonical Git remote and GitHub | Pending | none |
 | Release Verification 8 | Not run | Fresh plain Rocky 8 production-equivalent consumer and owner-authorized SELinux-enforcing production IOC host | Pending | none |
 | Release Verification 9 | Not run | `master`, canonical documents, and fetched upstream | Pending | none |
@@ -2746,6 +2759,24 @@ commits `6aafbb8f8d5d80ba387fefe32234e78f4289c02b`,
 evidence is in `work/m15-rv4-20260903T064343Z`; its
 `evidence-sha256.log` SHA-256 is
 `eb7595c5c36d9514bb881ec15a166580a59dd03058e3741f126af88f445ab66e`.
+
+##### Current Release Verification 6 Evidence
+
+| Surface | Observed Result |
+| --- | --- |
+| Version commit | `dd337b55756780fc019360a0c483d469046ede4c` changes only `bin/ioc-runner` |
+| Product correction | `63c7f828f1145bda4036d9f4641ac6f02d647cd6` is an ancestor of D21 |
+| D21 correction | `6aafbb8f8d5d80ba387fefe32234e78f4289c02b` changes only `CHANGELOG.md` |
+| Later release-branch commits | Through `9b73c0ed004c2f60de0cb2d688582e374e465d39`, the only changed path is `docs/milestone-1.3.0.md` |
+| Release records | One accepted 1.3.0 changelog section; fourteen matching changelog and release-note issue references; accepted comparison `1.2.4...1.3.0` |
+| Debian 13 consumer | Shipped full setup 9/9; clean NFS-backed source and installed runner report `1.3.0` and `6aafbb8` |
+| Rocky 8 consumer | Shipped full setup 12/12; clean NFS-backed source and installed runner report `1.3.0` and `6aafbb8` |
+| Documentation authority | Removed draft absent; zero live removed-path references; one tracked canonical 1.3.0 register |
+| GitHub milestone 1.3.0 | Open, 0 open issues, 14 closed issues; issue set matches both release records |
+
+The complete thirteen-file evidence set is in
+`work/m15-rv6-20260903T071955Z`; its `evidence-sha256.log` SHA-256 is
+`f2ef3bcbf9686fb366837658c5a5d057f985d96aa402e38c61511c705be5b653`.
 
 ##### Superseded Release Verification 1 Evidence
 
