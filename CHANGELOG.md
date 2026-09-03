@@ -18,6 +18,9 @@ and installed policy handling on Debian 13 and Rocky 8.
 - System setup restores and verifies the expected SELinux contexts for the
   sudoers and logrotate policies when SELinux is active, without adding tool
   requirements on inactive systems. (#120)
+- `inspect` treats a process that disappears during restart as an empty
+  volatile sample while retaining hard process-inspection failures, so
+  concurrent process churn no longer terminates the report. (#150)
 
 ### Changed
 
