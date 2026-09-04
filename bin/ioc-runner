@@ -52,14 +52,24 @@ declare -g LOCAL_RUN_DIR="${IOC_RUNNER_LOCAL_RUN_DIR:-/run/user/$(id -u)/procser
 declare -g SYSTEM_LOG_DIR="${IOC_RUNNER_SYSTEM_LOG_DIR:-/var/log/procserv}"
 declare -g LOCAL_LOG_DIR="${IOC_RUNNER_LOCAL_LOG_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/procserv}"
 
+# --- Container Mode (s6) Settings ---
+# The container backend supervises procServ through s6: s6-svscan watches the
+# scan directory and runs one s6-supervise per IOC service directory beneath
+# it. The runner depends only on these binaries in PATH (s6 2.13 or later),
+# never on s6-overlay's /init or on s6-rc. procServ writes its log to stdout
+# in this mode, so the s6-svscan stdout (the container stdout) carries every
+# IOC's output and no log directory exists.
+declare -g CONTAINER_SCAN_DIR="${IOC_RUNNER_SCAN_DIR:-/run/s6-procserv}"
+declare -g -a S6_REQUIRED_BINS=(s6-svscan s6-supervise s6-svc s6-svstat s6-svscanctl s6-setuidgid)
+# Grace period before s6-supervise escalates SIGTERM to SIGKILL, in
+# milliseconds; mirrors systemd's TimeoutStopSec default, which the unit
+# template leaves unset. s6-supervise restarts a dead procServ after its own
+# fixed one-second delay, standing in for RestartSec=2.
+declare -g S6_TIMEOUT_KILL_MS=90000
+
 # --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN="/usr/bin/systemctl"
 declare -g RUNUSER_BIN="/usr/sbin/runuser"
-
-if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
-    printf "Error: %s not found or not executable. This script requires systemd.\n" "${SYSTEMCTL_BIN}" >&2
-    exit 1
-fi
 
 declare -g -a CON_SEARCH_PATHS=("/usr/local/bin/con" "/usr/bin/con")
 declare -g -a PROCSERV_SEARCH_PATHS=("/usr/local/bin/procServ" "/usr/bin/procServ")
@@ -73,11 +83,14 @@ if [[ "${HOME_TRUSTED}" -eq 1 ]]; then
     PROCSERV_SEARCH_PATHS=("${HOME}/.local/bin/procServ" "${PROCSERV_SEARCH_PATHS[@]}")
 fi
 
+# EXEC_MODE selects the lifecycle backend: "system" and "local" drive systemd
+# (system-wide and user units), "container" drives s6 under SCAN_DIR.
 declare -g EXEC_MODE="system"
 declare -g CONF_DIR="${IOC_RUNNER_CONF_DIR:-${SYSTEM_CONF_DIR}}"
 declare -g SYSTEMD_DIR="${IOC_RUNNER_SYSTEMD_DIR:-${SYSTEM_SYSTEMD_DIR}}"
 declare -g RUN_DIR="${IOC_RUNNER_RUN_DIR:-${SYSTEM_RUN_DIR}}"
 declare -g LOG_DIR="${IOC_RUNNER_LOG_DIR:-${SYSTEM_LOG_DIR}}"
+declare -g SCAN_DIR="${CONTAINER_SCAN_DIR}"
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
@@ -156,6 +169,52 @@ function set_local_mode {
     LOG_DIR="${IOC_RUNNER_LOG_DIR:-${LOCAL_LOG_DIR}}"
 }
 
+# Container mode shares the system-mode configuration and socket directories
+# and the ioc-srv/ioc service identity; s6 replaces systemd as the supervisor
+# and IOC output goes to stdout, so LOG_DIR carries no value.
+function set_container_mode {
+    EXEC_MODE="container"
+    CONF_DIR="${IOC_RUNNER_CONF_DIR:-${SYSTEM_CONF_DIR}}"
+    RUN_DIR="${IOC_RUNNER_RUN_DIR:-${SYSTEM_RUN_DIR}}"
+    SCAN_DIR="${CONTAINER_SCAN_DIR}"
+    LOG_DIR=""
+}
+
+# Mode-specific backend preflight, run after option parsing so the selected
+# mode decides what must exist. System and local modes need systemctl.
+# Container mode needs root, the s6 binaries, and a live s6-svscan on
+# SCAN_DIR: s6-svscanctl -z is a side-effect-free reaper trigger that exits 0
+# only while s6-svscan is listening (the .s6-svscan/control fifo outlives
+# s6-svscan, so its presence alone proves nothing).
+function check_backend_available {
+    local bin=""
+    local bin_path=""
+
+    if [[ "${EXEC_MODE}" != "container" ]]; then
+        if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
+            printf "Error: %s not found or not executable. This script requires systemd.\n" "${SYSTEMCTL_BIN}" >&2
+            exit 1
+        fi
+        return 0
+    fi
+
+    if (( EUID != 0 )); then
+        printf "Error: container mode requires root; the container runs the runner and s6-svscan as root.\n" >&2
+        exit 1
+    fi
+    for bin in "${S6_REQUIRED_BINS[@]}"; do
+        bin_path=$(command -v "${bin}" 2>/dev/null || printf "")
+        if [[ -z "${bin_path}" || ! -x "${bin_path}" ]]; then
+            printf "Error: %s not found or not executable. Container mode requires s6 (2.13 or later) in PATH.\n" "${bin}" >&2
+            exit 1
+        fi
+    done
+    if ! s6-svscanctl -z "${SCAN_DIR}" >/dev/null 2>&1; then
+        printf "Error: s6-svscan is not running on %s. The container entrypoint must start it before ioc-runner --container is used.\n" "${SCAN_DIR}" >&2
+        exit 1
+    fi
+}
+
 function print_usage {
     local prog_name
     prog_name=$(basename "$0")
@@ -167,6 +226,7 @@ Usage: ${prog_name} [OPTIONS] COMMAND [TARGET]
 
 Options:
   --local        Run in local user mode (no sudo required, uses ~/.config/procServ.d). Alias: --user
+  --container    Run in container mode (root, s6 supervision instead of systemd, IOC logs to stdout)
   -f, --force    Force overwrite without prompting: the configuration file and,
                  in local mode, a differing shared systemd template or logrotate unit
   -v, -vv        Verbose output (supported only for 'list' command)
@@ -262,7 +322,18 @@ declare -g TARGET_ARG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --local|--user)
+            if [[ "${EXEC_MODE}" == "container" ]]; then
+                printf "Error: --local and --container are mutually exclusive.\n" >&2
+                exit 1
+            fi
             set_local_mode
+            ;;
+        --container)
+            if [[ "${EXEC_MODE}" == "local" ]]; then
+                printf "Error: --local and --container are mutually exclusive.\n" >&2
+                exit 1
+            fi
+            set_container_mode
             ;;
         -f|--force)
             FORCE_OVERWRITE=1
@@ -329,6 +400,8 @@ if [[ -z "${COMMAND_ACTION}" ]]; then
     exit 0
 fi
 
+check_backend_available
+
 # Hard guard: the system-mode socket path comes from RUN_DIR, but the
 # system-mode systemd template hardcodes RuntimeDirectory=procserv/%i
 # (resolves under /run/procserv). Either IOC_RUNNER_RUN_DIR or
@@ -336,7 +409,9 @@ fi
 # declared socket path from where the kernel creates the UDS -- breaking
 # list/attach/remove/inspect (and pointing do_remove's rm -rf at a path the
 # operator never intended). Checking resolved RUN_DIR catches both overrides.
-# Rejected outright in system mode; --local is the supported path.
+# Rejected outright in system mode; --local is the supported path. Container
+# mode is exempt: the runner creates the socket directory itself, so RUN_DIR
+# may move without splitting from a fixed RuntimeDirectory.
 if [[ "${EXEC_MODE}" == "system" && "${RUN_DIR}" != "/run/procserv" ]]; then
     printf "Error: system-mode runtime dir (%s) diverges from the fixed systemd\n" "${RUN_DIR}" >&2
     printf "       RuntimeDirectory (/run/procserv); the socket path and the runner\n" >&2
@@ -393,9 +468,126 @@ function run_systemctl {
     fi
 }
 
+# --- s6 Backend (container mode) ---
+# One service directory per IOC under SCAN_DIR: a rendered "run" script that
+# execs procServ under the service identity, a "down" file while the IOC is
+# disabled, and "timeout-kill" for the SIGTERM-to-SIGKILL grace period.
+# s6-supervise owns the "supervise" and "event" subdirectories.
+function s6_service_dir {
+    printf "%s/%s" "${SCAN_DIR}" "$1"
+}
+
+# Prints the IOC state in systemd's vocabulary so mode-neutral callers compare
+# one word: "active" while procServ is up, "inactive" otherwise (including an
+# absent or unsupervised service directory).
+function s6_service_state {
+    local svc_dir=""
+    local up=""
+
+    svc_dir=$(s6_service_dir "$1")
+    up=$(s6-svstat -o up "${svc_dir}" 2>/dev/null || printf "false")
+    if [[ "${up}" == "true" ]]; then
+        printf "active"
+    else
+        printf "inactive"
+    fi
+}
+
+# Prints the supervised procServ PID, or nothing when the IOC is down.
+function s6_service_pid {
+    local svc_dir=""
+    local pid=""
+
+    svc_dir=$(s6_service_dir "$1")
+    pid=$(s6-svstat -o pid "${svc_dir}" 2>/dev/null || printf "")
+    if [[ "${pid}" =~ ^[1-9][0-9]*$ ]]; then
+        printf "%s" "${pid}"
+    fi
+}
+
+# Runs one s6-svc control action on the IOC service directory, bounded by
+# MAX_INIT_TIMEOUT so a wait option cannot hang the caller.
+function run_s6_svc {
+    local ioc_name="$1"
+    shift
+    local svc_dir=""
+
+    svc_dir=$(s6_service_dir "${ioc_name}")
+    if [[ ! "${MAX_INIT_TIMEOUT}" =~ ^[1-9][0-9]*$ ]]; then
+        MAX_INIT_TIMEOUT=30
+    fi
+    s6-svc "$@" -T "$(( MAX_INIT_TIMEOUT * 1000 ))" "${svc_dir}"
+}
+
+# Mode-neutral IOC state: system and local modes keep their systemctl
+# is-active route unchanged; container mode reads s6-svstat.
+function service_state {
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        s6_service_state "$1"
+    else
+        run_systemctl is-active "epics-@$1.service" 2>/dev/null || true
+    fi
+}
+
+# Single-quotes one value for a POSIX sh script.
+function sh_quote {
+    local value="$1"
+    value="${value//\'/\'\\\'\'}"
+    printf "'%s'" "${value}"
+}
+
+# Renders the s6 service directory for an installed IOC from its conf: the
+# "run" script carries the same procServ argument list as the systemd unit
+# template with the log sent to stdout, and a fresh directory starts disabled
+# ("down") so install never starts an IOC, matching the systemd backends.
+function render_s6_service {
+    local ioc_name="$1"
+    local conf_file="$2"
+    local svc_dir=""
+    local tmp_run=""
+    local ioc_user="" ioc_chdir="" ioc_port="" ioc_cmd=""
+    local new_service=0
+
+    resolve_procserv_tool
+    ioc_user=$(read_conf_var "${conf_file}" "IOC_USER") || ioc_user="${TARGET_SYSTEM_USER}"
+    ioc_chdir=$(read_conf_var "${conf_file}" "IOC_CHDIR") || ioc_chdir=""
+    ioc_port=$(read_conf_var "${conf_file}" "IOC_PORT") || ioc_port=""
+    ioc_cmd=$(read_conf_var "${conf_file}" "IOC_CMD") || ioc_cmd=""
+    if [[ -z "${ioc_chdir}" || -z "${ioc_port}" || -z "${ioc_cmd}" ]]; then
+        printf "Error: %s lacks IOC_CHDIR, IOC_PORT, or IOC_CMD; cannot render the s6 service.\n" "${conf_file}" >&2
+        exit 1
+    fi
+
+    svc_dir=$(s6_service_dir "${ioc_name}")
+    if [[ ! -d "${svc_dir}" ]]; then
+        new_service=1
+        install -d -m 0755 "${svc_dir}"
+    fi
+
+    if ! tmp_run=$(mktemp "${svc_dir}/run.XXXXXX" 2>/dev/null); then
+        printf "Error: Unable to stage the s6 run script in %s.\n" "${svc_dir}" >&2
+        exit 1
+    fi
+    {
+        printf "#!/bin/sh\n"
+        printf "# Rendered by ioc-runner --container for IOC %s from %s; re-run install to change it.\n" "${ioc_name}" "${conf_file}"
+        printf "exec s6-setuidgid %s %s --foreground --logfile=- --name=%s --ignore=%s --autorestartcmd=%s --chdir=%s --port=%s %s\n" \
+            "$(sh_quote "${ioc_user}")" "$(sh_quote "${PROCSERV_TOOL_PATH}")" "$(sh_quote "${ioc_name}")" \
+            "$(sh_quote '^D^C^]')" "''" "$(sh_quote "${ioc_chdir}")" "$(sh_quote "${ioc_port}")" "$(sh_quote "${ioc_cmd}")"
+    } > "${tmp_run}"
+    chmod 0755 "${tmp_run}"
+    mv -f "${tmp_run}" "${svc_dir}/run"
+    printf "%s\n" "${S6_TIMEOUT_KILL_MS}" > "${svc_dir}/timeout-kill"
+    if (( new_service )); then
+        : > "${svc_dir}/down"
+    fi
+}
+
 # Resolve the direct procServ executable and logfile from systemd's effective
 # ExecStart property. Runtime commands consume this installed-unit view rather
-# than reconstructing launch paths from the caller's current environment.
+# than reconstructing launch paths from the caller's current environment. In
+# container mode the rendered s6 run script is the effective launch command
+# and the log file is stdout, so only the executable is resolved.
 declare -g EFFECTIVE_PROCSERV_PATH=""
 declare -g EFFECTIVE_LOG_FILE=""
 declare -g EFFECTIVE_LAUNCH_ERROR=""
@@ -407,6 +599,25 @@ function resolve_effective_launch_command {
     local log_file=""
 
     EFFECTIVE_LAUNCH_ERROR=""
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        local run_script=""
+        run_script="$(s6_service_dir "${IOC_NAME}")/run"
+        if [[ ! -r "${run_script}" ]]; then
+            EFFECTIVE_LAUNCH_ERROR="unable to read the s6 run script ${run_script}"
+            return 1
+        fi
+        exec_start=$(grep -m1 '^exec s6-setuidgid ' "${run_script}" || true)
+        read -r _ _ _ procserv_path _ <<< "${exec_start}"
+        procserv_path="${procserv_path#\'}"
+        procserv_path="${procserv_path%\'}"
+        if [[ "${procserv_path}" != /* || "${procserv_path}" == *[[:space:]]* ]]; then
+            EFFECTIVE_LAUNCH_ERROR="unable to resolve an absolute procServ executable from ${run_script}"
+            return 1
+        fi
+        EFFECTIVE_PROCSERV_PATH="${procserv_path}"
+        EFFECTIVE_LOG_FILE=""
+        return 0
+    fi
     if ! exec_start=$(run_systemctl show "${unit}" --property=ExecStart --value 2>/dev/null); then
         EFFECTIVE_LAUNCH_ERROR="unable to read the effective ExecStart for ${unit}"
         return 1
@@ -529,7 +740,9 @@ function read_unit_mainpid_snapshot {
     local pid=""
     local starttime=""
 
-    if ! pid=$(run_systemctl show "${unit}" --property=MainPID --value 2>/dev/null); then
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        pid=$(s6_service_pid "${IOC_NAME}")
+    elif ! pid=$(run_systemctl show "${unit}" --property=MainPID --value 2>/dev/null); then
         return 1
     fi
     if [[ ! "${pid}" =~ ^[1-9][0-9]*$ ]]; then
@@ -1133,7 +1346,7 @@ function process_ioc_port {
     local input_port="$2"
     local target_user target_group run_base_dir
 
-    if [[ "${EXEC_MODE}" == "system" ]]; then
+    if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
         target_user="${TARGET_SYSTEM_USER}"
         target_group="${TARGET_SYSTEM_GROUP}"
     else
@@ -1147,7 +1360,7 @@ function process_ioc_port {
 
     if [[ -z "${input_port}" ]]; then
         printf "%s" "${std_port}"
-    elif [[ "${EXEC_MODE}" == "system" ]]; then
+    elif [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
         if [[ "${input_port}" != "${std_port}" ]]; then
             printf "Error: IOC_PORT mismatch. Expected: %s\n" "${std_port}" >&2
             return 1
@@ -1315,10 +1528,11 @@ function validate_conf {
     fi
 
     # Resolve both supported identity pairs once, regardless of selected mode.
-    if [[ "${EXEC_MODE}" == "system" ]]; then
+    # Container mode shares the system service identity.
+    if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
         required_user="${TARGET_SYSTEM_USER}"
         required_group="${TARGET_SYSTEM_GROUP}"
-        required_mode="system"
+        required_mode="${EXEC_MODE}"
         opposite_user="${current_user}"
         opposite_group="${current_group}"
         opposite_mode="local"
@@ -1351,6 +1565,8 @@ function validate_conf {
         fi
         if [[ "${required_mode}" == "local" ]]; then
             regenerate_command="ioc-runner --local generate"
+        elif [[ "${required_mode}" == "container" ]]; then
+            regenerate_command="ioc-runner --container generate"
         fi
 
         printf "Error: Configuration mode mismatch\n" >&2
@@ -1561,7 +1777,7 @@ function resolve_sock_path {
     fi
 
     local state
-    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+    state=$(service_state "${IOC_NAME}")
     if [[ "${state}" != "active" ]]; then
         print_divider >&2
         printf "WARNING: Service 'epics-@%s.service' is currently '%s'.\n" "${IOC_NAME}" "${state}" >&2
@@ -1671,6 +1887,10 @@ function do_generate {
         ioc_user="${TARGET_SYSTEM_USER}"
         ioc_group="${TARGET_SYSTEM_GROUP}"
         mode_flag=""
+    elif [[ "${EXEC_MODE}" == "container" ]]; then
+        ioc_user="${TARGET_SYSTEM_USER}"
+        ioc_group="${TARGET_SYSTEM_GROUP}"
+        mode_flag="--container "
     else
         ioc_user=$(id -un)
         ioc_group=$(id -gn)
@@ -1709,8 +1929,9 @@ EOF
             # Content is identical, so the overwrite is skipped -- but reassert
             # the mode the write path would set (0660 system / 0600 local) so a
             # hand-loosened permission on the existing conf is corrected instead
-            # of surviving the skip (#123).
-            if [[ "${EXEC_MODE}" == "system" ]]; then
+            # of surviving the skip (#123). Container mode shares the
+            # system-mode group-readable conf.
+            if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
                 chmod 0660 "${generated_conf}"
             else
                 chmod 0600 "${generated_conf}"
@@ -1773,8 +1994,8 @@ EOF
 
     # Explicit perms before the rename (#107): 0660 in system mode so
     # the ioc group can read the conf; 0600 (mktemp default, now
-    # explicit) in local mode.
-    if [[ "${EXEC_MODE}" == "system" ]]; then
+    # explicit) in local mode; container mode follows system mode.
+    if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
         chmod 0660 "${tmp_conf}"
     else
         chmod 0600 "${tmp_conf}"
@@ -1790,7 +2011,7 @@ EOF
     if [[ ! -f "${hist_file}" ]]; then
         touch "${hist_file}" 2>/dev/null || true
     fi
-    if [[ "${EXEC_MODE}" == "system" ]]; then
+    if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
         chmod 0664 "${hist_file}" 2>/dev/null || true
     else
         chmod 0600 "${hist_file}" 2>/dev/null || true
@@ -1887,8 +2108,9 @@ function do_install {
     # membership, so the check is by group ownership + mode, not sudo --
     # the result is identical for root and for an ioc-group operator.
     # FORCE_OVERWRITE bypasses the confirmation prompt but never suppresses
-    # the warning emitted to stderr.
-    if [[ "${EXEC_MODE}" == "system" ]]; then
+    # the warning emitted to stderr. Container mode runs the IOC under the
+    # same service identity, so the same precheck applies.
+    if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
         local chdir_target="${install_conf[IOC_CHDIR]:-}"
         local precheck_confirm
 
@@ -1950,6 +2172,10 @@ function do_install {
             printf "Please ensure the template is deployed by an administrator before installing IOCs.\n" >&2
             exit 1
         fi
+    elif [[ "${EXEC_MODE}" == "container" ]]; then
+        # No unit template and no log directory: the s6 service directory is
+        # rendered after the conf lands below.
+        :
     else
         # LOG_DIR must be absolute before it is baked into the unit --logfile=
         # and the logrotate config glob; a relative value would make procServ
@@ -1969,7 +2195,7 @@ function do_install {
     fi
 
     local state
-    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+    state=$(service_state "${IOC_NAME}")
 
     # Block operation immediately if the service is not completely stopped
     if [[ "${state}" == "active" || "${state}" == "activating" || "${state}" == "deactivating" ]]; then
@@ -1986,14 +2212,14 @@ function do_install {
     final_port=$(process_ioc_port "${IOC_NAME}" "${original_port}") || exit 1
 
     if [[ ! -d "${CONF_DIR}" ]]; then
-        if [[ "${EXEC_MODE}" == "system" ]]; then
+        if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
             printf "Error: System configuration directory %s does not exist.\n" "${CONF_DIR}" >&2
             printf "Please ask an administrator to run setup-system-infra.bash.\n" >&2
             exit 1
         fi
         mkdir -p "${CONF_DIR}"
     elif [[ ! -w "${CONF_DIR}" ]]; then
-        if [[ "${EXEC_MODE}" == "system" ]]; then
+        if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
             printf "Error: No write permission to %s. Are you in the '%s' group?\n" "${CONF_DIR}" "${TARGET_SYSTEM_GROUP}" >&2
         else
             printf "Error: No write permission to %s.\n" "${CONF_DIR}" >&2
@@ -2026,14 +2252,14 @@ function do_install {
     trap 'rm -f "${tmp:-}"' EXIT
     grep -v '^[[:space:]]*IOC_PORT[[:space:]]*=' "${source_conf}" > "${tmp}"
     printf "IOC_PORT=\"%s\"\n" "${final_port}" >> "${tmp}"
-    [[ "${EXEC_MODE}" == "system" ]] && chmod 0660 "${tmp}"
+    [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]] && chmod 0660 "${tmp}"
     mv -f "${tmp}" "${target_conf}"
     trap - EXIT
 
     # Deploy the shared local assets now that every abort gate has passed
     # (M6): an EOF or a decline above returns nonzero without having touched
     # the template, rotation units, or manager state.
-    if [[ "${EXEC_MODE}" != "system" ]]; then
+    if [[ "${EXEC_MODE}" == "local" ]]; then
         install -d -m 0750 "${LOG_DIR}"
         deploy_local_template
         deploy_local_logrotate
@@ -2042,8 +2268,13 @@ function do_install {
     # Exactly one daemon-reload. System mode keeps its unconditional reload;
     # local mode reloads only when a unit file actually changed (the .conf is
     # an EnvironmentFile read at service start, not a unit, so it needs none).
+    # Container mode renders the s6 service directory from the installed conf
+    # and asks s6-svscan to rescan so a new service gets its supervisor.
     if [[ "${EXEC_MODE}" == "system" ]]; then
         run_systemctl daemon-reload
+    elif [[ "${EXEC_MODE}" == "container" ]]; then
+        render_s6_service "${IOC_NAME}" "${target_conf}"
+        s6-svscanctl -a "${SCAN_DIR}"
     elif (( TEMPLATE_CHANGED || LOGROTATE_UNITS_CHANGED )); then
         run_systemctl daemon-reload || true
     fi
@@ -2061,36 +2292,62 @@ function do_remove {
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
     require_installed_conf "${IOC_NAME}" "remove"
 
-    # Capture the stop/disable stderr instead of discarding it: on an
-    # abort the operator needs systemctl's own words (#105).
     local stop_err="" disable_err=""
-    stop_err=$(run_systemctl stop "epics-@${IOC_NAME}.service" 2>&1 >/dev/null) || true
-    disable_err=$(run_systemctl disable "epics-@${IOC_NAME}.service" 2>&1 >/dev/null) || true
-    stop_err="${stop_err//$'\n'/$'\n'    }"
-    disable_err="${disable_err//$'\n'/$'\n'    }"
+    local state=""
+    local enabled_state=""
+    local svc_dir=""
 
-    # Verify the service has actually stopped before deleting its configuration.
-    local state
-    state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
-
-    if [[ "${state}" == "active" || "${state}" == "activating" || "${state}" == "deactivating" ]]; then
-        print_divider >&2
-        printf "Error: Removal aborted. Service '%s' did not stop (State: %s).\n" "${IOC_NAME}" "${state}" >&2
-        if [[ -n "${stop_err}" ]]; then
-            printf "  systemctl stop reported:\n    %s\n" "${stop_err}" >&2
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        # Bring the IOC down, then delete its service directory and prune:
+        # a live s6-svscan respawns any s6-supervise that exits, so the
+        # directory must vanish before s6-svscanctl -h retires the supervisor.
+        svc_dir=$(s6_service_dir "${IOC_NAME}")
+        if [[ -d "${svc_dir}" ]]; then
+            stop_err=$(run_s6_svc "${IOC_NAME}" -d -wd 2>&1 >/dev/null) || true
+            stop_err="${stop_err//$'\n'/$'\n'    }"
         fi
-        printf "  -> Check sudo permissions and the unit state (systemctl status), then re-run remove.\n" >&2
-        print_divider >&2
-        exit 1
-    fi
+        state=$(s6_service_state "${IOC_NAME}")
+        if [[ "${state}" == "active" ]]; then
+            print_divider >&2
+            printf "Error: Removal aborted. Service '%s' did not stop (State: %s).\n" "${IOC_NAME}" "${state}" >&2
+            if [[ -n "${stop_err}" ]]; then
+                printf "  s6-svc reported:\n    %s\n" "${stop_err}" >&2
+            fi
+            printf "  -> Check the supervisor state (s6-svstat %s), then re-run remove.\n" "${svc_dir}" >&2
+            print_divider >&2
+            exit 1
+        fi
+        rm -rf "${svc_dir}"
+        s6-svscanctl -h "${SCAN_DIR}" || true
+    else
+        # Capture the stop/disable stderr instead of discarding it: on an
+        # abort the operator needs systemctl's own words (#105).
+        stop_err=$(run_systemctl stop "epics-@${IOC_NAME}.service" 2>&1 >/dev/null) || true
+        disable_err=$(run_systemctl disable "epics-@${IOC_NAME}.service" 2>&1 >/dev/null) || true
+        stop_err="${stop_err//$'\n'/$'\n'    }"
+        disable_err="${disable_err//$'\n'/$'\n'    }"
 
-    # A failed disable leaves a boot-enabled instance behind (#105).
-    local enabled_state
-    enabled_state=$(run_systemctl is-enabled "epics-@${IOC_NAME}.service" 2>/dev/null || true)
-    if [[ "${enabled_state}" == enabled* ]]; then
-        printf "Warning: could not disable 'epics-@%s.service'; it may still start at boot.\n" "${IOC_NAME}" >&2
-        if [[ -n "${disable_err}" ]]; then
-            printf "  systemctl disable reported:\n    %s\n" "${disable_err}" >&2
+        # Verify the service has actually stopped before deleting its configuration.
+        state=$(run_systemctl is-active "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+
+        if [[ "${state}" == "active" || "${state}" == "activating" || "${state}" == "deactivating" ]]; then
+            print_divider >&2
+            printf "Error: Removal aborted. Service '%s' did not stop (State: %s).\n" "${IOC_NAME}" "${state}" >&2
+            if [[ -n "${stop_err}" ]]; then
+                printf "  systemctl stop reported:\n    %s\n" "${stop_err}" >&2
+            fi
+            printf "  -> Check sudo permissions and the unit state (systemctl status), then re-run remove.\n" >&2
+            print_divider >&2
+            exit 1
+        fi
+
+        # A failed disable leaves a boot-enabled instance behind (#105).
+        enabled_state=$(run_systemctl is-enabled "epics-@${IOC_NAME}.service" 2>/dev/null || true)
+        if [[ "${enabled_state}" == enabled* ]]; then
+            printf "Warning: could not disable 'epics-@%s.service'; it may still start at boot.\n" "${IOC_NAME}" >&2
+            if [[ -n "${disable_err}" ]]; then
+                printf "  systemctl disable reported:\n    %s\n" "${disable_err}" >&2
+            fi
         fi
     fi
 
@@ -2109,7 +2366,9 @@ function do_remove {
         rm -rf "${sock_dir}"
     fi
 
-    run_systemctl daemon-reload
+    if [[ "${EXEC_MODE}" != "container" ]]; then
+        run_systemctl daemon-reload
+    fi
     printf "IOC %s removed.\n" "${IOC_NAME}"
 
 
@@ -2190,6 +2449,60 @@ function do_monitor {
     esac
 }
 
+# Sums CPU time and resident memory over one process and its descendants
+# from /proc, printing "<cpu_ns> <rss_bytes>". Container mode has no cgroup
+# accounting to read, and the IOC child runs in its own process group under
+# procServ, so the tree is walked by parent PID rather than by pgid.
+function proc_tree_usage {
+    local root_pid="$1"
+    local clk_tck=""
+    local stat_file="" stat_line="" stat_tail="" status_line=""
+    local pid="" ppid="" child=""
+    local -A children=()
+    local -a fields=()
+    local -a queue=()
+    local total_ticks=0
+    local total_rss_kb=0
+
+    clk_tck=$(getconf CLK_TCK 2>/dev/null || printf "100")
+    if [[ ! "${clk_tck}" =~ ^[1-9][0-9]*$ ]]; then
+        clk_tck=100
+    fi
+    for stat_file in /proc/[0-9]*/stat; do
+        pid="${stat_file#/proc/}"
+        pid="${pid%/stat}"
+        stat_line=$(<"${stat_file}") 2>/dev/null || continue
+        stat_tail="${stat_line##*) }"
+        read -r -a fields <<< "${stat_tail}"
+        ppid="${fields[1]:-}"
+        [[ "${ppid}" =~ ^[0-9]+$ ]] || continue
+        children["${ppid}"]+="${pid} "
+    done
+
+    queue=("${root_pid}")
+    while (( ${#queue[@]} )); do
+        pid="${queue[0]}"
+        queue=("${queue[@]:1}")
+        stat_line=$(<"/proc/${pid}/stat") 2>/dev/null || continue
+        stat_tail="${stat_line##*) }"
+        read -r -a fields <<< "${stat_tail}"
+        if [[ "${fields[11]:-}" =~ ^[0-9]+$ && "${fields[12]:-}" =~ ^[0-9]+$ ]]; then
+            total_ticks=$(( total_ticks + fields[11] + fields[12] ))
+        fi
+        while IFS= read -r status_line; do
+            if [[ "${status_line}" == VmRSS:* ]]; then
+                read -r _ status_line _ <<< "${status_line}"
+                [[ "${status_line}" =~ ^[0-9]+$ ]] && total_rss_kb=$(( total_rss_kb + status_line ))
+                break
+            fi
+        done < "/proc/${pid}/status"
+        for child in ${children[${pid}]:-}; do
+            queue+=("${child}")
+        done
+    done
+    printf "%s %s" "$(( total_ticks * 1000000000 / clk_tck ))" "$(( total_rss_kb * 1024 ))"
+}
+
 function do_list {
     # Rotation timer deployed but not ticking: without this line the only
     # symptom is an unbounded log discovered much later. Local mode only;
@@ -2248,12 +2561,34 @@ function do_list {
     local -A ioc_rq_map=() ioc_sq_map=()
     local -A ioc_pid_map=() ioc_cpu_map=() ioc_mem_map=()
 
-    # 1. Map systemd states directly to memory
-    while read -r unit _ active _ _; do
-        if [[ "${unit}" =~ epics-@(.*)\.service ]]; then
-            ioc_status_map["${BASH_REMATCH[1]}"]="${active}"
-        fi
-    done < <("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --plain 2>/dev/null || true)
+    # 1. Map supervisor states directly to memory: systemd unit states in
+    # system and local modes, s6-svstat per service directory in container
+    # mode (where the verbose PID/CPU/memory come from the same pass).
+    local svc_entry svc_name svc_pid svc_usage
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        for svc_entry in "${SCAN_DIR}"/*/; do
+            [[ -d "${svc_entry}" ]] || continue
+            svc_name="${svc_entry%/}"
+            svc_name="${svc_name##*/}"
+            [[ "${svc_name}" == .* ]] && continue
+            ioc_status_map["${svc_name}"]=$(s6_service_state "${svc_name}")
+            if [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
+                svc_pid=$(s6_service_pid "${svc_name}")
+                ioc_pid_map["${svc_name}"]="${svc_pid:-0}"
+                if [[ -n "${svc_pid}" ]]; then
+                    svc_usage=$(proc_tree_usage "${svc_pid}")
+                    ioc_cpu_map["${svc_name}"]="${svc_usage%% *}"
+                    ioc_mem_map["${svc_name}"]="${svc_usage##* }"
+                fi
+            fi
+        done
+    else
+        while read -r unit _ active _ _; do
+            if [[ "${unit}" =~ epics-@(.*)\.service ]]; then
+                ioc_status_map["${BASH_REMATCH[1]}"]="${active}"
+            fi
+        done < <("${systemctl_cmd[@]}" list-units "epics-@*.service" --no-legend --plain 2>/dev/null || true)
+    fi
 
     # 2. Map socket queue statistics using ss — required only for the
     # -vv columns (U-5/#105): the default list must not depend on
@@ -2311,8 +2646,9 @@ function do_list {
     fi
 
 
-    # 3. Pre-fetch verbose properties if -v or -vv is used
-    if [[ ${VERBOSE_LEVEL} -ge 1 ]]; then
+    # 3. Pre-fetch verbose properties if -v or -vv is used (systemd modes;
+    # container mode filled these maps in step 1)
+    if [[ ${VERBOSE_LEVEL} -ge 1 && "${EXEC_MODE}" != "container" ]]; then
         b_id="" b_pid="" b_cpu="" b_mem=""
 
         while IFS='=' read -r key val || [[ -n "${key:-}" ]]; do
@@ -2439,9 +2775,21 @@ function do_view {
     printf "\n"
 
     print_divider
-    printf "2. Systemd Template Unit\n"
-    print_sub_divider
-    run_systemctl cat "epics-@${IOC_NAME}.service" || true
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        local run_script=""
+        run_script="$(s6_service_dir "${IOC_NAME}")/run"
+        printf "2. s6 Service Run Script: %s\n" "${run_script}"
+        print_sub_divider
+        if [[ -r "${run_script}" ]]; then
+            cat "${run_script}"
+        else
+            printf "(not rendered; run 'ioc-runner --container install' first)\n"
+        fi
+    else
+        printf "2. Systemd Template Unit\n"
+        print_sub_divider
+        run_systemctl cat "epics-@${IOC_NAME}.service" || true
+    fi
     print_divider
 }
 
@@ -2466,6 +2814,10 @@ function render_process_context {
 function do_inspect {
     local unit=""
     local sock_path=""
+    local SUPERVISOR_PID_LABEL="systemd MainPID"
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        SUPERVISOR_PID_LABEL="s6 supervised PID"
+    fi
     local launch_available=0
     local initial_snapshot=""
     local final_snapshot=""
@@ -2492,7 +2844,8 @@ function do_inspect {
 
     # Enforce root privileges in system mode to ensure complete visibility of all client file descriptors.
     # Local mode allows execution as the standard user since they own both the socket and the client processes.
-    if [[ "${EXEC_MODE}" == "system" && $EUID -ne 0 ]]; then
+    # Container mode is root by its preflight, so the same gate holds there.
+    if [[ "${EXEC_MODE}" != "local" && $EUID -ne 0 ]]; then
         printf "Error: 'inspect' requires root privileges in system mode to map client processes.\n" >&2
         printf "Hint: Execute with sudo.\n" >&2
         exit 1
@@ -2510,7 +2863,11 @@ function do_inspect {
     fi
 
     if (( launch_available )); then
-        if [[ "${EXEC_MODE}" == "system" ]]; then
+        if [[ "${EXEC_MODE}" == "container" ]]; then
+            # IOC output goes to stdout in container mode; there is no log
+            # path to probe.
+            :
+        elif [[ "${EXEC_MODE}" == "system" ]]; then
             if resolve_effective_unit_identity "${unit}" 2>/dev/null; then
                 if ! probe_effective_log_path "${EFFECTIVE_LOG_FILE}" \
                     "${EFFECTIVE_UNIT_USER}" "${EFFECTIVE_UNIT_GROUP}"; then
@@ -2653,14 +3010,14 @@ function do_inspect {
 
     printf "4. procServ Executable Identity\n"
     printf "   [Description]\n"
-    printf "   - Compares the active MainPID executable with the effective ExecStart path.\n"
+    printf "   - Compares the active %s executable with the effective launch path.\n" "${SUPERVISOR_PID_LABEL}"
     print_sub_divider
     if [[ -z "${initial_snapshot}" || -z "${final_snapshot}" ||
           "${initial_snapshot}" != "${final_snapshot}" ]]; then
         printf "Warning: inspection snapshot became unstable; MainPID:starttime changed during inspection.\n" >&2
     elif (( mainpid_owns_socket == 0 )); then
-        printf "Warning: systemd MainPID %s does not own the target UNIX domain socket; executable identity was not attributed.\n" \
-            "${initial_mainpid}" >&2
+        printf "Warning: %s %s does not own the target UNIX domain socket; executable identity was not attributed.\n" \
+            "${SUPERVISOR_PID_LABEL}" "${initial_mainpid}" >&2
     elif (( launch_available == 0 )); then
         printf "Warning: configured procServ executable identity is unavailable.\n" >&2
     else
@@ -2686,6 +3043,87 @@ function do_inspect {
 
 }
 
+# Container-mode start and restart: s6-svc brings procServ up (or restarts
+# it) and waits for the process, then readiness is the control socket
+# appearing under the IOC's socket directory, which the runner creates here
+# in place of systemd's RuntimeDirectory. IOC output goes to stdout, so the
+# log-file startup-signal scan of the systemd backends does not apply.
+function do_start_restart_container {
+    local action="$1"
+    local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
+    local svc_dir="" sock_path="" sock_dir="" ioc_port_val=""
+    local pre_active="" state="" svc_err=""
+    local deadline=0
+
+    require_installed_conf "${IOC_NAME}" "${action}"
+    svc_dir=$(s6_service_dir "${IOC_NAME}")
+    if [[ ! -x "${svc_dir}/run" ]]; then
+        printf "Error: IOC '%s' has no s6 service directory at %s; re-run 'ioc-runner --container install'.\n" "${IOC_NAME}" "${svc_dir}" >&2
+        exit 1
+    fi
+    if ! ioc_port_val=$(read_conf_var "${target_conf}" "IOC_PORT"); then
+        printf "Error: IOC_PORT not configured in %s.\n" "${target_conf}" >&2
+        exit 1
+    fi
+    sock_path="${ioc_port_val##*:}"
+    sock_dir="${sock_path%/*}"
+    if [[ "${sock_path}" != /* || "${sock_dir}" == "${sock_path}" ]]; then
+        printf "Error: IOC_PORT in %s does not name an absolute socket path.\n" "${target_conf}" >&2
+        exit 1
+    fi
+    install -d -m 0770 -o "${TARGET_SYSTEM_USER}" -g "${TARGET_SYSTEM_GROUP}" "${sock_dir}"
+
+    if [[ ! "${MAX_INIT_TIMEOUT}" =~ ^[1-9][0-9]*$ ]]; then
+        MAX_INIT_TIMEOUT=30
+    fi
+    if [[ ! "${POLL_INTERVAL}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+        POLL_INTERVAL=0.2
+    fi
+
+    pre_active=$(s6_service_state "${IOC_NAME}")
+    if [[ "${action}" == "start" && "${pre_active}" == "active" ]]; then
+        printf "IOC '%s' is already running.\n" "${IOC_NAME}"
+        return 0
+    fi
+    if [[ "${action}" == "restart" && "${pre_active}" == "active" ]]; then
+        svc_err=$(run_s6_svc "${IOC_NAME}" -r -wr 2>&1 >/dev/null) || {
+            printf "Error: IOC '%s' restart was blocked: %s\n" "${IOC_NAME}" "${svc_err:-s6-svc failed}" >&2
+            exit 1
+        }
+    else
+        svc_err=$(run_s6_svc "${IOC_NAME}" -u -wu 2>&1 >/dev/null) || {
+            printf "Error: IOC '%s' %s was blocked: %s\n" "${IOC_NAME}" "${action}" "${svc_err:-s6-svc failed}" >&2
+            exit 1
+        }
+    fi
+
+    deadline=$((SECONDS + MAX_INIT_TIMEOUT))
+    while [[ ${SECONDS} -lt ${deadline} ]]; do
+        if [[ -S "${sock_path}" ]]; then
+            break
+        fi
+        state=$(s6_service_state "${IOC_NAME}")
+        if [[ "${state}" != "active" ]]; then
+            printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${state}" >&2
+            printf "  -> Troubleshooting: check the container stdout (docker logs) for the procServ output.\n" >&2
+            exit 1
+        fi
+        sleep "${POLL_INTERVAL}"
+    done
+
+    state=$(s6_service_state "${IOC_NAME}")
+    if [[ "${state}" != "active" ]]; then
+        printf "\nError: IOC '%s' failed to start or crashed immediately (State: %s).\n" "${IOC_NAME}" "${state}" >&2
+        printf "  -> Troubleshooting: check the container stdout (docker logs) for the procServ output.\n" >&2
+        exit 1
+    fi
+    if [[ ! -S "${sock_path}" ]]; then
+        printf "\nWarning: IOC '%s' is active but its control socket %s did not appear within %ss.\n" "${IOC_NAME}" "${sock_path}" "${MAX_INIT_TIMEOUT}" >&2
+        return 0
+    fi
+    printf "IOC '%s' successfully started.\n" "${IOC_NAME}"
+}
+
 function do_start_restart {
     local action="$1"
     local unit=""
@@ -2694,6 +3132,11 @@ function do_start_restart {
     if [[ -z "${IOC_NAME}" ]]; then
         printf "Error: Target IOC name is required for %s.\n" "${action}" >&2
         exit 1
+    fi
+
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        do_start_restart_container "${action}"
+        return 0
     fi
 
     # Refresh systemd template cache for NFS environments lacking inotify support
@@ -2972,14 +3415,30 @@ case "${COMMAND_ACTION}" in
             exit 1
         fi
         require_installed_conf "${IOC_NAME}" "${COMMAND_ACTION}"
-        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+        if [[ "${EXEC_MODE}" == "container" ]]; then
+            # enable/disable only toggle the "down" file (start at s6-svscan
+            # boot); like systemctl enable/disable they never start or stop
+            # the running IOC, so s6-svc -U/-D are deliberately not used.
+            case "${COMMAND_ACTION}" in
+                stop)    run_s6_svc "${IOC_NAME}" -d -wd ;;
+                enable)  rm -f "$(s6_service_dir "${IOC_NAME}")/down" ;;
+                disable) : > "$(s6_service_dir "${IOC_NAME}")/down" ;;
+            esac
+        else
+            run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+        fi
         ;;
     status)
         if [[ -z "${IOC_NAME}" ]]; then
             printf "Error: Target IOC name is required for %s.\n" "${COMMAND_ACTION}" >&2
             exit 1
         fi
-        run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+        if [[ "${EXEC_MODE}" == "container" ]]; then
+            printf "%s: " "${IOC_NAME}"
+            s6-svstat "$(s6_service_dir "${IOC_NAME}")"
+        else
+            run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+        fi
         ;;
     start|restart)
         do_start_restart "${COMMAND_ACTION}"
