@@ -8,10 +8,10 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.3.0 reset generation
 
-Next session entry point: the M1 (#127) plan was revised on 2026-09-03 under
-D3 and D4 on branch `feature/container-execution` and is `draft`. Review it
-for owner acceptance, then obtain separate implementation authorization before
-item 1 of the Implementation Plan starts. M1 is Not started and Ready.
+Next session entry point: the M1 (#127) plan is accepted and implementation
+is authorized (2026-09-03) on branch `feature/container-execution`; start
+item 1 of the Implementation Plan and project the accepted plan to issue
+#127. M1 is In progress.
 
 ## Milestone
 
@@ -19,9 +19,9 @@ item 1 of the Implementation Plan starts. M1 is Not started and Ready.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Runtime | M1 | (#127) Container execution mode without systemd | Milestone | Not started | Yes | D2, D3, D4 | The runner manages a real soft IOC without systemd, existing modes remain green, and the interface satisfies the downstream Dockerfiles consumer contract; [detail](#m1---container-execution-mode) |
+| Runtime | M1 | (#127) Container execution mode without systemd | Milestone | In progress | No | D2, D3, D4, D5 | The runner manages a real soft IOC without systemd, existing modes remain green, and the interface satisfies the downstream Dockerfiles consumer contract; [detail](#m1---container-execution-mode) |
 
-Tally: 1 milestone row - Complete 0, In progress 0, Not started 1, Ready 1.
+Tally: 1 milestone row - Complete 0, In progress 1, Not started 0, Ready 0.
 Backlog is reported separately below and excluded from this tally.
 
 ### Decisions
@@ -32,6 +32,7 @@ Backlog is reported separately below and excluded from this tally.
 | D2 | Assign #127 to master work on branch `feature/container-execution`. Keep Dockerfile and runtime image changes in the Dockerfiles M1 (jeonghanlee/Dockerfiles#28), whose G1 waits for this runner capability. This supersedes D1's deferral. | 2026-09-03 |
 | D3 | Adopt s6 as the container-mode supervisor; Python-based supervisors are excluded. The runner contracts only on s6 2.13 or later binaries in `PATH` (`s6-svscan`, `s6-supervise`, `s6-svc`, `s6-svstat`, `s6-svscanctl`, `s6-setuidgid`), never on s6-overlay `/init` or s6-rc; how s6 enters each image is a Dockerfiles M1 decision. Mode flag `--container` sets `EXEC_MODE=container`; the scan directory is `/run/s6-procserv`; IOC logs go to stdout; the permission model is root-only: root runs `s6-svscan` and the runner, procServ runs as `ioc-srv`, and a non-root EUID is rejected. | 2026-09-03 |
 | D4 | T1 runs on the three images already shipping s6; putting s6 into them is Dockerfiles work tracked in that repository and is not a gate row here. | 2026-09-03 |
+| D5 | Drive the container lifecycle suite with `tests/run-container-tests.bash` (one `docker run` per image) instead of a `--container` selector in `tests/run-all-tests.bash`: the suite runs as root inside an image, while every dispatcher child runs on the host. Report the suite under a new `container` scope and `container-lifecycle` suite identity rather than under `system`. Verify debian13 first; rocky8 and rocky10 follow once those images ship s6. | 2026-09-03 |
 
 ### Assignment History
 
@@ -46,7 +47,7 @@ Backlog is reported separately below and excluded from this tally.
 Origin: 45e1009 / M1
 Identity History: none
 GitHub Issue: 127, https://github.com/jeonghanlee/epics-ioc-runner/issues/127
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -103,9 +104,10 @@ runtime image changes owned by the Dockerfiles M1
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-03, after four third-person and seven second-person
+review passes on the register plan
+Implementation Authorization: 2026-09-03
 Superseded Plan Artifacts: none
 
 1. `bin/ioc-runner` mode seam: add `--container` (sets `EXEC_MODE=container`,
@@ -169,12 +171,14 @@ Superseded Plan Artifacts: none
    `jeonghanlee/debian13-epics` has no `setfacl` or `logrotate`;
    `command -v setfacl logrotate`). Closed by T1.
 5. `tests/test-container-lifecycle.bash` (category `lifecycle-behavior`, method
-   `real-path`) with a `--container` selector in `tests/run-all-tests.bash`, a
-   `CONTAINER_LIFECYCLE_INVENTORY.md`, and reporting-inventory updates. The
-   harness runs inside the three Dockerfiles images
-   (`jeonghanlee/debian13-epics`, `jeonghanlee/rocky8-epics`,
-   `jeonghanlee/rocky10-epics`) through `docker run`, taking s6 from the image
-   itself; starting `s6-svscan` is the outermost boundary the harness owns.
+   `real-path`), `tests/run-container-tests.bash` as its harness (D5), a
+   `CONTAINER_LIFECYCLE_INVENTORY.md`, and reporting updates for the new
+   `container` scope and `container-lifecycle` suite identity (contract,
+   reporter matrix, validator, counts, self-tests). The harness runs the suite
+   inside the three Dockerfiles images (`jeonghanlee/debian13-epics`,
+   `jeonghanlee/rocky8-epics`, `jeonghanlee/rocky10-epics`) through
+   `docker run`, taking s6 from the image itself; starting `s6-svscan` and
+   adding `CAP_SYS_PTRACE` are the outermost boundaries the harness owns.
    Closed by T1 running green.
 6. Static guards in `tests/test-source-regression.bash`:
    `test_unit_template_contract` (S16, the CI-25 guard) compares two unit
@@ -192,6 +196,11 @@ Superseded Plan Artifacts: none
    PID 1; `setup-system-infra.bash --container` runs at image build). Closed
    by review.
 
+Progress (2026-09-03, working tree, uncommitted): all seven items are
+implemented under D5. The `CHANGELOG.md` entry follows the repository
+convention of landing with the release changelog. T1 is green on debian13 and
+waits on the rocky images shipping s6; T2 and T3 need the golden testbeds.
+
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
@@ -204,9 +213,9 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Systemd-less containers | Pending | none |
-| T2 | Not run | Both golden OS families | Pending | none |
-| T3 | Not run | Source tree | Pending | none |
+| T1 | 2026-09-03, debian13 only | `jeonghanlee/debian13-epics` with s6 2.13.1.0 added by hand (the images do not ship s6 yet, D4), `docker run --cap-add SYS_PTRACE` | Partial PASS | `tests/test-container-lifecycle.bash` 64/64 PASS: every verb operated on a real softIoc as `ioc-srv`, procServ stdout resolved to the container stdout, no log file, and removal left no orphan supervisor. rocky8 and rocky10 remain unrun until those images ship s6 |
+| T2 | Not run | Both golden OS families | Pending | container images cannot host T2 (it drives systemd system and user managers), so it runs on the golden VM testbeds; this host cannot build the ServiceTestIOC fixture |
+| T3 | 2026-09-03 | `jeonghanlee/debian13-epics` as root with `SUDO_USER` set (docker) | Pending | S16 8/8 PASS including the four new container checks; error-handling 198/198 PASS on this host; S22 isolation and S24 launcher checks fail inside docker (no private mount namespace or sudo launcher context), so the full green run needs a golden host |
 
 ##### Closure Evidence
 
