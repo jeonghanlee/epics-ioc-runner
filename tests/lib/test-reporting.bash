@@ -159,7 +159,7 @@ function _report_expected_category {
 
     case "${suite}" in
         error-handling) printf '%s' "error-contract" ;;
-        local-lifecycle|system-lifecycle) printf '%s' "lifecycle-behavior" ;;
+        container-lifecycle|local-lifecycle|system-lifecycle) printf '%s' "lifecycle-behavior" ;;
         source-regression) printf '%s' "source-regression" ;;
         system-infra) printf '%s' "installed-conformance" ;;
         *) return 1 ;;
@@ -172,6 +172,8 @@ function _report_suite_dimensions_are_valid {
     local runner="$3"
 
     case "${suite}:${scope}:${runner}" in
+        container-lifecycle:container:source) return 0 ;;
+        container-lifecycle:container:installed) return 0 ;;
         error-handling:none:source) return 0 ;;
         local-lifecycle:local:source) return 0 ;;
         local-lifecycle:local:installed) return 0 ;;
@@ -259,7 +261,7 @@ function report_init {
         return 1
     fi
     case "${scope}" in
-        local|system|none) ;;
+        container|local|system|none) ;;
         *) printf 'REPORTING ERROR: unsupported scope: %s\n' "${scope}" >&2; return 1 ;;
     esac
     case "${runner}" in

@@ -89,8 +89,16 @@ one exclusive dispatcher selection, and error handling remains standalone.
   source-tree binary against dummy inputs for the validation and error
   paths. It needs no EPICS environment or root privileges.
 
+**Container lifecycle suite** (not collected by the dispatcher):
+
+- `test-container-lifecycle.bash`: the systemd-less `--container` backend,
+  driven against a real soft IOC supervised by s6. It runs as root INSIDE a
+  container image, so the host dispatcher does not collect it;
+  `run-container-tests.bash` runs it per image through `docker run`.
+
 | Script | Category | Binary | Invocation |
 | :--- | :--- | :--- | :--- |
+| `test-container-lifecycle.bash` | `lifecycle-behavior` | source or installed | inside a container, via `run-container-tests.bash` |
 | `test-error-handling.bash` | `error-contract` | source only | `bash tests/test-error-handling.bash` |
 | `test-local-lifecycle.bash` | `lifecycle-behavior` | source or installed | via `run-all-tests.bash --local` |
 | `test-source-regression.bash` | `source-regression` | source only | via `run-all-tests.bash --source-regression` |
@@ -197,7 +205,21 @@ bash tests/run-all-tests.bash --system --installed
 
 # Source-tree setup, metadata, Git, and path regression checks only.
 bash tests/run-all-tests.bash --source-regression
+
+# Container lifecycle, one run per systemd-less runtime image.
+bash tests/run-container-tests.bash
+bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
 ```
+
+The container harness needs `docker` on the host and images that already ship
+s6 (2.13 or later), procServ, con or socat, and an EPICS base providing
+`softIoc`. For each image it starts `s6-svscan` on the scan directory so the
+IOC output lands on the container stdout, adds `CAP_SYS_PTRACE` for the deep
+`inspect` step, and writes one report per image under
+`/tmp/ioc-runner-container-tests/`. Run
+`setup-system-infra.bash --container` in the image (at build time or before
+the suite) so the accounts, the configuration directory, and the scan
+directory exist.
 
 The development-to-production flow maps directly onto these commands:
 develop and iterate with `--source`, validate a finished install with
@@ -221,6 +243,9 @@ sudo -E IOC_RUNNER_TEST_MODE=installed bash tests/test-system-lifecycle.bash
 
 # System infrastructure check.
 sudo bash tests/test-system-infra.bash
+
+# Container lifecycle directly, from inside a prepared container.
+IOC_RUNNER_TEST_MODE=source bash tests/test-container-lifecycle.bash
 ```
 
 ### 3. System Tests on an NFS Home with `root_squash`

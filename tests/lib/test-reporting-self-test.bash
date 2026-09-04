@@ -274,6 +274,8 @@ function scenario_suite_dimension_matrix {
     local check_id=""
     local index=0
     local -a dimensions=(
+        "container-lifecycle container source lifecycle-behavior"
+        "container-lifecycle container installed lifecycle-behavior"
         "error-handling none source error-contract"
         "local-lifecycle local source lifecycle-behavior"
         "local-lifecycle local installed lifecycle-behavior"
@@ -657,7 +659,7 @@ expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^CATALOG ' 1 \
 expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^(TEST|STEP|SUITE) ' 0 \
     "catalog precedence: no execution records"
 expect_last_line "${SELF_TEST_WORKSPACE}/catalog-precedence.out" \
-    "CATALOG suite=source-regression checks=128 steps=20 state=PASS" \
+    "CATALOG suite=source-regression checks=132 steps=20 state=PASS" \
     "catalog precedence: exact standard-output contract"
 
 run_scenario clean 0

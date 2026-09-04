@@ -78,6 +78,10 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S16.templates.must-agree"
     "${SUITE_ID}.S16.restart-directives.present"
     "${SUITE_ID}.S16.runtime-directory-preserve.present"
+    "${SUITE_ID}.S16.launch-arguments.extracted"
+    "${SUITE_ID}.S16.launch-arguments.must-agree"
+    "${SUITE_ID}.S16.s6-render.fixed-values"
+    "${SUITE_ID}.S16.completion.mode-options-agree"
     "${SUITE_ID}.S17.metadata.targets-extracted"
     "${SUITE_ID}.S17.metadata.injectors-agree"
     "${SUITE_ID}.S17.metadata.declaration-anchors-present"
@@ -1150,6 +1154,89 @@ function test_unit_template_contract {
     done
     verify_state "present" "${preserve_state}" \
         "${SUITE_ID}.S16.runtime-directory-preserve.present"
+
+    _launch_arguments_contract
+}
+
+# Prints the ordered procServ option names of one launch line so the three
+# renderings of the procServ argument list (system unit template, local unit
+# template, container s6 run script) compare independently of the per-mode
+# values each one substitutes.
+function _launch_option_sequence {
+    local line="$1"
+    local token=""
+    local -a tokens=()
+
+    read -r -a tokens <<< "${line}"
+    for token in "${tokens[@]}"; do
+        if [[ "${token}" == --* ]]; then
+            printf '%s\n' "${token%%=*}"
+        fi
+    done
+}
+
+# The procServ argument contract must agree across every launch rendering:
+# the two systemd ExecStart lines and the container mode run-script render.
+# The render also carries fixed values the unit templates carry literally
+# (stdout log, the ignore set, the empty autorestart command), and the
+# completion script must offer every mode option the runner parses.
+function _launch_arguments_contract {
+    local runner_script="${REPO_TOP}/bin/ioc-runner"
+    local setup_script="${REPO_TOP}/bin/setup-system-infra.bash"
+    local completion_script="${REPO_TOP}/bin/ioc-runner-completion.bash"
+    local runner_exec="" setup_exec="" render_format=""
+    local runner_seq="" setup_seq="" render_seq=""
+    local extracted="empty"
+    local agreement="differ"
+    local fixed_values="present"
+    local completion_opts=""
+    local mode_option=""
+    local mode_options="all"
+
+    runner_exec=$(run_as_invoker grep -m1 '^ExecStart=' "${runner_script}" || true)
+    setup_exec=$(run_as_invoker grep -m1 '^ExecStart=' "${setup_script}" || true)
+    render_format=$(run_as_invoker grep -m1 -F 'exec s6-setuidgid %s %s --foreground' "${runner_script}" || true)
+    if [[ -n "${runner_exec}" && -n "${setup_exec}" && -n "${render_format}" ]]; then
+        extracted="nonempty"
+    fi
+    verify_state "nonempty" "${extracted}" \
+        "${SUITE_ID}.S16.launch-arguments.extracted"
+
+    runner_seq=$(_launch_option_sequence "${runner_exec#ExecStart=}")
+    setup_seq=$(_launch_option_sequence "${setup_exec#ExecStart=}")
+    render_seq=$(_launch_option_sequence "${render_format}")
+    if [[ -n "${runner_seq}" && "${runner_seq}" == "${setup_seq}" \
+          && "${runner_seq}" == "${render_seq}" ]]; then
+        agreement="agree"
+    else
+        printf "%b%s%b\n" "${YELLOW}" "  launch option drift (runner unit / setup unit / s6 render):" "${NC}"
+        printf "    %s\n" "${runner_seq//$'\n'/ }" "${setup_seq//$'\n'/ }" "${render_seq//$'\n'/ }"
+    fi
+    verify_state "agree" "${agreement}" \
+        "${SUITE_ID}.S16.launch-arguments.must-agree"
+
+    if [[ "${render_format}" != *"--logfile=- "* ]]; then
+        fixed_values="missing:logfile-stdout"
+    elif ! run_as_invoker grep -qF -- "sh_quote '^D^C^]'" "${runner_script}"; then
+        fixed_values="missing:ignore-set"
+    elif ! run_as_invoker grep -qF -- '"'"''"'"' "${runner_script}"; then
+        fixed_values="missing:empty-autorestartcmd"
+    fi
+    verify_state "present" "${fixed_values}" \
+        "${SUITE_ID}.S16.s6-render.fixed-values"
+
+    completion_opts=$(run_as_invoker grep -m1 -E '^[[:space:]]*opts="' "${completion_script}" || true)
+    completion_opts="${completion_opts#*\"}"
+    completion_opts="${completion_opts%\"*}"
+    for mode_option in --local --user --container; do
+        if ! run_as_invoker grep -qE "^[[:space:]]*(--local[|]--user|--container)\)" "${runner_script}" \
+           || [[ " ${completion_opts} " != *" ${mode_option} "* ]]; then
+            mode_options="missing:${mode_option}"
+            break
+        fi
+    done
+    verify_state "all" "${mode_options}" \
+        "${SUITE_ID}.S16.completion.mode-options-agree"
 }
 
 # Extracts the sorted RUNNER_* variable names targeted by one metadata

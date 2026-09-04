@@ -10,8 +10,8 @@ carry information that belongs to another dimension.
 
 | Field | Meaning | Allowed Values |
 | --- | --- | --- |
-| `suite` | Test suite identity | `error-handling`, `local-lifecycle`, `source-regression`, `system-infra`, `system-lifecycle` |
-| `scope` | Operational scope under test | `local`, `system`, `none` |
+| `suite` | Test suite identity | `container-lifecycle`, `error-handling`, `local-lifecycle`, `source-regression`, `system-infra`, `system-lifecycle` |
+| `scope` | Operational scope under test | `container`, `local`, `system`, `none` |
 | `runner` | `ioc-runner` binary origin under test | `source`, `installed`, `none` |
 | `os` | Operating system family and major version | Normalized `<id>-<major>` value such as `debian-13` or `rocky-8` |
 | `arch` | EPICS host architecture | `EPICS_HOST_ARCH`, such as `linux-x86_64` |
@@ -36,6 +36,8 @@ runner treats the missing suite record as an invalid run.
 
 | Suite Invocation | `scope` | `runner` |
 | --- | --- | --- |
+| Container lifecycle against the source tree | `container` | `source` |
+| Container lifecycle against the installed binary | `container` | `installed` |
 | Error handling | `none` | `source` |
 | Local lifecycle against the source tree | `local` | `source` |
 | Local lifecycle against the installed binary | `local` | `installed` |
@@ -57,7 +59,7 @@ is valid. It is independent of the result dimensions and check kinds.
 | --- | --- | --- | --- |
 | `source-regression` | Shipped source-script behavior, including setup, runner metadata, injection, and test path safety | Source tree with writes redirected to isolated temporary targets | Source regression |
 | `installed-conformance` | Installed accounts, files, ownership, permissions, policies, units, and tools | Host after installation or configuration | System infrastructure |
-| `lifecycle-behavior` | IOC start, stop, status, console, and cleanup behavior | Real source or installed runner selected by `runner` | Local lifecycle and system lifecycle |
+| `lifecycle-behavior` | IOC start, stop, status, console, and cleanup behavior | Real source or installed runner selected by `runner` | Container lifecycle, local lifecycle, and system lifecycle |
 | `error-contract` | Rejection and safe failure behavior for invalid inputs | Real source runner and isolated outer boundaries | Error handling |
 
 `source-regression` verifies shipped source scripts whose result is independent

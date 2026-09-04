@@ -178,6 +178,17 @@ S16 adds four REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S16.restart-directives.present` | `REQUIRED` | `direct-inspection` | All required restart directives remain in the shared source contract. |
 | `source-regression.S16.runtime-directory-preserve.present` | `REQUIRED` | `direct-inspection` | Both templates retain `RuntimeDirectoryPreserve=restart`. |
 
+## Container Mode S16 Addition
+
+S16 adds four REQUIRED direct-inspection identities for the container execution mode (#127). The procServ argument list now has three renderings: the system unit template, the local unit template, and the container s6 run script rendered by `render_s6_service`. Both scripts and the completion script are read through the invoking-user boundary established by P00.
+
+| Check ID | Kind | Test Method | Source Contract |
+| --- | --- | --- | --- |
+| `source-regression.S16.launch-arguments.extracted` | `REQUIRED` | `direct-inspection` | Both `ExecStart=` lines and the s6 run-script render format are extracted before comparison. |
+| `source-regression.S16.launch-arguments.must-agree` | `REQUIRED` | `direct-inspection` | The ordered procServ option names agree across the runner unit, the setup unit, and the s6 render. |
+| `source-regression.S16.s6-render.fixed-values` | `REQUIRED` | `direct-inspection` | The s6 render logs to stdout (`--logfile=-`), keeps the `^D^C^]` ignore set, and passes an empty `--autorestartcmd`. |
+| `source-regression.S16.completion.mode-options-agree` | `REQUIRED` | `direct-inspection` | Every mode option the runner parses (`--local`, `--user`, `--container`) is offered by the completion script. |
+
 ## Accepted M8 S17 Addition
 
 S17 adds three REQUIRED direct-inspection identities accepted by the owner on 2026-08-07. All three source files are read through the invoking-user boundary established by P00.
