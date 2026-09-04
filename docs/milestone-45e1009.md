@@ -31,7 +31,7 @@ Backlog is reported separately below and excluded from this tally.
 | D1 | Keep #127 Deferred in Backlog until the owner assigns it to a later release cycle. | 2026-08-31 |
 | D2 | Assign #127 to master work on branch `feature/container-execution`. Keep Dockerfile and runtime image changes in the Dockerfiles M1 (jeonghanlee/Dockerfiles#28), whose G1 waits for this runner capability. This supersedes D1's deferral. | 2026-09-03 |
 | D3 | Adopt s6 as the container-mode supervisor; Python-based supervisors are excluded. The runner contracts only on s6 2.13 or later binaries in `PATH` (`s6-svscan`, `s6-supervise`, `s6-svc`, `s6-svstat`, `s6-svscanctl`, `s6-setuidgid`), never on s6-overlay `/init` or s6-rc; how s6 enters each image is a Dockerfiles M1 decision. Mode flag `--container` sets `EXEC_MODE=container`; the scan directory is `/run/s6-procserv`; IOC logs go to stdout; the permission model is root-only: root runs `s6-svscan` and the runner, procServ runs as `ioc-srv`, and a non-root EUID is rejected. | 2026-09-03 |
-| D4 | T1 runs on the three images already shipping s6; putting s6 into them is Dockerfiles work tracked in that repository and is not a gate row here. | 2026-09-03 |
+| D4 | T1 runs on the three images already shipping s6; putting s6 into them is Dockerfiles work tracked in that repository (jeonghanlee/Dockerfiles#38) and is not a gate row here. | 2026-09-03 |
 | D5 | Drive the container lifecycle suite with `tests/run-container-tests.bash` (one `docker run` per image) instead of a `--container` selector in `tests/run-all-tests.bash`: the suite runs as root inside an image, while every dispatcher child runs on the host. Report the suite under a new `container` scope and `container-lifecycle` suite identity rather than under `system`. Verify debian13 first; rocky8 and rocky10 follow once those images ship s6. | 2026-09-03 |
 
 ### Assignment History
@@ -96,11 +96,21 @@ runtime image changes owned by the Dockerfiles M1
   -R just-containers/s6-overlay`). The s6 delivery route per image belongs to
   Dockerfiles M1.
 - D4 places s6 delivery into the images with the Dockerfiles repository; T1
-  runs on images that already ship s6, with no gate row here.
-- Downstream Dockerfiles M1 (jeonghanlee/Dockerfiles#28)
-  remains Blocked on its G1 until #127 is resolved and the container mode is
-  released. This consumer condition does not block M1 implementation or
-  closure.
+  runs on images that already ship s6, with no gate row here. Tracked there as
+  jeonghanlee/Dockerfiles#38, which builds skalibs, execline, and s6 from
+  pinned release tags in one layer per image so every image carries the same
+  version, puts the six contracted binaries on `PATH`, records them in the
+  image bake manifest, and adds an image-gate check; s6-overlay and s6-rc are
+  excluded, matching D3. Reported 2026-09-03 by the Dockerfiles owner:
+  Ubuntu 24.04 packages only s6 2.12.0.3, below the 2.13 floor, and Rocky 8.10
+  and 10.2 package none, so a source build rather than distribution packages
+  is what keeps one version across the image set. The image set is moving to
+  distribution version 1.3.0, so the harness pins images by digest rather than
+  by the 1.2.2 tag until that lands.
+- Downstream Dockerfiles M1 (jeonghanlee/Dockerfiles#28, narrowed to the
+  runner supervision layer) remains Blocked on its G1 until #127 is resolved
+  and the container mode is released on master. This consumer condition does
+  not block M1 implementation or closure.
 
 ##### Implementation Plan
 
@@ -213,7 +223,7 @@ waits on the rocky images shipping s6; T2 and T3 need the golden testbeds.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-09-03, debian13 only | `jeonghanlee/debian13-epics` with s6 2.13.1.0 added by hand (the images do not ship s6 yet, D4), `docker run --cap-add SYS_PTRACE` | Partial PASS | `tests/test-container-lifecycle.bash` 64/64 PASS: every verb operated on a real softIoc as `ioc-srv`, procServ stdout resolved to the container stdout, no log file, and removal left no orphan supervisor. rocky8 and rocky10 remain unrun until those images ship s6 |
+| T1 | 2026-09-03, debian13 only | `jeonghanlee/debian13-epics` with s6 2.13.1.0 added by hand (the images do not ship s6 yet, D4), `docker run --cap-add SYS_PTRACE` | Partial PASS | `tests/test-container-lifecycle.bash` 64/64 PASS: every verb operated on a real softIoc as `ioc-srv`, procServ stdout resolved to the container stdout, no log file, and removal left no orphan supervisor. rocky8 and rocky10 remain unrun until those images ship s6 through jeonghanlee/Dockerfiles#38 |
 | T2 | Not run | Both golden OS families | Pending | container images cannot host T2 (it drives systemd system and user managers), so it runs on the golden VM testbeds; this host cannot build the ServiceTestIOC fixture |
 | T3 | 2026-09-03 | `jeonghanlee/debian13-epics` as root with `SUDO_USER` set (docker) | Pending | S16 8/8 PASS including the four new container checks; error-handling 198/198 PASS on this host; S22 isolation and S24 launcher checks fail inside docker (no private mount namespace or sudo launcher context), so the full green run needs a golden host |
 
