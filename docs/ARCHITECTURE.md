@@ -60,8 +60,36 @@ On hosts with sudo < 1.9.10, the deployment script falls back to a glob form (`e
 The core of this architecture is a single, static systemd template file located at `/etc/systemd/system/epics-@.service`. When an engineer starts an instance (e.g., `epics-@myioc.service`), systemd dynamically loads the corresponding environment variables from `/etc/procServ.d/myioc.conf`. This eliminates the need for dynamic generator scripts and multiple daemon reloads.
 
 ### 3.2. ioc-runner (Wrapper Script)
-A pure Bash utility to manage IOC configurations. It copies user-defined `.conf` files to the target directory and issues the appropriate `systemctl` commands. It inherently supports the symmetry of this architecture by allowing both system-wide deployment (`sudo systemctl`) and isolated local testing (`systemctl --user` via the `--local` flag) using the exact same template logic.
+A pure Bash utility to manage IOC configurations. It copies user-defined `.conf` files to the target directory and issues the appropriate `systemctl` commands. It inherently supports the symmetry of this architecture by allowing both system-wide deployment (`sudo systemctl`) and isolated local testing (`systemctl --user` via the `--local` flag) using the exact same template logic. A third backend, selected by `--container`, drives the same configuration through s6 supervision for systemd-less container images (section 3.4).
 
 ### 3.3. con (Local Console Access)
 A C++ based terminal emulator replacing traditional serial tools. It provides seamless terminal session control by connecting directly to the secure UNIX Domain Sockets created by `procServ`.
 *Note: If `con` is unavailable, the architecture is designed to automatically fall back to standard data pipes like `socat` or `nc`.*
+
+### 3.4. s6 Service Directory (`--container` mode)
+Container images run without systemd. In container mode the runner supervises `procServ` through s6: the container entrypoint runs `s6-svscan` as PID 1 on the scan directory `/run/s6-procserv`, and every installed IOC owns one service directory beneath it.
+
+```text
+[ root inside the container ]
+        |
+        |-- (1. Config)  --> [ /etc/procServ.d/myioc.conf (root:ioc, 2770 directory) ]
+        |
+        |-- (2. install) --> [ /run/s6-procserv/myioc/{run,down,timeout-kill} ] --> s6-svscanctl -a
+        |
+        |-- (3. Control) --> [ s6-svc -u / -d / -r ]
+                                        |
+                                        V
+                                [ s6-supervise ] ---> execs ./run
+                                        | (Spawn & Restart)
+                                        V
+                                [ procServ (ioc-srv) --logfile=- ] --> stdout --> container stdout
+                                        |
+                                        |---> Run  --> [ EPICS IOC ]
+                                        |---> Comm --> [ /run/procserv/myioc/control ]
+```
+
+* `install` renders `run`, a POSIX sh script that execs `s6-setuidgid ioc-srv procServ ...` with the same procServ argument list as the systemd unit template except that the log goes to stdout (`--logfile=-`); `timeout-kill` (90000 ms, the SIGTERM-to-SIGKILL grace period, systemd's `TimeoutStopSec` default); and, for a new service, `down` (disabled until `enable`). A static source check keeps the three procServ argument renderings (system unit, local unit, s6 run script) in agreement.
+* `start`, `stop`, and `restart` are `s6-svc -u`, `-d`, and `-r` with a bounded wait; readiness is the control socket appearing under `/run/procserv/<ioc>`, which the runner creates (`0770 ioc-srv:ioc`) in place of systemd's `RuntimeDirectory`. `enable` and `disable` only remove or create `down` (start at container boot); `status` and `list` read `s6-svstat`; `list -v` sums CPU and memory over procServ and its descendants from `/proc`; `view` prints the rendered `run`; `remove` brings the service down, deletes the directory, and prunes the supervisor with `s6-svscanctl -h`.
+* s6-supervise restarts a dead procServ after its fixed one-second delay (the unit template's `Restart=always` / `RestartSec=2`); procServ itself keeps supervising the IOC child.
+* The mode is root-only: the runner rejects a non-root EUID, and the `ioc` group holds no operator role (it remains the owning group of the socket directory). There is no sudoers policy, unit template, log directory, or logrotate policy; IOC output is read from the container stdout (for example `docker logs`).
+* Requirements: s6 2.13 or later in `PATH` (`s6-svscan`, `s6-supervise`, `s6-svc`, `s6-svstat`, `s6-svscanctl`, `s6-setuidgid`); the runner does not use s6-overlay's `/init` or s6-rc. `setup-system-infra.bash --container` prepares the image at build time (accounts, configuration directory, CLI, completion, scan directory skeleton); see [`INSTALL.md`](INSTALL.md).

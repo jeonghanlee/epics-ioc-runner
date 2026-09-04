@@ -14,7 +14,7 @@ This architecture requires the following core utilities to be installed on your 
 ## Key Highlights
 * **No Python or Framework Runtime**: Built on Bash 4.3+ and native `systemd`. Runtime depends on `procServ`, `con`, `lsof`, `ss`, `awk`, and `runuser` from `util-linux`; no Python interpreter or application framework is required.
 * **High-Performance Minimal-Fork Architecture**: Utilizes pure Bash stream parsing and O(1) associative arrays to batch-fetch socket and systemd states, eliminating per-IOC subprocess overhead.
-* **Dual Execution Modes**: Supports both system-wide deployment (via RBAC and sudoers) and isolated local user environments for testing.
+* **Three Execution Modes**: Supports system-wide deployment (via RBAC and sudoers), isolated local user environments for testing, and systemd-less container images (`--container`, s6 supervision, IOC output on the container stdout).
 * **Input Isolation (`monitor`)**: Safe, uni-directional console observation to prevent interleaving of unintended inputs during sensitive hardware operations.
 * **Advanced Peer Tracking (`inspect`)**: Deep Netlink inode correlation to map and isolate specific external users attached to UNIX Domain Sockets.
 

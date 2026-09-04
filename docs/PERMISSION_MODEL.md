@@ -14,6 +14,8 @@ Scope:
 - Site-provisioned paths the runner only reads (procServ binary,
   EPICS base, `/opt/epics-iocs/`)
 - Local-mode paths created by `ioc-runner --local install`
+- Container-mode paths created by `setup-system-infra.bash --container` and
+  `ioc-runner --container`
 - Three-principal model and end-state targets for the log directory
 - Permission lifecycle (Create / Manage / Track) per principal
 
@@ -168,6 +170,24 @@ independent reasons keep it out of the known threat surface:
 time when the glob form is selected, so the residual-risk record
 is visible in install logs.
 
+### Container-mode paths
+
+Paths used by `ioc-runner --container` inside a systemd-less container image.
+The configuration directory and its `.conf` files follow the system-mode
+rows above (`root:ioc 2770`, `root:ioc 0660`); s6 replaces systemd as the
+supervisor and the socket directory is created by the runner rather than by
+`RuntimeDirectory`.
+
+| Path | Owner:Group | Mode | Variable | Notes |
+| --- | --- | --- | --- | --- |
+| `/run/s6-procserv/` | `root:root` | `0755` | `SCAN_DIR` (`IOC_RUNNER_SCAN_DIR`) | scan directory; the container entrypoint creates it before `s6-svscan` (setup's build-time copy is a convenience) |
+| `/run/s6-procserv/<ioc>/` | `root:root` | `0755` | — | service directory rendered by `install`; deleted by `remove` |
+| `/run/s6-procserv/<ioc>/run` | `root:root` | `0755` | — | POSIX sh script: `exec s6-setuidgid ioc-srv procServ ... --logfile=-` |
+| `/run/s6-procserv/<ioc>/down`, `timeout-kill` | `root:root` | `0644` | — | `down` present while disabled; `timeout-kill` holds the SIGKILL grace period (ms) |
+| `/run/s6-procserv/<ioc>/supervise/`, `event/` | `root:root` | s6-managed | — | created and owned by `s6-supervise` |
+| `/run/procserv/<ioc>/` | `ioc-srv:ioc` | `0770` | `RUN_DIR` | created by `start` in place of `RuntimeDirectory`; removed by `remove` |
+| `/run/procserv/<ioc>/control` | `ioc-srv:ioc` | `0660` | — | procServ-created UNIX socket (`IOC_PORT`) |
+
 ## Three-Principal Model (system mode)
 
 The system-wide mode has three distinct principals against the log
@@ -185,6 +205,13 @@ has read-only access via the directory's `o+rx` bits and the file's
 The `--local` mode is single-principal by construction (one
 engineer is install, operate, manage, and observe at the same
 time). It does not use the three-principal model.
+
+The `--container` mode is root-only: root installs, manages, and
+observes, and the runner rejects a non-root EUID. `ioc-srv` still
+operates procServ, but the `ioc` group holds no operator role; it
+remains only the owning group of the socket directory and the
+configuration files, so a future non-root reader can be granted
+access without changing the layout.
 
 ## End-State Targets
 
@@ -274,6 +301,21 @@ Create, Manage, and Track (read).
 | Manage | append / IOC lifecycle | `<user>` | log file, user unit | `systemctl --user ...` (no sudo) | self-managed |
 | Track | crash scan / shell read | `<user>` | `<ioc>.log` | `ioc-runner --local`, `cat`, `tail` | owner `r` |
 | Track | `--local inspect` log-path and executable identity | `<user>` | effective log directory, `MainPID`, UDS, procServ executable | unprivileged probe plus read-only `/proc` and user-systemd queries | warnings only; no service-state change |
+
+### Container mode
+
+| Phase | Action | Principal | Object | Mechanism | Resulting state |
+| --- | --- | --- | --- | --- | --- |
+| Create | scan directory | `root` (entrypoint) | `/run/s6-procserv/` | `mkdir` before `s6-svscan` starts as PID 1 | `root:root 0755` |
+| Create | service directory | `root` | `/run/s6-procserv/<ioc>/` | `ioc-runner --container install` renders `run`, `timeout-kill`, `down`, then `s6-svscanctl -a` | `root:root 0755`; `run 0755` |
+| Create | socket directory | `root` | `/run/procserv/<ioc>/` | `ioc-runner --container start`: `install -d -m 0770 -o ioc-srv -g ioc` | `ioc-srv:ioc 0770` |
+| Create | control socket | `ioc-srv` | `/run/procserv/<ioc>/control` | procServ `--port=unix:ioc-srv:ioc:0660:...` | `ioc-srv:ioc 0660` |
+| Manage | start / stop / restart | `root` | s6 service | `s6-svc -u -wu` / `-d -wd` / `-r -wr` with a bounded wait; readiness is the socket appearing | no sudoers gate; root-only |
+| Manage | enable / disable | `root` | `down` file | remove / create `down` | starts or stays down at `s6-svscan` boot; the running IOC is untouched |
+| Manage | restart of a dead procServ | `s6-supervise` | `run` | fixed one-second delay | stands in for `Restart=always` |
+| Track | IOC output | any reader of the container stdout | `s6-svscan` stdout | procServ `--logfile=-` | `docker logs` or the runtime's log driver; no log file |
+| Track | `status` / `list` | `root` | s6 state | `s6-svstat`, `/proc` | read-only |
+| Track | `inspect` executable identity | `root` | supervised PID, UDS, procServ executable | `s6-svstat -o pid` plus read-only `/proc`; needs `CAP_SYS_PTRACE` in the container | warnings only |
 
 ## Why Default ACLs Are Still Set
 
