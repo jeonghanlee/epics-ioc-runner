@@ -246,9 +246,11 @@ Observed State: open
 Observed Labels: P3-low, feature, area/architecture
 Observed Milestone: Backlog
 Observed Assignee: jeonghanlee
-Last Compared: 2026-09-03; remote updated 2026-08-14T17:06:01Z
-Body: the issue still carries the pre-D3 three-item plan; project D3, D4, and
-the seven-item plan after Plan Acceptance.
+Last Compared: 2026-09-04; remote updated 2026-09-04T19:14:09Z
+Body: projected 2026-09-04. The issue carries the accepted seven-item plan, the
+supervisor and s6-delivery decisions, and the T1, T2, and T3 results. It names
+no internal host, keeps the evidence in prose rather than pointing at the
+gitignored run directory, and qualifies both cross-repository references.
 
 ## Backlog
 
