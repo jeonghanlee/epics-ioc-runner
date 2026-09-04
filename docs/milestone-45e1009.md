@@ -8,10 +8,11 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.3.0 reset generation
 
-Next session entry point: the M1 (#127) plan is accepted and implementation
-is authorized (2026-09-03) on branch `feature/container-execution`; start
-item 1 of the Implementation Plan and project the accepted plan to issue
-#127. M1 is In progress.
+Next session entry point: M1 (#127) is implemented on branch
+`feature/container-execution` through 2da8f03, with T2 and T3 green on both
+goldens (2026-09-04, Check grade). What remains is T1 on the rocky8 and
+rocky10 images, which waits on jeonghanlee/Dockerfiles#38 shipping s6 into
+them, and projecting the accepted plan to issue #127. M1 is In progress.
 
 ## Milestone
 
@@ -206,10 +207,15 @@ Superseded Plan Artifacts: none
    PID 1; `setup-system-infra.bash --container` runs at image build). Closed
    by review.
 
-Progress (2026-09-03, working tree, uncommitted): all seven items are
+Progress (2026-09-04, committed through 2da8f03): all seven items are
 implemented under D5. The `CHANGELOG.md` entry follows the repository
-convention of landing with the release changelog. T1 is green on debian13 and
-waits on the rocky images shipping s6; T2 and T3 need the golden testbeds.
+convention of landing with the release changelog. T2 and T3 are green on both
+goldens; T1 stays partial until the rocky images ship s6.
+
+The four launch-argument checks added to `source-regression` S16 moved the
+check-identity value that `gate/drivers/control/suites.bash` pins, so the
+driver carries the new value from 2da8f03. Without that the release Gate fails
+on the pin rather than on the code under test.
 
 ##### Test Plan
 
@@ -224,8 +230,8 @@ waits on the rocky images shipping s6; T2 and T3 need the golden testbeds.
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | 2026-09-03, debian13 only | `jeonghanlee/debian13-epics` with s6 2.13.1.0 added by hand (the images do not ship s6 yet, D4), `docker run --cap-add SYS_PTRACE` | Partial PASS | `tests/test-container-lifecycle.bash` 64/64 PASS: every verb operated on a real softIoc as `ioc-srv`, procServ stdout resolved to the container stdout, no log file, and removal left no orphan supervisor. rocky8 and rocky10 remain unrun until those images ship s6 through jeonghanlee/Dockerfiles#38 |
-| T2 | Not run | Both golden OS families | Pending | container images cannot host T2 (it drives systemd system and user managers), so it runs on the golden VM testbeds; this host cannot build the ServiceTestIOC fixture |
-| T3 | 2026-09-03 | `jeonghanlee/debian13-epics` as root with `SUDO_USER` set (docker) | Pending | S16 8/8 PASS including the four new container checks; error-handling 198/198 PASS on this host; S22 isolation and S24 launcher checks fail inside docker (no private mount namespace or sudo launcher context), so the full green run needs a golden host |
+| T2 | 2026-09-04 | The Debian 13 and Rocky 8 golden consumers named by `gate/RUNBOOK.md`; candidate 2da8f03 pushed with `gate/drivers/push.bash` and deployed with `bin/run-setup-system-infra.bash --full` (9/9 and 12/12) | PASS | `gate/drivers/control/suites.bash` reported `GATE SUITES PASS hosts=2`, each host `SUITES OK (6 blocks, 901 checks)`: debian13 896 PASS with 5 NA, rocky8 889 PASS with 12 NA, and no FAIL, SKIP, or SCRIPT_ERROR. Every NA is an examined OS applicability result (debian13: SELinux inactive, RHEL-only symlink redirect; rocky8: glob sudoers policy, Rocky ordinary-user journal policy), and the 88-line `cross-host.diff` covers only those four steps. Runner provenance is `identity=2da8f03 expected_identity=2da8f03 state=PASS` on both hosts. Evidence `work/gate-suites-20260904T170111Z-404693/`. Check grade under `gate/RUNBOOK.md`: the consumer pair was reused, not created from a fresh image bake |
+| T3 | 2026-09-04 | The same two goldens, run inside the suite matrix as `source-regression` scope `system` runner `source` | PASS | 132 checks: 132 PASS on rocky8, 131 PASS with 1 NA on debian13 (RHEL-only symlink redirect). The four added checks `S16.launch-arguments.extracted`, `S16.launch-arguments.must-agree`, `S16.s6-render.fixed-values`, and `S16.completion.mode-options-agree` PASS on both hosts, so the procServ argument list agrees across the system template, the local template, and the s6 `run` render, and completion covers `--container`. Same evidence directory as T2 |
 
 ##### Closure Evidence
 
