@@ -10,9 +10,9 @@ Activation state: active on `master` as the post-1.3.0 reset generation
 
 Next session entry point: M1 (#127) is implemented on branch
 `feature/container-execution` through 2da8f03, with T2 and T3 green on both
-goldens (2026-09-04, Check grade). What remains is T1 on the rocky8 and
-rocky10 images, which waits on jeonghanlee/Dockerfiles#38 shipping s6 into
-them, and projecting the accepted plan to issue #127. M1 is In progress.
+goldens (2026-09-04, Check grade) and the accepted plan projected to issue
+#127. What remains is T1 on the rocky8 and rocky10 images, which waits on
+jeonghanlee/Dockerfiles#38 shipping s6 into them. M1 is In progress.
 
 ## Milestone
 
