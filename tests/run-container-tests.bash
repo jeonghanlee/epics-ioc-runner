@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
 # Container lifecycle harness: runs tests/test-container-lifecycle.bash inside
-# each systemd-less runtime image through docker. The images ship s6; this
-# harness owns only the outermost boundary of the test path: mounting the
-# source tree, starting s6-svscan on the scan directory as the container's
-# supervisor, and collecting each run's human report and exit status.
+# each systemd-less runtime image through docker. The images ship s6 and the
+# runner's runtime utilities; this harness owns the outermost boundary of the
+# test path: mounting the source tree, deploying the container infrastructure
+# with setup-system-infra.bash --container, starting s6-svscan on the scan
+# directory as the container's supervisor, and collecting each run's human
+# report and exit status.
 # Deep inspect needs CAP_SYS_PTRACE inside the container, so the run adds it.
 
 set -euo pipefail
@@ -21,6 +23,7 @@ declare -g REPO_TOP="${SC_TOP%/tests}"
 
 declare -g -a DEFAULT_IMAGES=(
     jeonghanlee/debian13-epics:latest
+    jeonghanlee/ubuntu24-epics:latest
     jeonghanlee/rocky8-epics:latest
     jeonghanlee/rocky10-epics:latest
 )
@@ -63,12 +66,15 @@ if ! command -v "${DOCKER_BIN}" >/dev/null 2>&1; then
 fi
 mkdir -p "${REPORT_ROOT}"
 
-# The container command: start s6-svscan on the scan directory with its
-# stdout on the container stdout (the IOC log destination), then run the
-# suite from the mounted source tree. The suite's own exit status is the
-# container's exit status.
+# The container command: deploy the container infrastructure (service
+# account, configuration directory, scan directory) from the mounted source
+# with setup-system-infra.bash --container, then start s6-svscan on the scan
+# directory with its stdout on the container stdout (the IOC log
+# destination), then run the suite from the mounted source tree. The suite's
+# own exit status is the container's exit status.
 declare -g CONTAINER_SCRIPT
 printf -v CONTAINER_SCRIPT '%s' \
+    "bash /repo/bin/setup-system-infra.bash --container; " \
     "mkdir -p '${SCAN_DIR}' && s6-svscan '${SCAN_DIR}' & sleep 1; " \
     "cd /repo && env EPICS_HOST_ARCH=\"\${EPICS_HOST_ARCH:-linux-x86_64}\" bash tests/test-container-lifecycle.bash"
 
