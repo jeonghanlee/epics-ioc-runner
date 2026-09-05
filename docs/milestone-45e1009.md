@@ -9,10 +9,11 @@ Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.3.0 reset generation
 
 Next session entry point: M1 (#127) is implemented on branch
-`feature/container-execution` through 2da8f03, with T2 and T3 green on both
-goldens (2026-09-04, Check grade) and the accepted plan projected to issue
-#127. What remains is T1 on the rocky8 and rocky10 images, which waits on
-jeonghanlee/Dockerfiles#38 shipping s6 into them. M1 is In progress.
+`feature/container-execution`, with T1, T2, and T3 all green: T1 64/64 on all
+four EPICS images at 1.0.1 (2026-09-05), T2 and T3 on both goldens (2026-09-04,
+Check grade), and the accepted plan projected to issue #127. What remains is
+committing the container test harness fix and the CLOSED_DOORS CI-36 record,
+then moving M1 to Complete through release. M1 is In progress.
 
 ## Milestone
 
@@ -210,7 +211,10 @@ Superseded Plan Artifacts: none
 Progress (2026-09-04, committed through 2da8f03): all seven items are
 implemented under D5. The `CHANGELOG.md` entry follows the repository
 convention of landing with the release changelog. T2 and T3 are green on both
-goldens; T1 stays partial until the rocky images ship s6.
+goldens, and T1 is green 64/64 on all four EPICS images at 1.0.1 (2026-09-05);
+the container test harness now deploys the container setup from the mounted
+source before the suite, and its fix plus the CLOSED_DOORS CI-36 record await
+commit.
 
 The four launch-argument checks added to `source-regression` S16 moved the
 check-identity value that `gate/drivers/control/suites.bash` pins, so the
@@ -221,7 +225,7 @@ on the pin rather than on the code under test.
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Container lifecycle | Run `setup-system-infra.bash --container`, then generate, install, start, stop, restart, status, list, view, inspect, remove, attach, and monitor through the shipped `--container` mode under a live `s6-svscan` | debian13, rocky8, and rocky10 Dockerfiles images, which ship s6 | Every supported verb operates against the real soft IOC without `systemctl`; procServ runs as `ioc-srv`; IOC output reaches container stdout |
+| T1 | Container lifecycle | Run `setup-system-infra.bash --container`, then generate, install, start, stop, restart, status, list, view, inspect, remove, attach, and monitor through the shipped `--container` mode under a live `s6-svscan` | The four EPICS images (debian13, ubuntu24, rocky8, rocky10) at 1.0.1, which ship s6 and the runner utilities | Every supported verb operates against the real soft IOC without `systemctl`; procServ runs as `ioc-srv`; IOC output reaches container stdout |
 | T2 | Existing modes | Run the maintained local and system lifecycle suites | Both golden OS families | Existing systemd-backed behavior remains green |
 | T3 | Source regression | Run `tests/test-source-regression.bash` | Source tree | The three-way procServ-argument check passes across the system template, the local template, and the container `run` render, and completion covers `--container` |
 
@@ -229,7 +233,7 @@ on the pin rather than on the code under test.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-09-03, debian13 only | `jeonghanlee/debian13-epics` with s6 2.13.1.0 added by hand (the images do not ship s6 yet, D4), `docker run --cap-add SYS_PTRACE` | Partial PASS | `tests/test-container-lifecycle.bash` 64/64 PASS: every verb operated on a real softIoc as `ioc-srv`, procServ stdout resolved to the container stdout, no log file, and removal left no orphan supervisor. rocky8 and rocky10 remain unrun until those images ship s6 through jeonghanlee/Dockerfiles#38 |
+| T1 | 2026-09-05 | The four EPICS images at 1.0.1 (debian13, ubuntu24, rocky8, rocky10), pinned by their published digests, run through `tests/run-container-tests.bash` with `docker run --cap-add SYS_PTRACE`; the harness deploys the container infrastructure with `setup-system-infra.bash --container` from the mounted source, and s6 plus lsof, ps, awk, ss come from the image (jeonghanlee/Dockerfiles#38 and #43, published 1.0.1) | PASS | 64/64 PASS on every image: each supported verb operated on a real softIoc as `ioc-srv`, procServ stdout reached the container stdout, no log file was written, and removal left no orphan supervisor. `attach` is not a dedicated suite check: it is tty-bound (its `con` client opens `/dev/tty`, absent in the non-interactive harness) and is covered as shared, mode-agnostic code with `monitor` as the representative console check (CLOSED_DOORS CI-36). The count is pinned at 64 in `tests/reporting-counts.csv` |
 | T2 | 2026-09-04 | The Debian 13 and Rocky 8 golden consumers named by `gate/RUNBOOK.md`; candidate 2da8f03 pushed with `gate/drivers/push.bash` and deployed with `bin/run-setup-system-infra.bash --full` (9/9 and 12/12) | PASS | `gate/drivers/control/suites.bash` reported `GATE SUITES PASS hosts=2`, each host `SUITES OK (6 blocks, 901 checks)`: debian13 896 PASS with 5 NA, rocky8 889 PASS with 12 NA, and no FAIL, SKIP, or SCRIPT_ERROR. Every NA is an examined OS applicability result (debian13: SELinux inactive, RHEL-only symlink redirect; rocky8: glob sudoers policy, Rocky ordinary-user journal policy), and the 88-line `cross-host.diff` covers only those four steps. Runner provenance is `identity=2da8f03 expected_identity=2da8f03 state=PASS` on both hosts. Evidence `work/gate-suites-20260904T170111Z-404693/`. Check grade under `gate/RUNBOOK.md`: the consumer pair was reused, not created from a fresh image bake |
 | T3 | 2026-09-04 | The same two goldens, run inside the suite matrix as `source-regression` scope `system` runner `source` | PASS | 132 checks: 132 PASS on rocky8, 131 PASS with 1 NA on debian13 (RHEL-only symlink redirect). The four added checks `S16.launch-arguments.extracted`, `S16.launch-arguments.must-agree`, `S16.s6-render.fixed-values`, and `S16.completion.mode-options-agree` PASS on both hosts, so the procServ argument list agrees across the system template, the local template, and the s6 `run` render, and completion covers `--container`. Same evidence directory as T2 |
 
