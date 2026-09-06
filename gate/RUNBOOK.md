@@ -218,6 +218,34 @@ Required to continue:
 after every line in `cross-host.diff` is confirmed as an expected applicability
 difference. A comparison status greater than 1 is a Gate failure.
 
+#### Check-identity pin
+
+The driver holds a SHA-256 over the full check-identity list: the suite, scope,
+runner, step, check id, category, kind, and method of every check the matrix
+ran. A mismatch reports `SUITES FAIL identity_sha256=<actual> expected=<pinned>`
+and is a Gate failure by default, because the check list changed.
+
+When the candidate changed that list on purpose, by adding, removing, or
+renaming a check, repin the driver instead of reading the mismatch as a
+regression:
+
+1. Confirm the run is otherwise clean. Never repin from a run that carries a
+   `FAIL`, `SKIP`, or `SCRIPT_ERROR`.
+2. Set `EXPECTED_IDENTITY_SHA256` in `gate/drivers/control/suites.bash` to the
+   `identity_sha256` value the run reported on stdout and in
+   `<run-dir>/<host>.verdict`.
+3. Commit the repin. Carry it in the same commit as the change that moved the
+   list while that change is still uncommitted; once that change has landed,
+   the repin is its own commit on top of it.
+4. Treat the repin as a candidate tree change. Under Failure and Invalidation
+   Rules it invalidates every completed Gate step, so restart the Gate at the
+   new candidate commit. Rerunning step 2 alone confirms the pin but produces
+   a Check result, not Gate evidence.
+
+The pin is a contract that moves with the check list, like
+`tests/reporting-counts.csv`. A stale pin fails every later Gate run for a
+reason unrelated to the code under test.
+
 ### 3. root_squash deployment
 
 After step 2, compose `P_nfs-sim` onto the same consumers. Follow the canonical

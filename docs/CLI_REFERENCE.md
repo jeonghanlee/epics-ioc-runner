@@ -16,7 +16,10 @@ ioc-runner list -v        # with PID, CPU, memory
 ioc-runner list -vv       # with kernel socket internals
 ioc-runner --local list   # local user mode
 ioc-runner --user list    # alias of --local (identical local-mode path)
+ioc-runner --container list   # container mode (root, s6 supervision, no systemd)
 ```
+
+In container mode the STATUS column comes from `s6-svstat` (`active` while procServ is up, `inactive` otherwise) and the `-v` CPU and MEM columns are summed over procServ and its descendants from `/proc`, since no cgroup accounting exists for an s6 service.
 
 ### Output Columns
 
@@ -110,6 +113,7 @@ The `inspect` command provides a deep trace of a specific IOC's UNIX domain sock
 ```bash
 sudo ioc-runner inspect <ioc_name>
 ioc-runner --local inspect <ioc_name>
+ioc-runner --container inspect <ioc_name>   # root inside the container
 ```
 
 ### Output Sections
@@ -182,6 +186,15 @@ restricted `sudo systemctl` transition. This checks the established
 group-writable shared-filesystem path; it is not a service-UID quota check.
 Local mode runs the probe as the local owner. Direct `systemctl` commands
 remain supported but bypass these diagnostics and readiness reporting.
+
+Container mode has no log-path probe and no log-file scan: procServ writes
+to stdout, the launch command is the rendered s6 `run` script, and readiness
+is the control socket appearing under `/run/procserv/<ioc>` after `s6-svc`
+reports the process up. `inspect` in container mode runs as root like system
+mode; mapping another user's file descriptors inside a container additionally
+requires the `CAP_SYS_PTRACE` capability (for example
+`docker run --cap-add SYS_PTRACE`), otherwise sections 1 and 2 report no
+processes and the executable identity is not attributed.
 
 ## 4. Console Access Commands (`attach` vs `monitor`)
 

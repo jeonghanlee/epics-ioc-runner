@@ -69,11 +69,12 @@ declare -g OWNER_SYSTEM="root:root"
 
 # --- Base Commands & Paths ---
 declare -g SYSTEMCTL_BIN="/usr/bin/systemctl"
-
-if [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
-    printf "Error: %s not found or not executable. This script requires systemd.\n" "${SYSTEMCTL_BIN}" >&2
-    exit 1
-fi
+# Container mode (--container) replaces systemd with s6 supervision: the
+# runner depends on these binaries in PATH (s6 2.13 or later) and on a
+# scan directory that the container entrypoint hands to s6-svscan as PID 1.
+declare -g CONTAINER_SCAN_DIR="${IOC_RUNNER_SCAN_DIR:-/run/s6-procserv}"
+declare -g -a S6_REQUIRED_BINS=(s6-svscan s6-supervise s6-svc s6-svstat s6-svscanctl s6-setuidgid)
+declare -g PERM_SCAN_DIR="0755"
 
 if [[ $EUID -ne 0 ]]; then
     printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
@@ -82,7 +83,11 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # --- CLI Argument Parsing ---
+# Three invocation forms: no option updates the CLI wrapper only, --full
+# deploys the systemd-backed infrastructure, --container deploys the
+# s6-backed infrastructure for a systemd-less container image.
 declare -g FULL_SETUP_MODE=0
+declare -g CONTAINER_SETUP_MODE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -90,9 +95,15 @@ while [[ $# -gt 0 ]]; do
             FULL_SETUP_MODE=1
             shift
             ;;
+        --container)
+            CONTAINER_SETUP_MODE=1
+            shift
+            ;;
         -h|--help)
-            printf "Usage: sudo /bin/bash -p %s [--full]\n" "$(basename "$0")"
+            printf "Usage: sudo /bin/bash -p %s [--full | --container]\n" "$(basename "$0")"
             printf "  (Running without arguments safely updates the CLI wrapper only)\n"
+            printf "  --full       deploy the systemd-backed infrastructure (accounts, sudoers, unit template, log rotation)\n"
+            printf "  --container  deploy the s6-backed container infrastructure (accounts, configuration directory, scan directory)\n"
             exit 0
             ;;
         *)
@@ -101,6 +112,27 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ ${FULL_SETUP_MODE} -eq 1 && ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
+    printf "Error: --full and --container are mutually exclusive.\n" >&2
+    exit 1
+fi
+
+# Mode-specific backend preflight, after option parsing so the selected mode
+# decides what must exist: the CLI-wrapper and --full forms need systemctl,
+# --container needs the s6 binaries.
+if [[ ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
+    for s6_bin in "${S6_REQUIRED_BINS[@]}"; do
+        s6_bin_path=$(command -v "${s6_bin}" 2>/dev/null || printf "")
+        if [[ -z "${s6_bin_path}" || ! -x "${s6_bin_path}" ]]; then
+            printf "Error: %s not found or not executable. Container mode requires s6 (2.13 or later) in PATH.\n" "${s6_bin}" >&2
+            exit 1
+        fi
+    done
+elif [[ ! -x "${SYSTEMCTL_BIN}" ]]; then
+    printf "Error: %s not found or not executable. This script requires systemd.\n" "${SYSTEMCTL_BIN}" >&2
+    exit 1
+fi
 
 function _log {
     local level="$1"
@@ -411,13 +443,16 @@ print_divider
 _log "INFO" "Resolved service identity: user=${SYSTEM_USER}, group=${SYSTEM_GROUP} (overrides: IOC_RUNNER_SYSTEM_USER/GROUP)"
 print_divider
 
-if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
+if [[ ${FULL_SETUP_MODE} -eq 1 || ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
 
     # Preflight: required tools for the system-mode infrastructure.
     # The log directory STEP relies on setfacl/getfacl to install default
     # ACLs that enforce group=ioc:rw; the log rotation STEP relies on
     # logrotate. Fail early here rather than after STEP 1-5 have already
     # mutated accounts, sudoers, the log dir, and the unit template.
+    # Container mode skips those STEPs and their tools; the runner resolves
+    # procServ itself when it renders an s6 service.
+    if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
     declare -A REQUIRED_PKG=([setfacl]="acl" [getfacl]="acl" [logrotate]="logrotate" [sudo]="sudo")
     for required_tool in setfacl getfacl logrotate sudo; do
         if ! command -v "${required_tool}" >/dev/null 2>&1; then
@@ -460,6 +495,7 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
         _log "INFO"  "Install procServ or set IOC_RUNNER_PROCSERV_PATH, then re-run."
         exit 1
     fi
+    fi
 
     print_divider
     _log "INFO" "STEP 1: Account and Group Setup (Hardened)"
@@ -489,6 +525,22 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
     verify_path "${CONF_DIR}" "${OWNER_CONF_DIR}" "${PERM_CONF_DIR}" directory \
         "Configured directory: ${CONF_DIR} (${OWNER_CONF_DIR}, ${PERM_CONF_DIR})"
 
+    if [[ ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
+        # The s6 scan directory. A build-time directory under /run is a
+        # convenience only: the container entrypoint owns its creation at
+        # container start (a runtime that mounts /run as tmpfs discards it)
+        # before handing it to s6-svscan as PID 1.
+        print_divider
+        _log "INFO" "STEP 3: s6 Scan Directory Setup (container mode)"
+        print_sub_divider
+        install -d -o "root" -g "root" -m "${PERM_SCAN_DIR}" "${CONTAINER_SCAN_DIR}"
+        verify_path "${CONTAINER_SCAN_DIR}" "${OWNER_SYSTEM}" "${PERM_SCAN_DIR}" directory \
+            "s6 scan directory ready: ${CONTAINER_SCAN_DIR} (${OWNER_SYSTEM}, ${PERM_SCAN_DIR})"
+    fi
+
+    # STEP 3 to STEP 6 deploy the systemd-backed assets (sudoers policy,
+    # log directory, unit template, log rotation); container mode has none.
+    if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
     print_divider
     _log "INFO" "STEP 3: Sudoers Configuration (Validated & Restricted)"
     print_sub_divider
@@ -693,6 +745,7 @@ EOF
         rm -f "${tmp_logrotate}"
         exit 1
     fi
+    fi
 
 fi
 
@@ -896,6 +949,10 @@ if [[ ${FULL_SETUP_MODE} -eq 1 ]]; then
     _log "INFO" "  sudo usermod -aG ${SYSTEM_GROUP} <username>"
     _log "INFO" "After adding the user, apply the new group membership immediately:"
     _log "INFO" "  newgrp ${SYSTEM_GROUP}"
+elif [[ ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
+    _log "SUCCESS" "Container infrastructure setup completed."
+    _log "INFO" "The container entrypoint must create ${CONTAINER_SCAN_DIR} and run 's6-svscan ${CONTAINER_SCAN_DIR}' as PID 1;"
+    _log "INFO" "then use 'ioc-runner --container <command>' as root inside the container."
 else
     _log "SUCCESS" "CLI wrapper updated successfully."
 fi

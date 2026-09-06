@@ -12,9 +12,10 @@ _ioc_runner_completions() {
 
     # Define available command set and global options
     commands="generate install remove start stop restart status enable disable view list attach monitor inspect"
-    opts="--local --user -f --force -v -vv -V --version -h --help"
+    opts="--local --user --container -f --force -v -vv -V --version -h --help"
 
-    # Check for the presence of --local (or its --user alias) to determine target configuration path
+    # Check for the presence of --local (or its --user alias) to determine the
+    # target configuration path; --container shares the system-mode directory.
     has_local=0
     for word in "${COMP_WORDS[@]}"; do
         if [[ "${word}" == "--local" || "${word}" == "--user" ]]; then

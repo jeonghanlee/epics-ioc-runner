@@ -201,7 +201,32 @@ con -c /run/procserv/myioc/control
 * **To exit the console session**: Press `Ctrl-A`.
 
 
-## 8. Version Tracking
+## 8. Container Mode (`--container`)
+
+Inside a systemd-less container image prepared with
+`setup-system-infra.bash --container` (see [`INSTALL.md`](INSTALL.md)), the
+same commands run as root with `--container` instead of `sudo`; s6
+supervises `procServ` and there is no `systemctl`.
+
+```bash
+ioc-runner --container generate /opt/epics-iocs/myioc
+ioc-runner --container install  /opt/epics-iocs/myioc
+ioc-runner --container start    myioc     # readiness: the control socket appears
+ioc-runner --container status   myioc     # s6-svstat line, e.g. "up (pid 123) 42 seconds"
+ioc-runner --container list -v
+ioc-runner --container attach   myioc
+ioc-runner --container stop     myioc
+ioc-runner --container enable   myioc     # start at container boot (removes the s6 "down" file)
+ioc-runner --container disable  myioc     # stay down at container boot; the running IOC is untouched
+ioc-runner --container remove   myioc
+```
+
+IOC output goes to the container stdout (`docker logs <container>`); there
+is no log file, log rotation, or `journalctl`. The runner requires a live
+`s6-svscan` on `/run/s6-procserv`, which the container entrypoint starts as
+PID 1, and refuses to run as a non-root user.
+
+## 9. Version Tracking
 To verify the exact version, Git commit hash, commit date, and install date of the deployment tool you are using:
 
 ```bash

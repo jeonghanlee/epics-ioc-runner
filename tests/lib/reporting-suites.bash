@@ -7,6 +7,7 @@ if [[ "${REPORTING_SUITES_LOADED:-0}" == "1" ]]; then
 fi
 declare -gr REPORTING_SUITES_LOADED=1
 declare -gr -a REPORTING_SUPPORTED_SUITES=(
+    container-lifecycle
     error-handling
     local-lifecycle
     source-regression

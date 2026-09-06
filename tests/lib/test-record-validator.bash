@@ -122,7 +122,7 @@ function test_record_validate_file {
         return 1
     fi
     case "${expected_scope}" in
-        local|system|none) ;;
+        container|local|system|none) ;;
         *) _test_record_error "unsupported expected scope: ${expected_scope}"; return 1 ;;
     esac
     case "${expected_runner}" in

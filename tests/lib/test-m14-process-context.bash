@@ -78,22 +78,48 @@ function _m14_wait_for_file {
     return 1
 }
 
-function _m14_wait_for_process_exit {
+# Prints the /proc/<pid>/stat fields after the command name, the part the
+# name itself can never contain. Returns 1 when the process is gone or its
+# stat is unreadable: a vanished pid is a normal outcome for every caller and
+# must never abort a suite through set -e.
+function _proc_stat_tail {
     local pid="$1"
     local stat_line=""
+
+    read -r stat_line 2>/dev/null < "/proc/${pid}/stat" || return 1
+    printf '%s\n' "${stat_line##*) }"
+}
+
+# Prints one /proc/<pid>/status field value by key. Returns 1 when the process
+# is gone, its status is unreadable, or the key is absent.
+function _proc_status_field {
+    local pid="$1"
+    local wanted="$2"
+    local key=""
+    local value=""
+
+    while read -r key value _; do
+        if [[ "${key}" == "${wanted}" ]]; then
+            printf '%s\n' "${value}"
+            return 0
+        fi
+    done 2>/dev/null < "/proc/${pid}/status"
+    return 1
+}
+
+# Waits until the process has exited or become a zombie. A readable stat
+# answers the zombie question; an unreadable stat is gone only when kill -0
+# agrees, so a live process the caller cannot read keeps being polled.
+function _m14_wait_for_process_exit {
+    local pid="$1"
     local stat_tail=""
-    local process_state=""
     local attempt=0
 
     while (( attempt < 100 )); do
-        if ! kill -0 "${pid}" 2>/dev/null; then
+        if stat_tail=$(_proc_stat_tail "${pid}"); then
+            [[ "${stat_tail%% *}" == "Z" ]] && return 0
+        elif ! kill -0 "${pid}" 2>/dev/null; then
             return 0
-        fi
-        if [[ -r "/proc/${pid}/stat" ]]; then
-            stat_line=$(<"/proc/${pid}/stat")
-            stat_tail="${stat_line##*) }"
-            process_state="${stat_tail%% *}"
-            [[ "${process_state}" == "Z" ]] && return 0
         fi
         sleep 0.01
         attempt=$((attempt + 1))

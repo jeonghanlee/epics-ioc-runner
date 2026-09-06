@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.4.0 - Container Execution Mode Release
+
+Add a systemd-less container execution mode: a third lifecycle backend that
+drives procServ through s6 supervision, with a matching setup mode, so the
+runner manages soft IOCs inside container images without systemd.
+
+### Added
+
+- A `--container` lifecycle backend that manages procServ through s6
+  (`s6-svscan` supervising one service directory per IOC under
+  `/run/s6-procserv`), sends IOC logs to container stdout, and rejects a
+  non-root EUID. Every lifecycle verb operates through this backend. (#127)
+- `setup-system-infra.bash --container`: a setup mode that installs the
+  accounts, configuration directory, CLI, and completion for a systemd-less
+  image while skipping the systemd-only sudoers, unit template, and logrotate
+  assets. (#127)
+
+### Tests
+
+- A container lifecycle suite (`tests/test-container-lifecycle.bash`, driven
+  by `tests/run-container-tests.bash`) exercises the `--container` backend
+  against a real soft IOC inside each shipped EPICS image. (#127)
+- A source-regression guard requires the procServ argument list to agree
+  across the system template, the local template, and the container `run`
+  render, and requires completion to cover `--container`. (#127)
+- Lifecycle test libraries read process state through race-tolerant `/proc`
+  helpers, so a process that exits during a read no longer aborts the
+  suite. (#151)
+
+### Documentation
+
+- Architecture, CLI, install, permission-model, and user-guide docs describe
+  the container mode and its consumer contract: s6 2.13 or later on `PATH`, an
+  ENTRYPOINT that runs `s6-svscan` on `/run/s6-procserv` as PID 1, and
+  `setup-system-infra.bash --container` at image build. (#127)
+
 ## 1.3.0 - Reliability and Configuration Contract Release
 
 Align configuration interpretation across validation, deployment, and

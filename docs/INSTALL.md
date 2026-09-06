@@ -95,6 +95,31 @@ The system test execution boundary is documented separately in
 
 ---
 
+### Container images (`--container`)
+
+A systemd-less container image uses s6 supervision instead of the unit
+template. With s6 (2.13 or later) present in the image, run at image build
+time:
+```bash
+sudo /bin/bash -p ./bin/setup-system-infra.bash --container
+```
+
+It creates the `ioc` group and the `ioc-srv` account, `/etc/procServ.d`
+(`root:ioc`, `2770`), the scan directory skeleton `/run/s6-procserv`, and
+deploys the CLI and the Bash completion. It deploys no sudoers policy, unit
+template, log directory, or logrotate policy, and its preflight requires the
+six s6 binaries (`s6-svscan`, `s6-supervise`, `s6-svc`, `s6-svstat`,
+`s6-svscanctl`, `s6-setuidgid`) instead of `systemctl`. `--full` and
+`--container` are mutually exclusive.
+
+The container entrypoint must create `/run/s6-procserv` (a runtime that mounts
+`/run` as tmpfs discards the build-time directory) and run
+`s6-svscan /run/s6-procserv` as PID 1; `ioc-runner --container <command>` then
+runs as root inside the container. IOC output reaches the container stdout
+through `s6-svscan`. Deep `inspect` additionally needs the `CAP_SYS_PTRACE`
+capability. See [`ARCHITECTURE.md`](ARCHITECTURE.md) section 3.4 for the
+service directory layout.
+
 ## 2. Manual Setup Reference (Under the Hood)
 If you prefer to configure the system manually or need to audit the security changes made by the automated script, follow these steps.
 
