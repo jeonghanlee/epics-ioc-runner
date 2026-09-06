@@ -8,12 +8,12 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.3.0 reset generation
 
-Next session entry point: M1 (#127) is implemented and its release candidate
-is the `feature/container-execution` tip (version 1.4.0), the release
-branch. T1 is 64/64 on all four EPICS images at 1.0.1 (2026-09-05); T2 and T3
-are green on both goldens at Check grade (2026-09-04). Next: the fresh-golden
-Gate at bake baseline 1.3.0, then the release sequence in the M1 Release
-Execution plan. M1 is In progress.
+Next session entry point: RELEASED 2026-09-06. M1 (#127) shipped as 1.4.0:
+tag `1.4.0` on master merge commit 445baf8, whose tree is identical to Gate
+candidate b9a9e28; GitHub release published; milestone 1.4.0 closed with #127
+and #151. Remaining: delete `release-1.2.4` and the leftover `release-1.2.3` on
+origin (release step 7), then open the next development cycle with a `-dev`
+version bump and a register reset for the post-1.4.0 generation.
 
 ## Milestone
 
@@ -21,7 +21,7 @@ Execution plan. M1 is In progress.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Runtime | M1 | (#127) Container execution mode without systemd | Milestone | In progress | No | D2, D3, D4, D5 | The runner manages a real soft IOC without systemd, existing modes remain green, and the interface satisfies the downstream Dockerfiles consumer contract; [detail](#m1---container-execution-mode) |
+| Runtime | M1 | (#127) Container execution mode without systemd | Milestone | Complete | No | D2, D3, D4, D5 | The runner manages a real soft IOC without systemd, existing modes remain green, and the interface satisfies the downstream Dockerfiles consumer contract; [detail](#m1---container-execution-mode) |
 
 Tally: 1 milestone row - Complete 0, In progress 1, Not started 0, Ready 0.
 Backlog is reported separately below and excluded from this tally.
@@ -49,7 +49,7 @@ Backlog is reported separately below and excluded from this tally.
 Origin: 45e1009 / M1
 Identity History: none
 GitHub Issue: 127, https://github.com/jeonghanlee/epics-ioc-runner/issues/127
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -233,9 +233,15 @@ on the pin rather than on the code under test.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-09-05 | The four EPICS images at 1.0.1 (debian13, ubuntu24, rocky8, rocky10), pinned by their published digests, run through `tests/run-container-tests.bash` with `docker run --cap-add SYS_PTRACE`; the harness deploys the container infrastructure with `setup-system-infra.bash --container` from the mounted source, and s6 plus lsof, ps, awk, ss come from the image (jeonghanlee/Dockerfiles#38 and #43, published 1.0.1) | PASS | 64/64 PASS on every image: each supported verb operated on a real softIoc as `ioc-srv`, procServ stdout reached the container stdout, no log file was written, and removal left no orphan supervisor. `attach` is not a dedicated suite check: it is tty-bound (its `con` client opens `/dev/tty`, absent in the non-interactive harness) and is covered as shared, mode-agnostic code with `monitor` as the representative console check (CLOSED_DOORS CI-36). The count is pinned at 64 in `tests/reporting-counts.csv` |
-| T2 | 2026-09-04 | The Debian 13 and Rocky 8 golden consumers named by `gate/RUNBOOK.md`; candidate 2da8f03 pushed with `gate/drivers/push.bash` and deployed with `bin/run-setup-system-infra.bash --full` (9/9 and 12/12) | PASS | `gate/drivers/control/suites.bash` reported `GATE SUITES PASS hosts=2`, each host `SUITES OK (6 blocks, 901 checks)`: debian13 896 PASS with 5 NA, rocky8 889 PASS with 12 NA, and no FAIL, SKIP, or SCRIPT_ERROR. Every NA is an examined OS applicability result (debian13: SELinux inactive, RHEL-only symlink redirect; rocky8: glob sudoers policy, Rocky ordinary-user journal policy), and the 88-line `cross-host.diff` covers only those four steps. Runner provenance is `identity=2da8f03 expected_identity=2da8f03 state=PASS` on both hosts. Evidence `work/gate-suites-20260904T170111Z-404693/`. Check grade under `gate/RUNBOOK.md`: the consumer pair was reused, not created from a fresh image bake |
-| T3 | 2026-09-04 | The same two goldens, run inside the suite matrix as `source-regression` scope `system` runner `source` | PASS | 132 checks: 132 PASS on rocky8, 131 PASS with 1 NA on debian13 (RHEL-only symlink redirect). The four added checks `S16.launch-arguments.extracted`, `S16.launch-arguments.must-agree`, `S16.s6-render.fixed-values`, and `S16.completion.mode-options-agree` PASS on both hosts, so the procServ argument list agrees across the system template, the local template, and the s6 `run` render, and completion covers `--container`. Same evidence directory as T2 |
+| T1 | 2026-09-05; 2026-09-06 as Gate Step 1 on candidate b9a9e28 | The four EPICS images at 1.0.1 (debian13, ubuntu24, rocky8, rocky10), pinned by their published digests, run through `tests/run-container-tests.bash` with `docker run --cap-add SYS_PTRACE`; the harness deploys the container infrastructure with `setup-system-infra.bash --container` from the mounted source, and s6 plus lsof, ps, awk, ss come from the image (jeonghanlee/Dockerfiles#38 and #43, published 1.0.1) | PASS | 64/64 PASS on every image: each supported verb operated on a real softIoc as `ioc-srv`, procServ stdout reached the container stdout, no log file was written, and removal left no orphan supervisor. `attach` is not a dedicated suite check: it is tty-bound (its `con` client opens `/dev/tty`, absent in the non-interactive harness) and is covered as shared, mode-agnostic code with `monitor` as the representative console check (CLOSED_DOORS CI-36). The count is pinned at 64 in `tests/reporting-counts.csv` |
+| T2 | 2026-09-06 | The Debian 13 and Rocky 8 golden consumers named by `gate/RUNBOOK.md`, created in this Gate run from goldens baked the same day at baseline 1.3.0 (`clean-tagged` runner provenance, accepted by the canonical validator, remote manifest hash equal to the published sidecar); candidate b9a9e28 pushed with `gate/drivers/push.bash` and deployed with `bin/run-setup-system-infra.bash --full` (9/9 and 12/12) | PASS | `gate/drivers/control/suites.bash` reported `GATE SUITES PASS hosts=2`, each host `SUITES OK (6 blocks, 901 checks)`: debian13 na=5, rocky8 na=12, no FAIL, SKIP, or SCRIPT_ERROR; runner provenance `identity=b9a9e28 expected_identity=b9a9e28 state=PASS` on both hosts; the 88-line `cross-host.diff` shows no state difference beyond the known OS applicability `NA` results. Evidence `work/gate-suites-20260906T213721Z-1632151/`. Gate grade under `gate/RUNBOOK.md`. A first matrix on candidate fd1d65a (`work/gate-suites-20260906T091308Z-1465476/`) failed on the test-library race fixed by #151; the Check-grade run of 2026-09-04 on the reused pair (candidate 2da8f03) preceded both |
+| T3 | 2026-09-06 | The same two fresh goldens, run inside the Gate matrix as `source-regression` scope `system` runner `source` | PASS | 132 checks per host within the passing matrix above, the four S16 launch-argument checks included, so the procServ argument list agrees across the system template, the local template, and the s6 `run` render, and completion covers `--container`. Same evidence directory as T2 |
+
+##### Version Changes
+
+- `bin/ioc-runner` `RUNNER_VERSION` 1.3.0 to 1.4.0 (d0d20e2), after the
+  CHANGELOG 1.4.0 section landed as its own commit (bf6d3e5); the #151 Tests
+  bullet followed in b9a9e28.
 
 ##### Release Execution
 
@@ -279,20 +285,46 @@ close-out commit, never on the candidate before the tag.
   2026-09-03 goldens, baked after that change; the drift is reported to the
   cloud-provision owner, whose fix-or-record decision is pending.
 
+Executed (2026-09-06):
+
+- Goldens baked from cloud-provision `origin/master` with `-r 1.3.0`:
+  `iocrunner-rocky8-20260906T085706Z-ae5c677461bb` and
+  `iocrunner-debian13-20260906T085927Z-40852ebfd56e`, manifests `clean-tagged`
+  runner 1.3.0 at the tag commit d925286e, no dirty record; both consumers
+  recreated from them, fixtures OK, canonical validator accepted both, remote
+  manifest hashes equal to the sidecars (rocky8 `36b9e42f`, debian13
+  `9b093eb8`), acceptance captures `ab9ff856` and `0893b158`; the captures,
+  bake log, and `--full` setup logs are kept under `control-host/` in the T2
+  evidence directory.
+- Candidate fd1d65a was deployed first; its matrix failed on the S37 client-race
+  read in `tests/lib/test-m14-process-context.bash` (#151). The fix landed as
+  b9a9e28, both consumers were re-pushed and redeployed (`-V` 1.4.0 b9a9e28),
+  and every Gate step then ran on b9a9e28: Step 1 T1 64/64 on all four images,
+  Step 2 `GATE SUITES PASS hosts=2`.
+- Sequence: `git merge --no-ff feature/container-execution` on master gave
+  445baf8 with the b9a9e28 tree; annotated tag `1.4.0`; master and the tag
+  pushed together; GitHub release 1.4.0 published from
+  `work/release-notes-1.4.0.md`; #151 closed by its footer, #127 closed by hand;
+  milestone 1.4.0 closed with two closed issues. No `release-1.4.0` branch was
+  created. Step 7 branch deletion (`release-1.2.4`, leftover `release-1.2.3`)
+  and the next-cycle open remain.
+
 ##### Closure Evidence
 
-- none
+- Tag `1.4.0` on master merge commit 445baf8; GitHub release 1.4.0 published
+  2026-09-06; milestone 1.4.0 closed; #127 closed 2026-09-06 after the
+  Gate-grade verification recorded in T1, T2, and T3.
 
 ##### GitHub Projection
 
 Title: Add container execution mode without systemd
 Labels: P3-low, feature, area/architecture
-GitHub Milestone: Backlog
-Observed State: open
+GitHub Milestone: 1.4.0
+Observed State: closed
 Observed Labels: P3-low, feature, area/architecture
-Observed Milestone: Backlog
+Observed Milestone: 1.4.0
 Observed Assignee: jeonghanlee
-Last Compared: 2026-09-04; remote updated 2026-09-04T19:14:09Z
+Last Compared: 2026-09-06; issue closed 2026-09-06 on milestone 1.4.0
 Body: projected 2026-09-04. The issue carries the accepted seven-item plan, the
 supervisor and s6-delivery decisions, and the T1, T2, and T3 results. It names
 no internal host, keeps the evidence in prose rather than pointing at the
