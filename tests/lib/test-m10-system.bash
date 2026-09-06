@@ -26,14 +26,12 @@ function _m10_system_start_inspect {
 function _m10_system_snapshot {
     local unit="$1"
     local pid=""
-    local stat_line=""
     local stat_tail=""
     local -a stat_fields=()
 
     pid=$(systemctl show "${unit}" --property=MainPID --value 2>/dev/null || true)
-    [[ "${pid}" =~ ^[1-9][0-9]*$ && -r "/proc/${pid}/stat" ]] || return 1
-    stat_line=$(<"/proc/${pid}/stat")
-    stat_tail="${stat_line##*) }"
+    [[ "${pid}" =~ ^[1-9][0-9]*$ ]] || return 1
+    stat_tail=$(_proc_stat_tail "${pid}") || return 1
     read -r -a stat_fields <<< "${stat_tail}"
     [[ ${#stat_fields[@]} -ge 20 && "${stat_fields[19]}" =~ ^[0-9]+$ ]] || return 1
     printf '%s:%s' "${pid}" "${stat_fields[19]}"
@@ -132,16 +130,11 @@ function _m10_system_wait_output {
 
 function _m10_system_wait_inspect_stopped {
     local pid="$1"
-    local key=""
     local state=""
     local attempt=0
 
     while (( attempt < 100 )); do
-        [[ -r "/proc/${pid}/status" ]] || return 1
-        state=""
-        while read -r key state _; do
-            [[ "${key}" == "State:" ]] && break
-        done < "/proc/${pid}/status"
+        state=$(_proc_status_field "${pid}" "State:") || return 1
         if [[ "${state}" == "T" || "${state}" == "t" ]]; then
             return 0
         fi

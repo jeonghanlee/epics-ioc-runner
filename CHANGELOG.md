@@ -25,6 +25,9 @@ runner manages soft IOCs inside container images without systemd.
 - A source-regression guard requires the procServ argument list to agree
   across the system template, the local template, and the container `run`
   render, and requires completion to cover `--container`. (#127)
+- Lifecycle test libraries read process state through race-tolerant `/proc`
+  helpers, so a process that exits during a read no longer aborts the
+  suite. (#151)
 
 ### Documentation
 
