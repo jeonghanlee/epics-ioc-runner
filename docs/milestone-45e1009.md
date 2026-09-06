@@ -8,12 +8,12 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `Backlog`
 Activation state: active on `master` as the post-1.3.0 reset generation
 
-Next session entry point: M1 (#127) is implemented on branch
-`feature/container-execution`, with T1, T2, and T3 all green: T1 64/64 on all
-four EPICS images at 1.0.1 (2026-09-05), T2 and T3 on both goldens (2026-09-04,
-Check grade), and the accepted plan projected to issue #127. What remains is
-committing the container test harness fix and the CLOSED_DOORS CI-36 record,
-then moving M1 to Complete through release. M1 is In progress.
+Next session entry point: M1 (#127) is implemented and its release candidate
+is the `feature/container-execution` tip (version 1.4.0), the release
+branch. T1 is 64/64 on all four EPICS images at 1.0.1 (2026-09-05); T2 and T3
+are green on both goldens at Check grade (2026-09-04). Next: the fresh-golden
+Gate at bake baseline 1.3.0, then the release sequence in the M1 Release
+Execution plan. M1 is In progress.
 
 ## Milestone
 
@@ -236,6 +236,48 @@ on the pin rather than on the code under test.
 | T1 | 2026-09-05 | The four EPICS images at 1.0.1 (debian13, ubuntu24, rocky8, rocky10), pinned by their published digests, run through `tests/run-container-tests.bash` with `docker run --cap-add SYS_PTRACE`; the harness deploys the container infrastructure with `setup-system-infra.bash --container` from the mounted source, and s6 plus lsof, ps, awk, ss come from the image (jeonghanlee/Dockerfiles#38 and #43, published 1.0.1) | PASS | 64/64 PASS on every image: each supported verb operated on a real softIoc as `ioc-srv`, procServ stdout reached the container stdout, no log file was written, and removal left no orphan supervisor. `attach` is not a dedicated suite check: it is tty-bound (its `con` client opens `/dev/tty`, absent in the non-interactive harness) and is covered as shared, mode-agnostic code with `monitor` as the representative console check (CLOSED_DOORS CI-36). The count is pinned at 64 in `tests/reporting-counts.csv` |
 | T2 | 2026-09-04 | The Debian 13 and Rocky 8 golden consumers named by `gate/RUNBOOK.md`; candidate 2da8f03 pushed with `gate/drivers/push.bash` and deployed with `bin/run-setup-system-infra.bash --full` (9/9 and 12/12) | PASS | `gate/drivers/control/suites.bash` reported `GATE SUITES PASS hosts=2`, each host `SUITES OK (6 blocks, 901 checks)`: debian13 896 PASS with 5 NA, rocky8 889 PASS with 12 NA, and no FAIL, SKIP, or SCRIPT_ERROR. Every NA is an examined OS applicability result (debian13: SELinux inactive, RHEL-only symlink redirect; rocky8: glob sudoers policy, Rocky ordinary-user journal policy), and the 88-line `cross-host.diff` covers only those four steps. Runner provenance is `identity=2da8f03 expected_identity=2da8f03 state=PASS` on both hosts. Evidence `work/gate-suites-20260904T170111Z-404693/`. Check grade under `gate/RUNBOOK.md`: the consumer pair was reused, not created from a fresh image bake |
 | T3 | 2026-09-04 | The same two goldens, run inside the suite matrix as `source-regression` scope `system` runner `source` | PASS | 132 checks: 132 PASS on rocky8, 131 PASS with 1 NA on debian13 (RHEL-only symlink redirect). The four added checks `S16.launch-arguments.extracted`, `S16.launch-arguments.must-agree`, `S16.s6-render.fixed-values`, and `S16.completion.mode-options-agree` PASS on both hosts, so the procServ argument list agrees across the system template, the local template, and the s6 `run` render, and completion covers `--container`. Same evidence directory as T2 |
+
+##### Release Execution
+
+Plan (2026-09-06); the executed record lands in the post-release master
+close-out commit, never on the candidate before the tag.
+
+- Candidate: the `feature/container-execution` tip (version 1.4.0) at Gate
+  time, recorded by hash in the close-out; the branch serves as the release
+  branch, and no `release-1.4.0` branch is created.
+- Gate: bake fresh Rocky 8 and Debian 13 goldens with `-r 1.3.0`, the current
+  release tag, so the manifest carries `clean-tagged` runner provenance as the
+  existing golden manifests do; baseline 1.3.0 is the explicit bake ref this
+  register selects. Then push the candidate tree from the control host with
+  `gate/drivers/push.bash`, deploy it with
+  `bin/run-setup-system-infra.bash --full`, and run the six-suite matrix at
+  Gate grade as `gate/RUNBOOK.md` Result Grades defines it (new image pair,
+  consumers created in this run, accepted provenance, every step on one
+  unchanged candidate) against the unchanged identity pin.
+- Tree freeze: after the Gate passes, no commit lands on the branch before the
+  tag except the `--no-ff` merge to master, whose tree is identical to the
+  candidate only while master carries no commit absent from the branch;
+  re-verify that with `git log <branch>..master` before merging. Gate
+  evidence, Version Changes, and this record are written in the close-out.
+- Identity: the Gate verifies the candidate tip; the annotated tag `1.4.0`
+  targets the merge commit; the two share one tree, and the close-out records
+  both hashes.
+- Sequence: merge `--no-ff` to master, annotated tag `1.4.0` (no `v` prefix),
+  push master and the tag together, `gh release create 1.4.0` with
+  `work/release-notes-1.4.0.md` (gitignored; curated from the CHANGELOG 1.4.0
+  section, regenerated if absent), close the `1.4.0` GitHub milestone (created
+  before the sequence, with #127 moved onto it), close #127 manually, and delete
+  `release-1.2.4` (two releases back) plus the leftover `release-1.2.3`, locally
+  and on origin.
+- After release: open the next dev cycle with a `-dev` version bump and a
+  register reset for the post-1.4.0 generation.
+- Note: cloud-provision `make check-bake` fails on the control host because its
+  self-test fake still answers the old `cloud-init status` probe that
+  cloud-provision commit 690604a (2026-09-01) replaced with a boot-finished and
+  status.json read in `bin/create_vm.bash`; the same stale fake breaks
+  `make check-cloud-init-status`. The real bake path is proven by the
+  2026-09-03 goldens, baked after that change; the drift is reported to the
+  cloud-provision owner, whose fix-or-record decision is pending.
 
 ##### Closure Evidence
 
