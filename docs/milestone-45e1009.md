@@ -11,10 +11,11 @@ Activation state: active on `master` as the post-1.3.0 reset generation
 Next session entry point: RELEASED 2026-09-06. M1 (#127) shipped as 1.4.0:
 tag `1.4.0` on master merge commit 445baf8, whose tree is identical to Gate
 candidate b9a9e28; GitHub release published; milestone 1.4.0 closed with #127
-and #151. The `release-1.2.x` branches stay on origin by owner decision
-(CLOSED_DOORS CI-37); release step 7 is not applied to them. Remaining: open
-the next development cycle with a `-dev` version bump and a register reset for
-the post-1.4.0 generation.
+and #151. `gate/RUNBOOK.md` steps 3 and 4 ran on 2026-09-07 against the tagged
+tree and passed (Release Verification 1 and 2 under M1). The `release-1.2.x`
+branches stay on origin by owner decision (CLOSED_DOORS CI-37); release step 7
+is not applied to them. Remaining: open the next development cycle with a
+`-dev` version bump and a register reset for the post-1.4.0 generation.
 
 ## Milestone
 
@@ -301,8 +302,11 @@ Executed (2026-09-06):
 - Candidate fd1d65a was deployed first; its matrix failed on the S37 client-race
   read in `tests/lib/test-m14-process-context.bash` (#151). The fix landed as
   b9a9e28, both consumers were re-pushed and redeployed (`-V` 1.4.0 b9a9e28),
-  and every Gate step then ran on b9a9e28: Step 1 T1 64/64 on all four images,
-  Step 2 `GATE SUITES PASS hosts=2`.
+  and Gate steps 1 and 2 then ran on b9a9e28: step 1 T1 64/64 on all four
+  images, step 2 `GATE SUITES PASS hosts=2`. Steps 3 and 4 were not run before
+  the tag; the 2026-09-06 close-out described the Gate as the matrix alone, and
+  the two steps ran after the release on 2026-09-07 (Release Verification 1
+  and 2).
 - Sequence: `git merge --no-ff feature/container-execution` on master gave
   445baf8 with the b9a9e28 tree; annotated tag `1.4.0`; master and the tag
   pushed together; GitHub release 1.4.0 published from
@@ -311,11 +315,34 @@ Executed (2026-09-06):
   created. Step 7 branch deletion is waived for the `release-1.2.x` branches by
   owner decision (CLOSED_DOORS CI-37); the next-cycle open remains.
 
+##### Release Verification Plan
+
+| Label | Layer | Timing | Method | Environment | Expected Result | Evidence Target |
+| --- | --- | --- | --- | --- | --- | --- |
+| Release Verification 1 | root_squash deployment, `gate/RUNBOOK.md` step 3 | post-release | Compose `P_nfs-sim` through the cloud-provision inventory runbook (`iocrunner-nfs` species) and the ansible-provision `op.nfs_sim.<vacuum>` workflow; push the released tree with `gate/drivers/push.bash` into `~vmadmin/gitsrc-nfs-sim`; run the barrier probe; then run `bin/run-setup-system-infra.bash`, `make install`, and `make setup` as the owning user with the installed stamp and the setup-owned configuration fingerprint read around each | The T2 consumer pair after it reaches `iocrunner-nfs` | Both plays with no failed or unreachable host; `SQUASH REPRODUCED`; each entry point finishes without prompt or error, moves the installed file, and reports the released commit from `-V`; forbidden-output counts 0; configuration fingerprints unchanged | Control-host logs, stamps, and fingerprints under the T2 evidence directory |
+| Release Verification 2 | Multi-user, `gate/RUNBOOK.md` step 4 | post-release | `gate/drivers/control/run-all.bash` against each `iocrunner-nfs` consumer after `-V` confirms the installed commit | The same pair | Pass for every printed `P-*` verdict, Pass for all fourteen Multi-User Contract scenarios, final `VERDICT RUN PASS` | `run-all-<host>.log` per host |
+
+##### Release Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| Release Verification 1 | 2026-09-07 | The T2 pair at `iocrunner-nfs` (cloud-provision 35c859b, ansible-provision a2af644); released tree 445baf8 (tree identical to b9a9e28, `git diff b9a9e28 445baf8` empty) pushed into `~vmadmin/gitsrc-nfs-sim`, which resolves over an `nfs4` (vers=4.2) mount on both hosts | PASS | `P_nfs-sim` recaps rocky8 `ok=11 failed=0 unreachable=0`, debian13 `ok=10 failed=0 unreachable=0` (`nfs-sim-rocky8.log` 5ecd4007, `nfs-sim-debian13.log` 0490d663); barrier `SQUASH REPRODUCED` on both (`<host>-barrier.log` 7cbe0379 each); the three entry points finished with `Passed : 3/3` and no prompt or error, forbidden counts `0` for all six logs; the installed stamp moved at every deployment and `-V` reported `1.4.0 (445baf8)` with commit date 2026-09-06T22:17:36Z after each (four stamp records per host: rocky8 d65bd067, 07f1d9d3, 75051392, daeb0287; debian13 bd3b8529, 5abd0650, f4dc7888, 6713b4ec); all three configuration fingerprints equal to the baseline on both hosts (rocky8 8902f847, debian13 6354de6f); mount and `-V` observation of 2026-09-07T08:49:47Z in `<host>-nfs-mount.log`. Records under `work/gate-suites-20260906T213721Z-1632151/control-host/` |
+| Release Verification 2 | 2026-09-07 | The same pair, installed runner `1.4.0 (445baf8)` confirmed by `-V` before each run | PASS | Both hosts `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none`: L1 through L3 and S1 through S11 Pass, and every printed `P-*` verdict Pass (LEFTOVERS, STAGE, RUNTIME, LOCAL-PAYLOAD x3, SHARED, SURVIVAL, FRESH, S9-RESTORE x2, CLEANUP x3); `RUN-ALL END rc=0` at 08:42:46Z (rocky8) and 08:42:53Z (debian13); `run-all-rocky8.log` ee81d833, `run-all-debian13.log` 1741307f |
+
+Grade note: steps 1 and 2 ran on candidate b9a9e28 before the tag and steps 3
+and 4 ran after the release on the tagged merge commit 445baf8. The two commits
+carry one tree, so the `gate/RUNBOOK.md` invalidation rule (a candidate tree
+change) is not triggered; its Gate-grade wording names one candidate commit,
+which the two hashes satisfy at tree identity only. The release sequence of
+2026-09-06 ran with steps 3 and 4 outstanding.
+
 ##### Closure Evidence
 
 - Tag `1.4.0` on master merge commit 445baf8; GitHub release 1.4.0 published
   2026-09-06; milestone 1.4.0 closed; #127 closed 2026-09-06 after the
   Gate-grade verification recorded in T1, T2, and T3.
+- `gate/RUNBOOK.md` steps 3 and 4 passed on 2026-09-07 against the tagged tree
+  (Release Verification 1 and 2), completing the runbook's four Gate steps.
 
 ##### GitHub Projection
 
