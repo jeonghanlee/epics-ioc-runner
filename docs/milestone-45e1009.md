@@ -11,9 +11,10 @@ Activation state: active on `master` as the post-1.3.0 reset generation
 Next session entry point: RELEASED 2026-09-06. M1 (#127) shipped as 1.4.0:
 tag `1.4.0` on master merge commit 445baf8, whose tree is identical to Gate
 candidate b9a9e28; GitHub release published; milestone 1.4.0 closed with #127
-and #151. Remaining: delete `release-1.2.4` and the leftover `release-1.2.3` on
-origin (release step 7), then open the next development cycle with a `-dev`
-version bump and a register reset for the post-1.4.0 generation.
+and #151. The `release-1.2.x` branches stay on origin by owner decision
+(CLOSED_DOORS CI-37); release step 7 is not applied to them. Remaining: open
+the next development cycle with a `-dev` version bump and a register reset for
+the post-1.4.0 generation.
 
 ## Milestone
 
@@ -35,6 +36,7 @@ Backlog is reported separately below and excluded from this tally.
 | D3 | Adopt s6 as the container-mode supervisor; Python-based supervisors are excluded. The runner contracts only on s6 2.13 or later binaries in `PATH` (`s6-svscan`, `s6-supervise`, `s6-svc`, `s6-svstat`, `s6-svscanctl`, `s6-setuidgid`), never on s6-overlay `/init` or s6-rc; how s6 enters each image is a Dockerfiles M1 decision. Mode flag `--container` sets `EXEC_MODE=container`; the scan directory is `/run/s6-procserv`; IOC logs go to stdout; the permission model is root-only: root runs `s6-svscan` and the runner, procServ runs as `ioc-srv`, and a non-root EUID is rejected. | 2026-09-03 |
 | D4 | T1 runs on the three images already shipping s6; putting s6 into them is Dockerfiles work tracked in that repository (jeonghanlee/Dockerfiles#38) and is not a gate row here. | 2026-09-03 |
 | D5 | Drive the container lifecycle suite with `tests/run-container-tests.bash` (one `docker run` per image) instead of a `--container` selector in `tests/run-all-tests.bash`: the suite runs as root inside an image, while every dispatcher child runs on the host. Report the suite under a new `container` scope and `container-lifecycle` suite identity rather than under `system`. Verify debian13 first; rocky8 and rocky10 follow once those images ship s6. | 2026-09-03 |
+| D6 | Include the ubuntu24 EPICS image in the container T1 image set beside debian13, rocky8, and rocky10, since Dockerfiles publishes all four with the runner prerequisites; the harness default image set names all four. | 2026-09-05 |
 
 ### Assignment History
 
@@ -212,9 +214,9 @@ Progress (2026-09-04, committed through 2da8f03): all seven items are
 implemented under D5. The `CHANGELOG.md` entry follows the repository
 convention of landing with the release changelog. T2 and T3 are green on both
 goldens, and T1 is green 64/64 on all four EPICS images at 1.0.1 (2026-09-05);
-the container test harness now deploys the container setup from the mounted
-source before the suite, and its fix plus the CLOSED_DOORS CI-36 record await
-commit.
+the container test harness deploys the container setup from the mounted source
+before the suite. Everything after this point landed through the 1.4.0 release
+recorded under Release Execution.
 
 The four launch-argument checks added to `source-regression` S16 moved the
 check-identity value that `gate/drivers/control/suites.bash` pins, so the
@@ -306,8 +308,8 @@ Executed (2026-09-06):
   pushed together; GitHub release 1.4.0 published from
   `work/release-notes-1.4.0.md`; #151 closed by its footer, #127 closed by hand;
   milestone 1.4.0 closed with two closed issues. No `release-1.4.0` branch was
-  created. Step 7 branch deletion (`release-1.2.4`, leftover `release-1.2.3`)
-  and the next-cycle open remain.
+  created. Step 7 branch deletion is waived for the `release-1.2.x` branches by
+  owner decision (CLOSED_DOORS CI-37); the next-cycle open remains.
 
 ##### Closure Evidence
 
