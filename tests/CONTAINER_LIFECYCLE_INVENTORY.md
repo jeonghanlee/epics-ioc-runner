@@ -19,13 +19,14 @@ check and STEP counts are owned by [`reporting-counts.csv`](reporting-counts.csv
 ## Execution Boundary
 
 The suite runs as root inside the container. The container image supplies s6
-(2.13 or later), procServ, con or socat, and the EPICS base that provides
-`softIoc`; the harness
-[`run-container-tests.bash`](run-container-tests.bash) owns only the outermost
-boundary: mounting the source tree, starting `s6-svscan` on the scan directory
-so the container stdout carries the IOC output, and collecting each image's
-report and exit status. `setup-system-infra.bash --container` prepares the
-accounts, the configuration directory, and the scan directory before the run.
+(2.13 or later), procServ, con or socat, the runner's runtime utilities (lsof,
+ps, awk, ss), and the EPICS base that provides `softIoc`; the harness
+[`run-container-tests.bash`](run-container-tests.bash) owns the outermost
+boundary: mounting the source tree, deploying the container infrastructure
+(service account, configuration directory, scan directory) from the mounted
+source with `setup-system-infra.bash --container`, starting `s6-svscan` on the
+scan directory so the container stdout carries the IOC output, and collecting
+each image's report and exit status.
 
 Deep `inspect` maps another account's file descriptors, so the container needs
 the `CAP_SYS_PTRACE` capability; the harness adds it.
