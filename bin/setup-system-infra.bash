@@ -432,7 +432,7 @@ function backup_if_exists {
 # Clean up staged temp files on any exit; a mid-run abort would
 # otherwise leak them (sudoers/logrotate in /tmp; runner, completion
 # and the unit template stage inside their target directories, #107).
-# Unconditional: the CLI-wrapper mode stages files too. The M1 gate
+# Unconditional: the CLI-wrapper mode stages files too. The #107 gate
 # evidence holds: this trap shape preserves a top-level exit 1.
 trap 'rm -f "${tmp_sudoers:-}" "${tmp_logrotate:-}" "${tmp_runner:-}" "${tmp_comp:-}" "${tmp_unit:-}"' EXIT
 

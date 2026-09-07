@@ -45,8 +45,8 @@ This directory contains the complete documentation for deploying, managing, and 
 ### 7. Milestone Registers
 * **[milestone-1.3.0.md](milestone-1.3.0.md)**
   Completed canonical register for release 1.3.0.
-* **[milestone-45e1009.md](milestone-45e1009.md)**
-  Active master-generation register after release 1.3.0. It owns the current
+* **[milestone-8ee915a.md](milestone-8ee915a.md)**
+  Active master-generation register after release 1.4.0. It owns the current
   Backlog.
 
 ## Upgrading from 1.0.x

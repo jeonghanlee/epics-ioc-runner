@@ -14,9 +14,8 @@ and M13 moved in master commit
 `757dcd2464d34d616a32fe7175ba9371ddc8e92c` to target commit
 `36396b371464575ad325d3ed0bd18b02281495d8`.
 
-Next session entry point: release 1.3.0 is complete. Continue from
-[`milestone-45e1009.md`](milestone-45e1009.md); no work is Ready until deferred issue #127 is
-assigned to a later release cycle.
+Next session entry point: release 1.3.0 is complete. Continue from the
+active master register [`milestone-8ee915a.md`](milestone-8ee915a.md).
 
 ## Milestone
 
@@ -2957,7 +2956,7 @@ returned milestone number 16, title `1.3.0`, state `open`, created
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
 No unassigned work is held on this release line; the master register
-[`milestone-45e1009.md`](milestone-45e1009.md) owns the Backlog.
+[`milestone-8ee915a.md`](milestone-8ee915a.md) owns the Backlog.
 
 ### Backlog Details
 
