@@ -5,15 +5,15 @@ Milestone index: 1.4.1
 Canonical path: `docs/milestone-1.4.1.md`
 Canonical branch or ref: `release-1.4.1`
 Git upstream: `origin/master`
-Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1` (not yet created)
+Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
 Next session entry point: the 1.4.1 cycle is open on `release-1.4.1`
 (`RUNNER_VERSION` is `1.4.1-dev`). M1 and M2 are Ready. Start with M2: draft
 `docs/adr/0003-site-environment-layer.md` per its Implementation Plan and
-bring the plan to acceptance; M3 and M4 depend on it. The GitHub milestone
-`1.4.1` does not exist yet; its creation, issue re-assignment from `Backlog`,
-and the eventual master merge and tag are owner-run steps.
+bring the plan to acceptance; M3 and M4 depend on it. GitHub milestone `1.4.1`
+(number 18) exists and carries #153 (M1) and #152 (M3); the eventual master
+merge and tag are owner-run steps.
 
 ## Milestone
 
@@ -103,11 +103,11 @@ Superseded Plan Artifacts: none
 
 Title: False positive: post-init warning triggered by IOC self-diagnostic output containing "error" substring
 Labels: bug, P2-medium, area/detection
-GitHub Milestone: Backlog (move to 1.4.1 once that milestone exists)
+GitHub Milestone: 1.4.1
 Observed State: open
 Observed Labels: bug, P2-medium, area/detection
-Observed Milestone: Backlog
-Last Compared: 2026-09-17 (issue created 2026-09-17T20:50:11Z)
+Observed Milestone: 1.4.1
+Last Compared: 2026-09-18
 
 #### M2 - ADR 0003: site-wide environment layer under the per-IOC conf
 
@@ -241,12 +241,12 @@ Superseded Plan Artifacts: none
 ##### GitHub Projection
 
 Title: Standard way of appending EPICS_CA_ADDR_LIST environment variable to system unit
-Labels: none (proposed: enhancement, area/template)
-GitHub Milestone: none (proposed: 1.4.1)
+Labels: enhancement, area/template
+GitHub Milestone: 1.4.1
 Observed State: open
-Observed Labels: none
-Observed Milestone: none
-Last Compared: 2026-09-17 (issue created 2026-09-14T23:46:34Z)
+Observed Labels: enhancement, area/template
+Observed Milestone: 1.4.1
+Last Compared: 2026-09-18
 
 #### M4 - Network environment reference: CA and PVA variables, layering rule, multi-homed example
 
@@ -415,7 +415,7 @@ Out of scope: any work item M1-M4 itself; new features beyond #152 and #153.
 
 Title: none
 Labels: none
-GitHub Milestone: 1.4.1 (not yet created)
+GitHub Milestone: 1.4.1
 Observed State: none
 Observed Labels: none
 Observed Milestone: none
