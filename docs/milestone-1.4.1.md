@@ -22,12 +22,12 @@ merge and tag are owner-run steps.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | Not started | Yes | | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning while a genuine device error still warns; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
-| Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Not started | Yes | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
+| Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | In progress | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Not started | No | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Not started | No | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
 | Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
-Tally: 5 milestone rows (5 Not started). Backlog is reported separately below
+Tally: 5 milestone rows (1 In progress, 4 Not started). Backlog is reported separately below
 and excluded from this tally.
 
 ### Decisions
@@ -114,7 +114,7 @@ Last Compared: 2026-09-18
 Origin: 8ee915a / M2
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -138,8 +138,8 @@ Out of scope: the implementation (M3), the reference document (M4), the containe
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-18 (owner accepted ADR 0003)
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 

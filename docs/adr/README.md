@@ -11,6 +11,7 @@ sessions.
 | --- | --- | --- | --- |
 | [0001](0001-restart-supervision-c1h.md) | Restart Supervision: the C1+H bundle | Accepted (2026-06-15) | The systemd unit + procServ configuration supervising every IOC (template cluster M5-M11): the `Restart=`/`StartLimit*`/`KillMode=` policy, the `--autorestartcmd=''` `^T` harden, the **unit ordering and dependencies** (M9/#53), and the **startup-poll classification** (M11/#67). |
 | [0002](0002-test-output-surfaces.md) | Test Output Surfaces | Accepted (2026-08-25) | The reporter, dispatcher, and two-host gate boundary between human output and validated machine records. |
+| [0003](0003-site-environment-layer.md) | Site-Wide Environment Layer | Accepted (2026-09-18) | An optional site-wide `EnvironmentFile` layered under the per-IOC `<ioc>.conf` in both systemd unit templates (#152); which EPICS environment variables are host-common versus per-IOC, and the container-backend exclusion. |
 
 ## Decision-record map (the SOT for "why")
 
