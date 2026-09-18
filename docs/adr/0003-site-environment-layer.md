@@ -57,11 +57,16 @@ per-IOC conf.
    leading `-` marks the file optional, so an installation without it behaves
    exactly as today. systemd applies later files over earlier ones, so the
    per-IOC conf overrides any key also set in the site file.
-3. **Grammar and validation:** the site file uses the same
-   `EnvironmentFile`-compatible `KEY=VALUE` grammar as the conf. When the file
-   exists, `install` validates it through the existing conf validator
-   (`validate_conf`), applying the same `parse_conf_file` grammar, and fails
-   with the same error shape as a bad conf; an absent file is not an error.
+3. **Grammar-only validation:** the site file uses the same
+   `EnvironmentFile`-compatible `KEY=VALUE` grammar as the conf, but it is not a
+   conf — it carries EPICS environment variables, not the `IOC_*` keys. It is
+   therefore validated at the grammar layer only: when the file exists,
+   `install` checks that the bounded parser accepts it (`read_conf_all`, over
+   the single `parse_conf_file` grammar established by #113) and reports a
+   syntax error if it does not. It is deliberately **not** run through
+   `validate_conf`, whose required-key check
+   (`IOC_USER` / `IOC_GROUP` / `IOC_CHDIR` / `IOC_CMD`, `bin/ioc-runner:1458`)
+   would reject a legitimate site file. An absent file is not an error.
 4. **Ownership of values:** the runner ships the mechanism and the
    documentation only. The site file's contents — the actual addresses — are
    site-specific and live outside this repository. No value is baked into
