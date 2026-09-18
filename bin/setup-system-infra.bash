@@ -674,6 +674,7 @@ StartLimitAction=none
 Type=simple
 User=${SYSTEM_USER}
 Group=${SYSTEM_GROUP}
+EnvironmentFile=-${CONF_DIR}/site.env
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770

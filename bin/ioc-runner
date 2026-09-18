@@ -829,6 +829,7 @@ StartLimitAction=none
 [Service]
 Type=simple
 UMask=0027
+EnvironmentFile=-${CONF_DIR}/site.env
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
@@ -2225,6 +2226,20 @@ function do_install {
             printf "Error: No write permission to %s.\n" "${CONF_DIR}" >&2
         fi
         exit 1
+    fi
+
+    # Grammar-check an optional site-wide environment file (ADR 0003). It is not
+    # a conf -- it carries EPICS environment variables, not the IOC_* keys -- so
+    # only the bounded parser must accept it; validate_conf's required-key check
+    # would reject a legitimate site file. The unit template layers it under
+    # %i.conf, so per-IOC keys still override it.
+    local site_env_file="${CONF_DIR}/site.env"
+    if [[ -f "${site_env_file}" ]]; then
+        local -A site_env_map
+        if ! read_conf_all "${site_env_file}" site_env_map "${site_env_file}"; then
+            printf "Error: Site environment file %s failed the grammar check.\n" "${site_env_file}" >&2
+            exit 1
+        fi
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
