@@ -9,11 +9,12 @@ Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
 Next session entry point: the 1.4.1 cycle is open on `release-1.4.1`
-(`RUNNER_VERSION` is `1.4.1-dev`). M1 and M2 are Ready. Start with M2: draft
-`docs/adr/0003-site-environment-layer.md` per its Implementation Plan and
-bring the plan to acceptance; M3 and M4 depend on it. GitHub milestone `1.4.1`
-(number 18) exists and carries #153 (M1) and #152 (M3); the eventual master
-merge and tag are owner-run steps.
+(`RUNNER_VERSION` is `1.4.1-dev`). M2 (ADR 0003) and M3 (site env layer, #152)
+are Complete and verified on both iocrunner goldens. M1 (#153 detection fix)
+and M4 (network-environment reference) are Ready. Remaining owner-run GitHub
+steps: rewrite the #152 body to the site-layer scope, reply to the reporter,
+and close #152; the eventual master merge and tag. GitHub milestone `1.4.1`
+(number 18) carries #153 (M1) and #152 (M3).
 
 ## Milestone
 
@@ -22,12 +23,12 @@ merge and tag are owner-run steps.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | Not started | Yes | | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning while a genuine device error still warns; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
-| Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | In progress | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
-| Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Not started | No | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
+| Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
+| Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Not started | No | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
 | Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
-Tally: 5 milestone rows (1 In progress, 4 Not started). Backlog is reported separately below
+Tally: 5 milestone rows (2 Complete, 3 Not started). Backlog is reported separately below
 and excluded from this tally.
 
 ### Decisions
@@ -114,7 +115,7 @@ Last Compared: 2026-09-18
 Origin: 8ee915a / M2
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -158,11 +159,11 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | top (Debian 13) | Pending | none |
+| T1 | 2026-09-18 | top (Debian 13) | Pass | ADR committed clean (gitleaks and whitespace); index row present in `docs/adr/README.md` |
 
 ##### Closure Evidence
 
-- none
+- ADR 0003 Accepted (2026-09-18), indexed in `docs/adr/README.md`; committed `7db8cbe` and corrected at `1307568` after a grammar-layer review finding; passed third-person and second-person review passes before each commit.
 
 ##### GitHub Projection
 
@@ -179,7 +180,7 @@ Last Compared: never
 Origin: 8ee915a / M3
 Identity History: none
 GitHub Issue: #152 https://github.com/jeonghanlee/epics-ioc-runner/issues/152
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -204,9 +205,9 @@ Out of scope: the container backend (see M2), the reference document (M4), any s
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-18 (owner accepted the M3 plan)
+Implementation Authorization: 2026-09-18 (owner directed implementation)
 Superseded Plan Artifacts: none
 
 1. Add the optional site `EnvironmentFile=` line to both templates and extend `test_unit_template_contract` to pin it.
@@ -228,15 +229,15 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | top (Debian 13) | Pending | none |
-| T2 | Not run | top (Debian 13) | Pending | none |
-| T3 | Not run | top (Debian 13) | Pending | none |
-| T4 | Not run | top and rocky8-iocrunner VM | Pending | none |
-| T5 | Not run | top (Debian 13) | Pending | none |
+| T1 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | source-regression S16 `test_unit_template_contract` PASS on both goldens; deployed unit template carries the site line |
+| T2 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | local S38 / system S35 `site-env-value-reaches-ioc-environment` PASS on both goldens (read from the running procServ `/proc/<pid>/environ`) |
+| T3 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | local S38 / system S35 `per-ioc-conf-overrides-site-env` PASS on both goldens |
+| T4 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | all six suites PASS on both goldens with no site file present (the baseline gate run) |
+| T5 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | error-handling S08 `install-rejects-malformed-site-env` PASS on both goldens |
 
 ##### Closure Evidence
 
-- none
+- Templates and install validation committed `b8b840e`; error-handling site.env grammar test in the same commit. Lifecycle (a)/(b) tests land in this commit with the `suites.bash` identity re-baseline. Verified on fresh rocky8 + debian13 iocrunner goldens (baked 2026-09-18 from cloud-provision/ansible-provision master) via the gate-suites run `20260918T153431Z`: all six suites PASS on both goldens; the two-copy template guard covers the new line with no guard change. Refs #152.
 
 ##### GitHub Projection
 

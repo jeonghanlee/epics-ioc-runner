@@ -201,6 +201,8 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S34|system-lifecycle.S34.timeout-cleanup-reaps-inspect|BEHAVIOR|real-path"
     "S34|system-lifecycle.S34.timeout-cleanup-preserves-mainpid|BEHAVIOR|real-path"
     "S34|system-lifecycle.S34.fixture-cleanup-complete|BEHAVIOR|real-path"
+    "S35|system-lifecycle.S35.site-env-value-reaches-ioc-environment-152|BEHAVIOR|real-path"
+    "S35|system-lifecycle.S35.per-ioc-conf-overrides-site-env-152|BEHAVIOR|real-path"
 )
 declare -g -A SYSTEM_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -334,7 +336,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 34; index += 1)); do
+    for ((index = 1; index <= 35; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2656,6 +2658,54 @@ source "${SC_TOP}/lib/test-m14-process-context.bash"
 # shellcheck source=lib/test-m10-system.bash
 source "${SC_TOP}/lib/test-m10-system.bash"
 
+# (#152 / ADR 0003) System-mode counterpart of the local site.env layer check.
+# The optional site-wide environment file layers under the per-IOC conf: a key
+# set only in site.env reaches the running IOC environment, and a key set in
+# both takes the per-IOC value. Verified against the running procServ process's
+# /proc/<pid>/environ (root reads it under the sudo -nE suite) -- the real
+# systemd EnvironmentFile path, not a substitute.
+function test_site_env_layer {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Site-wide Environment Layer (#152)"
+    print_sub_divider
+
+    local site_env="${CONF_DIR}/site.env"
+    local probe="SITE_ENV_PROBE"
+    local main_pid=""
+
+    # (a) A key set only in site.env reaches the running IOC environment.
+    printf '%s="site-value"\n' "${probe}" > "${site_env}"
+    bash "${RUNNER_SCRIPT}" -f install "${CONF_FILE}" >/dev/null 2>&1 || true
+    bash "${RUNNER_SCRIPT}" start "${IOC_NAME}" >/dev/null 2>&1 || true
+    wait_for_state "active" || true
+
+    local site_value="__unset__"
+    main_pid=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p MainPID --value 2>/dev/null || true)
+    if [[ -n "${main_pid}" && "${main_pid}" != "0" && -r "/proc/${main_pid}/environ" ]]; then
+        site_value=$(tr '\0' '\n' < "/proc/${main_pid}/environ" | sed -n "s/^${probe}=//p" | head -n1)
+    fi
+    verify_state "site-value" "${site_value}" "Value set only in site.env reaches the IOC environment"
+
+    # (b) A key set in both site.env and the per-IOC conf takes the conf value.
+    # Stop first: reinstalling a running IOC's conf is refused ("currently active").
+    bash "${RUNNER_SCRIPT}" stop "${IOC_NAME}" >/dev/null 2>&1 || true
+    printf '%s="conf-value"\n' "${probe}" >> "${CONF_FILE}"
+    bash "${RUNNER_SCRIPT}" -f install "${CONF_FILE}" >/dev/null 2>&1 || true
+    bash "${RUNNER_SCRIPT}" start "${IOC_NAME}" >/dev/null 2>&1 || true
+    wait_for_state "active" || true
+
+    local override_value="__unset__"
+    main_pid=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p MainPID --value 2>/dev/null || true)
+    if [[ -n "${main_pid}" && "${main_pid}" != "0" && -r "/proc/${main_pid}/environ" ]]; then
+        override_value=$(tr '\0' '\n' < "/proc/${main_pid}/environ" | sed -n "s/^${probe}=//p" | head -n1)
+    fi
+    verify_state "conf-value" "${override_value}" "Per-IOC conf overrides the site.env value"
+
+    bash "${RUNNER_SCRIPT}" remove "${IOC_NAME}" >/dev/null 2>&1 || true
+    rm -f "${site_env}"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "verify_infrastructure"
@@ -2692,6 +2742,7 @@ function run_all_tests {
         "test_remove"
         "test_conf_parser_systemd_agreement"
         "test_m10_system_reliability"
+        "test_site_env_layer"
     )
 
     local step=1
