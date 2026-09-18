@@ -205,3 +205,21 @@ If `remove` cannot stop the service, it aborts before deleting anything: the con
 ### Q11: `attach` says "Configuration for `<name>` not found" but the IOC is clearly running. Why?
 
 This is almost always a permission gate, not a missing configuration. Resolving a console target reads the IOC's `.conf` in `/etc/procServ.d/`, and that directory is `2770 root:ioc` — a user outside the `ioc` group cannot read it, so the lookup reports the configuration as not found before any socket access is attempted. The console socket sits behind a second gate: its directory (`/run/procserv/<name>/`, `0770 ioc-srv:ioc`) is not traversable outside the `ioc` group, and the socket file itself is `0660 ioc-srv:ioc`. Ask to be added to the `ioc` group if your role requires console access; read-only observation of service state works without it via `ioc-runner status <name>` or `systemctl status epics-@<name>.service`. The same boundary makes `ioc-runner list` show no sockets for non-`ioc` users (see the principal model in `PERMISSION_MODEL.md` and the multi-user scenarios S6 and S10 in `gate/RUNBOOK.md`).
+
+---
+
+### Q12: How do we set an EPICS environment variable the same way for every IOC on a host?
+
+**Use the optional site-wide environment file, `site.env`.** Place it next to the per-IOC confs — `${HOME}/.config/procServ.d/site.env` in local mode, `/etc/procServ.d/site.env` in system-wide mode — and each IOC unit reads it *before* its own `<ioc>.conf`. A `KEY="VALUE"` set only in `site.env` reaches every IOC on the host; a key set in an IOC's conf overrides the site value for that IOC alone, because `systemd` applies later `EnvironmentFile`s over earlier ones.
+
+The clearest use is the Channel Access and PV Access client discovery lists, which are identical for every IOC on a network:
+
+```bash
+# /etc/procServ.d/site.env
+EPICS_CA_ADDR_LIST="192.0.2.10 192.0.2.11"
+EPICS_CA_AUTO_ADDR_LIST="NO"
+EPICS_PVA_ADDR_LIST="192.0.2.10 192.0.2.11"
+EPICS_PVA_AUTO_ADDR_LIST="NO"
+```
+
+The file is optional: an installation without it behaves exactly as before. When present, `install` checks it against the same non-executing `KEY="VALUE"` grammar as a conf — it is not a conf and carries no `IOC_*` keys, so it is validated for syntax only. See [NETWORK_ENV.md](NETWORK_ENV.md) for which variables belong in the shared layer versus a per-IOC conf, and [ADR 0003](adr/0003-site-environment-layer.md) for the mechanism.

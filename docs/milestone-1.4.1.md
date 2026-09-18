@@ -10,8 +10,8 @@ Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset ge
 
 Next session entry point: the 1.4.1 cycle is open on `release-1.4.1`
 (`RUNNER_VERSION` is `1.4.1-dev`). M2 (ADR 0003) and M3 (site env layer, #152)
-are Complete and verified on both iocrunner goldens. M1 (#153 detection fix)
-and M4 (network-environment reference) are Ready. Remaining owner-run GitHub
+are Complete and verified on both iocrunner goldens. M4 (network-environment
+reference) is Complete. M1 (#153 detection fix) is Ready. Remaining owner-run GitHub
 steps: rewrite the #152 body to the site-layer scope, reply to the reporter,
 and close #152; the eventual master merge and tag. GitHub milestone `1.4.1`
 (number 18) carries #153 (M1) and #152 (M3).
@@ -25,7 +25,7 @@ and close #152; the eventual master merge and tag. GitHub milestone `1.4.1`
 | Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | Not started | Yes | | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning while a genuine device error still warns; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
 | Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
-| Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Not started | No | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
+| Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | No | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
 | Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
 Tally: 5 milestone rows (2 Complete, 3 Not started). Backlog is reported separately below
@@ -254,7 +254,7 @@ Last Compared: 2026-09-18
 Origin: 8ee915a / M4
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -262,7 +262,7 @@ Publish `docs/NETWORK_ENV.md`, the topic document for the CA and PVA network env
 
 ##### Scope
 
-The new topic document, its entry in `docs/README.md`, cross-links from `docs/USER_GUIDE.md` and `docs/FAQ.md`, and a static guard that every address in the document lies in an RFC 5737 range.
+The new topic document organized around the usage scenarios that lead an operator to the site layer (single shared discovery network, multi-homed IOC, per-IOC exception), carrying the four variable tables, the layering rule, and the CA/PVA asymmetries inside that framing; one new `docs/FAQ.md` entry for the shared-variable question; its entry in `docs/README.md`; cross-links from `docs/USER_GUIDE.md` and `docs/FAQ.md`; and a static guard that every address in the document lies in an RFC 5737 range.
 
 Out of scope: any site value or site topology; the ADR (M2); the implementation (M3).
 
@@ -278,16 +278,17 @@ Out of scope: any site value or site topology; the ADR (M2); the implementation 
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-18 (owner direction to organize the document around usage scenarios and add a FAQ entry)
+Implementation Authorization: 2026-09-18
 Superseded Plan Artifacts: none
 
-1. Write the four variable tables with defaults from `configure/CONFIG_ENV` and the PVXS references, each row citing its source.
-2. Write the confusion-point section and the layering rule, referencing ADR 0003.
-3. Write the multi-homed example on the RFC 5737 ranges: a site file with the client discovery lists and a per-IOC conf with the server interface binding.
-4. Observe the PVA auto-beacon behavior on a test host and record the result in the document.
-5. Add the `docs/README.md` entry, the cross-links, and the address-range guard.
+1. Frame the document around three usage scenarios (single shared discovery network, multi-homed IOC, per-IOC exception) so each scenario names the variables it needs and where they belong.
+2. Write the four variable tables (CA client, CA server, PVA client, PVA server) with defaults from `configure/CONFIG_ENV` and the PVXS references, each row citing its source.
+3. Write the confusion-point section (the CA/PVA beacon-fallback asymmetry, the `EPICS_CA_SERVER_PORT` dual role, the `EPICS_CAS_INTF_ADDR_LIST` beacon narrowing) and the site-wide versus per-IOC layering rule, referencing ADR 0003.
+4. Write the multi-homed worked example on the RFC 5737 ranges: a site file with the client discovery lists and a per-IOC conf with the server interface binding.
+5. Observe the PVA auto-beacon behavior on a test host and record the result in the document.
+6. Add the new `docs/FAQ.md` entry, the `docs/README.md` index entry, the `docs/USER_GUIDE.md` cross-link, and the address-range guard.
 
 ##### Test Plan
 
@@ -300,12 +301,12 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | top (Debian 13) | Pending | none |
-| T2 | Not run | top (Debian 13) | Pending | none |
+| T1 | 2026-09-18 | top (Debian 13) | Pass | `tests/check-doc-addresses.bash` over `docs/NETWORK_ENV.md`: 10 unique addresses, all within RFC 5737 ranges; a non-RFC-5737 address fails the guard (negative case) |
+| T2 | 2026-09-18 | top (Debian 13) | Observed | PVXS 1.5.1 `softIocPVX` `pvxsr 1` on a four-interface host: a wildcard `EPICS_PVAS_INTF_ADDR_LIST` gives a beacon list of the loopback broadcast plus all four interface broadcasts, while a single named interface gives the loopback broadcast plus that interface's broadcast only. The observation corrected the draft: PVA narrows beacons to the named interface, as CA does, so the `server.rst` "all local broadcast addresses" wording holds only for the wildcard case (`config.cpp` `Config::expand`/`expandAddrList`) |
 
 ##### Closure Evidence
 
-- none
+- `docs/NETWORK_ENV.md` (topic reference), `docs/FAQ.md` Q12, the `docs/README.md` index entry, and the `docs/USER_GUIDE.md` cross-link; the static guard `tests/check-doc-addresses.bash`. T1 Pass and the T2 observation (which corrected the PVA beacon-narrowing wording) are recorded above. Carried by the M4 documentation commit on `release-1.4.1`.
 
 ##### GitHub Projection
 

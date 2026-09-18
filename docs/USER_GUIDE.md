@@ -80,6 +80,14 @@ above rather than the wider systemd grammar. Every key must pass this syntax
 check; operational `IOC_*` keys and `CRASH_LOG_PATTERNS_EXTRA` also receive
 their field-specific validation.
 
+An environment variable that is identical for every IOC on the host — most
+commonly the Channel Access and PV Access client discovery lists — can be set
+once in an optional site-wide file, `site.env`, alongside the per-IOC confs,
+rather than repeated in each conf. Each IOC reads it before its own conf, and a
+per-IOC conf overrides it. See [NETWORK_ENV.md](NETWORK_ENV.md) for which
+variables belong in the shared layer and [ADR 0003](adr/0003-site-environment-layer.md)
+for the mechanism.
+
 **Step 3: Install the Configuration**
 Deploy the configuration to the system manager. Pass the explicit filename or use the current directory (`.`) if generated automatically.
 ```bash
