@@ -8,13 +8,11 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
-Next session entry point: M6 (`log` command, #154, D5) is In progress —
-implement per its accepted plan, then gate and repin as the check list moves.
-M1-M4 are Complete; #152 and #153 are commented and closed; M1's Gate
-evidence is the full-green run 20260919T061758Z-227038 at the repinned
-identity. The 1.4.1 cycle is open on `release-1.4.1` (`RUNNER_VERSION` is
-`1.4.1-dev`). Remaining owner-run GitHub step: the eventual master merge and
-tag.
+Next session entry point: M5 (release 1.4.1). M1-M4 and M6 are Complete;
+#152, #153 are closed and #154 closes on this landing; the gate is full-green
+at the repinned identity (run 20260919T165029Z-494007). Open M5 through
+release-cycle: version bump, integrated re-gate, master merge, tag 1.4.1,
+GitHub release, milestone close.
 GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 ## Milestone
@@ -27,10 +25,10 @@ GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 | Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
-| Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | In progress | — | D5 | `ioc-runner [--local] log <name> [-f] [-n <count>]` prints the tail of the IOC's effective procServ log file, follows it with `-f`, and sets the tail depth with `-n` (default 40); the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
+| Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Complete | — | D5 | `ioc-runner [--local] log <name> [-f] [-n <count>]` prints the tail of the IOC's effective procServ log file, follows it with `-f`, and sets the tail depth with `-n` (default 40); the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
 | Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
-Tally: 6 milestone rows (4 Complete, 2 Not started). Backlog is reported separately below
+Tally: 6 milestone rows (5 Complete, 1 Not started). Backlog is reported separately below
 and excluded from this tally.
 
 ### Decisions
@@ -332,7 +330,7 @@ Last Compared: never
 Origin: 8ee915a / M6
 Identity History: none
 GitHub Issue: #154 https://github.com/jeonghanlee/epics-ioc-runner/issues/154
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -382,14 +380,14 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | top (Debian 13) | Pending | none |
-| T2 | Not run | rocky8 + debian13 iocrunner goldens | Pending | none |
-| T3 | Not run | top (Debian 13) | Pending | none |
-| T4 | Not run | top (Debian 13) | Pending | none |
+| T1 | 2026-09-19 | rocky8 + debian13 iocrunner goldens | Pass | `log` tail shows the readiness marker (local S40, both goldens); gate run 20260919T165029Z-494007 |
+| T2 | 2026-09-19 | rocky8 + debian13 iocrunner goldens | Pass | `log` on a running system IOC shows the marker under the 0644 log (system S15, both goldens); same run |
+| T3 | 2026-09-19 | rocky8 + debian13 iocrunner goldens | Pass | unknown IOC, never-started IOC, and non-positive `-n` each exit non-zero with the cause (local S40); same run |
+| T4 | 2026-09-19 | rocky8 + debian13 iocrunner goldens | Pass | the post-init hint names `ioc-runner log` and `-n <count>` limits the tail (local S40); same run |
 
 ##### Closure Evidence
 
-- none
+- `log` verb in `bin/ioc-runner` (dispatch, usage, `-f`/`-n`, hint rewrite), local S40 (7 checks) and system S15 (1 check), docs (`CLI_REFERENCE`, `USER_GUIDE`, `FAQ` Q9, `LOG_LAYOUT`). Verified on both goldens, gate run 20260919T165029Z-494007, 12/12 suites PASS; identity repinned to that run's value in the commit carrying this row. Commits: dbcf2d9 (feature + tests), 7d5a2b9 (S40 fixture isolation). Refs #154; close #154 on this landing.
 
 ##### GitHub Projection
 
