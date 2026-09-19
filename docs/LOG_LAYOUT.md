@@ -69,6 +69,10 @@ read is not required.
 
 ## 4. Access and Group Membership
 
+`ioc-runner [--local] log <name> [-f] [-n <count>]` resolves the effective log file from the
+deployed unit and prints its tail (or follows it), so readers do not
+hand-build the paths below.
+
 | Principal | Log read | IOC management |
 | --- | --- | --- |
 | `ioc-srv` (daemon) | owner — writes the log | runs `procServ` |

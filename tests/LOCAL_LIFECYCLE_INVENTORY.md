@@ -370,6 +370,16 @@ pre-existing override directory.
 - `local-lifecycle.S39.ansi-error-marker-start-exits-zero` | `BEHAVIOR` | The ANSI-marker start also exits 0.
 - `local-lifecycle.S39.ansi-error-marker-warns` | `BEHAVIOR` | The same marker wrapped in ANSI SGR sequences still raises the warning.
 
+### S40 - Log Command (#154) (7)
+
+- `local-lifecycle.S40.softioc-available` | `PREREQUISITE` | A real `softIoc` is available for the log-verb probe.
+- `local-lifecycle.S40.log-tail-shows-marker` | `BEHAVIOR` | `log` prints the running IOC's tail including the readiness marker.
+- `local-lifecycle.S40.log-follow-streams` | `BEHAVIOR` | `log -f` follows until interrupted.
+- `local-lifecycle.S40.log-n-limits-lines` | `BEHAVIOR` | `log -n <count>` limits output to the requested line count.
+- `local-lifecycle.S40.log-unknown-ioc-fails` | `BEHAVIOR` | `log` on an unknown IOC exits non-zero with the not-installed message.
+- `local-lifecycle.S40.log-missing-file-fails` | `BEHAVIOR` | `log` on a never-started IOC exits non-zero naming the missing file.
+- `local-lifecycle.S40.hint-names-log-command` | `REQUIRED` | The post-init hint text names `ioc-runner log`.
+
 ## Fixed Vector Rule
 
 Every source and installed invocation declares the same identities in this

@@ -66,6 +66,7 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S13|system-lifecycle.S13.deployed-configuration-safely-removed|BEHAVIOR|real-path"
     "S14|system-lifecycle.S14.directory-based-installation-succeeded|BEHAVIOR|real-path"
     "S15|system-lifecycle.S15.service-active|BEHAVIOR|real-path"
+    "S15|system-lifecycle.S15.log-command-shows-marker|BEHAVIOR|real-path"
     "S16|system-lifecycle.S16.status-output-shows-active-active|BEHAVIOR|real-path"
     "S17|system-lifecycle.S17.view-output-renders-the-configuration-ioc-cmd|BEHAVIOR|real-path"
     "S18|system-lifecycle.S18.service-remains-active-after-restart|BEHAVIOR|real-path"
@@ -885,6 +886,12 @@ function test_start {
 
     local elapsed=$((SECONDS - start_time))
     verify_state "active" "${state}" "Service state is 'active' (Startup time: ${elapsed}s)"
+
+    # M6 (#154): the log verb reads the same effective file the service writes.
+    local log_output marker_ok="false"
+    log_output=$(bash "${RUNNER_SCRIPT}" log "${IOC_NAME}" 2>&1 || true)
+    printf "%s" "${log_output}" | grep -q "All initialization complete" && marker_ok="true"
+    verify_state "true" "${marker_ok}" "log command shows the readiness marker"
 }
 
 function test_status {

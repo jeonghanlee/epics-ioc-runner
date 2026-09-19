@@ -159,7 +159,14 @@ sudo systemctl disable epics-@myioc.service
 ## 4. Viewing IOC Logs
 By default, procServ writes IOC standard output and standard error to a dedicated log file under `/var/log/procserv/`.
 
-**Watch logs in real-time:**
+**Show the log with the runner** (resolves the effective file for you; `-f` follows):
+```bash
+ioc-runner log myioc
+ioc-runner -f log myioc
+ioc-runner -n 200 log myioc
+```
+
+**Watch logs in real-time (raw path):**
 ```bash
 tail -f /var/log/procserv/myioc.log
 ```

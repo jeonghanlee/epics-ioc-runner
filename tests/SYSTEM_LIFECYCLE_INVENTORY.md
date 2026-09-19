@@ -79,6 +79,7 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S13 | `system-lifecycle.S13.deployed-configuration-safely-removed` | `BEHAVIOR` | `real-path` | Deployed configuration safely removed |
 | S14 | `system-lifecycle.S14.directory-based-installation-succeeded` | `BEHAVIOR` | `real-path` | Directory-based installation succeeded |
 | S15 | `system-lifecycle.S15.service-active` | `BEHAVIOR` | `real-path` | Service state is 'active' (Startup time: ${elapsed}s) |
+| S15 | `system-lifecycle.S15.log-command-shows-marker` | `BEHAVIOR` | `real-path` | The log verb shows the readiness marker from the effective service log. |
 | S16 | `system-lifecycle.S16.status-output-shows-active-active` | `BEHAVIOR` | `real-path` | Status output shows 'Active: active' |
 | S17 | `system-lifecycle.S17.view-output-renders-the-configuration-ioc-cmd` | `BEHAVIOR` | `real-path` | View output renders the configuration (IOC_CMD=) |
 | S18 | `system-lifecycle.S18.service-remains-active-after-restart` | `BEHAVIOR` | `real-path` | Service remains active after restart |

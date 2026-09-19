@@ -94,6 +94,7 @@ declare -g SCAN_DIR="${CONTAINER_SCAN_DIR}"
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
+declare -g LOG_TAIL_LINES=""
 # M6: set by the local shared-asset deploy helpers when a unit file actually
 # changed, so do_install issues exactly one daemon-reload only when needed.
 declare -g TEMPLATE_CHANGED=0
@@ -256,6 +257,9 @@ Commands:
   enable         Enable the IOC service to start on boot
   disable        Disable the IOC service from starting on boot
   view           Print the IOC configuration file and the rendered systemd unit
+  log            Print the last lines of the IOC's effective procServ log
+                   (-f: follow the log until interrupted)
+                   (-n <count>: number of lines to show; default 40)
   list           List all active IOC sockets
                    (default: name, status, start time, path)
                    (-v: adds PID, CPU, memory)
@@ -349,6 +353,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         -f|--force)
             FORCE_OVERWRITE=1
+            ;;
+        -n|--lines)
+            if [[ -z "${2:-}" || ! "${2}" =~ ^[1-9][0-9]*$ ]]; then
+                printf "Error: '%s' requires a positive integer line count.\n" "$1" >&2
+                exit 1
+            fi
+            LOG_TAIL_LINES="$2"
+            shift
             ;;
         -vv)
             VERBOSE_LEVEL=2
@@ -1349,8 +1361,54 @@ function read_startup_signals {
 
 function print_log_file_hint {
     local log_file="$1"
+    local mode_flag=""
 
-    printf "  -> Check logs: tail -f %s\n" "${log_file}" >&2
+    # M6 (#154): name the one-step command; the log verb prints the same
+    # effective file this hint used to spell out as a raw tail.
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        mode_flag="--local "
+    fi
+    printf "  -> Check logs: ioc-runner %slog %s\n" "${mode_flag}" "${IOC_NAME}" >&2
+    printf "     (log file: %s)\n" "${log_file}" >&2
+}
+
+# M6 (#154): print the tail of an IOC's effective procServ log, or follow it
+# with -f. The path comes from the same deployed-unit resolution start and
+# restart verify, so what this shows is what the service actually writes.
+function do_log {
+    local unit=""
+    local log_file=""
+    local -a tail_cmd=()
+
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: 'log' requires an IOC name.\n" >&2
+        exit 1
+    fi
+    require_installed_conf "${IOC_NAME}" "log"
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        printf "Error: container mode writes IOC output to stdout; there is no log file to show.\n" >&2
+        exit 1
+    fi
+    unit="epics-@${IOC_NAME}.service"
+    if ! resolve_effective_launch_command "${unit}"; then
+        printf "Error: unable to resolve the log file for IOC '%s': %s.\n" \
+            "${IOC_NAME}" "${EFFECTIVE_LAUNCH_ERROR}" >&2
+        exit 1
+    fi
+    log_file="${EFFECTIVE_LOG_FILE}"
+    if [[ ! -f "${log_file}" ]]; then
+        printf "Error: log file not found for IOC '%s': %s.\n" "${IOC_NAME}" "${log_file}" >&2
+        printf "  -> The IOC may not have been started in this mode yet.\n" >&2
+        exit 1
+    fi
+    # The global -f flag has no force meaning on this read-only verb; it
+    # selects follow, matching the documented 'log <name> [-f] [-n <count>]'
+    # shape. -n overrides the default tail depth.
+    tail_cmd=(tail -n "${LOG_TAIL_LINES:-40}")
+    if [[ "${FORCE_OVERWRITE:-0}" == "1" ]]; then
+        tail_cmd+=(-f)
+    fi
+    exec "${tail_cmd[@]}" -- "${log_file}"
 }
 
 # Remove ANSI SGR (color) sequences (CSI ... m) from text so a token wrapped by
@@ -3497,6 +3555,9 @@ case "${COMMAND_ACTION}" in
         ;;
     view)
         do_view
+        ;;
+    log)
+        do_log
         ;;
     stop|enable|disable)
         if [[ -z "${IOC_NAME}" ]]; then

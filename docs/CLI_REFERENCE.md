@@ -196,7 +196,15 @@ requires the `CAP_SYS_PTRACE` capability (for example
 `docker run --cap-add SYS_PTRACE`), otherwise sections 1 and 2 report no
 processes and the executable identity is not attributed.
 
-## 4. Console Access Commands (`attach` vs `monitor`)
+## 4. `log`
+
+`ioc-runner [--local] log <name> [-f] [-n <count>]` prints the last lines of the IOC's
+effective procServ log — the `--logfile` path resolved from the deployed unit,
+the same resolution `start`/`restart` verify — and with `-f` follows it until
+interrupted; `-n <count>` sets how many lines to show (default 40). Container mode has no log file (IOC output goes to stdout) and the
+command says so; an unknown IOC or a never-started one fails with the cause.
+
+## 5. Console Access Commands (`attach` vs `monitor`)
 
 The `epics-ioc-runner` provides two distinct methods for interacting with an active IOC console via its UNIX Domain Socket. These commands differ fundamentally in their data flow architecture and input handling to prevent operational conflicts.
 

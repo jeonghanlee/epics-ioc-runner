@@ -265,6 +265,13 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S39|local-lifecycle.S39.error-marker-shows-line|BEHAVIOR"
     "S39|local-lifecycle.S39.ansi-error-marker-start-exits-zero|BEHAVIOR"
     "S39|local-lifecycle.S39.ansi-error-marker-warns|BEHAVIOR"
+    "S40|local-lifecycle.S40.softioc-available|PREREQUISITE"
+    "S40|local-lifecycle.S40.log-tail-shows-marker|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-follow-streams|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-n-limits-lines|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-unknown-ioc-fails|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-missing-file-fails|BEHAVIOR"
+    "S40|local-lifecycle.S40.hint-names-log-command|REQUIRED"
 )
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -421,7 +428,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 39; index += 1)); do
+    for ((index = 1; index <= 40; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2516,6 +2523,72 @@ function test_post_init_error_marker {
     verify_state "true" "${warn}" "Post-init ANSI ERROR marker: warning raised"
 }
 
+# S40 (#154): the log verb prints the effective procServ log's tail, follows
+# with -f (the global flag has no force meaning on this read-only verb), and
+# fails clearly for an unknown IOC or a never-started one; the post-init hint
+# names the command.
+function test_log_command {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Log Command (#154)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping log-command test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S40.softioc-available"
+        return 0
+    fi
+    record_current_state PASS
+
+    local ioc_dir="${WORKSPACE}/LogVerbProbe"
+    local output rc ok
+
+    mkdir -p "${ioc_dir}"
+    printf '#!%s\niocInit\n' "${softioc_bin}" > "${ioc_dir}/st.cmd"
+    chmod +x "${ioc_dir}/st.cmd"
+    _install_crash_probe "LogVerbProbe" "${ioc_dir}"
+    bash "${RUNNER_SCRIPT}" --local start "LogVerbProbe" >/dev/null 2>&1 || true
+
+    ok="false"
+    output=$(bash "${RUNNER_SCRIPT}" --local log "LogVerbProbe" 2>&1) || true
+    printf "%s" "${output}" | grep -q "All initialization complete" && ok="true"
+    verify_state "true" "${ok}" "log tail shows the readiness marker"
+
+    rc=0
+    timeout 2 bash "${RUNNER_SCRIPT}" --local -f log "LogVerbProbe" >/dev/null 2>&1 || rc=$?
+    ok="false"; [[ "${rc}" == "124" ]] && ok="true"
+    verify_state "true" "${ok}" "log -f follows until interrupted (timeout 124)"
+
+    output=$(bash "${RUNNER_SCRIPT}" --local -n 2 log "LogVerbProbe" 2>&1) || true
+    ok="false"; [[ "$(printf "%s" "${output}" | grep -c "")" -le 2 ]] && ok="true"
+    verify_state "true" "${ok}" "log -n 2 limits output to the requested line count"
+
+    rc=0
+    bash "${RUNNER_SCRIPT}" --local log "NoSuchLogIoc" >/dev/null 2>&1 || rc=$?
+    ok="false"; [[ "${rc}" != "0" ]] && ok="true"
+    verify_state "true" "${ok}" "log on an unknown IOC exits non-zero"
+
+    _remove_crash_probe "LogVerbProbe"
+
+    # Installed but never started: the resolver succeeds, the file is absent.
+    mkdir -p "${ioc_dir}"
+    _install_crash_probe "LogVerbProbe" "${ioc_dir}"
+    rc=0
+    output=$(bash "${RUNNER_SCRIPT}" --local log "LogVerbProbe" 2>&1) || rc=$?
+    ok="false"
+    if [[ "${rc}" != "0" ]] && printf "%s" "${output}" | grep -q "log file not found"; then
+        ok="true"
+    fi
+    verify_state "true" "${ok}" "log on a never-started IOC names the missing file"
+    _remove_crash_probe "LogVerbProbe"
+
+    ok="false"
+    grep -qF "Check logs: ioc-runner" "${RUNNER_SCRIPT}" && ok="true"
+    verify_state "true" "${ok}" "post-init hint names the log command"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -2557,6 +2630,7 @@ function run_all_tests {
         "test_m10_reliability"
         "test_site_env_layer"
         "test_post_init_error_marker"
+        "test_log_command"
     )
 
     local step=1

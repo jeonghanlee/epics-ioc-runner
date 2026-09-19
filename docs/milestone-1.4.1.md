@@ -8,14 +8,13 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
-Next session entry point: M1 (#153) is Complete (ADR 0004; gate run
-20260919T060839Z-218241 clean on both goldens) and the identity repin rides
-the commit carrying this row — run the confirming gate on this candidate
-(RUNBOOK check-identity step 4) for full-green Gate evidence, then M6
-(`log` command, D5) is the next Ready work. Owner-run GitHub steps: close
-#153; the eventual master merge and tag. The 1.4.1 cycle is open on
-`release-1.4.1` (`RUNNER_VERSION` is `1.4.1-dev`); M1-M4 are Complete and
-#152 is commented and closed.
+Next session entry point: M6 (`log` command, #154, D5) is In progress —
+implement per its accepted plan, then gate and repin as the check list moves.
+M1-M4 are Complete; #152 and #153 are commented and closed; M1's Gate
+evidence is the full-green run 20260919T061758Z-227038 at the repinned
+identity. The 1.4.1 cycle is open on `release-1.4.1` (`RUNNER_VERSION` is
+`1.4.1-dev`). Remaining owner-run GitHub step: the eventual master merge and
+tag.
 GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 ## Milestone
@@ -28,7 +27,7 @@ GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 | Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
-| Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Not started | Yes | D5 | `ioc-runner [--local] log <name> [-f]` prints the tail of the IOC's effective procServ log file and follows it with `-f`; the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
+| Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | In progress | — | D5 | `ioc-runner [--local] log <name> [-f] [-n <count>]` prints the tail of the IOC's effective procServ log file, follows it with `-f`, and sets the tail depth with `-n` (default 40); the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
 | Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
 Tally: 6 milestone rows (4 Complete, 2 Not started). Backlog is reported separately below
@@ -42,7 +41,7 @@ and excluded from this tally.
 | D2 | ioc-runner ships the layering mechanism (site-wide file under the per-IOC conf) and the variable documentation only. Site-specific values, including the owner's production topology, stay outside the repository. | 2026-09-17 |
 | D3 | Every documented example address uses the RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), one per example network, so a multi-homed scenario is shown without any site value. | 2026-09-17 |
 | D4 | The post-initialization corroboration warning is a heuristic hint, not a verdict. Its text says so and directs the operator to the log, it prints the matched line(s), and the `ERROR` corroborating token matches the marker shape — `ERROR` followed by a colon, after ANSI SGR sequences are removed from the scan window — instead of the bare word. Count fields, column headers, and colon-less prose (including the transient `devSnmp ... read error` lines) no longer raise it. The fatal subset, the death-banner verdict, and `CRASH_LOG_PATTERNS_EXTRA` are unchanged. | 2026-09-18 |
-| D5 | A `log` command (`ioc-runner [--local] log <name> [-f]`) ships in 1.4.1 as its own work item, M6, separate from the #153 fix: the reworded warning directs the operator to the log, and the command is the one-step way there. | 2026-09-18 |
+| D5 | A `log` command (`ioc-runner [--local] log <name> [-f] [-n <count>]`) ships in 1.4.1 as its own work item, M6, separate from the #153 fix: the reworded warning directs the operator to the log, and the command is the one-step way there. `-f` follows and `-n` sets the tail depth (default 40); both reuse the global option parser, and `-f` carries no force meaning on this read-only verb. | 2026-09-18 |
 | D6 | D4's corroborating-token mechanism is superseded: the built-in corroboration matches framework severity markers case-sensitively (the uppercase `ERROR` word, the PVXS ` ERR `/` CRIT ` level words, `sevr=major`/`sevr=fatal`) plus the existing case-insensitive message phrases, and never English error vocabulary — prose sensitivity is the per-IOC `CRASH_LOG_PATTERNS_EXTRA` opt-in. Grounds (the 33-module emission survey, the renderer evidence including colon-less `ERL_ERROR`, the healthy-log measurement) and the rejected alternatives are ADR 0004. D4's heuristic warning wording, matched-line display, and ANSI SGR normalization stand. | 2026-09-18 |
 
 ### Milestone Details
@@ -333,7 +332,7 @@ Last Compared: never
 Origin: 8ee915a / M6
 Identity History: none
 GitHub Issue: #154 https://github.com/jeonghanlee/epics-ioc-runner/issues/154
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -341,13 +340,13 @@ Add a `log` subcommand that resolves an IOC's effective procServ log file — th
 
 ##### Scope
 
-`ioc-runner [--local] log <name> [-f]`: resolve the effective log path for the IOC in the active mode, print the last lines by default, follow with `-f`; fail with a clear message when the IOC is unknown or the log file is absent. Change the post-init warning's hint from the raw `tail -f <path>` form to `ioc-runner log <name>`. Document the command in `docs/CLI_REFERENCE.md`, the log section of `docs/USER_GUIDE.md`, and cross-link from `docs/FAQ.md` Q9 and `docs/LOG_LAYOUT.md`.
+`ioc-runner [--local] log <name> [-f] [-n <count>]`: resolve the effective log path for the IOC in the active mode, print the last 40 lines by default (or `-n <count>` lines), follow with `-f`; fail with a clear message when the IOC is unknown, the log file is absent, or `-n` is not a positive integer. Change the post-init warning's hint from the raw `tail -f <path>` form to `ioc-runner log <name>`. Document the command in `docs/CLI_REFERENCE.md`, the log section of `docs/USER_GUIDE.md`, and cross-link from `docs/FAQ.md` Q9 and `docs/LOG_LAYOUT.md`.
 
 Out of scope: journal integration, log rotation or layout changes, remote-host access, and any change to the permission model (the system log stays `0644`).
 
 ##### Completion Criteria
 
-- `log <name>` prints the tail of the effective log file in local and system mode, exit 0.
+- `log <name>` prints the tail of the effective log file in local and system mode, exit 0; `-n <count>` limits the output to that many lines and a non-positive-integer `-n` is rejected.
 - `log -f <name>` follows the file until interrupted.
 - An unknown IOC name or a missing log file exits non-zero with a message naming the cause.
 - The post-init warning hint names `ioc-runner log <name>`.
@@ -359,12 +358,12 @@ Out of scope: journal integration, log rotation or layout changes, remote-host a
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-18 (owner started M6 on the drafted plan; the follow flag reuses the existing global `-f`, which has no other meaning on a read-only verb)
+Implementation Authorization: 2026-09-18
 Superseded Plan Artifacts: none
 
-1. Add the `log` subcommand and its usage entry in `bin/ioc-runner`, reusing the effective log path resolution.
+1. Add the `log` subcommand and its usage entry in `bin/ioc-runner`, reusing the effective log path resolution; add the `-n <count>` global option (positive-integer validated, default tail 40) alongside the reused `-f`.
 2. Implement the default tail and `-f` follow; define the error paths for an unknown IOC and a missing file.
 3. Change `print_log_file_hint` to name `ioc-runner log <name>` (with `--local` in local mode).
 4. Add local and system lifecycle checks for the command and its error paths.

@@ -194,6 +194,9 @@ IOC console output is written to the dedicated procServ log file (`/var/log/proc
 
 For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24 monitor-isolation coverage with a WARN.
 
+
+`ioc-runner log <name>` (add `-f` to follow) prints the same effective log file without hand-building the path.
+
 ---
 
 ### Q10: What happens to my `attach` or `monitor` session when a colleague stops or removes the IOC?
