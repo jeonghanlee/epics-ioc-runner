@@ -2573,16 +2573,24 @@ function test_log_command {
     _remove_crash_probe "LogVerbProbe"
 
     # Installed but never started: the resolver succeeds, the file is absent.
-    mkdir -p "${ioc_dir}"
-    _install_crash_probe "LogVerbProbe" "${ioc_dir}"
+    # Use a fresh name that this run never started (LogVerbProbe already has a
+    # log file from the tail case above), and clear any residue from a prior
+    # run so the precondition is the test's, not the environment's.
+    local unstarted_dir="${WORKSPACE}/LogVerbUnstarted"
+    local log_home="${XDG_STATE_HOME:-${HOME}/.local/state}/procserv"
+    rm -f "${log_home}/LogVerbUnstarted.log"
+    mkdir -p "${unstarted_dir}"
+    printf '#!%s\niocInit\n' "${softioc_bin}" > "${unstarted_dir}/st.cmd"
+    chmod +x "${unstarted_dir}/st.cmd"
+    _install_crash_probe "LogVerbUnstarted" "${unstarted_dir}"
     rc=0
-    output=$(bash "${RUNNER_SCRIPT}" --local log "LogVerbProbe" 2>&1) || rc=$?
+    output=$(bash "${RUNNER_SCRIPT}" --local log "LogVerbUnstarted" 2>&1) || rc=$?
     ok="false"
     if [[ "${rc}" != "0" ]] && printf "%s" "${output}" | grep -q "log file not found"; then
         ok="true"
     fi
     verify_state "true" "${ok}" "log on a never-started IOC names the missing file"
-    _remove_crash_probe "LogVerbProbe"
+    _remove_crash_probe "LogVerbUnstarted"
 
     ok="false"
     grep -qF "Check logs: ioc-runner" "${RUNNER_SCRIPT}" && ok="true"
