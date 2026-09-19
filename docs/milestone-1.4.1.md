@@ -8,13 +8,13 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
-Next session entry point: the 1.4.1 cycle is open on `release-1.4.1`
-(`RUNNER_VERSION` is `1.4.1-dev`). M2 (ADR 0003) and M3 (site env layer, #152)
-are Complete and verified on both iocrunner goldens. M4 (network-environment
-reference) is Complete. M1 (#153 detection fix) is Ready. Remaining owner-run GitHub
-steps: rewrite the #152 body to the site-layer scope, reply to the reporter,
-and close #152; the eventual master merge and tag. GitHub milestone `1.4.1`
-(number 18) carries #153 (M1) and #152 (M3).
+Next session entry point: implement M1 in `bin/ioc-runner` per D4 (heuristic
+warning text, matched-line output, `ERROR` marker rule with ANSI normalization),
+then run M1 / T1-T4. The 1.4.1 cycle is open on `release-1.4.1` (`RUNNER_VERSION`
+is `1.4.1-dev`). M2, M3, and M4 are Complete; #152 is commented and closed. M1's
+plan is accepted (D4); M6 (`log` command, D5) is added and becomes Ready when M1
+completes. Remaining owner-run GitHub step: the eventual master merge and tag.
+GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 ## Milestone
 
@@ -22,11 +22,12 @@ and close #152; the eventual master merge and tag. GitHub milestone `1.4.1`
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | Not started | Yes | | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning while a genuine device error still warns; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
+| Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | Not started | Yes | D4 | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning; a genuine `ERROR:` marker line still warns with the heuristic wording and the matched line shown; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
 | Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
-| Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | No | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
-| Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
+| Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
+| Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Not started | No | M1, D5 | `ioc-runner [--local] log <name> [-f]` prints the tail of the IOC's effective procServ log file and follows it with `-f`; the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
+| Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
 Tally: 5 milestone rows (2 Complete, 3 Not started). Backlog is reported separately below
 and excluded from this tally.
@@ -38,6 +39,8 @@ and excluded from this tally.
 | D1 | The next development cycle is the patch line 1.4.1, carrying #152 and #153. #153 is a bug fix; #152 adds one optional `EnvironmentFile=` line whose absence leaves every existing installation unchanged. | 2026-09-17 |
 | D2 | ioc-runner ships the layering mechanism (site-wide file under the per-IOC conf) and the variable documentation only. Site-specific values, including the owner's production topology, stay outside the repository. | 2026-09-17 |
 | D3 | Every documented example address uses the RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), one per example network, so a multi-homed scenario is shown without any site value. | 2026-09-17 |
+| D4 | The post-initialization corroboration warning is a heuristic hint, not a verdict. Its text says so and directs the operator to the log, it prints the matched line(s), and the `ERROR` corroborating token matches the marker shape — `ERROR` followed by a colon, after ANSI SGR sequences are removed from the scan window — instead of the bare word. Count fields, column headers, and colon-less prose (including the transient `devSnmp ... read error` lines) no longer raise it. The fatal subset, the death-banner verdict, and `CRASH_LOG_PATTERNS_EXTRA` are unchanged. | 2026-09-18 |
+| D5 | A `log` command (`ioc-runner [--local] log <name> [-f]`) ships in 1.4.1 as its own work item, M6, separate from the #153 fix: the reworded warning directs the operator to the log, and the command is the one-step way there. | 2026-09-18 |
 
 ### Milestone Details
 
@@ -54,39 +57,42 @@ The ambiguous crash-detection subset matches `ERROR` as a bare, case-insensitive
 
 ##### Scope
 
-Change the post-marker corroboration match so that report lines whose only `error` content is a count field or a column header no longer raise the warning, while a genuine post-initialization device error on a still-alive IOC continues to raise it. Update `docs/FAQ.md` Q6 and Q7 wherever the described matching rule changes.
+Rework the post-marker corroboration warning per D4: (1) reword it as a heuristic hint that directs the operator to the log; (2) print the matched line(s) under it; (3) change the `ERROR` corroborating token to the marker shape (`ERROR` followed by a colon) and remove ANSI SGR sequences from the scan window before matching, so report lines whose only `error` content is a count field, a column header, or colon-less prose no longer raise it while a genuine `ERROR:` marker line on a still-alive IOC still does. Update `docs/FAQ.md` Q6 and Q7 to state the rule and the heuristic nature of the warning, and the local lifecycle fixtures that assert the warning text.
 
-Out of scope: the fatal-subset pre-marker verdict, the crash-loop death-banner verdict, `CRASH_LOG_PATTERNS_EXTRA` validation, and the transient first-poll `devSnmp ... read error` lines (a device-driver timing artifact).
+Out of scope: the fatal-subset pre-marker verdict, the crash-loop death-banner verdict, `CRASH_LOG_PATTERNS_EXTRA` validation, and the `log` command (M6). The transient first-poll `devSnmp ... read error` lines are colon-less prose and therefore stop raising the warning under the new rule; this is a consequence of D4, not a target of M1.
 
 ##### Completion Criteria
 
 - A fixture log carrying `Error count      : 0` and an `errors  OID name` header after the readiness marker, and nothing else matching, starts without the warning.
-- A fixture log carrying a genuine post-marker error line on a still-alive IOC still prints the warning and exits 0.
+- A fixture log carrying a genuine `ERROR: ...` marker line after the marker on a still-alive IOC prints the warning with the heuristic wording, shows the matched line, and exits 0.
+- The same marker wrapped in ANSI SGR sequences (the EPICS `ERL_ERROR` rendering) still prints the warning.
 - The existing fatal and crash-loop cases in the lifecycle suites are unchanged.
 
 ##### Dependencies And Decisions
 
-- None. The matching rule itself is an open owner decision: tighten the `ERROR` token (boundary or context rule) versus exclude the report-line shapes through `CRASH_LOG_EXCLUDE_PATTERNS`. Record the choice as a D row when made.
+- D4 (matching rule and heuristic-warning principle). The log hint line keeps its current `tail -f` form here; M6 changes it to name `ioc-runner log <name>`.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-18 (owner confirmed the three-part rework recorded as D4)
+Implementation Authorization: 2026-09-18
 Superseded Plan Artifacts: none
 
-1. Resolve the matching rule with the owner and record it as a decision.
-2. Apply the rule in `bin/ioc-runner` at the ambiguous subset or the exclusion set, keeping the two subsets the single source of the base pattern.
-3. Add the two fixture cases to `tests/test-local-lifecycle.bash` next to the existing post-init warning check (`tests/test-local-lifecycle.bash:1553`).
-4. Update `docs/FAQ.md` Q6 and Q7 to state the rule.
+1. In `read_startup_signals`, remove ANSI SGR sequences from the scan window before the exclusion filter and pattern matching.
+2. Change the `ERROR` token in `CRASH_LOG_PATTERNS_AMBIGUOUS` to the marker shape `ERROR[[:space:]]*:`, keeping the two subsets the single source of the base pattern and the case-insensitive match for every other token and for `CRASH_LOG_PATTERNS_EXTRA`.
+3. Reword the post-marker corroboration warning as a heuristic hint that directs the operator to the log, and print the matched line(s) (first few, truncated) beneath it before the existing log hint.
+4. Add the fixture cases to `tests/test-local-lifecycle.bash` next to the existing post-init warning check and update any assertion on the old warning text.
+5. Update `docs/FAQ.md` Q6 and Q7 to state the marker rule, the ANSI normalization, and that the warning is a heuristic to confirm in the log.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | Local lifecycle | `tests/test-local-lifecycle.bash` with a post-marker fixture of report lines only | top (Debian 13) | `start` prints `successfully started`, no warning, exit 0 |
-| T2 | Local lifecycle | Same suite with a genuine post-marker error line on a live IOC | top (Debian 13) | Warning printed, exit 0 |
+| T2 | Local lifecycle | Same suite with a genuine `ERROR:` marker line after the marker on a live IOC | top (Debian 13) | Heuristic warning printed with the matched line shown, exit 0 |
 | T3 | Regression | Full local lifecycle and source-regression suites | top (Debian 13) and rocky8-iocrunner VM | All existing fatal and crash-loop cases unchanged |
+| T4 | Local lifecycle | Same suite with the `ERROR:` marker wrapped in ANSI SGR sequences | top (Debian 13) | Heuristic warning still printed, exit 0 |
 
 ##### Verification Results
 
@@ -95,6 +101,7 @@ Superseded Plan Artifacts: none
 | T1 | Not run | top (Debian 13) | Pending | none |
 | T2 | Not run | top (Debian 13) | Pending | none |
 | T3 | Not run | top and rocky8-iocrunner VM | Pending | none |
+| T4 | Not run | top (Debian 13) | Pending | none |
 
 ##### Closure Evidence
 
@@ -244,7 +251,7 @@ Superseded Plan Artifacts: none
 Title: Standard way of appending EPICS_CA_ADDR_LIST environment variable to system unit
 Labels: enhancement, area/template
 GitHub Milestone: 1.4.1
-Observed State: open
+Observed State: closed
 Observed Labels: enhancement, area/template
 Observed Milestone: 1.4.1
 Last Compared: 2026-09-18
@@ -318,6 +325,80 @@ Observed Labels: none
 Observed Milestone: none
 Last Compared: never
 
+#### M6 - log command: show the effective procServ log of an IOC
+
+Origin: 8ee915a / M6
+Identity History: none
+GitHub Issue: #154 https://github.com/jeonghanlee/epics-ioc-runner/issues/154
+Status: Not started
+
+##### Summary
+
+Add a `log` subcommand that resolves an IOC's effective procServ log file — the same path `start` and `restart` verify before changing service state — and prints its tail, following it on request. The post-initialization warning directs the operator to the log; this command is the one-step way there, and the warning's log hint names it once the command exists.
+
+##### Scope
+
+`ioc-runner [--local] log <name> [-f]`: resolve the effective log path for the IOC in the active mode, print the last lines by default, follow with `-f`; fail with a clear message when the IOC is unknown or the log file is absent. Change the post-init warning's hint from the raw `tail -f <path>` form to `ioc-runner log <name>`. Document the command in `docs/CLI_REFERENCE.md`, the log section of `docs/USER_GUIDE.md`, and cross-link from `docs/FAQ.md` Q9 and `docs/LOG_LAYOUT.md`.
+
+Out of scope: journal integration, log rotation or layout changes, remote-host access, and any change to the permission model (the system log stays `0644`).
+
+##### Completion Criteria
+
+- `log <name>` prints the tail of the effective log file in local and system mode, exit 0.
+- `log -f <name>` follows the file until interrupted.
+- An unknown IOC name or a missing log file exits non-zero with a message naming the cause.
+- The post-init warning hint names `ioc-runner log <name>`.
+- Existing lifecycle and source-regression suites are unchanged.
+
+##### Dependencies And Decisions
+
+- M1 (the hint change applies to the reworded warning), D5.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Add the `log` subcommand and its usage entry in `bin/ioc-runner`, reusing the effective log path resolution.
+2. Implement the default tail and `-f` follow; define the error paths for an unknown IOC and a missing file.
+3. Change `print_log_file_hint` to name `ioc-runner log <name>` (with `--local` in local mode).
+4. Add local and system lifecycle checks for the command and its error paths.
+5. Update `docs/CLI_REFERENCE.md`, `docs/USER_GUIDE.md`, `docs/FAQ.md` Q9, and `docs/LOG_LAYOUT.md`.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Local lifecycle | `log <name>` on a running local IOC | top (Debian 13) | Tail of the effective log printed, exit 0 |
+| T2 | System lifecycle | `log <name>` on a running system IOC | rocky8 + debian13 iocrunner goldens | Tail printed under the `0644` log permission, exit 0 |
+| T3 | Local lifecycle | `log <unknown>` and `log <name>` with the log file removed | top (Debian 13) | Non-zero exit with a message naming the cause |
+| T4 | Static | Warning hint text | top (Debian 13) | Post-init warning hint names `ioc-runner log <name>` |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | top (Debian 13) | Pending | none |
+| T2 | Not run | rocky8 + debian13 iocrunner goldens | Pending | none |
+| T3 | Not run | top (Debian 13) | Pending | none |
+| T4 | Not run | top (Debian 13) | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Add a log command to show an IOC's procServ log
+Labels: enhancement, area/inspect, P2-medium
+GitHub Milestone: 1.4.1
+Observed State: open
+Observed Labels: enhancement, area/inspect, P2-medium
+Observed Milestone: 1.4.1
+Last Compared: 2026-09-18
+
 #### M5 - Release 1.4.1
 
 Origin: 8ee915a / M5
@@ -330,7 +411,8 @@ Status: Not started
 Close the 1.4.1 cycle: stamp the release version, merge `release-1.4.1` into
 master, publish the annotated tag `1.4.1` and its GitHub release from the
 CHANGELOG section, and close the `1.4.1` milestone. Carries the two shipped
-changes #153 (M1) and #152 (M3) with their reference documents (M2, M4).
+changes #153 (M1) and #152 (M3) with their reference documents (M2, M4), and
+the `log` command (M6).
 
 ##### Scope
 
@@ -339,7 +421,7 @@ on the merged candidate, the two-host gate and the production system suite,
 and the release execution actions. Every git and GitHub action is separately
 authorized under `git-workflow`.
 
-Out of scope: any work item M1-M4 itself; new features beyond #152 and #153.
+Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, and the `log` command (D5).
 
 ##### Completion Criteria
 
@@ -349,7 +431,7 @@ Out of scope: any work item M1-M4 itself; new features beyond #152 and #153.
 
 ##### Dependencies And Decisions
 
-- M1, M2, M3, M4 complete before release readiness (phase 9).
+- M1, M2, M3, M4, M6 complete before release readiness (phase 9).
 
 ##### Integrated Verification
 
