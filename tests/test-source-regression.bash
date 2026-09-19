@@ -99,6 +99,8 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S20.case-insensitive-error-upper"
     "${SUITE_ID}.S20.case-insensitive-error-title"
     "${SUITE_ID}.S20.case-insensitive-error-lower"
+    "${SUITE_ID}.S20.negative-error-count-field"
+    "${SUITE_ID}.S20.negative-errors-column-header"
     "${SUITE_ID}.S20.case-insensitive-fatal-upper"
     "${SUITE_ID}.S20.case-insensitive-fatal-lower"
     "${SUITE_ID}.S20.negative-identifier-prefix-fatal"
@@ -1468,6 +1470,12 @@ function test_crash_pattern_source_contract {
     _verify_regex_source_fixture "match" "${base_patterns}" \
         "error: nullptr deref" \
         "${SUITE_ID}.S20.case-insensitive-error-lower"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "    Error count      : 0" \
+        "${SUITE_ID}.S20.negative-error-count-field"
+    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "polls sent replies errors  OID name" \
+        "${SUITE_ID}.S20.negative-errors-column-header"
     _verify_regex_source_fixture "match" "${base_patterns}" \
         "FATAL: aborting" \
         "${SUITE_ID}.S20.case-insensitive-fatal-upper"

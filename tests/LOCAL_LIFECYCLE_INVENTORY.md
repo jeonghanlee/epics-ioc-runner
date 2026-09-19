@@ -354,6 +354,20 @@ pre-existing override directory.
 - `local-lifecycle.S37.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | Cleanup performs no restart.
 - `local-lifecycle.S37.fixture-cleanup-complete` | `BEHAVIOR` | No service or drop-in residue remains.
 
+### S38 - Site Environment Layer (#152) (2)
+
+- `local-lifecycle.S38.site-env-value-reaches-ioc-environment-152` | `BEHAVIOR` | A value set only in `site.env` reaches the running IOC's environment.
+- `local-lifecycle.S38.per-ioc-conf-overrides-site-env-152` | `BEHAVIOR` | A key set in the per-IOC conf overrides the `site.env` value.
+
+### S39 - Post-Init ERROR Marker (#153) (6)
+
+- `local-lifecycle.S39.softioc-available` | `PREREQUISITE` | A real `softIoc` is available for the post-init probes.
+- `local-lifecycle.S39.report-lines-start-succeeds` | `BEHAVIOR` | An IOC emitting a zero `Error count` field and an `errors` column header after the marker starts with exit 0.
+- `local-lifecycle.S39.report-lines-no-warning` | `BEHAVIOR` | Those report lines raise no post-init warning.
+- `local-lifecycle.S39.error-marker-warns` | `BEHAVIOR` | A genuine `ERROR:` marker line after the marker raises the heuristic warning.
+- `local-lifecycle.S39.error-marker-shows-line` | `BEHAVIOR` | The warning shows the matched line.
+- `local-lifecycle.S39.ansi-error-marker-warns` | `BEHAVIOR` | The same marker wrapped in ANSI SGR sequences still raises the warning.
+
 ## Fixed Vector Rule
 
 Every source and installed invocation declares the same identities in this

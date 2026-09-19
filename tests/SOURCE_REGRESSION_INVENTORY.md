@@ -233,6 +233,8 @@ S20 defines twenty-eight REQUIRED direct-inspection identities. The runner sourc
 | `source-regression.S20.case-insensitive-error-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `ERROR`. |
 | `source-regression.S20.case-insensitive-error-title` | `REQUIRED` | `direct-inspection` | Base matching recognizes title-case `Error`. |
 | `source-regression.S20.case-insensitive-error-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `error`. |
+| `source-regression.S20.negative-error-count-field` | `REQUIRED` | `direct-inspection` | Base matching does not match a self-diagnostic `Error count` field (#153). |
+| `source-regression.S20.negative-errors-column-header` | `REQUIRED` | `direct-inspection` | Base matching does not match an `errors` column header (#153). |
 | `source-regression.S20.case-insensitive-fatal-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `FATAL`. |
 | `source-regression.S20.case-insensitive-fatal-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `fatal`. |
 | `source-regression.S20.negative-identifier-prefix-fatal` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` preceded by an identifier character and followed by a boundary. |

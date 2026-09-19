@@ -12,8 +12,8 @@ Next session entry point: implement M1 in `bin/ioc-runner` per D4 (heuristic
 warning text, matched-line output, `ERROR` marker rule with ANSI normalization),
 then run M1 / T1-T4. The 1.4.1 cycle is open on `release-1.4.1` (`RUNNER_VERSION`
 is `1.4.1-dev`). M2, M3, and M4 are Complete; #152 is commented and closed. M1's
-plan is accepted (D4); M6 (`log` command, D5) is added and becomes Ready when M1
-completes. Remaining owner-run GitHub step: the eventual master merge and tag.
+plan is accepted (D4); M6 (`log` command, D5) is added and Ready. Remaining
+owner-run GitHub step: the eventual master merge and tag.
 GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 ## Milestone
@@ -26,7 +26,7 @@ GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 | Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
-| Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Not started | No | M1, D5 | `ioc-runner [--local] log <name> [-f]` prints the tail of the IOC's effective procServ log file and follows it with `-f`; the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
+| Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Not started | Yes | D5 | `ioc-runner [--local] log <name> [-f]` prints the tail of the IOC's effective procServ log file and follows it with `-f`; the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
 | Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
 Tally: 5 milestone rows (2 Complete, 3 Not started). Backlog is reported separately below
@@ -352,7 +352,7 @@ Out of scope: journal integration, log rotation or layout changes, remote-host a
 
 ##### Dependencies And Decisions
 
-- M1 (the hint change applies to the reworded warning), D5.
+- D5. Sequencing note, not a dependency: land after M1 to avoid concurrent edits in the same start/restart region; the hint change applies whatever the warning wording.
 
 ##### Implementation Plan
 

@@ -257,6 +257,12 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S37|local-lifecycle.S37.fixture-cleanup-complete|BEHAVIOR"
     "S38|local-lifecycle.S38.site-env-value-reaches-ioc-environment-152|BEHAVIOR"
     "S38|local-lifecycle.S38.per-ioc-conf-overrides-site-env-152|BEHAVIOR"
+    "S39|local-lifecycle.S39.softioc-available|PREREQUISITE"
+    "S39|local-lifecycle.S39.report-lines-start-succeeds|BEHAVIOR"
+    "S39|local-lifecycle.S39.report-lines-no-warning|BEHAVIOR"
+    "S39|local-lifecycle.S39.error-marker-warns|BEHAVIOR"
+    "S39|local-lifecycle.S39.error-marker-shows-line|BEHAVIOR"
+    "S39|local-lifecycle.S39.ansi-error-marker-warns|BEHAVIOR"
 )
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -413,7 +419,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 38; index += 1)); do
+    for ((index = 1; index <= 39; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -1552,7 +1558,7 @@ function _probe_runtime_extra_gate {
     local extra_warned="false"
     local chronic="false"
     printf "%s" "${output}" | grep -q "CRASH_LOG_PATTERNS_EXTRA" && extra_warned="true"
-    printf "%s" "${output}" | grep -q "reported errors after initialization" && chronic="true"
+    printf "%s" "${output}" | grep -q "matching an error pattern" && chronic="true"
 
     case "${disposition}" in
         rejected)
@@ -2419,6 +2425,87 @@ function test_site_env_layer {
     rm -f "${site_env}"
 }
 
+# Probe helper for the post-init ERROR-marker checks (#153): build an IOC whose
+# st.cmd emits the given lines via `system` after iocInit (so they land after the
+# readiness marker), start it, print the runner output, and return its exit code.
+function _run_post_init_probe {
+    local ioc_name="$1"
+    local softioc_bin="$2"
+    shift 2
+    local ioc_dir="${WORKSPACE}/${ioc_name}"
+    local line out rc=0
+
+    mkdir -p "${ioc_dir}"
+    {
+        printf '#!%s\n' "${softioc_bin}"
+        printf 'iocInit\n'
+        for line in "$@"; do
+            printf '%s\n' "${line}"
+        done
+    } > "${ioc_dir}/st.cmd"
+    chmod +x "${ioc_dir}/st.cmd"
+
+    _install_crash_probe "${ioc_name}" "${ioc_dir}"
+    out=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || rc=$?
+    _remove_crash_probe "${ioc_name}"
+    printf '%s' "${out}"
+    return "${rc}"
+}
+
+# S39 (#153): the post-init corroboration warning is a heuristic hint. A healthy
+# IOC's own report text (a zero count field, a column header) after the marker
+# must not raise it, while a genuine ERROR: marker line does — including one
+# wrapped in the ANSI SGR sequences EPICS ERL_ERROR emits.
+function test_post_init_error_marker {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Post-init ERROR marker corroboration (#153)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping post-init marker test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S39.softioc-available"
+        return 0
+    fi
+    record_current_state PASS
+
+    local output rc warn shows ok
+
+    # T1: self-diagnostic report lines (a zero count field and a column header)
+    # after the marker must NOT raise the heuristic warning.
+    rc=0
+    output=$(_run_post_init_probe "PostInitReport" "${softioc_bin}" \
+        'system "echo Error count      : 0"' \
+        'system "echo polls sent replies errors  OID name"') || rc=$?
+    ok="false"; [[ "${rc}" == "0" ]] && ok="true"
+    verify_state "true" "${ok}" "Post-init report lines: start succeeds (exit 0)"
+    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    verify_state "false" "${warn}" "Post-init report lines: no warning"
+
+    # T2: a genuine ERROR: marker line after the marker raises the warning, and
+    # the matched line is shown beneath it.
+    output=$(_run_post_init_probe "PostInitError" "${softioc_bin}" \
+        'system "echo ERROR: iocInit reported a device problem"') || true
+    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    verify_state "true" "${warn}" "Post-init ERROR marker: warning raised"
+    shows="false"
+    if printf "%s" "${output}" | grep -q "matched line(s):" \
+        && printf "%s" "${output}" | grep -q "ERROR: iocInit reported a device problem"; then
+        shows="true"
+    fi
+    verify_state "true" "${shows}" "Post-init ERROR marker: matched line shown"
+
+    # T4: the same marker wrapped in ANSI SGR sequences (the ERL_ERROR rendering)
+    # still raises the warning after the scan normalizes the window.
+    local esc='\033'
+    local ansi_cmd="system \"printf '${esc}[31;1mERROR${esc}[0m: ansi device problem\\n'\""
+    output=$(_run_post_init_probe "PostInitAnsi" "${softioc_bin}" "${ansi_cmd}") || true
+    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    verify_state "true" "${warn}" "Post-init ANSI ERROR marker: warning raised"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -2459,6 +2546,7 @@ function run_all_tests {
         "test_m6_shared_asset_refresh"
         "test_m10_reliability"
         "test_site_env_layer"
+        "test_post_init_error_marker"
     )
 
     local step=1
