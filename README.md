@@ -17,6 +17,7 @@ This architecture requires the following core utilities to be installed on your 
 * **Three Execution Modes**: Supports system-wide deployment (via RBAC and sudoers), isolated local user environments for testing, and systemd-less container images (`--container`, s6 supervision, IOC output on the container stdout).
 * **Input Isolation (`monitor`)**: Safe, uni-directional console observation to prevent interleaving of unintended inputs during sensitive hardware operations.
 * **Advanced Peer Tracking (`inspect`)**: Deep Netlink inode correlation to map and isolate specific external users attached to UNIX Domain Sockets.
+* **Site Environment Layer (`site.env`)**: An optional site-wide `EnvironmentFile` layered under each IOC's configuration, so host-common EPICS settings such as the Channel Access and PVAccess client lists live in one place while the per-IOC configuration still overrides them.
 
 ## Installation
 
@@ -53,6 +54,7 @@ ioc-runner monitor myioc           # Safe, uni-directional observation
 
 # Diagnostic & Tracking
 ioc-runner list -vv                # Full kernel socket states and inodes
+ioc-runner log myioc               # Tail the IOC's effective procServ log (-f to follow)
 sudo ioc-runner inspect myioc      # Deep trace of active client PIDs (Admin only)
 ```
 
