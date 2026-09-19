@@ -8,12 +8,14 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
-Next session entry point: implement M1 in `bin/ioc-runner` per D4 (heuristic
-warning text, matched-line output, `ERROR` marker rule with ANSI normalization),
-then run M1 / T1-T4. The 1.4.1 cycle is open on `release-1.4.1` (`RUNNER_VERSION`
-is `1.4.1-dev`). M2, M3, and M4 are Complete; #152 is commented and closed. M1's
-plan is accepted (D4); M6 (`log` command, D5) is added and Ready. Remaining
-owner-run GitHub step: the eventual master merge and tag.
+Next session entry point: the D6 severity-marker rework (ADR 0004) is on
+`release-1.4.1`; re-run the golden gate on this candidate, repin
+`EXPECTED_IDENTITY_SHA256` from the clean run's reported value, then record
+M1 / T1-T4 and close M1. The prior candidate (045bcd5, the D4 colon rule) was
+falsified by the gate's S21 positive control. The 1.4.1 cycle is open on `release-1.4.1` (`RUNNER_VERSION` is
+`1.4.1-dev`). M2, M3, and M4 are Complete; #152 is commented and closed. M6
+(`log` command, D5) is Ready. Remaining owner-run GitHub step: the eventual
+master merge and tag.
 GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 ## Milestone
@@ -22,7 +24,7 @@ GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | Not started | Yes | D4 | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning; a genuine `ERROR:` marker line still warns with the heuristic wording and the matched line shown; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
+| Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | In progress | — | D4, D6 | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning; a genuine `ERROR:` marker line still warns with the heuristic wording and the matched line shown; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
 | Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
@@ -41,6 +43,7 @@ and excluded from this tally.
 | D3 | Every documented example address uses the RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), one per example network, so a multi-homed scenario is shown without any site value. | 2026-09-17 |
 | D4 | The post-initialization corroboration warning is a heuristic hint, not a verdict. Its text says so and directs the operator to the log, it prints the matched line(s), and the `ERROR` corroborating token matches the marker shape — `ERROR` followed by a colon, after ANSI SGR sequences are removed from the scan window — instead of the bare word. Count fields, column headers, and colon-less prose (including the transient `devSnmp ... read error` lines) no longer raise it. The fatal subset, the death-banner verdict, and `CRASH_LOG_PATTERNS_EXTRA` are unchanged. | 2026-09-18 |
 | D5 | A `log` command (`ioc-runner [--local] log <name> [-f]`) ships in 1.4.1 as its own work item, M6, separate from the #153 fix: the reworded warning directs the operator to the log, and the command is the one-step way there. | 2026-09-18 |
+| D6 | D4's corroborating-token mechanism is superseded: the built-in corroboration matches framework severity markers case-sensitively (the uppercase `ERROR` word, the PVXS ` ERR `/` CRIT ` level words, `sevr=major`/`sevr=fatal`) plus the existing case-insensitive message phrases, and never English error vocabulary — prose sensitivity is the per-IOC `CRASH_LOG_PATTERNS_EXTRA` opt-in. Grounds (the 33-module emission survey, the renderer evidence including colon-less `ERL_ERROR`, the healthy-log measurement) and the rejected alternatives are ADR 0004. D4's heuristic warning wording, matched-line display, and ANSI SGR normalization stand. | 2026-09-18 |
 
 ### Milestone Details
 
@@ -57,33 +60,33 @@ The ambiguous crash-detection subset matches `ERROR` as a bare, case-insensitive
 
 ##### Scope
 
-Rework the post-marker corroboration warning per D4: (1) reword it as a heuristic hint that directs the operator to the log; (2) print the matched line(s) under it; (3) change the `ERROR` corroborating token to the marker shape (`ERROR` followed by a colon) and remove ANSI SGR sequences from the scan window before matching, so report lines whose only `error` content is a count field, a column header, or colon-less prose no longer raise it while a genuine `ERROR:` marker line on a still-alive IOC still does. Update `docs/FAQ.md` Q6 and Q7 to state the rule and the heuristic nature of the warning, and the local lifecycle fixtures that assert the warning text.
+Rework the post-marker corroboration warning per D4/D6: (1) reword it as a heuristic hint that directs the operator to the log; (2) print the matched line(s) under it; (3) replace the bare `ERROR` vocabulary token with the case-sensitive severity subset (`CRASH_LOG_PATTERNS_SEVERITY`: the uppercase `ERROR` word, PVXS ` ERR `/` CRIT `, `sevr=major|fatal`), with ANSI SGR sequences removed from the scan window before matching, so healthy report vocabulary (a count field, a column header, lowercase prose) never corroborates while framework severity markers on a still-alive IOC do (ADR 0004). Update `docs/FAQ.md` Q6 and Q7, the source-regression S20/S21 pattern contracts, and the local lifecycle fixtures that assert the warning text.
 
-Out of scope: the fatal-subset pre-marker verdict, the crash-loop death-banner verdict, `CRASH_LOG_PATTERNS_EXTRA` validation, and the `log` command (M6). The transient first-poll `devSnmp ... read error` lines are colon-less prose and therefore stop raising the warning under the new rule; this is a consequence of D4, not a target of M1.
+Out of scope: the fatal-subset pre-marker verdict, the crash-loop death-banner verdict, `CRASH_LOG_PATTERNS_EXTRA` validation, and the `log` command (M6). The transient first-poll `devSnmp ... read error` lines are lowercase prose outside the severity subset and therefore stop raising the warning; this is a consequence of D6, not a target of M1.
 
 ##### Completion Criteria
 
 - A fixture log carrying `Error count      : 0` and an `errors  OID name` header after the readiness marker, and nothing else matching, starts without the warning.
-- A fixture log carrying a genuine `ERROR: ...` marker line after the marker on a still-alive IOC prints the warning with the heuristic wording, shows the matched line, and exits 0.
+- A fixture log carrying an uppercase `ERROR ...` severity line after the marker on a still-alive IOC prints the warning with the heuristic wording, shows the matched line, and exits 0.
 - The same marker wrapped in ANSI SGR sequences (the EPICS `ERL_ERROR` rendering) still prints the warning.
 - The existing fatal and crash-loop cases in the lifecycle suites are unchanged.
 
 ##### Dependencies And Decisions
 
-- D4 (matching rule and heuristic-warning principle). The log hint line keeps its current `tail -f` form here; M6 changes it to name `ioc-runner log <name>`.
+- D4 (heuristic-warning principle, matched-line display, ANSI normalization), D6 (severity-marker mechanism; ADR 0004). The log hint line keeps its current `tail -f` form here; M6 changes it to name `ioc-runner log <name>`.
 
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: 2026-09-18 (owner confirmed the three-part rework recorded as D4)
+Plan Acceptance: 2026-09-18 (owner confirmed the three-part rework as D4; amended same day to the D6 severity-marker mechanism after the gate falsified the colon rule — ADR 0004)
 Implementation Authorization: 2026-09-18
-Superseded Plan Artifacts: none
+Superseded Plan Artifacts: the D4 colon-marker step, superseded by D6
 
-1. In `read_startup_signals`, remove ANSI SGR sequences from the scan window before the exclusion filter and pattern matching.
-2. Change the `ERROR` token in `CRASH_LOG_PATTERNS_AMBIGUOUS` to the marker shape `ERROR[[:space:]]*:`, keeping the two subsets the single source of the base pattern and the case-insensitive match for every other token and for `CRASH_LOG_PATTERNS_EXTRA`.
-3. Reword the post-marker corroboration warning as a heuristic hint that directs the operator to the log, and print the matched line(s) (first few, truncated) beneath it before the existing log hint.
-4. Add the fixture cases to `tests/test-local-lifecycle.bash` next to the existing post-init warning check and update any assertion on the old warning text.
-5. Update `docs/FAQ.md` Q6 and Q7 to state the marker rule, the ANSI normalization, and that the warning is a heuristic to confirm in the log.
+1. In `read_startup_signals`, remove ANSI SGR sequences from the scan window before the exclusion filter and pattern matching (shared `crash_scan_filter`).
+2. Move `ERROR` out of `CRASH_LOG_PATTERNS_AMBIGUOUS` into the new case-sensitive `CRASH_LOG_PATTERNS_SEVERITY` (uppercase `ERROR` word, PVXS ` ERR `/` CRIT `, `sevr=major|fatal`); the ambiguous phrases and `CRASH_LOG_PATTERNS_EXTRA` stay case-insensitive.
+3. Reword the post-marker corroboration warning as a heuristic hint that directs the operator to the log, and print the matched line(s) (first few) beneath it before the existing log hint, unioning both match classes.
+4. Add the fixture cases to `tests/test-local-lifecycle.bash` next to the existing post-init warning check, update any assertion on the old warning text, and repin the source-regression S20/S21 pattern contracts to the severity subset (membership, case-sensitivity, benign vocabulary, normalized S21 positive control).
+5. Update `docs/FAQ.md` Q6 and Q7 to state the severity-marker rule, the ANSI normalization, the vocabulary opt-in via `CRASH_LOG_PATTERNS_EXTRA`, and that the warning is a heuristic to confirm in the log; record the grounds as ADR 0004.
 
 ##### Test Plan
 

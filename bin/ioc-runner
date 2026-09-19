@@ -122,13 +122,18 @@ declare -g CRASH_LOG_PATTERNS_FATAL="(^|[^[:alnum:]_])FATAL([^[:alnum:]_]|$)|Seg
 # here, not in the fatal subset: real EPICS emits "Invalid directory path, ignored"
 # as a benign pre-iocInit warning (the path is skipped and startup continues), so a
 # standalone pre-marker exit-1 on it false-fails a healthy IOC (golden-confirmed).
-# The ERROR token matches the error-marker shape 'ERROR:' (a colon may follow
-# after optional spaces), not the bare word, so a healthy IOC's own report text
-# no longer corroborates: 'Error count      : 0', an 'errors' column header, and
-# colon-less device prose ('devSnmp ... read error') all lack the colon marker.
-# read_startup_signals strips ANSI SGR sequences before matching, so an
-# ERL_ERROR-colored 'ERROR' (\e[...mERROR\e[0m: ...) still matches (#153).
-declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="ERROR[[:space:]]*:|Can't open|cannot open|No such file or directory|Invalid directory path"
+# These are case-insensitive message phrases; the former bare ERROR token moved
+# to the case-sensitive severity subset below (#153, ADR 0004).
+declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="Can't open|cannot open|No such file or directory|Invalid directory path"
+# Severity subset: corroborating only, matched CASE-SENSITIVELY, because the
+# markers are framework severity tags, not English vocabulary (ADR 0004): EPICS
+# Base ERL_ERROR is the uppercase word ERROR (errlog.h, ANSI-colored, no colon;
+# the scan strips ANSI SGR first), PVXS renders the level words ERR / CRIT, and
+# errlogSevPrintf prefixes 'sevr=<level>'. Prose 'error'/'Error'/'failed'/
+# 'Timeout' is healthy-report vocabulary (#153: 'Error count : 0', an 'errors'
+# column header) and never corroborates; module-specific prose belongs in the
+# per-IOC CRASH_LOG_PATTERNS_EXTRA key.
+declare -g CRASH_LOG_PATTERNS_SEVERITY="(^|[^[:alnum:]_])ERROR([^[:alnum:]_]|$)|(^|[[:space:]])(ERR|CRIT)([[:space:]]|$)|sevr=(major|fatal)"
 # Base detection set = the union of the two subsets above. Per-IOC custom
 # strings go in the CRASH_LOG_PATTERNS_EXTRA .conf key (issue #25); those are
 # corroborating only, never a standalone trigger.
@@ -1335,6 +1340,8 @@ function read_startup_signals {
     corro_present=0
     if grep -qaiE -- "${effective_patterns}" 2>/dev/null <<< "${filtered}"; then
         corro_present=1
+    elif grep -qaE -- "${CRASH_LOG_PATTERNS_SEVERITY}" 2>/dev/null <<< "${filtered}"; then
+        corro_present=1
     fi
 
     printf '%s %s %s %s' "${marker_rel}" "${banner_count}" "${fatal_present}" "${corro_present}"
@@ -1387,7 +1394,9 @@ function print_corro_matches {
 
     window=$(tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null || printf "")
     filtered=$(crash_scan_filter "${window}")
-    hits=$(grep -aiE -- "${effective_patterns}" 2>/dev/null <<< "${filtered}" || true)
+    hits=$({ grep -aiE -- "${effective_patterns}" 2>/dev/null <<< "${filtered}"; \
+             grep -aE -- "${CRASH_LOG_PATTERNS_SEVERITY}" 2>/dev/null <<< "${filtered}"; } \
+           | awk '!seen[$0]++' || true)
     [[ -z "${hits}" ]] && return 0
 
     printf "  matched line(s):\n" >&2

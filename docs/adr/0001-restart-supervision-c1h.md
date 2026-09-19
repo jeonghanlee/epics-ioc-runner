@@ -229,6 +229,14 @@ rules and the reasons they were chosen:
   Moved to the ambiguous subset; the base 10-token union is unchanged, so the
   crash-scan coverage CI-22 pins is unaffected.
 
+> **Addendum (2026-09-18, #153 / ADR 0004).** The token membership above is
+> historical as written: the bare `ERROR` token later moved out of the
+> ambiguous subset into the case-sensitive severity subset
+> (`CRASH_LOG_PATTERNS_SEVERITY`), so the base union is now the 5 fatal + 4
+> ambiguous phrases, with the severity markers matched beside it. The
+> fatal/ambiguous classification semantics this ADR defines are unchanged;
+> ADR 0004 carries the re-partition and its evidence.
+
 - **D034 — marker-less-but-active → Warning, exit 0.** An IOC that reaches
   `active` but never emits the readiness marker (e.g. a custom `st.cmd` that does
   not call `iocInit`) must not be reported as a failure — the operator's IOC is

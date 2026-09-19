@@ -96,11 +96,14 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S20.pattern-cannot-open"
     "${SUITE_ID}.S20.pattern-undefined-symbol"
     "${SUITE_ID}.S20.pattern-no-such-file-or-directory"
-    "${SUITE_ID}.S20.case-insensitive-error-upper"
-    "${SUITE_ID}.S20.case-insensitive-error-title"
-    "${SUITE_ID}.S20.case-insensitive-error-lower"
+    "${SUITE_ID}.S20.severity-error-upper-word"
+    "${SUITE_ID}.S20.prose-error-title-benign"
+    "${SUITE_ID}.S20.prose-error-lower-benign"
     "${SUITE_ID}.S20.negative-error-count-field"
     "${SUITE_ID}.S20.negative-errors-column-header"
+    "${SUITE_ID}.S20.severity-sevr-major-corroborates"
+    "${SUITE_ID}.S20.severity-pvxs-err-level-corroborates"
+    "${SUITE_ID}.S20.prose-pvxs-warn-level-benign"
     "${SUITE_ID}.S20.case-insensitive-fatal-upper"
     "${SUITE_ID}.S20.case-insensitive-fatal-lower"
     "${SUITE_ID}.S20.negative-identifier-prefix-fatal"
@@ -118,7 +121,8 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S20.subset-identifier-contained-fatal-is-benign"
     "${SUITE_ID}.S20.subset-undefined-symbol-is-fatal"
     "${SUITE_ID}.S20.subset-can-t-open-is-ambiguous"
-    "${SUITE_ID}.S20.subset-error-is-ambiguous"
+    "${SUITE_ID}.S20.subset-error-word-is-severity"
+    "${SUITE_ID}.S20.subset-error-title-not-severity"
     "${SUITE_ID}.S20.subset-invalid-directory-path-is-ambiguous"
     "${SUITE_ID}.S21.exclude-pattern.nonempty"
     "${SUITE_ID}.S21.exclude-pattern.compiles"
@@ -1420,9 +1424,46 @@ function _verify_regex_source_fixture {
     verify_state "${expected}" "${actual}" "${check_id}"
 }
 
-# Verifies base crash-pattern membership and the fatal/ambiguous source split.
-# The benign-noise exclusion pipeline is intentionally absent; S21 owns that
-# separate source contract.
+# Case-sensitive variant for the severity subset, whose whole point is that
+# the markers are framework tags, not vocabulary (#153, ADR 0004).
+function _verify_regex_source_fixture_cs {
+    local expected="$1"
+    local regex="$2"
+    local fixture="$3"
+    local check_id="$4"
+    local actual="nomatch"
+
+    if [[ -n "${regex}" ]] \
+       && grep -qE -- "${regex}" <<< "${fixture}"; then
+        actual="match"
+    fi
+    verify_state "${expected}" "${actual}" "${check_id}"
+}
+
+# Corroboration membership as the runner evaluates it (#153, ADR 0004): the
+# case-insensitive base union OR the case-sensitive severity subset. Callers
+# pass fixtures already normalized the way the runner's scan sees them.
+function _verify_corro_source_fixture {
+    local expected="$1"
+    local base_regex="$2"
+    local severity_regex="$3"
+    local fixture="$4"
+    local check_id="$5"
+    local actual="nomatch"
+
+    if [[ -n "${base_regex}" ]] \
+       && grep -qiE -- "${base_regex}" <<< "${fixture}"; then
+        actual="match"
+    elif [[ -n "${severity_regex}" ]] \
+       && grep -qE -- "${severity_regex}" <<< "${fixture}"; then
+        actual="match"
+    fi
+    verify_state "${expected}" "${actual}" "${check_id}"
+}
+
+# Verifies base crash-pattern membership, the fatal/ambiguous source split, and
+# the case-sensitive severity subset (#153, ADR 0004). The benign-noise
+# exclusion pipeline is intentionally absent; S21 owns that separate contract.
 function test_crash_pattern_source_contract {
     local step="$1"
     local runner_script="${REPO_TOP}/bin/ioc-runner"
@@ -1430,6 +1471,7 @@ function test_crash_pattern_source_contract {
     local base_declaration=""
     local fatal_patterns=""
     local ambiguous_patterns=""
+    local severity_patterns=""
 
     print_divider
     _log "INFO" "STEP ${step}: Verify Crash Pattern Source Contract"
@@ -1441,69 +1483,80 @@ function test_crash_pattern_source_contract {
         "CRASH_LOG_PATTERNS_FATAL" "${runner_script}")
     ambiguous_patterns=$(_runner_quoted_global \
         "CRASH_LOG_PATTERNS_AMBIGUOUS" "${runner_script}")
+    severity_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS_SEVERITY" "${runner_script}")
     base_patterns="(${fatal_patterns}|${ambiguous_patterns})"
 
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "ERROR st.cmd line 52: Unbalanced quote." \
         "${SUITE_ID}.S20.pattern-unbalanced-quote"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "Invalid directory path: /opt/ioc/missing" \
         "${SUITE_ID}.S20.pattern-invalid-directory-path"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "Can't open db/example.db" \
         "${SUITE_ID}.S20.pattern-can-t-open"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "iocsh: cannot open '/etc/protocol/foo.proto'" \
         "${SUITE_ID}.S20.pattern-cannot-open"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "symbol lookup error: undefined symbol: epicsRingNew" \
         "${SUITE_ID}.S20.pattern-undefined-symbol"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "/opt/ioc/iocBoot/iocX/st.cmd: No such file or directory" \
         "${SUITE_ID}.S20.pattern-no-such-file-or-directory"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "ERROR: device timeout" \
-        "${SUITE_ID}.S20.case-insensitive-error-upper"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "${SUITE_ID}.S20.severity-error-upper-word"
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "Error: cannot allocate" \
-        "${SUITE_ID}.S20.case-insensitive-error-title"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+        "${SUITE_ID}.S20.prose-error-title-benign"
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "error: nullptr deref" \
-        "${SUITE_ID}.S20.case-insensitive-error-lower"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+        "${SUITE_ID}.S20.prose-error-lower-benign"
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "    Error count      : 0" \
         "${SUITE_ID}.S20.negative-error-count-field"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "polls sent replies errors  OID name" \
         "${SUITE_ID}.S20.negative-errors-column-header"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
+        "sevr=major seq: queue overflow" \
+        "${SUITE_ID}.S20.severity-sevr-major-corroborates"
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
+        "2026-09-18T12:00:00.000 ERR pvxs.client.io request timed out" \
+        "${SUITE_ID}.S20.severity-pvxs-err-level-corroborates"
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
+        "2026-09-18T12:00:00.000 WARN pvxs.client.io retrying" \
+        "${SUITE_ID}.S20.prose-pvxs-warn-level-benign"
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "FATAL: aborting" \
         "${SUITE_ID}.S20.case-insensitive-fatal-upper"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "fatal allocation failure" \
         "${SUITE_ID}.S20.case-insensitive-fatal-lower"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "device_nonfatal=ready" \
         "${SUITE_ID}.S20.negative-identifier-prefix-fatal"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "fatalFlag=ready" \
         "${SUITE_ID}.S20.negative-fatal-identifier-suffix"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "device_nonfatal_state=ready" \
         "${SUITE_ID}.S20.negative-identifier-contained-fatal"
-    _verify_regex_source_fixture "match" "${base_patterns}" \
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "Segmentation fault (core dumped)" \
         "${SUITE_ID}.S20.regression-segmentation-fault"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "procServ: Restarting child" \
         "${SUITE_ID}.S20.negative-procserv-child-start-line"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "iocInit: All initialization complete" \
         "${SUITE_ID}.S20.negative-iocinit-complete-line"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "## EPICS R7.0.7 banner" \
         "${SUITE_ID}.S20.negative-epics-banner"
-    _verify_regex_source_fixture "nomatch" "${base_patterns}" \
+    _verify_corro_source_fixture "nomatch" "${base_patterns}" "${severity_patterns}" \
         "Starting iocsh.bash" \
         "${SUITE_ID}.S20.negative-startup-banner"
 
@@ -1529,9 +1582,12 @@ function test_crash_pattern_source_contract {
     _verify_regex_source_fixture "match" "${ambiguous_patterns}" \
         "Can't open db/example.db" \
         "${SUITE_ID}.S20.subset-can-t-open-is-ambiguous"
-    _verify_regex_source_fixture "match" "${ambiguous_patterns}" \
-        "ERROR: device timeout" \
-        "${SUITE_ID}.S20.subset-error-is-ambiguous"
+    _verify_regex_source_fixture_cs "match" "${severity_patterns}" \
+        "ERROR Permission denied (13) loading a file" \
+        "${SUITE_ID}.S20.subset-error-word-is-severity"
+    _verify_regex_source_fixture_cs "nomatch" "${severity_patterns}" \
+        "Error: cannot allocate" \
+        "${SUITE_ID}.S20.subset-error-title-not-severity"
     _verify_regex_source_fixture "match" "${ambiguous_patterns}" \
         "config: Invalid directory path, ignored" \
         "${SUITE_ID}.S20.subset-invalid-directory-path-is-ambiguous"
@@ -1545,7 +1601,11 @@ function test_crash_exclusion_source_contract {
     local base_patterns=""
     local fatal_patterns=""
     local ambiguous_patterns=""
+    local severity_patterns=""
+    local stripped_loading=""
     local exclude_patterns=""
+    local exclusion_needle=""
+    local exclusion_line=""
     local nonempty_state="empty"
     local compile_state="invalid"
     local compile_exit=2
@@ -1568,6 +1628,8 @@ function test_crash_exclusion_source_contract {
         "CRASH_LOG_PATTERNS_FATAL" "${runner_script}")
     ambiguous_patterns=$(_runner_quoted_global \
         "CRASH_LOG_PATTERNS_AMBIGUOUS" "${runner_script}")
+    severity_patterns=$(_runner_quoted_global \
+        "CRASH_LOG_PATTERNS_SEVERITY" "${runner_script}")
     base_patterns="(${fatal_patterns}|${ambiguous_patterns})"
     exclude_patterns=$(_runner_quoted_global \
         "CRASH_LOG_EXCLUDE_PATTERNS" "${runner_script}")
@@ -1589,8 +1651,11 @@ function test_crash_exclusion_source_contract {
     verify_state "valid" "${compile_state}" \
         "${SUITE_ID}.S21.exclude-pattern.compiles"
 
-    _verify_regex_source_fixture "match" "${base_patterns}" \
-        "${benign_loading}" \
+    # The runner strips ANSI SGR before the crash scan (crash_scan_filter), so
+    # the positive control is evaluated on the stripped form the scan sees.
+    stripped_loading=$(sed $'s/\033\\[[0-9;]*m//g' <<< "${benign_loading}")
+    _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
+        "${stripped_loading}" \
         "${SUITE_ID}.S21.history-load.matches-base-patterns"
 
     if [[ -n "${exclude_patterns}" ]] \
@@ -1600,19 +1665,24 @@ function test_crash_exclusion_source_contract {
     verify_state "match" "${writing_state}" \
         "${SUITE_ID}.S21.history-write.matches-exclude-pattern"
 
-    filter_needle="filtered=\$(grep -avE -- \"\${CRASH_LOG_EXCLUDE_PATTERNS}\" 2>/dev/null <<< \"\${window}\" || true)"
+    filter_needle="filtered=\$(crash_scan_filter \"\${window}\")"
+    exclusion_needle="filtered=\$(grep -avE -- \"\${CRASH_LOG_EXCLUDE_PATTERNS}\" 2>/dev/null <<< \"\${scan_window}\" || true)"
     fatal_scan_needle="if grep -qaiE -- \"\${CRASH_LOG_PATTERNS_FATAL}\" 2>/dev/null <<< \"\${filtered}\"; then"
     corroborating_scan_needle="if grep -qaiE -- \"\${effective_patterns}\" 2>/dev/null <<< \"\${filtered}\"; then"
     filter_line=$(run_as_invoker grep -nFm1 \
         "${filter_needle}" "${runner_script}" || true)
+    exclusion_line=$(run_as_invoker grep -nFm1 \
+        "${exclusion_needle}" "${runner_script}" || true)
     fatal_scan_line=$(run_as_invoker grep -nFm1 \
         "${fatal_scan_needle}" "${runner_script}" || true)
     corroborating_scan_line=$(run_as_invoker grep -nFm1 \
         "${corroborating_scan_needle}" "${runner_script}" || true)
     filter_line="${filter_line%%:*}"
+    exclusion_line="${exclusion_line%%:*}"
     fatal_scan_line="${fatal_scan_line%%:*}"
     corroborating_scan_line="${corroborating_scan_line%%:*}"
     if [[ "${filter_line}" =~ ^[0-9]+$ \
+          && "${exclusion_line}" =~ ^[0-9]+$ \
           && "${fatal_scan_line}" =~ ^[0-9]+$ \
           && "${corroborating_scan_line}" =~ ^[0-9]+$ \
           && ${filter_line} -lt ${fatal_scan_line} \

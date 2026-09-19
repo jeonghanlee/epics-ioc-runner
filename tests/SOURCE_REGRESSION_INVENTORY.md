@@ -230,11 +230,14 @@ S20 defines twenty-eight REQUIRED direct-inspection identities. The runner sourc
 | `source-regression.S20.pattern-cannot-open` | `REQUIRED` | `direct-inspection` | The base regex matches a `cannot open` line. |
 | `source-regression.S20.pattern-undefined-symbol` | `REQUIRED` | `direct-inspection` | The base regex matches an undefined-symbol line. |
 | `source-regression.S20.pattern-no-such-file-or-directory` | `REQUIRED` | `direct-inspection` | The base regex matches a missing-file line. |
-| `source-regression.S20.case-insensitive-error-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `ERROR`. |
-| `source-regression.S20.case-insensitive-error-title` | `REQUIRED` | `direct-inspection` | Base matching recognizes title-case `Error`. |
-| `source-regression.S20.case-insensitive-error-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `error`. |
+| `source-regression.S20.severity-error-upper-word` | `REQUIRED` | `direct-inspection` | The uppercase `ERROR` severity word corroborates via the case-sensitive severity subset (#153, ADR 0004). |
+| `source-regression.S20.prose-error-title-benign` | `REQUIRED` | `direct-inspection` | Title-case `Error:` prose does not corroborate (#153, ADR 0004). |
+| `source-regression.S20.prose-error-lower-benign` | `REQUIRED` | `direct-inspection` | Lowercase `error:` prose does not corroborate (#153, ADR 0004). |
 | `source-regression.S20.negative-error-count-field` | `REQUIRED` | `direct-inspection` | Base matching does not match a self-diagnostic `Error count` field (#153). |
 | `source-regression.S20.negative-errors-column-header` | `REQUIRED` | `direct-inspection` | Base matching does not match an `errors` column header (#153). |
+| `source-regression.S20.severity-sevr-major-corroborates` | `REQUIRED` | `direct-inspection` | An errlog `sevr=major` prefix corroborates (ADR 0004). |
+| `source-regression.S20.severity-pvxs-err-level-corroborates` | `REQUIRED` | `direct-inspection` | A PVXS `ERR` level word corroborates (ADR 0004). |
+| `source-regression.S20.prose-pvxs-warn-level-benign` | `REQUIRED` | `direct-inspection` | A PVXS `WARN` level word does not corroborate (ADR 0004). |
 | `source-regression.S20.case-insensitive-fatal-upper` | `REQUIRED` | `direct-inspection` | Base matching recognizes uppercase `FATAL`. |
 | `source-regression.S20.case-insensitive-fatal-lower` | `REQUIRED` | `direct-inspection` | Base matching recognizes lowercase `fatal`. |
 | `source-regression.S20.negative-identifier-prefix-fatal` | `REQUIRED` | `direct-inspection` | The base regex excludes `fatal` preceded by an identifier character and followed by a boundary. |
@@ -252,7 +255,8 @@ S20 defines twenty-eight REQUIRED direct-inspection identities. The runner sourc
 | `source-regression.S20.subset-identifier-contained-fatal-is-benign` | `REQUIRED` | `direct-inspection` | The fatal subset excludes `fatal` inside an identifier on both sides. |
 | `source-regression.S20.subset-undefined-symbol-is-fatal` | `REQUIRED` | `direct-inspection` | `undefined symbol` remains in the fatal subset. |
 | `source-regression.S20.subset-can-t-open-is-ambiguous` | `REQUIRED` | `direct-inspection` | `Can't open` remains in the ambiguous subset. |
-| `source-regression.S20.subset-error-is-ambiguous` | `REQUIRED` | `direct-inspection` | `ERROR` remains in the ambiguous subset. |
+| `source-regression.S20.subset-error-word-is-severity` | `REQUIRED` | `direct-inspection` | The uppercase `ERROR` word lives in the case-sensitive severity subset (#153, ADR 0004). |
+| `source-regression.S20.subset-error-title-not-severity` | `REQUIRED` | `direct-inspection` | Title-case `Error` is outside the severity subset, pinning its case sensitivity. |
 | `source-regression.S20.subset-invalid-directory-path-is-ambiguous` | `REQUIRED` | `direct-inspection` | `Invalid directory path` remains in the ambiguous subset. |
 
 ## Accepted M8 S21 Addition
@@ -263,9 +267,9 @@ S21 adds five REQUIRED direct-inspection identities accepted by the owner on 202
 | --- | --- | --- | --- |
 | `source-regression.S21.exclude-pattern.nonempty` | `REQUIRED` | `direct-inspection` | The exclusion source constant is nonempty. |
 | `source-regression.S21.exclude-pattern.compiles` | `REQUIRED` | `direct-inspection` | The exclusion source constant is valid for `grep -E`. |
-| `source-regression.S21.history-load.matches-base-patterns` | `REQUIRED` | `direct-inspection` | The emitted history-load diagnostic remains a base-pattern positive control before exclusion. |
+| `source-regression.S21.history-load.matches-base-patterns` | `REQUIRED` | `direct-inspection` | The emitted history-load diagnostic remains a corroboration positive control after ANSI SGR normalization, before exclusion. |
 | `source-regression.S21.history-write.matches-exclude-pattern` | `REQUIRED` | `direct-inspection` | The exclusion source constant recognizes the history-write diagnostic. |
-| `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The runner filters whole lines before fatal and corroborating scans consume the filtered window. |
+| `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The shared `crash_scan_filter` call precedes the fatal and corroborating scans, and the whole-line exclusion grep lives inside that filter. |
 
 ## M7 S22 Addition and M13 Extension
 
