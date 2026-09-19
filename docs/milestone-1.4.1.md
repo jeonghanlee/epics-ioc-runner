@@ -8,7 +8,7 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
-Next session entry point: M5 (release 1.4.1). M1-M4 and M6 are Complete;
+Next session entry point: M7 (mdBook docs site), then M5 (release 1.4.1). M1-M4 and M6 are Complete;
 #152, #153 are closed and #154 closes on this landing; the gate is full-green
 at the repinned identity (run 20260919T165029Z-494007). Open M5 through
 release-cycle: version bump, integrated re-gate, master merge, tag 1.4.1,
@@ -26,9 +26,10 @@ GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
 | Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Complete | — | D5 | `ioc-runner [--local] log <name> [-f] [-n <count>]` prints the tail of the IOC's effective procServ log file, follows it with `-f`, and sets the tail depth with `-n` (default 40); the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
-| Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
+| Documentation | M7 | mdBook documentation site over the existing docs, deployed to GitHub Pages (#155) | Milestone | In progress | — | — | `mdbook build` renders the existing `docs/` into a site with a curated `SUMMARY.md` (internal register docs excluded), and `.github/workflows/docs.yml` deploys it to GitHub Pages on push to master; [detail](#m7---mdbook-documentation-site) |
+| Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6, M7 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
-Tally: 6 milestone rows (5 Complete, 1 Not started). Backlog is reported separately below
+Tally: 7 milestone rows (5 Complete, 1 In progress, 1 Not started). Backlog is reported separately below
 and excluded from this tally.
 
 ### Decisions
@@ -398,6 +399,100 @@ Observed State: open
 Observed Labels: enhancement, area/inspect, P2-medium
 Observed Milestone: 1.4.1
 Last Compared: 2026-09-18
+
+#### M7 - mdBook documentation site
+
+Origin: 28cba65 / M7
+Identity History: none
+GitHub Issue: #155
+Status: In progress
+
+##### Summary
+
+Bundle the existing user-facing documentation into an mdBook site and deploy it
+to GitHub Pages, following the epics-trainings pattern (in-place `src = "docs"`)
+simplified to GitHub only (a single `book.toml`, no GitLab variant).
+
+##### Scope
+
+A repository-root `book.toml` (`src = "docs"`, `build-dir = "public"`, GitHub
+`git-repository-url` and `edit-url-template`), a curated `docs/SUMMARY.md` over
+the existing docs, a `.github/workflows/docs.yml` that builds with the
+`jeonghanlee/mdbook` container and deploys to GitHub Pages on push to master,
+and a `.gitignore` entry for the build output.
+
+Out of scope: rewriting or relocating the existing documents; a Makefile build
+target; publishing the internal register (`CLOSED_DOORS.md`, `milestone-*.md`,
+`review_sessions/`) and the Architecture Decision Records (`docs/adr/`), which
+stay out of `SUMMARY.md`. Enabling GitHub Pages with the GitHub Actions source
+is a repository setting performed by the owner.
+
+##### Completion Criteria
+
+- `mdbook build` renders the curated `docs/` into `public/` with no unresolved
+  SUMMARY reference.
+- The internal register documents are not published.
+- `.github/workflows/docs.yml` is valid and deploys to GitHub Pages on push to
+  master.
+
+##### Dependencies And Decisions
+
+- No milestone dependencies; ships in 1.4.1, so M5 depends on M7.
+- Decision (2026-09-19): GitHub-only, a single `book.toml`; in-place
+  `src = "docs"` per the epics-trainings pattern rather than relocating the
+  documents into `docs/src/`.
+- Decision (2026-09-19): the ADRs are maintainer decision-history, not end-user
+  documentation, so they are excluded from `SUMMARY.md` alongside the internal
+  register. `docs/FAQ.md` had a `<name>` placeholder inside an italic quote that
+  mdBook parsed as an unclosed HTML tag; it is backslash-escaped so it renders
+  literally.
+
+##### Implementation Plan
+
+1. Add `book.toml` at the repository root.
+2. Author `docs/SUMMARY.md` covering the user-facing chapters (overview,
+   install and uninstall, user guides, CLI reference, architecture, permission
+   model, network environment, log layout, exit and signal handling, and
+   FAQ).
+3. Add `.github/workflows/docs.yml` (build with the `jeonghanlee/mdbook`
+   container, deploy to GitHub Pages).
+4. Add `public/` to `.gitignore`.
+
+Acceptance: local `mdbook build` clean; SUMMARY resolves; internal docs absent
+from `public/`; workflow YAML valid.
+
+##### Test Plan
+
+- T1: `mdbook build` from a clean tree exits 0 with no missing-file error and no
+  unresolved SUMMARY link.
+- T2: the build output `public/` contains the curated chapters and none of the
+  internal register documents.
+- T3: `.github/workflows/docs.yml` parses as valid workflow YAML.
+
+##### Verification Results
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| T1 | Pass | `mdbook build` in the `jeonghanlee/mdbook` container: rc=0, no warning, HTML written to `public/` |
+| T2 | Pass | `public/` has the curated chapters; no `adr/`, `CLOSED_DOORS`, or `milestone-*` published |
+| T3 | Pass | `.github/workflows/docs.yml` parses as valid YAML |
+
+The GitHub Pages deployment itself is verified post-merge, after `docs.yml` runs
+on `master`.
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Add an mdBook documentation site deployed to GitHub Pages
+Labels: documentation
+GitHub Milestone: 1.4.1
+Observed State: open (#155)
+Observed Labels: documentation
+Observed Milestone: 1.4.1
+Last Compared: 2026-09-19
 
 #### M5 - Release 1.4.1
 
