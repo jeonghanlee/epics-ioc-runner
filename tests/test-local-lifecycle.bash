@@ -260,8 +260,10 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S39|local-lifecycle.S39.softioc-available|PREREQUISITE"
     "S39|local-lifecycle.S39.report-lines-start-succeeds|BEHAVIOR"
     "S39|local-lifecycle.S39.report-lines-no-warning|BEHAVIOR"
+    "S39|local-lifecycle.S39.error-marker-start-exits-zero|BEHAVIOR"
     "S39|local-lifecycle.S39.error-marker-warns|BEHAVIOR"
     "S39|local-lifecycle.S39.error-marker-shows-line|BEHAVIOR"
+    "S39|local-lifecycle.S39.ansi-error-marker-start-exits-zero|BEHAVIOR"
     "S39|local-lifecycle.S39.ansi-error-marker-warns|BEHAVIOR"
 )
 declare -g -A LOCAL_STEP_CHECK_IDS=()
@@ -2484,10 +2486,15 @@ function test_post_init_error_marker {
     warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
     verify_state "false" "${warn}" "Post-init report lines: no warning"
 
-    # T2: a genuine ERROR: marker line after the marker raises the warning, and
-    # the matched line is shown beneath it.
+    # T2: a genuine uppercase ERROR severity line after the marker raises the
+    # warning on a start that still exits 0 (D027: corroboration never fails a
+    # live IOC — the rc pin is what catches an errexit leak in the warn path),
+    # and the matched line is shown beneath it.
+    rc=0
     output=$(_run_post_init_probe "PostInitError" "${softioc_bin}" \
-        'system "echo ERROR: iocInit reported a device problem"') || true
+        'system "echo ERROR: iocInit reported a device problem"') || rc=$?
+    ok="false"; [[ "${rc}" == "0" ]] && ok="true"
+    verify_state "true" "${ok}" "Post-init ERROR marker: start exits 0"
     warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
     verify_state "true" "${warn}" "Post-init ERROR marker: warning raised"
     shows="false"
@@ -2501,7 +2508,10 @@ function test_post_init_error_marker {
     # still raises the warning after the scan normalizes the window.
     local esc='\033'
     local ansi_cmd="system \"printf '${esc}[31;1mERROR${esc}[0m: ansi device problem\\n'\""
-    output=$(_run_post_init_probe "PostInitAnsi" "${softioc_bin}" "${ansi_cmd}") || true
+    rc=0
+    output=$(_run_post_init_probe "PostInitAnsi" "${softioc_bin}" "${ansi_cmd}") || rc=$?
+    ok="false"; [[ "${rc}" == "0" ]] && ok="true"
+    verify_state "true" "${ok}" "Post-init ANSI ERROR marker: start exits 0"
     warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
     verify_state "true" "${warn}" "Post-init ANSI ERROR marker: warning raised"
 }

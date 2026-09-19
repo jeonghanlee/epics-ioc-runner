@@ -1403,8 +1403,14 @@ function print_corro_matches {
     while IFS= read -r line; do
         printf "    %s\n" "${line}" >&2
         n=$((n + 1))
-        (( n >= 3 )) && break
+        # Explicit if: a trailing '(( )) && break' would leave status 1 on the
+        # common fewer-than-three case and, under errexit, abort the warning
+        # path after the lines print but before its 'return 0'.
+        if (( n >= 3 )); then
+            break
+        fi
     done <<< "${hits}"
+    return 0
 }
 
 # Generate or correct the UNIX domain socket path based on the execution mode
