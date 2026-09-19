@@ -121,6 +121,13 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
 * **Press Ctrl-A** to safely detach from the console while leaving the IOC running in the background.
 
+To read the IOC's log without attaching, use the read-only `log` command. It resolves the effective procServ log file, shows the last 40 lines by default (`-n <count>` to change the depth), and follows the file with `-f`.
+
+```bash
+~/epics-ioc-runner/bin/ioc-runner --local log iocctrlslab-tcmd
+~/epics-ioc-runner/bin/ioc-runner --local -f log iocctrlslab-tcmd
+```
+
 ## 10. Service Control and Cleanup (Systemd Operations)
 The wrapper script acts as a frontend for `systemctl`. It fully supports standard systemd service lifecycle commands.
 
