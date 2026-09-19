@@ -8,14 +8,14 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 
-Next session entry point: the D6 severity-marker rework (ADR 0004) is on
-`release-1.4.1`; re-run the golden gate on this candidate, repin
-`EXPECTED_IDENTITY_SHA256` from the clean run's reported value, then record
-M1 / T1-T4 and close M1. The prior candidate (045bcd5, the D4 colon rule) was
-falsified by the gate's S21 positive control. The 1.4.1 cycle is open on `release-1.4.1` (`RUNNER_VERSION` is
-`1.4.1-dev`). M2, M3, and M4 are Complete; #152 is commented and closed. M6
-(`log` command, D5) is Ready. Remaining owner-run GitHub step: the eventual
-master merge and tag.
+Next session entry point: M1 (#153) is Complete (ADR 0004; gate run
+20260919T060839Z-218241 clean on both goldens) and the identity repin rides
+the commit carrying this row — run the confirming gate on this candidate
+(RUNBOOK check-identity step 4) for full-green Gate evidence, then M6
+(`log` command, D5) is the next Ready work. Owner-run GitHub steps: close
+#153; the eventual master merge and tag. The 1.4.1 cycle is open on
+`release-1.4.1` (`RUNNER_VERSION` is `1.4.1-dev`); M1-M4 are Complete and
+#152 is commented and closed.
 GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 ## Milestone
@@ -24,14 +24,14 @@ GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | In progress | — | D4, D6 | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning; a genuine `ERROR:` marker line still warns with the heuristic wording and the matched line shown; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
+| Detection | M1 | Stop the post-init warning on self-diagnostic `error` text (#153) | Milestone | Complete | — | D4, D6 | A healthy IOC whose post-marker `error` occurrences are report lines starts without the warning; an uppercase `ERROR` severity line still warns with the heuristic wording, the matched line shown, and exit 0; [detail](#m1---stop-the-post-init-warning-on-self-diagnostic-error-text) |
 | Environment | M2 | ADR 0003: site-wide environment layer under the per-IOC conf | Milestone | Complete | — | D1, D2, D3 | ADR accepted and indexed in `docs/adr/README.md`; [detail](#m2---adr-0003-site-wide-environment-layer-under-the-per-ioc-conf) |
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
 | Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Not started | Yes | D5 | `ioc-runner [--local] log <name> [-f]` prints the tail of the IOC's effective procServ log file and follows it with `-f`; the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
 | Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
-Tally: 5 milestone rows (2 Complete, 3 Not started). Backlog is reported separately below
+Tally: 6 milestone rows (4 Complete, 2 Not started). Backlog is reported separately below
 and excluded from this tally.
 
 ### Decisions
@@ -52,7 +52,7 @@ and excluded from this tally.
 Origin: 8ee915a / M1
 Identity History: none
 GitHub Issue: #153 https://github.com/jeonghanlee/epics-ioc-runner/issues/153
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -101,14 +101,14 @@ Superseded Plan Artifacts: the D4 colon-marker step, superseded by D6
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | top (Debian 13) | Pending | none |
-| T2 | Not run | top (Debian 13) | Pending | none |
-| T3 | Not run | top and rocky8-iocrunner VM | Pending | none |
-| T4 | Not run | top (Debian 13) | Pending | none |
+| T1 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | local S39 report-lines pair (start exit 0, no warning) PASS on both goldens; gate run 20260919T060839Z-218241 |
+| T2 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | local S39 error-marker trio (exit 0, heuristic warning, matched line shown) PASS on both goldens; same run |
+| T3 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | full six-suite matrix, both hosts, 12/12 rc=0, no FAIL/SKIP/SCRIPT_ERROR; only the examined OS-applicability NAs (rocky S29 per CI-32, debian S23); same run |
+| T4 | 2026-09-18 | rocky8 + debian13 iocrunner goldens | Pass | local S39 ANSI-marker pair (exit 0, warning) PASS on both goldens; same run |
 
 ##### Closure Evidence
 
-- none
+- Implementation commits on `release-1.4.1`: cd77398 (D6 severity subset, S20/S21 contracts, ADR 0004, FAQ) and 4d709fb (warning-path errexit fix, S39 exit-0 pins). Verification: gate run 20260919T060839Z-218241, both goldens, 12/12 suites PASS; identity repinned to that run's reported value in the commit carrying this row. Grounds: ADR 0004; D4/D6.
 
 ##### GitHub Projection
 
