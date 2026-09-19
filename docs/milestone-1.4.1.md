@@ -432,19 +432,25 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 ##### Dependencies And Decisions
 
 - M1, M2, M3, M4, M6 complete before release readiness (phase 9).
+- Decision (2026-09-19): the multi-user 14-scenario contract gate is required
+  for 1.4.1. #152 adds `EnvironmentFile=` to the shared system unit template
+  (multi-user S2 shared-configuration surface) and #154's `log` command reads
+  procServ log files (multi-user L3 and S5 log-isolation surface), so the
+  release must re-verify multi-user permission isolation. Added as Release
+  Verification 9.
 
 ##### Integrated Verification
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T3 | M3 template change merged onto the M1 detection change | `bin/ioc-runner`, local lifecycle suite | Release Verification 1 | Full local lifecycle and source-regression suites pass on the merged tree | pending |
-| M3 / T4 | M1 detection change merged onto the M3 template change | systemd unit templates, system lifecycle suite | Release Verification 2 | System lifecycle suite passes with no site file (behavior unchanged) | pending |
+| M1 / T3 | M3 template change merged onto the M1 detection change | `bin/ioc-runner`, local lifecycle suite | Release Verification 1 | Full local lifecycle and source-regression suites pass on the merged tree | Pass; gate-suites 20260919T184758Z on both goldens (811b546), GATE SUITES PASS |
+| M3 / T4 | M1 detection change merged onto the M3 template change | systemd unit templates, system lifecycle suite | Release Verification 2 | System lifecycle suite passes with no site file (behavior unchanged) | Pass; same run 20260919T184758Z, system-lifecycle green both hosts |
 
 ##### Production Environment Tests
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 3 | post-change | rocky8-iocrunner VM | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | pending |
+| Release Verification 3 | post-change | rocky8-iocrunner VM | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pass; gate-suites 20260919T202844Z (cf5cecc), GATE SUITES PASS hosts=2 |
 | Release Verification 4 | post-release | alsucl-psrv3 (Rocky NFS) | 1.4.1 | x86_64 | installed-mode `--system` suite in place | production system suite | Suite passes on root_squash workspace | pending |
 
 ##### Version Changes
@@ -477,19 +483,21 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | Release Verification 6 | Version | post-change | Version fields at their after state | working tree | Confirmed | command output |
 | Release Verification 7 | Release object | post-release | Tag and release identity on `origin` | GitHub | `1.4.1` present | tag and release URL |
 | Release Verification 8 | Tracker | post-release | Milestone `1.4.1` state and issue closure | GitHub | Closed | milestone URL |
+| Release Verification 9 | Multi-user | post-change | Multi-user 14-scenario contract (`run-all` driver) | rocky8-iocrunner + debian13-iocrunner VMs | Pass | run-all.log |
 
 ##### Release Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | Not run | top (Debian 13) | Pending | none |
-| Release Verification 2 | Not run | rocky8-iocrunner VM | Pending | none |
-| Release Verification 3 | Not run | rocky8-iocrunner VM | Pending | none |
+| Release Verification 1 | 2026-09-19 | rocky8 + debian13 goldens (suite matrix; top has no EPICS runtime) | Pass | gate-suites 20260919T184758Z, 811b546, GATE SUITES PASS, local-lifecycle + source-regression green |
+| Release Verification 2 | 2026-09-19 | rocky8 + debian13 goldens | Pass | same run 20260919T184758Z, system-lifecycle suite green both hosts |
+| Release Verification 3 | 2026-09-19 | rocky8 + debian13 goldens | Pass | gate-suites 20260919T202844Z, cf5cecc, GATE SUITES PASS hosts=2, no FAIL/SKIP/SCRIPT_ERROR |
 | Release Verification 4 | Not run | alsucl-psrv3 | Pending | none |
-| Release Verification 5 | Not run | working tree | Pending | none |
-| Release Verification 6 | Not run | working tree | Pending | none |
+| Release Verification 5 | 2026-09-19 | working tree | Confirmed | RUNNER_VERSION 1.4.1-dev and no CHANGELOG 1.4.1 section before the bump |
+| Release Verification 6 | 2026-09-19 | both goldens | Confirmed | `ioc-runner -V` reports 1.4.1 (cf5cecc) on both; CHANGELOG 1.4.1 section present |
 | Release Verification 7 | Not run | GitHub | Pending | none |
 | Release Verification 8 | Not run | GitHub | Pending | none |
+| Release Verification 9 | 2026-09-19 | rocky8 + debian13 goldens | Pass | run-all VERDICT RUN PASS, 14/14 scenarios both hosts, all P-* PASS |
 
 ##### Closure Evidence
 
