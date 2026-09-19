@@ -108,14 +108,14 @@ Superseded Plan Artifacts: the D4 colon-marker step, superseded by D6
 
 ##### Closure Evidence
 
-- Implementation commits on `release-1.4.1`: cd77398 (D6 severity subset, S20/S21 contracts, ADR 0004, FAQ) and 4d709fb (warning-path errexit fix, S39 exit-0 pins). Verification: gate run 20260919T060839Z-218241, both goldens, 12/12 suites PASS; identity repinned to that run's reported value in the commit carrying this row. Grounds: ADR 0004; D4/D6.
+- Implementation commits on `release-1.4.1`: cd77398 (D6 severity subset, S20/S21 contracts, ADR 0004, FAQ) and 4d709fb (warning-path errexit fix, S39 exit-0 pins). Verification: gate run 20260919T060839Z-218241, both goldens, 12/12 suites PASS; identity repinned to that run's reported value in the commit carrying this row. Grounds: ADR 0004; D4/D6. Confirming full-green gate: run 20260919T061758Z-227038 (identity pin matched). #153 closed 2026-09-18.
 
 ##### GitHub Projection
 
 Title: False positive: post-init warning triggered by IOC self-diagnostic output containing "error" substring
 Labels: bug, P2-medium, area/detection
 GitHub Milestone: 1.4.1
-Observed State: open
+Observed State: closed
 Observed Labels: bug, P2-medium, area/detection
 Observed Milestone: 1.4.1
 Last Compared: 2026-09-18
