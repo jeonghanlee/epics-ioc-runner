@@ -35,6 +35,9 @@ own diagnostic text no longer triggers it.
 - `docs/NETWORK_ENV.md` documents the Channel Access and PVAccess network
   environment variables, the per-IOC-over-site layering rule, and a multi-homed
   example, cross-linked from the user guide and FAQ. (#152)
+- The documentation is published as an mdBook site deployed to GitHub Pages: a
+  root `book.toml` over the existing `docs/`, a curated `docs/SUMMARY.md`, and a
+  `.github/workflows/docs.yml` build-and-deploy workflow. (#155)
 
 ### Tests
 

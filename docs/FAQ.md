@@ -131,7 +131,7 @@ When `ioc-runner start` (or `restart`) is executed, it polls the procServ log fo
 
 2. **At the marker (confirmed over a short ~3-second dwell):** a procServ death banner emitted after the marker reports a crash loop (`Error: IOC '<name>' is crash-looping.`, exit 1) — the only standalone failure trigger in this phase. A crash pattern emitted while the IOC stays alive (for example an `ERL_ERROR` line) is reported as a heuristic warning, not a failure, and the matched line(s) are shown so the operator can judge them:
 
-   *"Warning: IOC '<name>' is active, but its post-initialization log has line(s) matching an error pattern. This is a heuristic pattern match, not a verdict; confirm in the log below."*
+   *"Warning: IOC '\<name\>' is active, but its post-initialization log has line(s) matching an error pattern. This is a heuristic pattern match, not a verdict; confirm in the log below."*
 
    ANSI color sequences are removed from the log window before matching, so the ANSI-colored `ERROR` marker `ERL_ERROR` emits still matches.
 
@@ -227,4 +227,4 @@ EPICS_PVA_ADDR_LIST="192.0.2.10 192.0.2.11"
 EPICS_PVA_AUTO_ADDR_LIST="NO"
 ```
 
-The file is optional: an installation without it behaves exactly as before. When present, `install` checks it against the same non-executing `KEY="VALUE"` grammar as a conf — it is not a conf and carries no `IOC_*` keys, so it is validated for syntax only. See [NETWORK_ENV.md](NETWORK_ENV.md) for which variables belong in the shared layer versus a per-IOC conf, and [ADR 0003](adr/0003-site-environment-layer.md) for the mechanism.
+The file is optional: an installation without it behaves exactly as before. When present, `install` checks it against the same non-executing `KEY="VALUE"` grammar as a conf — it is not a conf and carries no `IOC_*` keys, so it is validated for syntax only. See [NETWORK_ENV.md](NETWORK_ENV.md) for which variables belong in the shared layer versus a per-IOC conf, and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md) for the mechanism.

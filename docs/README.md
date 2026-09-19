@@ -41,13 +41,13 @@ This directory contains the complete documentation for deploying, managing, and 
   Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
 
 ### 6. Release Cycle Runbook
-* **[../gate/RUNBOOK.md](../gate/RUNBOOK.md)**
+* **[gate/RUNBOOK.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/gate/RUNBOOK.md)**
   The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
 
 ### 7. Milestone Registers
-* **[milestone-1.3.0.md](milestone-1.3.0.md)**
+* **[milestone-1.3.0.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/milestone-1.3.0.md)**
   Completed canonical register for release 1.3.0.
-* **[milestone-1.4.1.md](milestone-1.4.1.md)**
+* **[milestone-1.4.1.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/milestone-1.4.1.md)**
   Active canonical register for the 1.4.1 release cycle. It owns the current
   Backlog.
 

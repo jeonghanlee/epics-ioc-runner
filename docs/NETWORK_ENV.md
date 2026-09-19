@@ -27,7 +27,7 @@ systemd applies later files over earlier ones, so a key set in both files takes
 the per-IOC value. A key set only in `site.env` reaches every IOC; a key set
 only in a conf reaches that IOC alone. The mechanism, its optional-file wiring,
 and the grammar rule for `site.env` are defined in
-[ADR 0003](adr/0003-site-environment-layer.md); the conf as an `EnvironmentFile`
+[ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md); the conf as an `EnvironmentFile`
 is covered in [FAQ.md](FAQ.md) Q2.
 
 The layering does not apply to the container backend, whose run script exports
@@ -257,7 +257,7 @@ Consequences to expect, from the asymmetries above:
 
 ## See also
 
-- [ADR 0003 — Site-Wide Environment Layer](adr/0003-site-environment-layer.md)
+- [ADR 0003 — Site-Wide Environment Layer](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md)
   — the decision, the optional-file wiring, and the `site.env` grammar rule.
 - [FAQ.md](FAQ.md) — the shared-variable question and the conf as an
   `EnvironmentFile`.

@@ -85,7 +85,7 @@ commonly the Channel Access and PV Access client discovery lists — can be set
 once in an optional site-wide file, `site.env`, alongside the per-IOC confs,
 rather than repeated in each conf. Each IOC reads it before its own conf, and a
 per-IOC conf overrides it. See [NETWORK_ENV.md](NETWORK_ENV.md) for which
-variables belong in the shared layer and [ADR 0003](adr/0003-site-environment-layer.md)
+variables belong in the shared layer and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md)
 for the mechanism.
 
 **Step 3: Install the Configuration**
