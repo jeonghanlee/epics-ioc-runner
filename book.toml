@@ -1,0 +1,16 @@
+# https://rust-lang.github.io/mdBook/format/configuration/general.html
+[book]
+title = "EPICS IOC Runner"
+description = "System-native deployment and management for EPICS IOCs under procServ"
+authors = ["Jeong Han Lee"]
+src = "docs"
+language = "en"
+
+[build]
+build-dir = "public"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/jeonghanlee/epics-ioc-runner"
+git-repository-icon = "fab-github"
+edit-url-template = "https://github.com/jeonghanlee/epics-ioc-runner/edit/master/docs/{path}"

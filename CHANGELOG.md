@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.4.1 - Site Environment and Diagnostics Release
+
+Layer an optional site-wide environment file under the per-IOC configuration,
+add a read-only `log` command for an IOC's procServ output, and narrow the
+post-initialization warning to framework severity markers so a healthy IOC's
+own diagnostic text no longer triggers it.
+
+### Added
+
+- An optional site environment file in both systemd unit templates
+  (`EnvironmentFile=-${CONF_DIR}/site.env`). A site value reaches the IOC
+  environment, the per-IOC configuration still overrides it, and an absent
+  file changes nothing. (#152)
+- A `log` command, `ioc-runner [--local] log <name> [-f] [-n <count>]`, that
+  prints the tail of the IOC's effective procServ log file, follows it with
+  `-f`, and sets the tail depth with `-n` (default 40). The post-initialization
+  warning now names this command in its hint. (#154)
+
+### Fixes
+
+- The post-initialization warning no longer fires on ordinary "error" text in a
+  healthy IOC's diagnostic output. Built-in corroboration now matches
+  case-sensitive framework severity markers (the uppercase `ERROR` word, the
+  PVXS `ERR` and `CRIT` levels, and `sevr=major` / `sevr=fatal`) alongside the
+  existing message phrases; free-form prose sensitivity moves to the per-IOC
+  `CRASH_LOG_PATTERNS_EXTRA` opt-in. (#153)
+
+### Documentation
+
+- ADR 0003 records the site-wide environment layer under the per-IOC
+  configuration, and ADR 0004 records the severity-marker corroboration
+  decision with its rejected alternatives. (#152, #153)
+- `docs/NETWORK_ENV.md` documents the Channel Access and PVAccess network
+  environment variables, the per-IOC-over-site layering rule, and a multi-homed
+  example, cross-linked from the user guide and FAQ. (#152)
+- The documentation is published as an mdBook site deployed to GitHub Pages: a
+  root `book.toml` over the existing `docs/`, a curated `docs/SUMMARY.md`, and a
+  `.github/workflows/docs.yml` build-and-deploy workflow. (#155)
+
+### Tests
+
+- The local and system lifecycle suites exercise the `log` command and the
+  severity-marker post-initialization path against a real IOC. (#153, #154)
+- A source-regression guard pins the severity-marker and prose-token
+  corroboration classes so the two match paths cannot silently converge. (#153)
+
 ## 1.4.0 - Container Execution Mode Release
 
 Add a systemd-less container execution mode: a third lifecycle backend that

@@ -127,11 +127,13 @@ The attached console is hardened against accidents: `^C`, `^D`, and `^]` are fil
 **Layer 2 — ioc-runner health checks (startup verification):**
 When `ioc-runner start` (or `restart`) is executed, it polls the procServ log for the EPICS readiness marker (`All initialization complete`) instead of waiting a fixed interval. The verdict depends on what appears before, at, and after that marker:
 
-1. **Before the marker (up to a 30-second readiness timeout):** a fatal-subset token — `FATAL`, `Segmentation fault`, `undefined symbol`, `error while loading`, `Unbalanced quote` — reports an immediate hard failure (`Error: IOC '<name>' failed to initialize (fatal error before iocInit).`, exit 1). A procServ death banner that recurs (the child dies and relaunches before initialization) reports a pre-iocInit crash loop (`Error: IOC '<name>' is crash-looping before reaching iocInit.`, exit 1). Ambiguous tokens — `ERROR`, `Can't open`, `cannot open`, `No such file or directory`, `Invalid directory path` — never fail on their own: a healthy IOC may print them (a missing optional file, a skipped path) and reach initialization a moment later.
+1. **Before the marker (up to a 30-second readiness timeout):** a fatal-subset token — `FATAL`, `Segmentation fault`, `undefined symbol`, `error while loading`, `Unbalanced quote` — reports an immediate hard failure (`Error: IOC '<name>' failed to initialize (fatal error before iocInit).`, exit 1). A procServ death banner that recurs (the child dies and relaunches before initialization) reports a pre-iocInit crash loop (`Error: IOC '<name>' is crash-looping before reaching iocInit.`, exit 1). Corroborating tokens — the message phrases `Can't open`, `cannot open`, `No such file or directory`, `Invalid directory path`, and the framework severity markers (the uppercase `ERROR` word EPICS `ERL_ERROR` emits, the PVXS ` ERR ` / ` CRIT ` level words, an errlog `sevr=major` / `sevr=fatal` prefix — matched case-sensitively) — never fail on their own: a healthy IOC may print a phrase (a missing optional file, a skipped path) and reach initialization a moment later. English error vocabulary is deliberately not matched: a report's `Error count : 0` field, an `errors` column header, or lowercase device prose is vocabulary, not a severity marker, and does not qualify (ADR 0004).
 
-2. **At the marker (confirmed over a short ~3-second dwell):** a procServ death banner emitted after the marker reports a crash loop (`Error: IOC '<name>' is crash-looping.`, exit 1) — the only standalone failure trigger in this phase. A crash pattern emitted while the IOC stays alive (for example a device-connection `ERROR`) is reported as a warning, not a failure:
+2. **At the marker (confirmed over a short ~3-second dwell):** a procServ death banner emitted after the marker reports a crash loop (`Error: IOC '<name>' is crash-looping.`, exit 1) — the only standalone failure trigger in this phase. A crash pattern emitted while the IOC stays alive (for example an `ERL_ERROR` line) is reported as a heuristic warning, not a failure, and the matched line(s) are shown so the operator can judge them:
 
-   *"Warning: IOC is active but reported errors after initialization (check device connections)."*
+   *"Warning: IOC '\<name\>' is active, but its post-initialization log has line(s) matching an error pattern. This is a heuristic pattern match, not a verdict; confirm in the log below."*
+
+   ANSI color sequences are removed from the log window before matching, so the ANSI-colored `ERROR` marker `ERL_ERROR` emits still matches.
 
 3. **Readiness timeout (no marker within the window):** if the unit is still active, it reports that the IOC is active but did not report initialization complete (a warning, exit 0 — the case of a slow device connection or a gateway IOC); if the unit is not active, it reports a hard failure (exit 1). If the log cannot be read, it says the startup log could not be read rather than claiming a clean start.
 
@@ -150,9 +152,9 @@ The patterns used by the startup health check are defined as a global variable a
 CRASH_LOG_PATTERNS="(${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS})"
 ```
 
-The base set is composed directly from `CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, so the two subsets are its single source of truth. Fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens never participate in a failure verdict at all - crash-loop failures are triggered by the procServ death banner alone. `FATAL` requires the start or end of a line, or a non-identifier character, on each respective side. The leading-only `device_nonfatal`, trailing-only `fatalFlag`, and both-sides `device_nonfatal_state` forms are therefore not fatal tokens. The only effect of an ambiguous token is the post-initialization warning on a still-alive IOC ("active but reported errors after initialization"). See Q6 for the full phase-by-phase behavior.
+The base set is composed directly from `CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, so the two subsets are its single source of truth. Fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens never participate in a failure verdict at all - crash-loop failures are triggered by the procServ death banner alone. `FATAL` requires the start or end of a line, or a non-identifier character, on each respective side. The leading-only `device_nonfatal`, trailing-only `fatalFlag`, and both-sides `device_nonfatal_state` forms are therefore not fatal tokens. The only effect of a corroborating token is the post-initialization warning on a still-alive IOC — a heuristic hint that shows the matched line(s) and asks the operator to confirm in the log, never a failure. Alongside the case-insensitive message phrases, a case-sensitive severity subset (`CRASH_LOG_PATTERNS_SEVERITY`) matches the framework markers — the uppercase `ERROR` word (`ERL_ERROR`), the PVXS ` ERR ` / ` CRIT ` level words, and `sevr=major` / `sevr=fatal` — with ANSI color sequences stripped from the log window first. English error vocabulary (`error`, `Error`, `failed`, `Timeout`) is deliberately outside the built-in set: modules phrase errors too differently for vocabulary to separate signal from healthy report text (ADR 0004), so module-specific phrasing belongs in `CRASH_LOG_PATTERNS_EXTRA` below. See Q6 for the full phase-by-phase behavior.
 
-For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. All pattern matching — the built-in set and `CRASH_LOG_PATTERNS_EXTRA` alike — is case-insensitive, so `Bergoz link lost` also matches `BERGOZ LINK LOST`; write tokens in their natural case and do not add case variants. These per-IOC tokens are corroborating only — they raise a warning on a still-alive IOC, never a standalone startup failure:
+For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. The phrase matching — the built-in message phrases and `CRASH_LOG_PATTERNS_EXTRA` alike — is case-insensitive, so `Bergoz link lost` also matches `BERGOZ LINK LOST`; write tokens in their natural case and do not add case variants. (Only the severity subset above is case-sensitive, by design.) These per-IOC tokens are corroborating only — they raise a warning on a still-alive IOC, never a standalone startup failure:
 
 ```bash
 # In the IOC conf
@@ -192,6 +194,9 @@ IOC console output is written to the dedicated procServ log file (`/var/log/proc
 
 For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24 monitor-isolation coverage with a WARN.
 
+
+`ioc-runner log <name>` (add `-f` to follow) prints the same effective log file without hand-building the path.
+
 ---
 
 ### Q10: What happens to my `attach` or `monitor` session when a colleague stops or removes the IOC?
@@ -205,3 +210,21 @@ If `remove` cannot stop the service, it aborts before deleting anything: the con
 ### Q11: `attach` says "Configuration for `<name>` not found" but the IOC is clearly running. Why?
 
 This is almost always a permission gate, not a missing configuration. Resolving a console target reads the IOC's `.conf` in `/etc/procServ.d/`, and that directory is `2770 root:ioc` — a user outside the `ioc` group cannot read it, so the lookup reports the configuration as not found before any socket access is attempted. The console socket sits behind a second gate: its directory (`/run/procserv/<name>/`, `0770 ioc-srv:ioc`) is not traversable outside the `ioc` group, and the socket file itself is `0660 ioc-srv:ioc`. Ask to be added to the `ioc` group if your role requires console access; read-only observation of service state works without it via `ioc-runner status <name>` or `systemctl status epics-@<name>.service`. The same boundary makes `ioc-runner list` show no sockets for non-`ioc` users (see the principal model in `PERMISSION_MODEL.md` and the multi-user scenarios S6 and S10 in `gate/RUNBOOK.md`).
+
+---
+
+### Q12: How do we set an EPICS environment variable the same way for every IOC on a host?
+
+**Use the optional site-wide environment file, `site.env`.** Place it next to the per-IOC confs — `${HOME}/.config/procServ.d/site.env` in local mode, `/etc/procServ.d/site.env` in system-wide mode — and each IOC unit reads it *before* its own `<ioc>.conf`. A `KEY="VALUE"` set only in `site.env` reaches every IOC on the host; a key set in an IOC's conf overrides the site value for that IOC alone, because `systemd` applies later `EnvironmentFile`s over earlier ones.
+
+The clearest use is the Channel Access and PV Access client discovery lists, which are identical for every IOC on a network:
+
+```bash
+# /etc/procServ.d/site.env
+EPICS_CA_ADDR_LIST="192.0.2.10 192.0.2.11"
+EPICS_CA_AUTO_ADDR_LIST="NO"
+EPICS_PVA_ADDR_LIST="192.0.2.10 192.0.2.11"
+EPICS_PVA_AUTO_ADDR_LIST="NO"
+```
+
+The file is optional: an installation without it behaves exactly as before. When present, `install` checks it against the same non-executing `KEY="VALUE"` grammar as a conf — it is not a conf and carries no `IOC_*` keys, so it is validated for syntax only. See [NETWORK_ENV.md](NETWORK_ENV.md) for which variables belong in the shared layer versus a per-IOC conf, and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md) for the mechanism.

@@ -86,6 +86,7 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S08|error-handling.S08.install-with-missing-system-template-exits-1|BEHAVIOR|real-path"
     "S08|error-handling.S08.install-directory-with-mismatched-conf-name-exits-1|BEHAVIOR|real-path"
     "S08|error-handling.S08.install-file-direct-with-invalid-ioc-name-exits-1|BEHAVIOR|real-path"
+    "S08|error-handling.S08.install-rejects-malformed-site-env-at-grammar-layer-152|BEHAVIOR|real-path"
     "S09|error-handling.S09.plain-list-succeeds-with-broken-ss-no-vv-dependency|BEHAVIOR|real-path"
     "S09|error-handling.S09.list-vv-with-broken-ss-exits-1|BEHAVIOR|real-path"
     "S09|error-handling.S09.list-vv-failure-names-ss-in-the-error|BEHAVIOR|real-path"
@@ -849,6 +850,25 @@ function test_install_errors {
     touch "${invalid_named_conf}"
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --local install "${invalid_named_conf}")
     verify_exit_code "1" "${exit_code}" "Install file-direct with invalid IOC name exits 1"
+
+    # Issue #152 / ADR 0003: a malformed site.env in CONF_DIR must be rejected at
+    # install time by the grammar layer (read_conf_all), not validate_conf. The
+    # source conf is valid, so the only failure is the site file's grammar.
+    local site_env_boot="${TEST_TMPDIR}/site_env_boot"
+    local site_env_conf_dir="${TEST_TMPDIR}/site_env_conf"
+    mkdir -p "${site_env_boot}" "${site_env_conf_dir}"
+    touch "${site_env_boot}/st.cmd"
+    chmod +x "${site_env_boot}/st.cmd"
+    ( cd "${site_env_boot}" && bash "${RUNNER_SCRIPT}" --local generate . >/dev/null 2>&1 )
+    printf 'this line has no equals sign\n' > "${site_env_conf_dir}/site.env"
+    local site_env_out site_env_rc=0 site_env_rejected="false"
+    site_env_out=$(cd "${site_env_boot}" && IOC_RUNNER_CONF_DIR="${site_env_conf_dir}" \
+        IOC_RUNNER_SYSTEMD_DIR="${TEST_TMPDIR}" bash "${RUNNER_SCRIPT}" --local -f install . 2>&1) \
+        || site_env_rc=$?
+    if [[ "${site_env_rc}" -ne 0 && "${site_env_out}" == *"failed the grammar check"* ]]; then
+        site_env_rejected="true"
+    fi
+    verify_state "true" "${site_env_rejected}" "'install' rejects a malformed site.env at the grammar layer"
 }
 
 

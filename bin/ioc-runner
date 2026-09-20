@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # --- Version Information ---
-declare -g RUNNER_VERSION="1.4.0"
+declare -g RUNNER_VERSION="1.4.1"
 declare -g RUNNER_GIT_HASH="unknown"
 declare -g RUNNER_COMMIT_DATE="unreleased"
 declare -g RUNNER_INSTALL_DATE="unreleased"
@@ -94,6 +94,7 @@ declare -g SCAN_DIR="${CONTAINER_SCAN_DIR}"
 
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
+declare -g LOG_TAIL_LINES=""
 # M6: set by the local shared-asset deploy helpers when a unit file actually
 # changed, so do_install issues exactly one daemon-reload only when needed.
 declare -g TEMPLATE_CHANGED=0
@@ -122,15 +123,27 @@ declare -g CRASH_LOG_PATTERNS_FATAL="(^|[^[:alnum:]_])FATAL([^[:alnum:]_]|$)|Seg
 # here, not in the fatal subset: real EPICS emits "Invalid directory path, ignored"
 # as a benign pre-iocInit warning (the path is skipped and startup continues), so a
 # standalone pre-marker exit-1 on it false-fails a healthy IOC (golden-confirmed).
-declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="ERROR|Can't open|cannot open|No such file or directory|Invalid directory path"
+# These are case-insensitive message phrases; the former bare ERROR token moved
+# to the case-sensitive severity subset below (#153, ADR 0004).
+declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="Can't open|cannot open|No such file or directory|Invalid directory path"
+# Severity subset: corroborating only, matched CASE-SENSITIVELY, because the
+# markers are framework severity tags, not English vocabulary (ADR 0004): EPICS
+# Base ERL_ERROR is the uppercase word ERROR (errlog.h, ANSI-colored, no colon;
+# the scan strips ANSI SGR first), PVXS renders the level words ERR / CRIT, and
+# errlogSevPrintf prefixes 'sevr=<level>'. Prose 'error'/'Error'/'failed'/
+# 'Timeout' is healthy-report vocabulary (#153: 'Error count : 0', an 'errors'
+# column header) and never corroborates; module-specific prose belongs in the
+# per-IOC CRASH_LOG_PATTERNS_EXTRA key.
+declare -g CRASH_LOG_PATTERNS_SEVERITY="(^|[^[:alnum:]_])ERROR([^[:alnum:]_]|$)|(^|[[:space:]])(ERR|CRIT)([[:space:]]|$)|sevr=(major|fatal)"
 # Base detection set = the union of the two subsets above. Per-IOC custom
 # strings go in the CRASH_LOG_PATTERNS_EXTRA .conf key (issue #25); those are
 # corroborating only, never a standalone trigger.
 declare -g CRASH_LOG_PATTERNS="(${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS})"
 # Benign startup lines removed from the scan input before pattern matching (issue #92).
 # The iocsh history load/save failure is emitted with ANSI escapes around 'ERROR'
-# (EPICS Base iocsh.cpp via ERL_ERROR), so the regex anchors on the escape-free message
-# tail and must not span the escape boundary or anchor on end-of-line (pty may add CR).
+# (EPICS Base iocsh.cpp via ERL_ERROR); the scan strips those SGR sequences before
+# this filter runs (#153), so the regex anchors on the message tail and must not
+# anchor on end-of-line (pty may add CR).
 # Case-sensitive by design; not user-extensible (an over-broad exclusion would silently
 # disable crash detection).
 declare -g CRASH_LOG_EXCLUDE_PATTERNS="Permission denied \([0-9]+\) (loading|writing) '[^']*iocsh_history'"
@@ -244,6 +257,9 @@ Commands:
   enable         Enable the IOC service to start on boot
   disable        Disable the IOC service from starting on boot
   view           Print the IOC configuration file and the rendered systemd unit
+  log            Print the last lines of the IOC's effective procServ log
+                   (-f: follow the log until interrupted)
+                   (-n <count>: number of lines to show; default 40)
   list           List all active IOC sockets
                    (default: name, status, start time, path)
                    (-v: adds PID, CPU, memory)
@@ -337,6 +353,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         -f|--force)
             FORCE_OVERWRITE=1
+            ;;
+        -n|--lines)
+            if [[ -z "${2:-}" || ! "${2}" =~ ^[1-9][0-9]*$ ]]; then
+                printf "Error: '%s' requires a positive integer line count.\n" "$1" >&2
+                exit 1
+            fi
+            LOG_TAIL_LINES="$2"
+            shift
             ;;
         -vv)
             VERBOSE_LEVEL=2
@@ -829,6 +853,7 @@ StartLimitAction=none
 [Service]
 Type=simple
 UMask=0027
+EnvironmentFile=-${CONF_DIR}/site.env
 EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
@@ -1315,12 +1340,10 @@ function read_startup_signals {
 
     banner_count=$(grep -aFc -- "${IOC_DEATH_BANNER}" 2>/dev/null <<< "${window}" || true)
 
-    # Issue #92: drop benign-noise lines before the crash scan (D026). The empty
-    # guard is mandatory: 'grep -v ""' would blank the whole window.
-    filtered="${window}"
-    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
-        filtered=$(grep -avE -- "${CRASH_LOG_EXCLUDE_PATTERNS}" 2>/dev/null <<< "${window}" || true)
-    fi
+    # Issue #153 / #92: normalize (ANSI SGR stripped) and drop benign-noise lines
+    # through the shared filter; the marker byte-offset scan above keeps the raw
+    # window so the caller's offset math is unaffected.
+    filtered=$(crash_scan_filter "${window}")
 
     fatal_present=0
     if grep -qaiE -- "${CRASH_LOG_PATTERNS_FATAL}" 2>/dev/null <<< "${filtered}"; then
@@ -1329,6 +1352,8 @@ function read_startup_signals {
     corro_present=0
     if grep -qaiE -- "${effective_patterns}" 2>/dev/null <<< "${filtered}"; then
         corro_present=1
+    elif grep -qaE -- "${CRASH_LOG_PATTERNS_SEVERITY}" 2>/dev/null <<< "${filtered}"; then
+        corro_present=1
     fi
 
     printf '%s %s %s %s' "${marker_rel}" "${banner_count}" "${fatal_present}" "${corro_present}"
@@ -1336,8 +1361,114 @@ function read_startup_signals {
 
 function print_log_file_hint {
     local log_file="$1"
+    local mode_flag=""
 
-    printf "  -> Check logs: tail -f %s\n" "${log_file}" >&2
+    # M6 (#154): name the one-step command; the log verb prints the same
+    # effective file this hint used to spell out as a raw tail.
+    if [[ "${EXEC_MODE}" == "local" ]]; then
+        mode_flag="--local "
+    fi
+    printf "  -> Check logs: ioc-runner %slog %s\n" "${mode_flag}" "${IOC_NAME}" >&2
+    printf "     (log file: %s)\n" "${log_file}" >&2
+}
+
+# M6 (#154): print the tail of an IOC's effective procServ log, or follow it
+# with -f. The path comes from the same deployed-unit resolution start and
+# restart verify, so what this shows is what the service actually writes.
+function do_log {
+    local unit=""
+    local log_file=""
+    local -a tail_cmd=()
+
+    if [[ -z "${IOC_NAME}" ]]; then
+        printf "Error: 'log' requires an IOC name.\n" >&2
+        exit 1
+    fi
+    require_installed_conf "${IOC_NAME}" "log"
+    if [[ "${EXEC_MODE}" == "container" ]]; then
+        printf "Error: container mode writes IOC output to stdout; there is no log file to show.\n" >&2
+        exit 1
+    fi
+    unit="epics-@${IOC_NAME}.service"
+    if ! resolve_effective_launch_command "${unit}"; then
+        printf "Error: unable to resolve the log file for IOC '%s': %s.\n" \
+            "${IOC_NAME}" "${EFFECTIVE_LAUNCH_ERROR}" >&2
+        exit 1
+    fi
+    log_file="${EFFECTIVE_LOG_FILE}"
+    if [[ ! -f "${log_file}" ]]; then
+        printf "Error: log file not found for IOC '%s': %s.\n" "${IOC_NAME}" "${log_file}" >&2
+        printf "  -> The IOC may not have been started in this mode yet.\n" >&2
+        exit 1
+    fi
+    # The global -f flag has no force meaning on this read-only verb; it
+    # selects follow, matching the documented 'log <name> [-f] [-n <count>]'
+    # shape. -n overrides the default tail depth.
+    tail_cmd=(tail -n "${LOG_TAIL_LINES:-40}")
+    if [[ "${FORCE_OVERWRITE:-0}" == "1" ]]; then
+        tail_cmd+=(-f)
+    fi
+    exec "${tail_cmd[@]}" -- "${log_file}"
+}
+
+# Remove ANSI SGR (color) sequences (CSI ... m) from text so a token wrapped by
+# EPICS ERL_ERROR (\e[31;1mERROR\e[0m: ...) matches the same pattern as a plain
+# one. SGR only, not every CSI; callers that need byte offsets must scan the raw
+# text, not this. Pure bash so the start/restart scan adds no external tool (#153).
+function strip_ansi_sgr {
+    local text="$1"
+    local sgr=$'\033''\[[0-9;]*m'
+
+    while [[ "${text}" =~ ${sgr} ]]; do
+        text="${text/"${BASH_REMATCH[0]}"/}"
+    done
+    printf '%s' "${text}"
+}
+
+# Normalize a log window for the crash-pattern scan: strip ANSI SGR sequences,
+# then drop the #92 benign-noise lines (D026). The signal scan and the
+# matched-line display both go through this one function, so what tripped the
+# warning and what is shown are the same lines (#153). The empty guard is
+# mandatory: 'grep -v ""' would blank the whole window. Byte-offset scans (the
+# readiness marker) must use the raw window, not this.
+function crash_scan_filter {
+    local window="$1"
+    local scan_window filtered
+
+    scan_window=$(strip_ansi_sgr "${window}")
+    filtered="${scan_window}"
+    if [[ -n "${CRASH_LOG_EXCLUDE_PATTERNS}" ]]; then
+        filtered=$(grep -avE -- "${CRASH_LOG_EXCLUDE_PATTERNS}" 2>/dev/null <<< "${scan_window}" || true)
+    fi
+    printf '%s' "${filtered}"
+}
+
+# Show the log line(s) that tripped the heuristic post-init corroboration match,
+# so the operator can judge them, using the same normalization and exclusion as
+# the scan (#153). Prints at most the first three matches to stderr.
+function print_corro_matches {
+    local log_file="$1" scan_offset="$2" effective_patterns="$3"
+    local window filtered hits line n=0
+
+    window=$(tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null || printf "")
+    filtered=$(crash_scan_filter "${window}")
+    hits=$({ grep -aiE -- "${effective_patterns}" 2>/dev/null <<< "${filtered}"; \
+             grep -aE -- "${CRASH_LOG_PATTERNS_SEVERITY}" 2>/dev/null <<< "${filtered}"; } \
+           | awk '!seen[$0]++' || true)
+    [[ -z "${hits}" ]] && return 0
+
+    printf "  matched line(s):\n" >&2
+    while IFS= read -r line; do
+        printf "    %s\n" "${line}" >&2
+        n=$((n + 1))
+        # Explicit if: a trailing '(( )) && break' would leave status 1 on the
+        # common fewer-than-three case and, under errexit, abort the warning
+        # path after the lines print but before its 'return 0'.
+        if (( n >= 3 )); then
+            break
+        fi
+    done <<< "${hits}"
+    return 0
 }
 
 # Generate or correct the UNIX domain socket path based on the execution mode
@@ -2225,6 +2356,20 @@ function do_install {
             printf "Error: No write permission to %s.\n" "${CONF_DIR}" >&2
         fi
         exit 1
+    fi
+
+    # Grammar-check an optional site-wide environment file (ADR 0003). It is not
+    # a conf -- it carries EPICS environment variables, not the IOC_* keys -- so
+    # only the bounded parser must accept it; validate_conf's required-key check
+    # would reject a legitimate site file. The unit template layers it under
+    # %i.conf, so per-IOC keys still override it.
+    local site_env_file="${CONF_DIR}/site.env"
+    if [[ -f "${site_env_file}" ]]; then
+        local -A site_env_map
+        if ! read_conf_all "${site_env_file}" site_env_map "${site_env_file}"; then
+            printf "Error: Site environment file %s failed the grammar check.\n" "${site_env_file}" >&2
+            exit 1
+        fi
     fi
 
     local target_conf="${CONF_DIR}/${IOC_NAME}.conf"
@@ -3376,7 +3521,9 @@ function do_start_restart {
         exit 1
     fi
     if (( p_corro >= 1 )); then
-        printf "\nWarning: IOC '%s' is active but reported errors after initialization (check device connections).\n" "${IOC_NAME}" >&2
+        printf "\nWarning: IOC '%s' is active, but its post-initialization log has line(s) matching an error pattern.\n" "${IOC_NAME}" >&2
+        printf "This is a heuristic pattern match, not a verdict; confirm in the log below.\n" >&2
+        print_corro_matches "${log_file}" "${p_off}" "${effective_patterns}"
         print_log_file_hint "${log_file}"
         return 0
     fi
@@ -3408,6 +3555,9 @@ case "${COMMAND_ACTION}" in
         ;;
     view)
         do_view
+        ;;
+    log)
+        do_log
         ;;
     stop|enable|disable)
         if [[ -z "${IOC_NAME}" ]]; then

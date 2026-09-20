@@ -17,6 +17,8 @@ This directory contains the complete documentation for deploying, managing, and 
   Provides technical specifications, kernel-level socket state mappings, and data flow architecture for the diagnostic and console access commands (`list`, `inspect`, `attach`, `monitor`).
 * **[EXIT_SIGNAL_HANDLING.md](EXIT_SIGNAL_HANDLING.md)**
   Provides a technical deep dive into the signaling mechanics between systemd and procServ. It explains why specific exit codes (e.g., 143) are whitelisted to ensure reliable service monitoring.
+* **[NETWORK_ENV.md](NETWORK_ENV.md)**
+  Topic reference for the Channel Access and PV Access network environment variables an IOC reads: which values belong in the shared `site.env` layer versus a per-IOC conf, the four variable tables with their defaults, the CA/PVA beacon asymmetries, and a multi-homed worked example.
 
 ### 2. Infrastructure Setup (System Administrators)
 * **[INSTALL.md](INSTALL.md)**
@@ -39,14 +41,14 @@ This directory contains the complete documentation for deploying, managing, and 
   Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
 
 ### 6. Release Cycle Runbook
-* **[../gate/RUNBOOK.md](../gate/RUNBOOK.md)**
+* **[gate/RUNBOOK.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/gate/RUNBOOK.md)**
   The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
 
 ### 7. Milestone Registers
-* **[milestone-1.3.0.md](milestone-1.3.0.md)**
+* **[milestone-1.3.0.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/milestone-1.3.0.md)**
   Completed canonical register for release 1.3.0.
-* **[milestone-8ee915a.md](milestone-8ee915a.md)**
-  Active master-generation register after release 1.4.0. It owns the current
+* **[milestone-1.4.1.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/milestone-1.4.1.md)**
+  Active canonical register for the 1.4.1 release cycle. It owns the current
   Backlog.
 
 ## Upgrading from 1.0.x

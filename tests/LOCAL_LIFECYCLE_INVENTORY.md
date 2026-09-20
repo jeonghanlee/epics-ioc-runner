@@ -354,6 +354,32 @@ pre-existing override directory.
 - `local-lifecycle.S37.timeout-cleanup-preserves-mainpid` | `BEHAVIOR` | Cleanup performs no restart.
 - `local-lifecycle.S37.fixture-cleanup-complete` | `BEHAVIOR` | No service or drop-in residue remains.
 
+### S38 - Site Environment Layer (#152) (2)
+
+- `local-lifecycle.S38.site-env-value-reaches-ioc-environment-152` | `BEHAVIOR` | A value set only in `site.env` reaches the running IOC's environment.
+- `local-lifecycle.S38.per-ioc-conf-overrides-site-env-152` | `BEHAVIOR` | A key set in the per-IOC conf overrides the `site.env` value.
+
+### S39 - Post-Init ERROR Marker (#153) (8)
+
+- `local-lifecycle.S39.softioc-available` | `PREREQUISITE` | A real `softIoc` is available for the post-init probes.
+- `local-lifecycle.S39.report-lines-start-succeeds` | `BEHAVIOR` | An IOC emitting a zero `Error count` field and an `errors` column header after the marker starts with exit 0.
+- `local-lifecycle.S39.report-lines-no-warning` | `BEHAVIOR` | Those report lines raise no post-init warning.
+- `local-lifecycle.S39.error-marker-start-exits-zero` | `BEHAVIOR` | A corroborated start still exits 0 (D027).
+- `local-lifecycle.S39.error-marker-warns` | `BEHAVIOR` | A genuine `ERROR:` marker line after the marker raises the heuristic warning.
+- `local-lifecycle.S39.error-marker-shows-line` | `BEHAVIOR` | The warning shows the matched line.
+- `local-lifecycle.S39.ansi-error-marker-start-exits-zero` | `BEHAVIOR` | The ANSI-marker start also exits 0.
+- `local-lifecycle.S39.ansi-error-marker-warns` | `BEHAVIOR` | The same marker wrapped in ANSI SGR sequences still raises the warning.
+
+### S40 - Log Command (#154) (7)
+
+- `local-lifecycle.S40.softioc-available` | `PREREQUISITE` | A real `softIoc` is available for the log-verb probe.
+- `local-lifecycle.S40.log-tail-shows-marker` | `BEHAVIOR` | `log` prints the running IOC's tail including the readiness marker.
+- `local-lifecycle.S40.log-follow-streams` | `BEHAVIOR` | `log -f` follows until interrupted.
+- `local-lifecycle.S40.log-n-limits-lines` | `BEHAVIOR` | `log -n <count>` limits output to the requested line count.
+- `local-lifecycle.S40.log-unknown-ioc-fails` | `BEHAVIOR` | `log` on an unknown IOC exits non-zero with the not-installed message.
+- `local-lifecycle.S40.log-missing-file-fails` | `BEHAVIOR` | `log` on a never-started IOC exits non-zero naming the missing file.
+- `local-lifecycle.S40.hint-names-log-command` | `REQUIRED` | The post-init hint text names `ioc-runner log`.
+
 ## Fixed Vector Rule
 
 Every source and installed invocation declares the same identities in this

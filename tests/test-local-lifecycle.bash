@@ -255,6 +255,23 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S37|local-lifecycle.S37.timeout-cleanup-reaps-inspect|BEHAVIOR"
     "S37|local-lifecycle.S37.timeout-cleanup-preserves-mainpid|BEHAVIOR"
     "S37|local-lifecycle.S37.fixture-cleanup-complete|BEHAVIOR"
+    "S38|local-lifecycle.S38.site-env-value-reaches-ioc-environment-152|BEHAVIOR"
+    "S38|local-lifecycle.S38.per-ioc-conf-overrides-site-env-152|BEHAVIOR"
+    "S39|local-lifecycle.S39.softioc-available|PREREQUISITE"
+    "S39|local-lifecycle.S39.report-lines-start-succeeds|BEHAVIOR"
+    "S39|local-lifecycle.S39.report-lines-no-warning|BEHAVIOR"
+    "S39|local-lifecycle.S39.error-marker-start-exits-zero|BEHAVIOR"
+    "S39|local-lifecycle.S39.error-marker-warns|BEHAVIOR"
+    "S39|local-lifecycle.S39.error-marker-shows-line|BEHAVIOR"
+    "S39|local-lifecycle.S39.ansi-error-marker-start-exits-zero|BEHAVIOR"
+    "S39|local-lifecycle.S39.ansi-error-marker-warns|BEHAVIOR"
+    "S40|local-lifecycle.S40.softioc-available|PREREQUISITE"
+    "S40|local-lifecycle.S40.log-tail-shows-marker|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-follow-streams|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-n-limits-lines|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-unknown-ioc-fails|BEHAVIOR"
+    "S40|local-lifecycle.S40.log-missing-file-fails|BEHAVIOR"
+    "S40|local-lifecycle.S40.hint-names-log-command|REQUIRED"
 )
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -411,7 +428,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 37; index += 1)); do
+    for ((index = 1; index <= 40; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -1550,7 +1567,7 @@ function _probe_runtime_extra_gate {
     local extra_warned="false"
     local chronic="false"
     printf "%s" "${output}" | grep -q "CRASH_LOG_PATTERNS_EXTRA" && extra_warned="true"
-    printf "%s" "${output}" | grep -q "reported errors after initialization" && chronic="true"
+    printf "%s" "${output}" | grep -q "matching an error pattern" && chronic="true"
 
     case "${disposition}" in
         rejected)
@@ -2369,6 +2386,217 @@ source "${SC_TOP}/lib/test-m14-process-context.bash"
 # shellcheck source=lib/test-m10-local.bash
 source "${SC_TOP}/lib/test-m10-local.bash"
 
+# (#152 / ADR 0003) The optional site-wide environment file layers under the
+# per-IOC conf: a key set only in site.env reaches the IOC process environment,
+# and a key set in both takes the per-IOC value. Verified against the running
+# procServ process's /proc/<pid>/environ -- the real systemd EnvironmentFile
+# path, not a substitute. Reuses the generated conf; the main IOC was removed
+# by an earlier step, so this installs it fresh and removes it on completion.
+function test_site_env_layer {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Site-wide Environment Layer (#152)"
+    print_sub_divider
+
+    local site_env="${CONF_DIR}/site.env"
+    local probe="SITE_ENV_PROBE"
+    local main_pid=""
+
+    # (a) A key set only in site.env reaches the running IOC environment.
+    printf '%s="site-value"\n' "${probe}" > "${site_env}"
+    bash "${RUNNER_SCRIPT}" --local -f install "${CONF_FILE}" >/dev/null 2>&1 || true
+    bash "${RUNNER_SCRIPT}" --local start "${IOC_NAME}" >/dev/null 2>&1 || true
+    wait_for_state "active" || true
+
+    local site_value="__unset__"
+    main_pid=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p MainPID --value 2>/dev/null || true)
+    if [[ -n "${main_pid}" && "${main_pid}" != "0" && -r "/proc/${main_pid}/environ" ]]; then
+        site_value=$(tr '\0' '\n' < "/proc/${main_pid}/environ" | sed -n "s/^${probe}=//p" | head -n1)
+    fi
+    verify_state "site-value" "${site_value}" "Value set only in site.env reaches the IOC environment"
+
+    # (b) A key set in both site.env and the per-IOC conf takes the conf value.
+    # Stop first: reinstalling a running IOC's conf is refused ("currently active").
+    bash "${RUNNER_SCRIPT}" --local stop "${IOC_NAME}" >/dev/null 2>&1 || true
+    printf '%s="conf-value"\n' "${probe}" >> "${CONF_FILE}"
+    bash "${RUNNER_SCRIPT}" --local -f install "${CONF_FILE}" >/dev/null 2>&1 || true
+    bash "${RUNNER_SCRIPT}" --local start "${IOC_NAME}" >/dev/null 2>&1 || true
+    wait_for_state "active" || true
+
+    local override_value="__unset__"
+    main_pid=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p MainPID --value 2>/dev/null || true)
+    if [[ -n "${main_pid}" && "${main_pid}" != "0" && -r "/proc/${main_pid}/environ" ]]; then
+        override_value=$(tr '\0' '\n' < "/proc/${main_pid}/environ" | sed -n "s/^${probe}=//p" | head -n1)
+    fi
+    verify_state "conf-value" "${override_value}" "Per-IOC conf overrides the site.env value"
+
+    bash "${RUNNER_SCRIPT}" --local remove "${IOC_NAME}" >/dev/null 2>&1 || true
+    rm -f "${site_env}"
+}
+
+# Probe helper for the post-init ERROR-marker checks (#153): build an IOC whose
+# st.cmd emits the given lines via `system` after iocInit (so they land after the
+# readiness marker), start it, print the runner output, and return its exit code.
+function _run_post_init_probe {
+    local ioc_name="$1"
+    local softioc_bin="$2"
+    shift 2
+    local ioc_dir="${WORKSPACE}/${ioc_name}"
+    local line out rc=0
+
+    mkdir -p "${ioc_dir}"
+    {
+        printf '#!%s\n' "${softioc_bin}"
+        printf 'iocInit\n'
+        for line in "$@"; do
+            printf '%s\n' "${line}"
+        done
+    } > "${ioc_dir}/st.cmd"
+    chmod +x "${ioc_dir}/st.cmd"
+
+    _install_crash_probe "${ioc_name}" "${ioc_dir}"
+    out=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || rc=$?
+    _remove_crash_probe "${ioc_name}"
+    printf '%s' "${out}"
+    return "${rc}"
+}
+
+# S39 (#153): the post-init corroboration warning is a heuristic hint. A healthy
+# IOC's own report text (a zero count field, a column header) after the marker
+# must not raise it, while a genuine ERROR: marker line does — including one
+# wrapped in the ANSI SGR sequences EPICS ERL_ERROR emits.
+function test_post_init_error_marker {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Post-init ERROR marker corroboration (#153)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping post-init marker test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S39.softioc-available"
+        return 0
+    fi
+    record_current_state PASS
+
+    local output rc warn shows ok
+
+    # T1: self-diagnostic report lines (a zero count field and a column header)
+    # after the marker must NOT raise the heuristic warning.
+    rc=0
+    output=$(_run_post_init_probe "PostInitReport" "${softioc_bin}" \
+        'system "echo Error count      : 0"' \
+        'system "echo polls sent replies errors  OID name"') || rc=$?
+    ok="false"; [[ "${rc}" == "0" ]] && ok="true"
+    verify_state "true" "${ok}" "Post-init report lines: start succeeds (exit 0)"
+    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    verify_state "false" "${warn}" "Post-init report lines: no warning"
+
+    # T2: a genuine uppercase ERROR severity line after the marker raises the
+    # warning on a start that still exits 0 (D027: corroboration never fails a
+    # live IOC — the rc pin is what catches an errexit leak in the warn path),
+    # and the matched line is shown beneath it.
+    rc=0
+    output=$(_run_post_init_probe "PostInitError" "${softioc_bin}" \
+        'system "echo ERROR: iocInit reported a device problem"') || rc=$?
+    ok="false"; [[ "${rc}" == "0" ]] && ok="true"
+    verify_state "true" "${ok}" "Post-init ERROR marker: start exits 0"
+    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    verify_state "true" "${warn}" "Post-init ERROR marker: warning raised"
+    shows="false"
+    if printf "%s" "${output}" | grep -q "matched line(s):" \
+        && printf "%s" "${output}" | grep -q "ERROR: iocInit reported a device problem"; then
+        shows="true"
+    fi
+    verify_state "true" "${shows}" "Post-init ERROR marker: matched line shown"
+
+    # T4: the same marker wrapped in ANSI SGR sequences (the ERL_ERROR rendering)
+    # still raises the warning after the scan normalizes the window.
+    local esc='\033'
+    local ansi_cmd="system \"printf '${esc}[31;1mERROR${esc}[0m: ansi device problem\\n'\""
+    rc=0
+    output=$(_run_post_init_probe "PostInitAnsi" "${softioc_bin}" "${ansi_cmd}") || rc=$?
+    ok="false"; [[ "${rc}" == "0" ]] && ok="true"
+    verify_state "true" "${ok}" "Post-init ANSI ERROR marker: start exits 0"
+    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    verify_state "true" "${warn}" "Post-init ANSI ERROR marker: warning raised"
+}
+
+# S40 (#154): the log verb prints the effective procServ log's tail, follows
+# with -f (the global flag has no force meaning on this read-only verb), and
+# fails clearly for an unknown IOC or a never-started one; the post-init hint
+# names the command.
+function test_log_command {
+    local step="$1"
+    print_divider
+    _log "INFO" "STEP ${step}: Log Command (#154)"
+    print_sub_divider
+
+    local softioc_bin="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/softIoc"
+    if [[ ! -x "${softioc_bin}" ]]; then
+        _log "WARN" "softIoc not found at ${softioc_bin}, skipping log-command test."
+        record_current_state SKIP "softIoc is unavailable"
+        close_current_remaining SKIP "requires ${SUITE_ID}.S40.softioc-available"
+        return 0
+    fi
+    record_current_state PASS
+
+    local ioc_dir="${WORKSPACE}/LogVerbProbe"
+    local output rc ok
+
+    mkdir -p "${ioc_dir}"
+    printf '#!%s\niocInit\n' "${softioc_bin}" > "${ioc_dir}/st.cmd"
+    chmod +x "${ioc_dir}/st.cmd"
+    _install_crash_probe "LogVerbProbe" "${ioc_dir}"
+    bash "${RUNNER_SCRIPT}" --local start "LogVerbProbe" >/dev/null 2>&1 || true
+
+    ok="false"
+    output=$(bash "${RUNNER_SCRIPT}" --local log "LogVerbProbe" 2>&1) || true
+    printf "%s" "${output}" | grep -q "All initialization complete" && ok="true"
+    verify_state "true" "${ok}" "log tail shows the readiness marker"
+
+    rc=0
+    timeout 2 bash "${RUNNER_SCRIPT}" --local -f log "LogVerbProbe" >/dev/null 2>&1 || rc=$?
+    ok="false"; [[ "${rc}" == "124" ]] && ok="true"
+    verify_state "true" "${ok}" "log -f follows until interrupted (timeout 124)"
+
+    output=$(bash "${RUNNER_SCRIPT}" --local -n 2 log "LogVerbProbe" 2>&1) || true
+    ok="false"; [[ "$(printf "%s" "${output}" | grep -c "")" -le 2 ]] && ok="true"
+    verify_state "true" "${ok}" "log -n 2 limits output to the requested line count"
+
+    rc=0
+    bash "${RUNNER_SCRIPT}" --local log "NoSuchLogIoc" >/dev/null 2>&1 || rc=$?
+    ok="false"; [[ "${rc}" != "0" ]] && ok="true"
+    verify_state "true" "${ok}" "log on an unknown IOC exits non-zero"
+
+    _remove_crash_probe "LogVerbProbe"
+
+    # Installed but never started: the resolver succeeds, the file is absent.
+    # Use a fresh name that this run never started (LogVerbProbe already has a
+    # log file from the tail case above), and clear any residue from a prior
+    # run so the precondition is the test's, not the environment's.
+    local unstarted_dir="${WORKSPACE}/LogVerbUnstarted"
+    local log_home="${XDG_STATE_HOME:-${HOME}/.local/state}/procserv"
+    rm -f "${log_home}/LogVerbUnstarted.log"
+    mkdir -p "${unstarted_dir}"
+    printf '#!%s\niocInit\n' "${softioc_bin}" > "${unstarted_dir}/st.cmd"
+    chmod +x "${unstarted_dir}/st.cmd"
+    _install_crash_probe "LogVerbUnstarted" "${unstarted_dir}"
+    rc=0
+    output=$(bash "${RUNNER_SCRIPT}" --local log "LogVerbUnstarted" 2>&1) || rc=$?
+    ok="false"
+    if [[ "${rc}" != "0" ]] && printf "%s" "${output}" | grep -q "log file not found"; then
+        ok="true"
+    fi
+    verify_state "true" "${ok}" "log on a never-started IOC names the missing file"
+    _remove_crash_probe "LogVerbUnstarted"
+
+    ok="false"
+    grep -qF "Check logs: ioc-runner" "${RUNNER_SCRIPT}" && ok="true"
+    verify_state "true" "${ok}" "post-init hint names the log command"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "_setup_workspace"
@@ -2408,6 +2636,9 @@ function run_all_tests {
         "test_local_install_path_resolution"
         "test_m6_shared_asset_refresh"
         "test_m10_reliability"
+        "test_site_env_layer"
+        "test_post_init_error_marker"
+        "test_log_command"
     )
 
     local step=1
