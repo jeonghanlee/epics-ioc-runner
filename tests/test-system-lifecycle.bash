@@ -30,8 +30,11 @@ declare -g JOURNAL_AVAILABLE="false"
 declare -g SC_TOP
 # Capture an absolute SC_TOP without readlink/realpath/cd-pwd; later
 # steps cd into a workspace, so a relative path would fail to resolve
-# back to the source tree. ${PWD} reflects the invoker's CWD at script
-# start, set by the kernel and not subject to NFS root_squash.
+# back to the source tree. Reading ${PWD} needs no traversal, so computing
+# this value works under NFS root_squash. Using it does not: root re-traverses
+# an absolute path from / through a 0700 home and is refused (#156). Do not
+# source or execute through SC_TOP; source libraries by a BASH_SOURCE-relative
+# path. SC_TOP serves only the source-mode runner path below.
 SC_TOP="$(dirname "${BASH_SOURCE[0]}")"
 [[ "${SC_TOP}" != /* ]] && SC_TOP="${PWD}/${SC_TOP}"
 
