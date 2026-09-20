@@ -207,7 +207,7 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
 )
 declare -g -A SYSTEM_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
-source "${SC_TOP}/lib/test-reporting.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
 # the binary origin; the unset default is the source tree, matching the
@@ -2661,9 +2661,9 @@ EOF
 }
 
 # shellcheck source=lib/test-m14-process-context.bash
-source "${SC_TOP}/lib/test-m14-process-context.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-m14-process-context.bash"
 # shellcheck source=lib/test-m10-system.bash
-source "${SC_TOP}/lib/test-m10-system.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-m10-system.bash"
 
 # (#152 / ADR 0003) System-mode counterpart of the local site.env layer check.
 # The optional site-wide environment file layers under the per-IOC conf: a key

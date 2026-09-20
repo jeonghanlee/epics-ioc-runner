@@ -172,7 +172,7 @@ fi
 SC_TOP="${SC_PATH%/*}"
 REPO_TOP="${SC_TOP}/.."
 # shellcheck source=lib/test-reporting.bash
-source "${SC_TOP}/lib/test-reporting.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
 function print_divider {
     printf "%b%s%b\n" "${BLUE}" \
