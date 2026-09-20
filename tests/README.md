@@ -7,10 +7,21 @@ and error-contract tests for the EPICS IOC runner. This document defines their
 classification, ownership, selection, invocation, workspace behavior, and
 verified targets.
 
-**Out of scope:** Release-grade multi-host execution is defined in
-[`gate/RUNBOOK.md`](../gate/RUNBOOK.md). Current implementation and verification
+**Out of scope:** Release-grade multi-host execution on fresh Gate consumers,
+including the simulated `root_squash` deployment, is defined in
+[`gate/RUNBOOK.md`](../gate/RUNBOOK.md). Its in-place counterpart for one server
+is [System Tests on an NFS Home with `root_squash`](#3-system-tests-on-an-nfs-home-with-root_squash)
+below. Current implementation and verification
 status is tracked in
-[`docs/milestone-8ee915a.md`](../docs/milestone-8ee915a.md).
+[`docs/milestone-1.4.1.md`](../docs/milestone-1.4.1.md).
+
+## Required Reading
+
+Before running any suite on a host, read this document in full, then read in
+full [`gate/RUNBOOK.md`](../gate/RUNBOOK.md) and
+[`docs/INSTALL.md`](../docs/INSTALL.md). The invocation account, `sudo` handling,
+binary origin, and path constraints are defined across these documents. Do not
+act from one section, a summary, or memory of an earlier run.
 
 ## Test Classification
 
@@ -255,6 +266,34 @@ with `root_squash`. `--local` runs as the invoking user. `--system` with
 `IOC_RUNNER_TEST_MODE=installed` runs the runner from `/usr/local/bin` and its
 test workspace in `/dev/shm`, so `sudo` touches the NFS tree only to read the
 suite scripts (relative path, world-readable).
+
+Run from the repository root as the checkout owner. The dispatcher and the
+suites locate their libraries relative to the invocation path, so root reads
+them through the inherited working directory. An absolute path is re-traversed
+from `/` through the home directory, which `root_squash` denies when the home
+is `0700`. Dispatcher and suite code must therefore not canonicalize its own
+path (`realpath`, `readlink -f`, a `${PWD}` prefix) before `source` or `bash`.
+
+Procedure for an account with `sudo` rights on such a server:
+
+```bash
+# 1. Deploy the candidate ('make install' when the infrastructure exists).
+sudo -v
+bash bin/run-setup-system-infra.bash --full
+/usr/local/bin/ioc-runner -V
+
+# 2. Set EPICS_BASE by sourcing the EPICS environment script of the host.
+#    Example: /opt/epics/<env-version>/<os>-<os-version>/<base-version>/
+source /opt/epics/1.3.0/rocky-8.10/7.0.10/setEpicsEnv.bash
+
+# 3. Run the system phases against the installed binary.
+bash tests/run-all-tests.bash --system --installed
+```
+
+`ioc-runner -V` must report the candidate commit before step 3. The dispatcher
+asks for the `sudo` password itself when the account has no non-interactive
+route. The run passes when it ends with
+`ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` and exit status 0.
 
 Lifecycle `source` mode would `execve` the runner from its NFS source path, which
 `root_squash` blocks — but running the source binary under `sudo` is out of

@@ -10,6 +10,21 @@ runner verification, result interpretation, and evidence requirements.
 operator implementation, fixture provisioning, milestone planning, and release
 mutation. Those procedures remain in their owning repositories or skills.
 
+Running the suites in place on a server that is not a Gate consumer, including
+a real NFS `root_squash` home, is defined in
+[`../tests/README.md`](../tests/README.md#3-system-tests-on-an-nfs-home-with-root_squash).
+The `ssh vmadmin@<host>` and `sudo -n` forms below assume the Gate consumer
+account and do not apply there.
+
+## Required Reading
+
+Before running any step, read this runbook in full, then read in full every
+document listed under External Authorities, including
+[`../tests/README.md`](../tests/README.md). No step is self-sufficient: suite
+modes, account and `sudo` assumptions, and path constraints are defined in those
+documents and are not repeated here. Do not act from one step, a summary, or
+memory of an earlier run.
+
 ## External Authorities
 
 | Authority | Owned Contract |
