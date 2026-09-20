@@ -546,7 +546,7 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Release Verification 3 | post-change | rocky8-iocrunner VM | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pass; gate-suites 20260919T202844Z (cf5cecc), GATE SUITES PASS hosts=2 |
-| Release Verification 4 | pre-release | alsucl-psrv3 (Rocky NFS) | 1.4.1 | x86_64 | installed-mode `--system` suite in place | production system suite | Suite passes on root_squash workspace | pending |
+| Release Verification 4 | pre-release | production host (Rocky NFS) | 1.4.1 | x86_64 | installed-mode `--system` suite in place | production system suite | Suite passes on root_squash workspace | Pass; 2026-09-20, d6f86dc (see Release Verification Results) |
 
 ##### Version Changes
 
@@ -573,7 +573,7 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | Release Verification 1 | Regression | pre-change | Local lifecycle + source-regression suites on the merged candidate | top (Debian 13) | Pass | run log |
 | Release Verification 2 | Regression | pre-change | System lifecycle suite on the merged candidate | rocky8-iocrunner VM | Pass | run log |
 | Release Verification 3 | System | post-change | VM gate (clone-and-test + install-and-test) | rocky8-iocrunner VM | Pass | run log |
-| Release Verification 4 | Production | pre-release | Installed-mode `--system` suite in place | alsucl-psrv3 | Pass | run log |
+| Release Verification 4 | Production | pre-release | Installed-mode `--system` suite in place | production host | Pass | run log |
 | Release Verification 5 | Version | pre-change | Version fields at their before state | working tree | Confirmed | command output |
 | Release Verification 6 | Version | post-change | Version fields at their after state | working tree | Confirmed | command output |
 | Release Verification 7 | Release object | post-release | Tag and release identity on `origin` | GitHub | `1.4.1` present | tag and release URL |
@@ -587,7 +587,7 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | Release Verification 1 | 2026-09-19 | rocky8 + debian13 goldens (suite matrix; top has no EPICS runtime) | Pass | gate-suites 20260919T184758Z, 811b546, GATE SUITES PASS, local-lifecycle + source-regression green |
 | Release Verification 2 | 2026-09-19 | rocky8 + debian13 goldens | Pass | same run 20260919T184758Z, system-lifecycle suite green both hosts |
 | Release Verification 3 | 2026-09-19 | rocky8 + debian13 goldens | Pass | gate-suites 20260919T202844Z, cf5cecc, GATE SUITES PASS hosts=2, no FAIL/SKIP/SCRIPT_ERROR |
-| Release Verification 4 | Not run | alsucl-psrv3 | Pending | none |
+| Release Verification 4 | 2026-09-20 | production host (Rocky 8.10, NFS `root_squash`, `0700` home) | Pass | installed `1.4.1 (d6f86dc)`; `run-all-tests.bash --system --installed` in place; system-infra 36 PASS / 0 FAIL / 4 NA (glob sudoers), system-lifecycle 158/158, exit status 0 |
 | Release Verification 5 | 2026-09-19 | working tree | Confirmed | RUNNER_VERSION 1.4.1-dev and no CHANGELOG 1.4.1 section before the bump |
 | Release Verification 6 | 2026-09-19 | both goldens | Confirmed | `ioc-runner -V` reports 1.4.1 (cf5cecc) on both; CHANGELOG 1.4.1 section present |
 | Release Verification 7 | Not run | GitHub | Pending | none |
