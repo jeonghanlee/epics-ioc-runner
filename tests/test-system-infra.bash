@@ -31,7 +31,7 @@ if [[ "${SC_PATH}" != /* ]]; then
 fi
 SC_TOP="${SC_PATH%/*}"
 # shellcheck source=lib/test-reporting.bash
-source "${SC_TOP}/lib/test-reporting.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
 # Set by the regex-deny probe when it creates an ephemeral ioc-group
 # member; cleared after the normal cleanup path. A pre-existing account

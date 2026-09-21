@@ -238,7 +238,7 @@ declare -g -a ERROR_CATALOG_ROWS=(
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
 # shellcheck source=lib/test-reporting.bash
-source "${SC_TOP}/lib/test-reporting.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
 # --- Interrupt & Exit Handling ---
 function _handle_exit {

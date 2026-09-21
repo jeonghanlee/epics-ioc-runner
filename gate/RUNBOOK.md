@@ -10,6 +10,23 @@ runner verification, result interpretation, and evidence requirements.
 operator implementation, fixture provisioning, milestone planning, and release
 mutation. Those procedures remain in their owning repositories or skills.
 
+This Gate runs the installed `--system` suites in place on a consumer's
+simulated `root_squash` export itself, in step 5. Running them in place on a
+server that is not a Gate consumer, including a real NFS `root_squash` home, is
+a different procedure, defined in
+[`../tests/README.md`](../tests/README.md#3-system-tests-on-an-nfs-home-with-root_squash).
+The `ssh vmadmin@<host>` and `sudo -n` forms below assume the Gate consumer
+account and do not apply there.
+
+## Required Reading
+
+Before running any step, read this runbook in full, then read in full every
+document listed under External Authorities, including
+[`../tests/README.md`](../tests/README.md). No step is self-sufficient: suite
+modes, account and `sudo` assumptions, and path constraints are defined in those
+documents and are not repeated here. Do not act from one step, a summary, or
+memory of an earlier run.
+
 ## External Authorities
 
 | Authority | Owned Contract |
@@ -289,6 +306,26 @@ sha256sum <barrier-log>
 Required to continue: root is denied under the NFS-backed tree, the owning user
 can read it, and root can read the local control path.
 
+The check above establishes traversal. The suites fail on `source`, one syscall
+layer below it, so confirm that layer with the real reporting library the suites
+read. Root sources it once by a relative path from the inherited working
+directory and once by an absolute path, and the run is read by the permission
+denial rather than by the library's own exit status:
+
+```bash
+set -o pipefail
+ssh vmadmin@<host> "cd <abs-toplevel> || exit 1; rel=\$(sudo -n bash -c '. ./tests/lib/test-reporting.bash' 2>&1 >/dev/null | grep -c 'Permission denied'); abs=\$(sudo -n bash -c '. <abs-toplevel>/tests/lib/test-reporting.bash' 2>&1 >/dev/null | grep -c 'Permission denied'); [ \$rel -eq 0 ] && [ \$abs -ge 1 ] && echo 'SOURCE CONTROL OK' || echo \"SOURCE CONTROL FAILED (relative=\$rel absolute=\$abs)\"" | tee <source-control-log>
+sha256sum <source-control-log>
+```
+
+Required to continue: the relative source raises no permission denial and the
+absolute source raises one, which the command reports as `SOURCE CONTROL OK`.
+A source that succeeds in both forms — reported as `SOURCE CONTROL FAILED` with
+`absolute=0` — means the export is not squashing root as this Gate requires,
+and the suite evidence below would be meaningless. A log carrying neither
+verdict line means the working directory was never reached and the control did
+not run; that is not a pass.
+
 Define the setup-owned configuration fingerprint on the control host. It
 records content and owner-mode metadata, and deliberately excludes the runner
 binary that each entry point is expected to replace:
@@ -364,10 +401,80 @@ verdict, Pass for every scenario in the Multi-User Contract below, and a final
 `VERDICT RUN PASS`. Prerequisite verdicts, including `P-LEFTOVERS`, are not
 included in the fourteen-scenario tally and must be reviewed separately.
 
+### 5. root_squash suite execution
+
+Step 2 runs the suite matrix from a path root can traverse. A suite that
+resolves its own libraries by an absolute path passes there and fails on an
+NFS `root_squash` home, so that class reaches production without the following
+step. Run it last: the system lifecycle suite creates and removes IOCs, and
+placing it before step 4 disturbs that step's `P-FRESH` and `P-LEFTOVERS`
+prerequisites.
+
+This step covers one axis — whether a suite that root must read from the
+candidate tree can be invoked at all from a squashed export. Only the installed
+`--system` suites belong here. The local lifecycle and error-handling suites run
+as the invoking user, and the container lifecycle suite runs as root inside a
+container image rather than from this tree, so none of them is affected by
+`root_squash` and none is repeated here.
+
+Two paths are out of scope because `root_squash` blocks them by design, not
+because they are untested. Source-mode `--system` would `execve` a user-owned
+source binary from the squashed tree. The source-regression suite reads and
+executes `bin/` as root as part of its own contract, so its steps covering the
+setup invocation, the git-context and version-stamp declarations, the
+root-to-invoking-user injection boundary, and the SELinux deployment boundary
+cannot run from a squashed export; a run there fails those steps on the export,
+not on the code.
+This leaves one gap the Gate does not close: the source-regression suite's own
+library-source path is exercised only from a root-readable tree. The class this
+step exists for — a suite that cannot start at all under `root_squash` — is
+covered for the two `--system` suites, which are the ones production runs in
+place.
+
+Confirm the installed runner still reports the candidate commit, then resolve
+the environment path as in precondition 4 and run the installed `--system`
+suites on each consumer from `<abs-toplevel>`, one control-host log per host:
+
+```bash
+set -o pipefail
+ssh vmadmin@<host> '/usr/local/bin/ioc-runner -V'
+ssh vmadmin@<host> "cd <abs-toplevel> || exit 1; set +u; if [ -z \"\${EPICS_BASE:-}\" ]; then . <epics-env>; fi; set -u; bash tests/run-all-tests.bash --system --installed 2>&1" | tee <nfs-system-log>; printf 'SYSTEM_RC=%s\n' "$?" | tee -a <nfs-system-log>
+sha256sum <nfs-system-log>
+```
+
+Required result on each host:
+
+- the installed runner reports the candidate commit;
+- the run ends with `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` and the
+  `SYSTEM_RC` line appended to the log is `0`;
+- no result is `FAIL`, `SKIP`, or `SCRIPT_ERROR`, and every `NA` is an examined
+  OS applicability result, which the run reports on its `Not applicable` line;
+  and
+- no permission denial names a suite library or dispatcher path.
+
+Read that last condition with the check below rather than by eye. A passing run
+carries benign denials of its own: the test IOC reports
+`ERROR st.cmd line <n>: Can't open '<record>': Permission denied` for records it
+cannot open, and those lines appear on a run that ends successfully.
+
+```bash
+grep -nE 'Permission denied' <nfs-system-log> | grep -vE 'st\.cmd line'
+```
+
+Required result: no output. A remaining denial, in particular one naming
+`tests/lib/` or `run-all-tests.bash`, is the defect this step exists to catch
+and not an environment fault — the barrier and its source control above already
+established that the export squashes root and that a relative read succeeds.
+
 ## Evidence
 
 Record one row per platform for image publication, one row per host for
 consumer acceptance, and one row per suite result.
+
+The suite-result table below covers step 2's matrix, whose driver emits those
+fields. Step 5 is run by hand and emits no such record, so it is recorded by its
+logs, digests, completion lines, and `SYSTEM_RC` values in the list after the
+tables, not as rows in that table.
 
 | Platform | Bake Date | Baseline Ref | Image | Image SHA-256 | Creation Record | Manifest Sidecar | Manifest SHA-256 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -393,6 +500,7 @@ Also record:
 - suite evidence directory and `cross-host.diff`;
 - both `P_nfs-sim` play recaps;
 - both `root_squash` barrier logs and SHA-256 digests;
+- both `root_squash` source-control logs and SHA-256 digests;
 - three deployment logs and their SHA-256 digests, the baseline stamp log,
   three post-deployment stamp logs, and all four stamp-log SHA-256 digests per
   host;
@@ -400,19 +508,51 @@ Also record:
   SHA-256 digests, and all three successful comparisons; and
 - both complete multi-user `run-all.log` files and SHA-256 digests, including
   every printed `P-*` verdict, all fourteen scenario verdicts, and the final
-  `VERDICT RUN`.
+  `VERDICT RUN`; and
+- both `root_squash` `--system --installed` suite logs, one per host, with their
+  SHA-256 digests, their completion lines, and their appended `SYSTEM_RC`
+  values.
 
-Suite evidence describes the `iocrunner` state before `P_nfs-sim`. The
-`root_squash` and multi-user evidence describes the same consumers after they
-reach `iocrunner-nfs`.
+Step 2's suite evidence describes the `iocrunner` state before `P_nfs-sim`. The
+`root_squash` evidence — the barrier, the source control, the deployment entry
+points, and step 5's suite logs — and the multi-user evidence describe the same
+consumers after they reach `iocrunner-nfs`.
 
 ## Failure and Invalidation Rules
 
 - A candidate tree change invalidates every completed Gate step. Restart at the
   final candidate commit.
+- A commit that changes only the `<release-register>` document is the one
+  exception, and only while it changes neither a baseline ref the register
+  records nor a Test Plan step 1 executes. The register is where a completed
+  Gate's result is written, so treating that write as a candidate change would
+  leave a Gate unreachable: every run would be invalidated by the act of
+  recording it. The register is still a Gate input through step 1, so a change
+  that moves such a Test Plan, or a baseline ref where the register carries one,
+  is an ordinary candidate change under the rule above.
+
+  Call the commit the Gate steps ran against `<gated-commit>` and the current
+  branch tip `<current-tip>`. The first command settles the exception on its
+  own; the second is read for the two things named above, and a register that
+  records no baseline ref has nothing to compare there:
+
+  ```bash
+  git -C <repo> diff --name-only <gated-commit> <current-tip>
+  git -C <repo> diff <gated-commit> <current-tip> -- <release-register>
+  ```
+
+  Required result: the first command prints the register's path and nothing
+  else, and the second shows no change to a recorded baseline ref or to a Test
+  Plan step 1 executes. A Test Plan the Gate does not execute may be added or
+  recorded freely — a plan verified after the release merge, for instance. Gate
+  Identity already records the register's commit and the runner tree's commit;
+  under this exception the two may differ, and both belong in the evidence.
 - A supplier change between image builds invalidates the image pair.
 - A consumer change before Golden acceptance requires a fresh consumer.
 - A failed `P_nfs-sim` run requires a fresh pair and a new step 2 result.
+- A failed step 5 is a defect in the candidate, not in the consumer pair. The
+  pair stays usable; fixing the defect changes the candidate tree, and the
+  first rule above then restarts the Gate at the new candidate commit.
 - A missing or malformed evidence record is a Gate failure.
 - A condition that cannot be induced is recorded as an unverified gap, never as
   Pass.

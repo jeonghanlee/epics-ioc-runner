@@ -102,7 +102,7 @@ declare -g -a CONTAINER_CATALOG_ROWS=(
 )
 declare -g -A CONTAINER_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
-source "${SC_TOP}/lib/test-reporting.bash"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
 # Resolve the ioc-runner binary under test; IOC_RUNNER_TEST_MODE selects the
 # origin exactly as the systemd-backed lifecycle suites do.

@@ -14,10 +14,12 @@ declare -g GREEN='\033[0;32m'
 declare -g BLUE='\033[0;34m'
 declare -g NC='\033[0m'
 
-declare -g SC_RPATH
 declare -g SC_TOP
-SC_RPATH="$(realpath "$0")"
-SC_TOP="${SC_RPATH%/*}"
+# Keep SC_TOP relative (no realpath). Under NFS root_squash + sudo an absolute
+# path is re-traversed from / through a 0700 home and refused, so the suites are
+# invoked (and their libraries sourced) by a relative path from the inherited
+# working directory, which is not re-traversed through the home.
+SC_TOP="$(dirname "$0")"
 
 # shellcheck source=lib/test-record-validator.bash
 source "${SC_TOP}/lib/test-record-validator.bash"

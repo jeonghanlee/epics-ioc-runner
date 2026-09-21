@@ -7,13 +7,21 @@ Canonical branch or ref: `release-1.4.1`
 Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
+Gate baseline ref: `1.4.0` (D10)
 
-Next session entry point: M7 (mdBook docs site), then M5 (release 1.4.1). M1-M4 and M6 are Complete;
-#152, #153 are closed and #154 closes on this landing; the gate is full-green
-at the repinned identity (run 20260919T165029Z-494007). Open M5 through
-release-cycle: version bump, integrated re-gate, master merge, tag 1.4.1,
-GitHub release, milestone close.
-GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
+Next session entry point: M5 (release 1.4.1) execution. M1-M4, M6, and M7 are Complete
+and #152, #153, #154, #155 are closed. The version bump and the CHANGELOG section
+already landed. The Gate is full-green at `6a5c36d` (run
+20260921T055158Z-2284308): Gate grade on a fresh consumer pair, all five steps
+including the `root_squash` suite step, multi-user 14/14 on both hosts. This
+record lands on the commit after the gated one, under the register-only
+exception in the runbook. Master carries a partial merge
+(`0131f71`, second parent `fc2f1e7`); six release-branch commits are still
+unmerged and the stale local tag was deleted. Remaining: re-run the Gate, merge
+`release-1.4.1` to master again, tag `1.4.1` on that merge, push, publish the
+existing draft release from the CHANGELOG section, delete `release-1.3.0`, and
+record Release Verification 7 and 8. The milestone is already closed (D8).
+GitHub milestone `1.4.1` (number 18) carries #152, #153, #154, and #155.
 
 ## Milestone
 
@@ -26,10 +34,10 @@ GitHub milestone `1.4.1` (number 18) carries #153 (M1) and #152 (M3).
 | Environment | M3 | Optional site environment file in both systemd unit templates (#152) | Milestone | Complete | — | M2 | Both templates carry the optional site `EnvironmentFile=`, a site value reaches the IOC environment, the per-IOC conf overrides it, and an absent file changes nothing; [detail](#m3---optional-site-environment-file-in-both-systemd-unit-templates) |
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
 | Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Complete | — | D5 | `ioc-runner [--local] log <name> [-f] [-n <count>]` prints the tail of the IOC's effective procServ log file, follows it with `-f`, and sets the tail depth with `-n` (default 40); the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
-| Documentation | M7 | mdBook documentation site over the existing docs, deployed to GitHub Pages (#155) | Milestone | In progress | — | — | `mdbook build` renders the existing `docs/` into a site with a curated `SUMMARY.md` (internal register docs excluded), and `.github/workflows/docs.yml` deploys it to GitHub Pages on push to master; [detail](#m7---mdbook-documentation-site) |
-| Release | M5 | Release 1.4.1 | Milestone | Not started | No | M1, M2, M3, M4, M6, M7 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
+| Documentation | M7 | mdBook documentation site over the existing docs, deployed to GitHub Pages (#155) | Milestone | Complete | — | — | `mdbook build` renders the existing `docs/` into a site with a curated `SUMMARY.md` (internal register docs excluded), and `.github/workflows/docs.yml` deploys it to GitHub Pages on push to master; [detail](#m7---mdbook-documentation-site) |
+| Release | M5 | Release 1.4.1 | Milestone | In progress | — | M1, M2, M3, M4, M6, M7 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
-Tally: 7 milestone rows (5 Complete, 1 In progress, 1 Not started). Backlog is reported separately below
+Tally: 7 milestone rows (6 Complete, 1 In progress). Backlog is reported separately below
 and excluded from this tally.
 
 ### Decisions
@@ -42,6 +50,10 @@ and excluded from this tally.
 | D4 | The post-initialization corroboration warning is a heuristic hint, not a verdict. Its text says so and directs the operator to the log, it prints the matched line(s), and the `ERROR` corroborating token matches the marker shape — `ERROR` followed by a colon, after ANSI SGR sequences are removed from the scan window — instead of the bare word. Count fields, column headers, and colon-less prose (including the transient `devSnmp ... read error` lines) no longer raise it. The fatal subset, the death-banner verdict, and `CRASH_LOG_PATTERNS_EXTRA` are unchanged. | 2026-09-18 |
 | D5 | A `log` command (`ioc-runner [--local] log <name> [-f] [-n <count>]`) ships in 1.4.1 as its own work item, M6, separate from the #153 fix: the reworded warning directs the operator to the log, and the command is the one-step way there. `-f` follows and `-n` sets the tail depth (default 40); both reuse the global option parser, and `-f` carries no force meaning on this read-only verb. | 2026-09-18 |
 | D6 | D4's corroborating-token mechanism is superseded: the built-in corroboration matches framework severity markers case-sensitively (the uppercase `ERROR` word, the PVXS ` ERR `/` CRIT ` level words, `sevr=major`/`sevr=fatal`) plus the existing case-insensitive message phrases, and never English error vocabulary — prose sensitivity is the per-IOC `CRASH_LOG_PATTERNS_EXTRA` opt-in. Grounds (the 33-module emission survey, the renderer evidence including colon-less `ERL_ERROR`, the healthy-log measurement) and the rejected alternatives are ADR 0004. D4's heuristic warning wording, matched-line display, and ANSI SGR normalization stand. | 2026-09-18 |
+| D7 | The Gate is re-run at the release-branch tip `f00d903` instead of carrying the earlier `cf5cecc` evidence forward. `gate/RUNBOOK.md` invalidates every completed Gate step on a candidate tree change, and the six commits after `cf5cecc` change how the suites resolve their libraries under `root_squash`. The shipped tree (`bin/`, `configure/`, `Makefile`, `system-wide/`, `policy/`) is identical between the two candidates, so the re-run verifies the test harness, not the runner. The unpushed local tag `1.4.1`, which pointed at the partial merge `0131f71`, was deleted so the tag can be created on the final merge commit. | 2026-09-20 |
+| D8 | Milestone `1.4.1` was closed on 2026-09-19, ahead of publication, and is left closed rather than reopened for the interval. The release publishes against the already-closed milestone, so the milestone-close step of the release sequence has nothing left to run. | 2026-09-20 |
+| D9 | The Gate gains a `root_squash` suite step, so the four-step run of 2026-09-20 becomes Check grade and the Gate is re-run once more at the tip that carries the step. The gap it closes is the one #156 came through: the suite matrix runs from a path root can traverse, so a suite whose libraries resolve to an absolute path passes the Gate and fails on a production NFS home. The source-regression suite stays outside that step because it reads and executes `bin/` as root by its own contract, which the export blocks by design; #156's second acceptance criterion is read as the dispatcher path production uses, not the direct per-suite invocation. | 2026-09-20 |
+| D10 | The Gate bakes its golden pair at the `epics-ioc-runner` ref `1.4.0`, the previous release tag, and that value is this register's recorded baseline ref. The Gate preconditions require clean tagged runner provenance, which only a tag satisfies, and the candidate under test reaches the consumers through the push and deployment steps rather than through the image. A later cycle records its own predecessor tag in this table and in the header line above it. | 2026-09-20 |
 
 ### Milestone Details
 
@@ -388,24 +400,24 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
-- `log` verb in `bin/ioc-runner` (dispatch, usage, `-f`/`-n`, hint rewrite), local S40 (7 checks) and system S15 (1 check), docs (`CLI_REFERENCE`, `USER_GUIDE`, `FAQ` Q9, `LOG_LAYOUT`). Verified on both goldens, gate run 20260919T165029Z-494007, 12/12 suites PASS; identity repinned to that run's value in the commit carrying this row. Commits: dbcf2d9 (feature + tests), 7d5a2b9 (S40 fixture isolation). Refs #154; close #154 on this landing.
+- `log` verb in `bin/ioc-runner` (dispatch, usage, `-f`/`-n`, hint rewrite), local S40 (7 checks) and system S15 (1 check), docs (`CLI_REFERENCE`, `USER_GUIDE`, `FAQ` Q9, `LOG_LAYOUT`). Verified on both goldens, gate run 20260919T165029Z-494007, 12/12 suites PASS; identity repinned to that run's value in the commit carrying this row. Commits: dbcf2d9 (feature + tests), 7d5a2b9 (S40 fixture isolation). Refs #154; #154 observed closed 2026-09-20.
 
 ##### GitHub Projection
 
 Title: Add a log command to show an IOC's procServ log
 Labels: enhancement, area/inspect, P2-medium
 GitHub Milestone: 1.4.1
-Observed State: open
+Observed State: closed
 Observed Labels: enhancement, area/inspect, P2-medium
 Observed Milestone: 1.4.1
-Last Compared: 2026-09-18
+Last Compared: 2026-09-20
 
 #### M7 - mdBook documentation site
 
 Origin: 28cba65 / M7
 Identity History: none
 GitHub Issue: #155
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -468,6 +480,8 @@ from `public/`; workflow YAML valid.
 - T2: the build output `public/` contains the curated chapters and none of the
   internal register documents.
 - T3: `.github/workflows/docs.yml` parses as valid workflow YAML.
+- T4: after `docs.yml` runs on `master`, the published site serves the curated
+  chapters and none of the internal register or ADR documents.
 
 ##### Verification Results
 
@@ -476,30 +490,33 @@ from `public/`; workflow YAML valid.
 | T1 | Pass | `mdbook build` in the `jeonghanlee/mdbook` container: rc=0, no warning, HTML written to `public/` |
 | T2 | Pass | `public/` has the curated chapters; no `adr/`, `CLOSED_DOORS`, or `milestone-*` published |
 | T3 | Pass | `.github/workflows/docs.yml` parses as valid YAML |
-
-The GitHub Pages deployment itself is verified post-merge, after `docs.yml` runs
-on `master`.
+| T4 | Pass | 2026-09-20: `docs.yml` run 35479767089 succeeded on master `0131f71`; Pages source is the Actions workflow. On the published site `/`, `/USER_GUIDE.html`, `/CLI_REFERENCE.html`, and `/PERMISSION_MODEL.html` return 200 while `/milestone-1.4.1.html`, `/CLOSED_DOORS.html`, and `/adr/0003-site-environment-layer.html` return 404 |
 
 ##### Closure Evidence
 
-- none
+- `book.toml`, the curated `docs/SUMMARY.md`, `.github/workflows/docs.yml`, and
+  the `public/` ignore entry, carried by `b44ab79` on `release-1.4.1`. The
+  post-merge deployment is verified by T4 above: workflow run 35479767089 on
+  master `0131f71` published the curated chapters and withheld the internal
+  register and the ADRs. Enabling the Actions source was the owner's repository
+  setting. #155 observed closed 2026-09-20.
 
 ##### GitHub Projection
 
 Title: Add an mdBook documentation site deployed to GitHub Pages
 Labels: documentation
 GitHub Milestone: 1.4.1
-Observed State: open (#155)
+Observed State: closed
 Observed Labels: documentation
 Observed Milestone: 1.4.1
-Last Compared: 2026-09-19
+Last Compared: 2026-09-20
 
 #### M5 - Release 1.4.1
 
 Origin: 8ee915a / M5
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -533,20 +550,28 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
   procServ log files (multi-user L3 and S5 log-isolation surface), so the
   release must re-verify multi-user permission isolation. Added as Release
   Verification 9.
+- M7 complete before release readiness; the site's post-merge deployment is
+  recorded in M7 / T4.
+- Decision (2026-09-20): D7. The release execution started on 2026-09-19 and was
+  then held so the production `root_squash` verification could gate it. The
+  partial merge `0131f71` stays on master as history; the release completes with
+  a second merge of the remaining six commits, and the tag is created on that
+  merge. The `root_squash` suite fix those commits carry is #156, verified on the
+  production host under Release Verification 4.
 
 ##### Integrated Verification
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T3 | M3 template change merged onto the M1 detection change | `bin/ioc-runner`, local lifecycle suite | Release Verification 1 | Full local lifecycle and source-regression suites pass on the merged tree | Pass; gate-suites 20260919T184758Z on both goldens (811b546), GATE SUITES PASS |
-| M3 / T4 | M1 detection change merged onto the M3 template change | systemd unit templates, system lifecycle suite | Release Verification 2 | System lifecycle suite passes with no site file (behavior unchanged) | Pass; same run 20260919T184758Z, system-lifecycle green both hosts |
+| M1 / T3 | M3 template change merged onto the M1 detection change | `bin/ioc-runner`, local lifecycle suite | Release Verification 1 | Full local lifecycle and source-regression suites pass on the merged tree | Pass; gate-suites 20260921T055158Z-2284308 at `6a5c36d` on a fresh consumer pair, GATE SUITES PASS |
+| M3 / T4 | M1 detection change merged onto the M3 template change | systemd unit templates, system lifecycle suite | Release Verification 2 | System lifecycle suite passes with no site file (behavior unchanged) | Pass; same run 20260921T055158Z-2284308, system-lifecycle green both hosts |
 
 ##### Production Environment Tests
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 3 | post-change | rocky8-iocrunner VM | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pass; gate-suites 20260919T202844Z (cf5cecc), GATE SUITES PASS hosts=2 |
-| Release Verification 4 | post-release | alsucl-psrv3 (Rocky NFS) | 1.4.1 | x86_64 | installed-mode `--system` suite in place | production system suite | Suite passes on root_squash workspace | pending |
+| Release Verification 3 | post-change | rocky8-iocrunner + debian13-iocrunner VMs | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pass; Gate grade at `6a5c36d`, all five steps, run 20260921T055158Z-2284308 (see Release Verification Results) |
+| Release Verification 4 | pre-release | production host (Rocky NFS) | 1.4.1 | x86_64 | installed-mode `--system` suite in place | production system suite | Suite passes on root_squash workspace | Pass; 2026-09-20, d6f86dc (see Release Verification Results) |
 
 ##### Version Changes
 
@@ -559,12 +584,12 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 
 | Step | Action | Authorization | Expected Result | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Merge `release-1.4.1` into master (no fast-forward) | `override release` | Merge commit on master | pending |
-| 2 | Annotated tag `1.4.1` on the merge commit | `override release` | Tag object `1.4.1` | pending |
-| 3 | Push master and the tag | `override release` | `origin/master` and `refs/tags/1.4.1` updated | pending |
-| 4 | `gh release create 1.4.1 --notes-file` from the CHANGELOG section | `override release` | Release published | pending |
-| 5 | Close GitHub milestone `1.4.1` | `override release` | Milestone closed | pending |
-| 6 | Delete the release branch two releases back (local + origin) per the branch workflow | owner-run | Stale release branch removed | pending |
+| 1 | Merge `release-1.4.1` into master (no fast-forward) | `override release` | Merge commit on master | partial; `0131f71` merged through `fc2f1e7` on 2026-09-19, six later commits still unmerged, so a second merge completes this step |
+| 2 | Annotated tag `1.4.1` on the merge commit | `override release` | Tag object `1.4.1` | pending; the local tag created on 2026-09-19 pointed at the partial merge and was deleted, never pushed (D7) |
+| 3 | Push master and the tag | `override release` | `origin/master` and `refs/tags/1.4.1` updated | partial; master pushed at `0131f71`, no tag on `origin` |
+| 4 | `gh release create 1.4.1 --notes-file` from the CHANGELOG section | `override release` | Release published | pending; a draft named `1.4.1` exists with placeholder notes, so publication edits that draft instead of creating a second record |
+| 5 | Close GitHub milestone `1.4.1` | `override release` | Milestone closed | done; milestone 18 was closed on 2026-09-19, ahead of publication, and is left closed (D8) |
+| 6 | Delete the release branch two releases back (local + origin) per the branch workflow | owner-run | Stale release branch removed | pending; `release-1.3.0` still present locally and on `origin` |
 
 ##### Release Verification Plan
 
@@ -573,26 +598,28 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | Release Verification 1 | Regression | pre-change | Local lifecycle + source-regression suites on the merged candidate | top (Debian 13) | Pass | run log |
 | Release Verification 2 | Regression | pre-change | System lifecycle suite on the merged candidate | rocky8-iocrunner VM | Pass | run log |
 | Release Verification 3 | System | post-change | VM gate (clone-and-test + install-and-test) | rocky8-iocrunner VM | Pass | run log |
-| Release Verification 4 | Production | post-release | Installed-mode `--system` suite in place | alsucl-psrv3 | Pass | run log |
+| Release Verification 4 | Production | pre-release | Installed-mode `--system` suite in place | production host | Pass | run log |
 | Release Verification 5 | Version | pre-change | Version fields at their before state | working tree | Confirmed | command output |
 | Release Verification 6 | Version | post-change | Version fields at their after state | working tree | Confirmed | command output |
 | Release Verification 7 | Release object | post-release | Tag and release identity on `origin` | GitHub | `1.4.1` present | tag and release URL |
 | Release Verification 8 | Tracker | post-release | Milestone `1.4.1` state and issue closure | GitHub | Closed | milestone URL |
 | Release Verification 9 | Multi-user | post-change | Multi-user 14-scenario contract (`run-all` driver) | rocky8-iocrunner + debian13-iocrunner VMs | Pass | run-all.log |
+| Release Verification 10 | System | post-change | Installed `--system` suites run in place from the simulated `root_squash` export | rocky8-iocrunner + debian13-iocrunner VMs | Pass | suite log per host |
 
 ##### Release Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | 2026-09-19 | rocky8 + debian13 goldens (suite matrix; top has no EPICS runtime) | Pass | gate-suites 20260919T184758Z, 811b546, GATE SUITES PASS, local-lifecycle + source-regression green |
-| Release Verification 2 | 2026-09-19 | rocky8 + debian13 goldens | Pass | same run 20260919T184758Z, system-lifecycle suite green both hosts |
-| Release Verification 3 | 2026-09-19 | rocky8 + debian13 goldens | Pass | gate-suites 20260919T202844Z, cf5cecc, GATE SUITES PASS hosts=2, no FAIL/SKIP/SCRIPT_ERROR |
-| Release Verification 4 | Not run | alsucl-psrv3 | Pending | none |
+| Release Verification 1 | 2026-09-21 | fresh rocky8 + debian13 consumers baked this run | Pass | gate-suites 20260921T055158Z-2284308 at `6a5c36d`, GATE SUITES PASS, local-lifecycle + source-regression green on both hosts |
+| Release Verification 2 | 2026-09-21 | same consumer pair | Pass | same run 20260921T055158Z-2284308, system-lifecycle suite green both hosts |
+| Release Verification 3 | 2026-09-21 | same consumer pair, then composed to `iocrunner-nfs` | Pass | Gate grade at `6a5c36d`, all five steps: new image pair (rocky8 `20260921T054305Z-a1a4eba9290a`, debian13 `20260921T054531Z-df7241ba5a9a`) at the recorded baseline ref, validator accepted both consumers with the guest manifest matching its sidecar, 945 checks per host with no FAIL/SKIP/SCRIPT_ERROR and a `CROSS_HOST` difference byte-identical to the set already confirmed as OS applicability, `SQUASH REPRODUCED` and `SOURCE CONTROL OK` on both, three deployment entry points clean with the configuration fingerprint unchanged, and the `root_squash` suite step green on both hosts |
+| Release Verification 4 | 2026-09-20 | production host (Rocky 8.10, NFS `root_squash`, `0700` home) | Pass | installed `1.4.1 (d6f86dc)`; `run-all-tests.bash --system --installed` in place; system-infra 36 PASS / 0 FAIL / 4 NA (glob sudoers), system-lifecycle 158/158, exit status 0 |
 | Release Verification 5 | 2026-09-19 | working tree | Confirmed | RUNNER_VERSION 1.4.1-dev and no CHANGELOG 1.4.1 section before the bump |
-| Release Verification 6 | 2026-09-19 | both goldens | Confirmed | `ioc-runner -V` reports 1.4.1 (cf5cecc) on both; CHANGELOG 1.4.1 section present |
+| Release Verification 6 | 2026-09-21 | both consumers | Confirmed | `ioc-runner -V` reports `1.4.1 (6a5c36d)` on both after each of the three deployment entry points and again before the `root_squash` suite step; CHANGELOG 1.4.1 section present |
 | Release Verification 7 | Not run | GitHub | Pending | none |
 | Release Verification 8 | Not run | GitHub | Pending | none |
-| Release Verification 9 | 2026-09-19 | rocky8 + debian13 goldens | Pass | run-all VERDICT RUN PASS, 14/14 scenarios both hosts, all P-* PASS |
+| Release Verification 9 | 2026-09-21 | same consumer pair as `iocrunner-nfs` | Pass | run-all `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none` on both hosts, every `P-*` prerequisite PASS |
+| Release Verification 10 | 2026-09-21 | same consumer pair as `iocrunner-nfs`, suites run from the NFS-backed tree | Pass | `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` with `SYSTEM_RC=0` on both hosts; no FAIL, SKIP, or SCRIPT_ERROR; the permission-denial check returns no output, leaving only the test IOC's own `st.cmd` denials; `Not applicable` is 4 and 0 per host, matching the OS applicability set |
 
 ##### Closure Evidence
 
