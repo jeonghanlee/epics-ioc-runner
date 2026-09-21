@@ -7,6 +7,7 @@ Canonical branch or ref: `release-1.4.1`
 Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number 18
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
+Gate baseline ref: `1.4.0` (D10)
 
 Next session entry point: M5 (release 1.4.1) execution. M1-M4, M6, and M7 are Complete
 and #152, #153, #154, #155 are closed. The version bump and the CHANGELOG section
@@ -51,6 +52,7 @@ and excluded from this tally.
 | D7 | The Gate is re-run at the release-branch tip `f00d903` instead of carrying the earlier `cf5cecc` evidence forward. `gate/RUNBOOK.md` invalidates every completed Gate step on a candidate tree change, and the six commits after `cf5cecc` change how the suites resolve their libraries under `root_squash`. The shipped tree (`bin/`, `configure/`, `Makefile`, `system-wide/`, `policy/`) is identical between the two candidates, so the re-run verifies the test harness, not the runner. The unpushed local tag `1.4.1`, which pointed at the partial merge `0131f71`, was deleted so the tag can be created on the final merge commit. | 2026-09-20 |
 | D8 | Milestone `1.4.1` was closed on 2026-09-19, ahead of publication, and is left closed rather than reopened for the interval. The release publishes against the already-closed milestone, so the milestone-close step of the release sequence has nothing left to run. | 2026-09-20 |
 | D9 | The Gate gains a `root_squash` suite step, so the four-step run of 2026-09-20 becomes Check grade and the Gate is re-run once more at the tip that carries the step. The gap it closes is the one #156 came through: the suite matrix runs from a path root can traverse, so a suite whose libraries resolve to an absolute path passes the Gate and fails on a production NFS home. The source-regression suite stays outside that step because it reads and executes `bin/` as root by its own contract, which the export blocks by design; #156's second acceptance criterion is read as the dispatcher path production uses, not the direct per-suite invocation. | 2026-09-20 |
+| D10 | The Gate bakes its golden pair at the `epics-ioc-runner` ref `1.4.0`, the previous release tag, and that value is this register's recorded baseline ref. The Gate preconditions require clean tagged runner provenance, which only a tag satisfies, and the candidate under test reaches the consumers through the push and deployment steps rather than through the image. A later cycle records its own predecessor tag in this table and in the header line above it. | 2026-09-20 |
 
 ### Milestone Details
 
