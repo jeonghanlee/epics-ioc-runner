@@ -11,10 +11,11 @@ Gate baseline ref: `1.4.0` (D10)
 
 Next session entry point: M5 (release 1.4.1) execution. M1-M4, M6, and M7 are Complete
 and #152, #153, #154, #155 are closed. The version bump and the CHANGELOG section
-already landed. The 2026-09-20 run at `f00d903` (20260920T093501Z-1255606) was
-green on a fresh consumer pair with multi-user 14/14 on both hosts, but the Gate
-has since gained a `root_squash` suite step, so that run is Check grade and the
-Gate is re-run at the tip carrying the step (D9). Master carries a partial merge
+already landed. The Gate is full-green at `6a5c36d` (run
+20260921T055158Z-2284308): Gate grade on a fresh consumer pair, all five steps
+including the `root_squash` suite step, multi-user 14/14 on both hosts. This
+record lands on the commit after the gated one, under the register-only
+exception in the runbook. Master carries a partial merge
 (`0131f71`, second parent `fc2f1e7`); six release-branch commits are still
 unmerged and the stale local tag was deleted. Remaining: re-run the Gate, merge
 `release-1.4.1` to master again, tag `1.4.1` on that merge, push, publish the
@@ -562,14 +563,14 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T3 | M3 template change merged onto the M1 detection change | `bin/ioc-runner`, local lifecycle suite | Release Verification 1 | Full local lifecycle and source-regression suites pass on the merged tree | Pass; gate-suites 20260920T093501Z-1255606 at `f00d903` on a fresh consumer pair, GATE SUITES PASS |
-| M3 / T4 | M1 detection change merged onto the M3 template change | systemd unit templates, system lifecycle suite | Release Verification 2 | System lifecycle suite passes with no site file (behavior unchanged) | Pass; same run 20260920T093501Z-1255606, system-lifecycle green both hosts |
+| M1 / T3 | M3 template change merged onto the M1 detection change | `bin/ioc-runner`, local lifecycle suite | Release Verification 1 | Full local lifecycle and source-regression suites pass on the merged tree | Pass; gate-suites 20260921T055158Z-2284308 at `6a5c36d` on a fresh consumer pair, GATE SUITES PASS |
+| M3 / T4 | M1 detection change merged onto the M3 template change | systemd unit templates, system lifecycle suite | Release Verification 2 | System lifecycle suite passes with no site file (behavior unchanged) | Pass; same run 20260921T055158Z-2284308, system-lifecycle green both hosts |
 
 ##### Production Environment Tests
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 3 | post-change | rocky8-iocrunner + debian13-iocrunner VMs | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pending; the 2026-09-20 run at `f00d903` executed the four steps the runbook then defined and is Check grade against the five-step runbook (D9) |
+| Release Verification 3 | post-change | rocky8-iocrunner + debian13-iocrunner VMs | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pass; Gate grade at `6a5c36d`, all five steps, run 20260921T055158Z-2284308 (see Release Verification Results) |
 | Release Verification 4 | pre-release | production host (Rocky NFS) | 1.4.1 | x86_64 | installed-mode `--system` suite in place | production system suite | Suite passes on root_squash workspace | Pass; 2026-09-20, d6f86dc (see Release Verification Results) |
 
 ##### Version Changes
@@ -603,20 +604,22 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | Release Verification 7 | Release object | post-release | Tag and release identity on `origin` | GitHub | `1.4.1` present | tag and release URL |
 | Release Verification 8 | Tracker | post-release | Milestone `1.4.1` state and issue closure | GitHub | Closed | milestone URL |
 | Release Verification 9 | Multi-user | post-change | Multi-user 14-scenario contract (`run-all` driver) | rocky8-iocrunner + debian13-iocrunner VMs | Pass | run-all.log |
+| Release Verification 10 | System | post-change | Installed `--system` suites run in place from the simulated `root_squash` export | rocky8-iocrunner + debian13-iocrunner VMs | Pass | suite log per host |
 
 ##### Release Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | 2026-09-20 | fresh rocky8 + debian13 consumers baked this run | Pass | gate-suites 20260920T093501Z-1255606 at `f00d903`, GATE SUITES PASS, local-lifecycle + source-regression green on both hosts |
-| Release Verification 2 | 2026-09-20 | same consumer pair | Pass | same run 20260920T093501Z-1255606, system-lifecycle suite green both hosts |
-| Release Verification 3 | 2026-09-20 | same consumer pair, then composed to `iocrunner-nfs` | Pending | The run at `f00d903` observed: new image pair (rocky8 `20260920T091818Z-44fab394dce3`, debian13 `20260920T092445Z-f28fd9d31157`), validator accepted both consumers, 945 checks per host with no FAIL/SKIP/SCRIPT_ERROR, every `CROSS_HOST` line confirmed as an OS applicability difference, `SQUASH REPRODUCED` on both, and all three deployment entry points clean with the configuration fingerprint unchanged. It ran the four steps the runbook then defined, so it is Check grade against the five-step runbook and is not release evidence (D9) |
+| Release Verification 1 | 2026-09-21 | fresh rocky8 + debian13 consumers baked this run | Pass | gate-suites 20260921T055158Z-2284308 at `6a5c36d`, GATE SUITES PASS, local-lifecycle + source-regression green on both hosts |
+| Release Verification 2 | 2026-09-21 | same consumer pair | Pass | same run 20260921T055158Z-2284308, system-lifecycle suite green both hosts |
+| Release Verification 3 | 2026-09-21 | same consumer pair, then composed to `iocrunner-nfs` | Pass | Gate grade at `6a5c36d`, all five steps: new image pair (rocky8 `20260921T054305Z-a1a4eba9290a`, debian13 `20260921T054531Z-df7241ba5a9a`) at the recorded baseline ref, validator accepted both consumers with the guest manifest matching its sidecar, 945 checks per host with no FAIL/SKIP/SCRIPT_ERROR and a `CROSS_HOST` difference byte-identical to the set already confirmed as OS applicability, `SQUASH REPRODUCED` and `SOURCE CONTROL OK` on both, three deployment entry points clean with the configuration fingerprint unchanged, and the `root_squash` suite step green on both hosts |
 | Release Verification 4 | 2026-09-20 | production host (Rocky 8.10, NFS `root_squash`, `0700` home) | Pass | installed `1.4.1 (d6f86dc)`; `run-all-tests.bash --system --installed` in place; system-infra 36 PASS / 0 FAIL / 4 NA (glob sudoers), system-lifecycle 158/158, exit status 0 |
 | Release Verification 5 | 2026-09-19 | working tree | Confirmed | RUNNER_VERSION 1.4.1-dev and no CHANGELOG 1.4.1 section before the bump |
-| Release Verification 6 | 2026-09-20 | both consumers | Confirmed | `ioc-runner -V` reports `1.4.1 (f00d903)` on both after each of the three deployment entry points; CHANGELOG 1.4.1 section present |
+| Release Verification 6 | 2026-09-21 | both consumers | Confirmed | `ioc-runner -V` reports `1.4.1 (6a5c36d)` on both after each of the three deployment entry points and again before the `root_squash` suite step; CHANGELOG 1.4.1 section present |
 | Release Verification 7 | Not run | GitHub | Pending | none |
 | Release Verification 8 | Not run | GitHub | Pending | none |
-| Release Verification 9 | 2026-09-20 | same consumer pair as `iocrunner-nfs` | Pass | run-all `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none` on both hosts, every `P-*` prerequisite PASS |
+| Release Verification 9 | 2026-09-21 | same consumer pair as `iocrunner-nfs` | Pass | run-all `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none` on both hosts, every `P-*` prerequisite PASS |
+| Release Verification 10 | 2026-09-21 | same consumer pair as `iocrunner-nfs`, suites run from the NFS-backed tree | Pass | `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` with `SYSTEM_RC=0` on both hosts; no FAIL, SKIP, or SCRIPT_ERROR; the permission-denial check returns no output, leaving only the test IOC's own `st.cmd` denials; `Not applicable` is 4 and 0 per host, matching the OS applicability set |
 
 ##### Closure Evidence
 
