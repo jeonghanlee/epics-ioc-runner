@@ -9,18 +9,14 @@ Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.4.1`, number
 Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset generation `8ee915a`
 Gate baseline ref: `1.4.0` (D10)
 
-Next session entry point: M5 (release 1.4.1) execution. M1-M4, M6, and M7 are Complete
-and #152, #153, #154, #155 are closed. The version bump and the CHANGELOG section
-already landed. The Gate is full-green at `6a5c36d` (run
-20260921T055158Z-2284308): Gate grade on a fresh consumer pair, all five steps
-including the `root_squash` suite step, multi-user 14/14 on both hosts. This
-record lands on the commit after the gated one, under the register-only
-exception in the runbook. Master carries a partial merge
-(`0131f71`, second parent `fc2f1e7`); six release-branch commits are still
-unmerged and the stale local tag was deleted. Remaining: re-run the Gate, merge
-`release-1.4.1` to master again, tag `1.4.1` on that merge, push, publish the
-existing draft release from the CHANGELOG section, delete `release-1.3.0`, and
-record Release Verification 7 and 8. The milestone is already closed (D8).
+Next session entry point: RELEASED 2026-09-21. Tag `1.4.1` and its release are
+published from the merge commit `4ced3f3`, the milestone is closed with its four
+issues, and the documentation site redeployed from that commit. The Gate behind
+the release is `6a5c36d`, run 20260921T055158Z-2284308, Gate grade on a fresh
+consumer pair across all five steps.
+One item is deliberately left open: `release-1.3.0` still exists locally and on
+`origin`, held at the owner's direction rather than deleted with the release.
+The next cycle opens its own branch and register from `4ced3f3`.
 GitHub milestone `1.4.1` (number 18) carries #152, #153, #154, and #155.
 
 ## Milestone
@@ -35,9 +31,9 @@ GitHub milestone `1.4.1` (number 18) carries #152, #153, #154, and #155.
 | Environment | M4 | Network environment reference: CA and PVA variables, layering rule, multi-homed example | Milestone | Complete | — | M2, D3 | `docs/NETWORK_ENV.md` published with the variable tables and the RFC 5737 example, `USER_GUIDE.md` and `FAQ.md` cross-linked; [detail](#m4---network-environment-reference-ca-and-pva-variables-layering-rule-multi-homed-example) |
 | Operations | M6 | `log` command: show the effective procServ log of an IOC (#154) | Milestone | Complete | — | D5 | `ioc-runner [--local] log <name> [-f] [-n <count>]` prints the tail of the IOC's effective procServ log file, follows it with `-f`, and sets the tail depth with `-n` (default 40); the post-init warning hint names the command; [detail](#m6---log-command-show-the-effective-procserv-log-of-an-ioc) |
 | Documentation | M7 | mdBook documentation site over the existing docs, deployed to GitHub Pages (#155) | Milestone | Complete | — | — | `mdbook build` renders the existing `docs/` into a site with a curated `SUMMARY.md` (internal register docs excluded), and `.github/workflows/docs.yml` deploys it to GitHub Pages on push to master; [detail](#m7---mdbook-documentation-site) |
-| Release | M5 | Release 1.4.1 | Milestone | In progress | — | M1, M2, M3, M4, M6, M7 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
+| Release | M5 | Release 1.4.1 | Milestone | Complete | — | M1, M2, M3, M4, M6, M7 | Version stamped `1.4.1`, `release-1.4.1` merged to master, tag `1.4.1` and GitHub release published, milestone `1.4.1` closed; [detail](#m5---release-141) |
 
-Tally: 7 milestone rows (6 Complete, 1 In progress). Backlog is reported separately below
+Tally: 7 milestone rows (7 Complete). Backlog is reported separately below
 and excluded from this tally.
 
 ### Decisions
@@ -516,7 +512,7 @@ Last Compared: 2026-09-20
 Origin: 8ee915a / M5
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -584,10 +580,10 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 
 | Step | Action | Authorization | Expected Result | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Merge `release-1.4.1` into master (no fast-forward) | `override release` | Merge commit on master | partial; `0131f71` merged through `fc2f1e7` on 2026-09-19, six later commits still unmerged, so a second merge completes this step |
-| 2 | Annotated tag `1.4.1` on the merge commit | `override release` | Tag object `1.4.1` | pending; the local tag created on 2026-09-19 pointed at the partial merge and was deleted, never pushed (D7) |
-| 3 | Push master and the tag | `override release` | `origin/master` and `refs/tags/1.4.1` updated | partial; master pushed at `0131f71`, no tag on `origin` |
-| 4 | `gh release create 1.4.1 --notes-file` from the CHANGELOG section | `override release` | Release published | pending; a draft named `1.4.1` exists with placeholder notes, so publication edits that draft instead of creating a second record |
+| 1 | Merge `release-1.4.1` into master (no fast-forward) | `override release` | Merge commit on master | done; `4ced3f3` on 2026-09-21, parents `0131f71` and `cfe0b95`, completing the partial merge of 2026-09-19 |
+| 2 | Annotated tag `1.4.1` on the merge commit | `override release` | Tag object `1.4.1` | done; tag object `a083233` peels to `4ced3f3`. The local tag created on 2026-09-19 pointed at the partial merge and was deleted unpushed (D7) |
+| 3 | Push master and the tag | `override release` | `origin/master` and `refs/tags/1.4.1` updated | done; `0131f71..4ced3f3` on master with the tag in the same push |
+| 4 | Publish the release from the CHANGELOG section | `override release` | Release published | done; the 2026-09-19 draft was edited rather than replaced, so the record keeps its identity. It carried a prerelease flag the draft had set, which was cleared with the `latest` mark at publication |
 | 5 | Close GitHub milestone `1.4.1` | `override release` | Milestone closed | done; milestone 18 was closed on 2026-09-19, ahead of publication, and is left closed (D8) |
 | 6 | Delete the release branch two releases back (local + origin) per the branch workflow | owner-run | Stale release branch removed | pending; `release-1.3.0` still present locally and on `origin` |
 
@@ -616,14 +612,22 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | Release Verification 4 | 2026-09-20 | production host (Rocky 8.10, NFS `root_squash`, `0700` home) | Pass | installed `1.4.1 (d6f86dc)`; `run-all-tests.bash --system --installed` in place; system-infra 36 PASS / 0 FAIL / 4 NA (glob sudoers), system-lifecycle 158/158, exit status 0 |
 | Release Verification 5 | 2026-09-19 | working tree | Confirmed | RUNNER_VERSION 1.4.1-dev and no CHANGELOG 1.4.1 section before the bump |
 | Release Verification 6 | 2026-09-21 | both consumers | Confirmed | `ioc-runner -V` reports `1.4.1 (6a5c36d)` on both after each of the three deployment entry points and again before the `root_squash` suite step; CHANGELOG 1.4.1 section present |
-| Release Verification 7 | Not run | GitHub | Pending | none |
-| Release Verification 8 | Not run | GitHub | Pending | none |
+| Release Verification 7 | 2026-09-21 | GitHub | Pass | annotated tag `1.4.1` on `origin` (object `a083233`) peels to the merge commit `4ced3f3`; the release is published, not a draft and not a prerelease, and carries the `latest` mark, at https://github.com/jeonghanlee/epics-ioc-runner/releases/tag/1.4.1 |
+| Release Verification 8 | 2026-09-21 | GitHub | Pass | milestone `1.4.1` closed with 0 open and 4 closed issues at https://github.com/jeonghanlee/epics-ioc-runner/milestone/18; #152, #153, #154, and #155 all observed closed |
 | Release Verification 9 | 2026-09-21 | same consumer pair as `iocrunner-nfs` | Pass | run-all `VERDICT RUN PASS 14 scenarios: pass=14 fail=0 missing=none` on both hosts, every `P-*` prerequisite PASS |
 | Release Verification 10 | 2026-09-21 | same consumer pair as `iocrunner-nfs`, suites run from the NFS-backed tree | Pass | `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` with `SYSTEM_RC=0` on both hosts; no FAIL, SKIP, or SCRIPT_ERROR; the permission-denial check returns no output, leaving only the test IOC's own `st.cmd` denials; `Not applicable` is 4 and 0 per host, matching the OS applicability set |
 
 ##### Closure Evidence
 
-- none
+- Released 2026-09-21. `release-1.4.1` merged to master at `4ced3f3` (parents
+  `0131f71` and `cfe0b95`), annotated tag `1.4.1` (object `a083233`) on that
+  merge, master and tag pushed together, and the release published from the
+  CHANGELOG section as the `latest` record. Milestone `1.4.1` closed with
+  #152, #153, #154, and #155; #156 closed separately on its own verification.
+  The documentation site redeployed from the merge commit. Gate grade behind
+  the release: `6a5c36d`, run 20260921T055158Z-2284308, five steps on a fresh
+  consumer pair. Deleting `release-1.3.0` is held open at the owner's
+  direction.
 
 ##### GitHub Projection
 
