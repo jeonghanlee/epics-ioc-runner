@@ -522,6 +522,31 @@ consumers after they reach `iocrunner-nfs`.
 
 - A candidate tree change invalidates every completed Gate step. Restart at the
   final candidate commit.
+- A commit that changes only the `<release-register>` document is the one
+  exception, and only while it changes neither a baseline ref the register
+  records nor a Test Plan step 1 executes. The register is where a completed
+  Gate's result is written, so treating that write as a candidate change would
+  leave a Gate unreachable: every run would be invalidated by the act of
+  recording it. The register is still a Gate input through step 1, so a change
+  that moves such a Test Plan, or a baseline ref where the register carries one,
+  is an ordinary candidate change under the rule above.
+
+  Call the commit the Gate steps ran against `<gated-commit>` and the current
+  branch tip `<current-tip>`. The first command settles the exception on its
+  own; the second is read for the two things named above, and a register that
+  records no baseline ref has nothing to compare there:
+
+  ```bash
+  git -C <repo> diff --name-only <gated-commit> <current-tip>
+  git -C <repo> diff <gated-commit> <current-tip> -- <release-register>
+  ```
+
+  Required result: the first command prints the register's path and nothing
+  else, and the second shows no change to a recorded baseline ref or to a Test
+  Plan step 1 executes. A Test Plan the Gate does not execute may be added or
+  recorded freely — a plan verified after the release merge, for instance. Gate
+  Identity already records the register's commit and the runner tree's commit;
+  under this exception the two may differ, and both belong in the evidence.
 - A supplier change between image builds invalidates the image pair.
 - A consumer change before Golden acceptance requires a fresh consumer.
 - A failed `P_nfs-sim` run requires a fresh pair and a new step 2 result.
