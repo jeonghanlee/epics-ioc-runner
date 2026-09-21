@@ -10,14 +10,15 @@ Activation state: active on `release-1.4.1`, opened from the post-1.4.0 reset ge
 
 Next session entry point: M5 (release 1.4.1) execution. M1-M4, M6, and M7 are Complete
 and #152, #153, #154, #155 are closed. The version bump and the CHANGELOG section
-already landed, and the Gate is full-green at the release-branch tip `f00d903`
-(run 20260920T093501Z-1255606, Gate grade on a fresh consumer pair; multi-user
-14/14 on both hosts). Master carries a partial merge (`0131f71`, second parent
-`fc2f1e7`); six release-branch commits are still unmerged and the stale local tag
-was deleted. Remaining: merge `release-1.4.1` to master again, tag `1.4.1` on that
-merge, push, publish the existing draft release from the CHANGELOG section, close
-milestone `1.4.1` after publication, delete `release-1.3.0`, and record Release
-Verification 7 and 8.
+already landed. The 2026-09-20 run at `f00d903` (20260920T093501Z-1255606) was
+green on a fresh consumer pair with multi-user 14/14 on both hosts, but the Gate
+has since gained a `root_squash` suite step, so that run is Check grade and the
+Gate is re-run at the tip carrying the step (D9). Master carries a partial merge
+(`0131f71`, second parent `fc2f1e7`); six release-branch commits are still
+unmerged and the stale local tag was deleted. Remaining: re-run the Gate, merge
+`release-1.4.1` to master again, tag `1.4.1` on that merge, push, publish the
+existing draft release from the CHANGELOG section, delete `release-1.3.0`, and
+record Release Verification 7 and 8. The milestone is already closed (D8).
 GitHub milestone `1.4.1` (number 18) carries #152, #153, #154, and #155.
 
 ## Milestone
@@ -48,6 +49,8 @@ and excluded from this tally.
 | D5 | A `log` command (`ioc-runner [--local] log <name> [-f] [-n <count>]`) ships in 1.4.1 as its own work item, M6, separate from the #153 fix: the reworded warning directs the operator to the log, and the command is the one-step way there. `-f` follows and `-n` sets the tail depth (default 40); both reuse the global option parser, and `-f` carries no force meaning on this read-only verb. | 2026-09-18 |
 | D6 | D4's corroborating-token mechanism is superseded: the built-in corroboration matches framework severity markers case-sensitively (the uppercase `ERROR` word, the PVXS ` ERR `/` CRIT ` level words, `sevr=major`/`sevr=fatal`) plus the existing case-insensitive message phrases, and never English error vocabulary — prose sensitivity is the per-IOC `CRASH_LOG_PATTERNS_EXTRA` opt-in. Grounds (the 33-module emission survey, the renderer evidence including colon-less `ERL_ERROR`, the healthy-log measurement) and the rejected alternatives are ADR 0004. D4's heuristic warning wording, matched-line display, and ANSI SGR normalization stand. | 2026-09-18 |
 | D7 | The Gate is re-run at the release-branch tip `f00d903` instead of carrying the earlier `cf5cecc` evidence forward. `gate/RUNBOOK.md` invalidates every completed Gate step on a candidate tree change, and the six commits after `cf5cecc` change how the suites resolve their libraries under `root_squash`. The shipped tree (`bin/`, `configure/`, `Makefile`, `system-wide/`, `policy/`) is identical between the two candidates, so the re-run verifies the test harness, not the runner. The unpushed local tag `1.4.1`, which pointed at the partial merge `0131f71`, was deleted so the tag can be created on the final merge commit. | 2026-09-20 |
+| D8 | Milestone `1.4.1` was closed on 2026-09-19, ahead of publication, and is left closed rather than reopened for the interval. The release publishes against the already-closed milestone, so the milestone-close step of the release sequence has nothing left to run. | 2026-09-20 |
+| D9 | The Gate gains a `root_squash` suite step, so the four-step run of 2026-09-20 becomes Check grade and the Gate is re-run once more at the tip that carries the step. The gap it closes is the one #156 came through: the suite matrix runs from a path root can traverse, so a suite whose libraries resolve to an absolute path passes the Gate and fails on a production NFS home. The source-regression suite stays outside that step because it reads and executes `bin/` as root by its own contract, which the export blocks by design; #156's second acceptance criterion is read as the dispatcher path production uses, not the direct per-suite invocation. | 2026-09-20 |
 
 ### Milestone Details
 
@@ -564,7 +567,7 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 3 | post-change | rocky8-iocrunner + debian13-iocrunner VMs | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pass; Gate grade at `f00d903`, run 20260920T093501Z-1255606, GATE SUITES PASS hosts=2, plus the `root_squash` deployment step |
+| Release Verification 3 | post-change | rocky8-iocrunner + debian13-iocrunner VMs | 1.4.1 | x86_64 | clone-and-test + install-and-test | VM gate per RUNBOOK | Both pass | Pending; the 2026-09-20 run at `f00d903` executed the four steps the runbook then defined and is Check grade against the five-step runbook (D9) |
 | Release Verification 4 | pre-release | production host (Rocky NFS) | 1.4.1 | x86_64 | installed-mode `--system` suite in place | production system suite | Suite passes on root_squash workspace | Pass; 2026-09-20, d6f86dc (see Release Verification Results) |
 
 ##### Version Changes
@@ -582,7 +585,7 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | 2 | Annotated tag `1.4.1` on the merge commit | `override release` | Tag object `1.4.1` | pending; the local tag created on 2026-09-19 pointed at the partial merge and was deleted, never pushed (D7) |
 | 3 | Push master and the tag | `override release` | `origin/master` and `refs/tags/1.4.1` updated | partial; master pushed at `0131f71`, no tag on `origin` |
 | 4 | `gh release create 1.4.1 --notes-file` from the CHANGELOG section | `override release` | Release published | pending; a draft named `1.4.1` exists with placeholder notes, so publication edits that draft instead of creating a second record |
-| 5 | Close GitHub milestone `1.4.1` | `override release` | Milestone closed | pending; milestone 18 was closed early on 2026-09-19 and is reopened until the release is published |
+| 5 | Close GitHub milestone `1.4.1` | `override release` | Milestone closed | done; milestone 18 was closed on 2026-09-19, ahead of publication, and is left closed (D8) |
 | 6 | Delete the release branch two releases back (local + origin) per the branch workflow | owner-run | Stale release branch removed | pending; `release-1.3.0` still present locally and on `origin` |
 
 ##### Release Verification Plan
@@ -605,7 +608,7 @@ Out of scope: any work item M1-M4 or M6 itself; new features beyond #152, #153, 
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-09-20 | fresh rocky8 + debian13 consumers baked this run | Pass | gate-suites 20260920T093501Z-1255606 at `f00d903`, GATE SUITES PASS, local-lifecycle + source-regression green on both hosts |
 | Release Verification 2 | 2026-09-20 | same consumer pair | Pass | same run 20260920T093501Z-1255606, system-lifecycle suite green both hosts |
-| Release Verification 3 | 2026-09-20 | same consumer pair, then composed to `iocrunner-nfs` | Pass | Gate grade at `f00d903`: new image pair (rocky8 `20260920T091818Z-44fab394dce3`, debian13 `20260920T092445Z-f28fd9d31157`), validator accepted both consumers, 945 checks per host with no FAIL/SKIP/SCRIPT_ERROR, every `CROSS_HOST` line confirmed as an OS applicability difference, `SQUASH REPRODUCED` on both, and all three deployment entry points clean with the configuration fingerprint unchanged |
+| Release Verification 3 | 2026-09-20 | same consumer pair, then composed to `iocrunner-nfs` | Pending | The run at `f00d903` observed: new image pair (rocky8 `20260920T091818Z-44fab394dce3`, debian13 `20260920T092445Z-f28fd9d31157`), validator accepted both consumers, 945 checks per host with no FAIL/SKIP/SCRIPT_ERROR, every `CROSS_HOST` line confirmed as an OS applicability difference, `SQUASH REPRODUCED` on both, and all three deployment entry points clean with the configuration fingerprint unchanged. It ran the four steps the runbook then defined, so it is Check grade against the five-step runbook and is not release evidence (D9) |
 | Release Verification 4 | 2026-09-20 | production host (Rocky 8.10, NFS `root_squash`, `0700` home) | Pass | installed `1.4.1 (d6f86dc)`; `run-all-tests.bash --system --installed` in place; system-infra 36 PASS / 0 FAIL / 4 NA (glob sudoers), system-lifecycle 158/158, exit status 0 |
 | Release Verification 5 | 2026-09-19 | working tree | Confirmed | RUNNER_VERSION 1.4.1-dev and no CHANGELOG 1.4.1 section before the bump |
 | Release Verification 6 | 2026-09-20 | both consumers | Confirmed | `ioc-runner -V` reports `1.4.1 (f00d903)` on both after each of the three deployment entry points; CHANGELOG 1.4.1 section present |
