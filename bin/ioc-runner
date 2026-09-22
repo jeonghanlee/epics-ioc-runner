@@ -95,6 +95,9 @@ declare -g SCAN_DIR="${CONTAINER_SCAN_DIR}"
 declare -g VERBOSE_LEVEL=0
 declare -g FORCE_OVERWRITE=0
 declare -g LOG_TAIL_LINES=""
+declare -g DETACH_KEY_CODE="0x01"
+declare -g DETACH_KEY_LABEL="Ctrl-A"
+declare -g DETACH_KEY_SET=0
 # M6: set by the local shared-asset deploy helpers when a unit file actually
 # changed, so do_install issues exactly one daemon-reload only when needed.
 declare -g TEMPLATE_CHANGED=0
@@ -243,6 +246,8 @@ Options:
   -f, --force    Force overwrite without prompting: the configuration file and,
                  in local mode, a differing shared systemd template or logrotate unit
   -v, -vv        Verbose output (supported only for 'list' command)
+  --detach-key KEY  Set the console detach key (attach only; default: ctrl-a)
+                   KEY: ctrl-a..ctrl-z (except ctrl-t), ctrl-[, ctrl-\, ctrl-], ctrl-^, ctrl-_
   -V, --version  Show version, git hash, commit date, and install date
   -h, --help     Show this help message and exit
 
@@ -273,6 +278,7 @@ Examples:
   ${prog_name} install myioc.conf        # Install system-wide IOC
   ${prog_name} start myioc               # Start the system-wide IOC
   ${prog_name} attach myioc              # Connect to the IOC console (read/write)
+  ${prog_name} attach myioc --detach-key ctrl-]  # Use Ctrl-] to detach
   ${prog_name} monitor myioc             # Connect to the IOC console (read-only)
   sudo ${prog_name} inspect myioc        # Trace active clients on the IOC socket
   ${prog_name} --local install t.conf    # Install IOC in local user space
@@ -335,6 +341,33 @@ function require_installed_conf {
 declare -g COMMAND_ACTION=""
 declare -g TARGET_ARG=""
 
+# Normalize one named ASCII control key for both console clients.
+function set_detach_key {
+    local key="${1,,}"
+    local character="${key#ctrl-}"
+    local code=0
+
+    if [[ "${key}" != ctrl-? ]]; then
+        printf "Error: --detach-key expects a control key such as ctrl-a or ctrl-].\n" >&2
+        return 1
+    fi
+    case "${character}" in
+        [abcdefghijklmnopqrstuvwxyz]|'['|"\\"|']'|'^'|'_') ;;
+        *)
+            printf "Error: Invalid detach key '%s'; use ctrl-a..ctrl-z, ctrl-[, ctrl-\\, ctrl-], ctrl-^, or ctrl-_.\n" "$1" >&2
+            return 1
+            ;;
+    esac
+    if [[ "${character}" == "t" ]]; then
+        printf "Error: Ctrl-T is reserved for the con diagnostic command; choose another detach key.\n" >&2
+        return 1
+    fi
+    LC_ALL=C printf -v code '%d' "'${character}"
+    printf -v DETACH_KEY_CODE '0x%02x' "$((code & 31))"
+    DETACH_KEY_LABEL="Ctrl-${character^^}"
+    DETACH_KEY_SET=1
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --local|--user)
@@ -367,6 +400,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         -v)
             VERBOSE_LEVEL=1
+            ;;
+        --detach-key)
+            if [[ -z "${2:-}" ]]; then
+                printf "Error: --detach-key requires a key (for example, ctrl-a or ctrl-]).\n" >&2
+                exit 1
+            fi
+            set_detach_key "$2"
+            shift
             ;;
         -V|--version)
             display_hash="${RUNNER_GIT_HASH}"
@@ -418,6 +459,11 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+if [[ ${DETACH_KEY_SET} -eq 1 && "${COMMAND_ACTION}" != "attach" ]]; then
+    printf "Error: --detach-key is supported only for the 'attach' command.\n" >&2
+    exit 1
+fi
 
 if [[ -z "${COMMAND_ACTION}" ]]; then
     print_usage
@@ -690,6 +736,8 @@ function probe_effective_log_path {
     local -a probe_cmd=()
 
     LOG_PATH_PROBE_ERROR=""
+    # Expand probe variables in the child shell, not in the calling shell.
+    # shellcheck disable=SC2016
     probe_script='probe_file=""; cleanup_probe() { if [[ -n "${probe_file}" ]]; then /usr/bin/rm -f -- "${probe_file}"; fi; }; trap cleanup_probe EXIT HUP INT TERM; probe_file=$(/usr/bin/mktemp -- "$1/.ioc-runner-probe.XXXXXX") || exit $?; write_rc=0; printf "x" > "${probe_file}" || write_rc=$?; if (( write_rc == 0 )); then /usr/bin/sync -f "${probe_file}" || write_rc=$?; fi; cleanup_rc=0; /usr/bin/rm -f -- "${probe_file}" || cleanup_rc=$?; probe_file=""; if (( write_rc != 0 )); then exit "${write_rc}"; fi; exit "${cleanup_rc}"'
     probe_cmd=(/bin/bash -p -c "${probe_script}" ioc-runner-log-probe "${log_dir}")
     if [[ -n "${probe_user}" || -n "${probe_group}" ]]; then
@@ -1156,12 +1204,12 @@ function parse_conf_file {
                             return 2
                         fi
                         pair="${inner:index:2}"
-                        if [[ "${pair}" != '\\' ]]; then
+                        if [[ "${pair}" != "\\\\" ]]; then
                             printf "Error: Unsupported configuration escape in %s at line %d.\n" \
                                 "${display_name}" "${line_number}" >&2
                             return 2
                         fi
-                        decoded+='\'
+                        decoded+="\\"
                         index=$((index + 2))
                         continue
                     fi
@@ -1780,6 +1828,9 @@ declare -g CON_TOOL_PATH=""
 declare -g CON_TOOL_TYPE=""
 
 function resolve_con_tool {
+    local supported_tools="con, socat"
+    local nc_help
+
     CON_TOOL_PATH="${IOC_RUNNER_CON_TOOL:-}"
     CON_TOOL_TYPE=""
 
@@ -1806,20 +1857,22 @@ function resolve_con_tool {
         return 0
     fi
 
-    if command -v nc >/dev/null 2>&1; then
-        # Capture first, then test: piping 'nc -h' straight into grep -q is a
-        # pipefail false negative (usage exit / SIGPIPE on early grep match).
-        local nc_help
-        nc_help=$(nc -h 2>&1 || true)
-        if grep -qF -- "-U" <<< "${nc_help}"; then
-            CON_TOOL_PATH="nc"
-            CON_TOOL_TYPE="nc"
-            return 0
+    if [[ "${COMMAND_ACTION}" == "monitor" ]]; then
+        supported_tools+=", nc"
+        if command -v nc >/dev/null 2>&1; then
+            # Capture first, then test: piping 'nc -h' straight into grep -q is a
+            # pipefail false negative (usage exit / SIGPIPE on early grep match).
+            nc_help=$(nc -h 2>&1 || true)
+            if grep -qF -- "-U" <<< "${nc_help}"; then
+                CON_TOOL_PATH="nc"
+                CON_TOOL_TYPE="nc"
+                return 0
+            fi
         fi
     fi
 
-    printf "Error: No suitable tool (con, socat, nc) found for console attachment.\n" >&2
-    printf "Recommendation: Install 'con' for the best experience (supports Ctrl-A to detach).\n" >&2
+    printf "Error: No suitable tool (%s) found for '%s'.\n" "${supported_tools}" "${COMMAND_ACTION}" >&2
+    printf "Recommendation: Install 'con' (preferred) or 'socat' for console access.\n" >&2
     printf "Source: https://github.com/jeonghanlee/con\n" >&2
     exit 1
 }
@@ -2194,6 +2247,9 @@ function do_install {
     local saved_pwd=""
     local resolved_ioc_name=""
     local -A install_conf=()
+    # read_conf_all populates this nameref target only to validate site.env syntax.
+    # shellcheck disable=SC2034
+    local -A site_env_map=()
 
     # Resolves the target configuration file natively. If a directory is provided,
     # it locates the previously generated .conf file inside it to streamline the installation workflow.
@@ -2365,7 +2421,6 @@ function do_install {
     # %i.conf, so per-IOC keys still override it.
     local site_env_file="${CONF_DIR}/site.env"
     if [[ -f "${site_env_file}" ]]; then
-        local -A site_env_map
         if ! read_conf_all "${site_env_file}" site_env_map "${site_env_file}"; then
             printf "Error: Site environment file %s failed the grammar check.\n" "${site_env_file}" >&2
             exit 1
@@ -2527,22 +2582,16 @@ function do_attach {
     print_divider >&2
     printf "Attaching to %s via %s:\n" "${IOC_NAME}" "${CON_TOOL_TYPE}"
     printf "Path: %s\n" "${RESOLVED_SOCK_PATH}"
+    printf "Press %s to detach from the console while leaving the IOC running.\n" "${DETACH_KEY_LABEL}"
+    printf "%s is consumed by the client and is not sent to the IOC shell.\n" "${DETACH_KEY_LABEL}"
+    print_divider >&2
 
     case "${CON_TOOL_TYPE}" in
         con)
-            printf "Use Ctrl-A to exit the console.\n"
-            print_divider >&2
-            exec "${CON_TOOL_PATH}" -c "${RESOLVED_SOCK_PATH}" || exit
+            exec "${CON_TOOL_PATH}" -x "${DETACH_KEY_CODE}" -c "${RESOLVED_SOCK_PATH}" || exit
             ;;
         socat)
-            printf "Use Ctrl-C to exit (Fallback tool).\n"
-            print_divider >&2
-            exec socat -,raw,echo=0 UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" || exit
-            ;;
-        nc)
-            printf "Use Ctrl-C to exit (Fallback tool).\n"
-            print_divider >&2
-            exec nc -U "${RESOLVED_SOCK_PATH}" || exit
+            exec socat "-,raw,echo=0,escape=${DETACH_KEY_CODE}" UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" || exit
             ;;
     esac
 }

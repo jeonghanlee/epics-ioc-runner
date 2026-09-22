@@ -12,7 +12,7 @@ _ioc_runner_completions() {
 
     # Define available command set and global options
     commands="generate install remove start stop restart status enable disable view list attach monitor inspect"
-    opts="--local --user --container -f --force -v -vv -V --version -h --help"
+    opts="--local --user --container -f --force -v -vv --detach-key -V --version -h --help"
 
     # Check for the presence of --local (or its --user alias) to determine the
     # target configuration path; --container shares the system-mode directory.
@@ -31,16 +31,22 @@ _ioc_runner_completions() {
         conf_dir="${IOC_RUNNER_CONF_DIR:-${IOC_RUNNER_SYSTEM_CONF_DIR:-/etc/procServ.d}}"
     fi
 
+    # Offer common detach keys before completing commands or IOC names.
+    if [[ "${prev}" == "--detach-key" ]]; then
+        mapfile -t COMPREPLY < <(compgen -W 'ctrl-a ctrl-b ctrl-]' -- "${cur}")
+        return 0
+    fi
+
     # Handle global options starting with a dash
     if [[ "${cur}" == -* ]] ; then
-        COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+        mapfile -t COMPREPLY < <(compgen -W "${opts}" -- "${cur}")
         return 0
     fi
 
     # Identify the primary command action in the current command line
     cmd_found=""
     for word in "${COMP_WORDS[@]}"; do
-        if [[ " ${commands} " =~ " ${word} " ]]; then
+        if [[ " ${commands} " == *" ${word} "* ]]; then
             cmd_found="${word}"
             break
         fi
@@ -48,7 +54,7 @@ _ioc_runner_completions() {
 
     # Suggest commands or global options if no primary action is identified
     if [[ -z "${cmd_found}" ]]; then
-        COMPREPLY=( $(compgen -W "${commands} ${opts}" -- "${cur}") )
+        mapfile -t COMPREPLY < <(compgen -W "${commands} ${opts}" -- "${cur}")
         return 0
     fi
 
@@ -64,15 +70,15 @@ _ioc_runner_completions() {
                     ioc_names+=" ${name%.conf}"
                 done
             fi
-            COMPREPLY=( $(compgen -W "${ioc_names}" -- "${cur}") )
+            mapfile -t COMPREPLY < <(compgen -W "${ioc_names}" -- "${cur}")
             ;;
         install|generate)
             # Enable standard file and directory path completion
-            COMPREPLY=( $(compgen -f -d -- "${cur}") )
+            mapfile -t COMPREPLY < <(compgen -f -d -- "${cur}")
             ;;
         list)
             # Suggest verbosity flags specific to the list action
-            COMPREPLY=( $(compgen -W "-v -vv" -- "${cur}") )
+            mapfile -t COMPREPLY < <(compgen -W "-v -vv" -- "${cur}")
             ;;
         *)
             COMPREPLY=()

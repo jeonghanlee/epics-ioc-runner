@@ -9,7 +9,7 @@ By eliminating heavy dependencies, this architecture adheres strictly to the **K
 This architecture requires the following core utilities to be installed on your system (e.g., in `~/.local/bin` for local-mode user installs, `/usr/local/bin`, or `/usr/bin`):
 * **procServ**: https://github.com/jeonghanlee/procServ-env
 * **con**: https://github.com/jeonghanlee/con (Recommended for clean detachment via Ctrl-A)
-  * *Fallback*: If `con` is unavailable, the `attach` command automatically falls back to `socat` or `nc` (with `-U` UNIX Domain Socket support).
+  * *Fallback*: If `con` is unavailable, the `attach` command uses `socat`. Both clients use `Ctrl-A` to detach while leaving the IOC running; `attach --detach-key ctrl-] <name>` selects another key for that connection. If neither is installed, attachment fails with an installation hint; `nc` is not supported for `attach`.
 
 ## Key Highlights
 * **No Python or Framework Runtime**: Built on Bash 4.3+ and native `systemd`. Runtime depends on `procServ`, `con`, `lsof`, `ss`, `awk`, and `runuser` from `util-linux`; no Python interpreter or application framework is required.

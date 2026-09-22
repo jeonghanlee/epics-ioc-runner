@@ -119,7 +119,13 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 ~/epics-ioc-runner/bin/ioc-runner --local attach iocctrlslab-tcmd
 ```
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
-* **Press Ctrl-A** to safely detach from the console while leaving the IOC running in the background.
+* **Detach**: Press `Ctrl-A` by default to detach from the console while leaving the IOC running. The runner selects `con`, or `socat` if `con` is unavailable; both consume the selected detach key locally, so it never reaches the IOC shell. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line.
+
+To use another key for one connection, pass `--detach-key`; the attach banner names the selected key. The default remains `Ctrl-A` for later connections. See the [CLI reference](CLI_REFERENCE.md#attach-readwrite-mode) for accepted key names.
+
+```bash
+ioc-runner --local attach iocctrlslab-tcmd --detach-key ctrl-]
+```
 
 To read the IOC's log without attaching, use the read-only `log` command. It resolves the effective procServ log file, shows the last 40 lines by default (`-n <count>` to change the depth), and follows the file with `-f`.
 
@@ -186,7 +192,7 @@ You can then connect directly using `con`:
 ```bash
 con -c /run/user/$(id -u)/procserv/iocctrlslab-tcmd/control
 ```
-* **To exit the console session**: Press `Ctrl-A`.
+* **Detach**: Press `Ctrl-A` to detach from the console while leaving the IOC running.
 
 
 ## 13. Version Tracking

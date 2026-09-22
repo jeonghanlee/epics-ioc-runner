@@ -123,8 +123,14 @@ To interact with the IOC shell, connect to the UNIX Domain Socket.
 ```bash
 ioc-runner attach myioc
 ```
-* **To exit the console session**: Press `Ctrl-A`.
-* *Note: Do not use `Ctrl-C` or `Ctrl-D` as it may terminate the IOC depending on the shell settings.*
+* **Detach**: Press `Ctrl-A` by default to detach from the console while leaving the IOC running. The runner selects `con`, or `socat` if `con` is unavailable; both consume the selected detach key locally, so it never reaches the IOC shell. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line.
+* **Ignored keys**: The runner configures procServ with `--ignore=^D^C^]`. It discards `Ctrl-C`, `Ctrl-D`, and `Ctrl-]` before they reach the IOC. If one of these is selected as the detach key, the client handles it locally and detaches first.
+
+To use another key for one connection, pass `--detach-key`; the attach banner names the selected key. The default remains `Ctrl-A` for later connections. See the [CLI reference](CLI_REFERENCE.md#attach-readwrite-mode) for accepted key names.
+
+```bash
+ioc-runner attach myioc --detach-key ctrl-]
+```
 
 ## 3. Daily Operations (Systemd Native Commands)
 Because the IOCs are managed by `systemd` templates, you can use native `systemctl` commands without a password.
@@ -213,7 +219,7 @@ You can then connect directly using `con`:
 ```bash
 con -c /run/procserv/myioc/control
 ```
-* **To exit the console session**: Press `Ctrl-A`.
+* **Detach**: Press `Ctrl-A` to detach from the console while leaving the IOC running.
 
 
 ## 8. Container Mode (`--container`)

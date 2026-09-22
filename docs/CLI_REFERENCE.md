@@ -216,7 +216,7 @@ The `epics-ioc-runner` provides two distinct methods for interacting with an act
 | **Input Mapping** | TTY `stdin` → Socket | Disconnected / Read-only |
 | **Primary Use Case** | Debugging, issuing IOC shell commands | Safe observation, live log tailing |
 | **Interleaving Risk** | High (if multiple active clients) | Zero |
-| **UDS Tooling** | `con`, `socat`, `nc` | `con -r`, `socat -u UNIX-CONNECT:<socket> STDOUT`, `nc -U <socket> < /dev/null` |
+| **UDS Tooling** | `con`, `socat` | `con -r`, `socat -u UNIX-CONNECT:<socket> STDOUT`, `nc -U <socket> < /dev/null` |
 
 ---
 
@@ -224,7 +224,11 @@ The `epics-ioc-runner` provides two distinct methods for interacting with an act
 
 The `attach` command establishes a standard, bi-directional terminal session with the IOC.
 
-- **Usage**: `ioc-runner attach <ioc_name>`
+- **Usage**: `ioc-runner attach <ioc_name> [--detach-key <key>]`
+- **Tool Selection**: Uses `con` when available, otherwise `socat`. If neither is installed, the command fails with an installation hint, even if `nc` is available.
+- **Detach**: Press the key shown in the attach banner to detach from the console while leaving the IOC running. The default is `Ctrl-A`. Both `con` and `socat` consume the selected key locally, so it never reaches the IOC shell. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line. The runner passes the same byte value through `con -x` and `socat`'s `escape` option.
+- **Custom Key**: `--detach-key ctrl-]` selects `Ctrl-]` for that connection only; it does not change the default for later connections or direct `con` invocations. Names are case-insensitive: `ctrl-a` through `ctrl-z`, plus `ctrl-[`, `ctrl-\`, `ctrl-]`, `ctrl-^`, and `ctrl-_`. `ctrl-t` is rejected because `con` reserves it for diagnostics. Quote the backslash form as `'ctrl-\'` in the shell. Missing or invalid values, or using the option with a command other than `attach`, fail before connection.
+- **Ignored Input**: The runner's procServ configuration uses `--ignore=^D^C^]`, so `Ctrl-C`, `Ctrl-D`, and `Ctrl-]` are discarded before reaching the IOC. If one of these is selected as the detach key, the client handles it locally and detaches first.
 - **Functional Specification**: Routes both standard input (`stdin`) and standard output (`stdout`) between the user's current TTY and the target UNIX Domain Socket.
 - **Architecture Constraints**: If multiple users `attach` to the same IOC simultaneously, their keystrokes will be interleaved at the kernel level before reaching the IOC shell. This can lead to malformed commands and hardware misoperation.
 
