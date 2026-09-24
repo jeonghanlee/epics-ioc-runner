@@ -45,9 +45,10 @@ This directory contains the complete documentation for deploying, managing, and 
   The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
 
 ### 7. Milestone Registers
+* **`docs/milestone-1.4.2.md` on `release-1.4.2`**
+  Active canonical register for console detach verification and documentation.
 * **[milestone-1.4.1.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/milestone-1.4.1.md)**
-  Active canonical register for the 1.4.1 release cycle. It owns the current
-  Backlog.
+  Released 1.4.1 record.
 
 ## Upgrading from 1.0.x
 

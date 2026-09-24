@@ -13,7 +13,7 @@ including the simulated `root_squash` deployment, is defined in
 is [System Tests on an NFS Home with `root_squash`](#3-system-tests-on-an-nfs-home-with-root_squash)
 below. Current implementation and verification
 status is tracked in
-[`docs/milestone-1.4.1.md`](../docs/milestone-1.4.1.md).
+[`docs/milestone-1.4.2.md`](../docs/milestone-1.4.2.md).
 
 ## Required Reading
 
