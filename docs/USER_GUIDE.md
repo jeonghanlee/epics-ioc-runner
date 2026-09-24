@@ -134,6 +134,18 @@ To use another key for one connection, pass `--detach-key`; the attach banner na
 ioc-runner attach myioc --detach-key ctrl-]
 ```
 
+### Read-only monitor
+
+To observe the console without sending input, use `monitor`. It selects
+`con -r`, or `socat` when `con` is unavailable or lacks `-r`; terminal input
+never reaches the IOC. Press `Ctrl-A` to exit with `con`, or `Ctrl-C` with
+`socat`; the monitor banner names the exit key. The `--detach-key` option
+applies only to `attach`.
+
+```bash
+ioc-runner monitor myioc
+```
+
 ## 3. Daily Operations (Systemd Native Commands)
 Because the IOCs are managed by `systemd` templates, you can use native `systemctl` commands without a password.
 

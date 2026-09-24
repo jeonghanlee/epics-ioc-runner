@@ -120,6 +120,7 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 ```
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
 * **Detach**: Press `Ctrl-A` by default to detach from the console while leaving the IOC running. The runner selects `con`, or `socat` if `con` is unavailable; both consume the selected detach key locally, so it never reaches the IOC shell. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line.
+* **Ignored keys**: The runner configures procServ with `--ignore=^D^C^]`. It discards `Ctrl-C`, `Ctrl-D`, and `Ctrl-]` before they reach the IOC. If one of these is selected as the detach key, the client handles it locally and detaches first.
 * **Supported clients**: Both `attach` and `monitor` use only `con` or `socat`; `nc` is not supported. If neither supported client is available, the command fails with an installation hint. For `monitor`, `con` must support `-r`; otherwise `socat` is required.
 * **Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
 
@@ -127,6 +128,18 @@ To use another key for one connection, pass `--detach-key`; the attach banner na
 
 ```bash
 ioc-runner --local attach iocctrlslab-tcmd --detach-key ctrl-]
+```
+
+### Read-only monitor
+
+To observe the console without sending input, use `monitor`. It selects
+`con -r`, or `socat` when `con` is unavailable or lacks `-r`; terminal input
+never reaches the IOC. Press `Ctrl-A` to exit with `con`, or `Ctrl-C` with
+`socat`; the monitor banner names the exit key. The `--detach-key` option
+applies only to `attach`.
+
+```bash
+ioc-runner --local monitor iocctrlslab-tcmd
 ```
 
 To read the IOC's log without attaching, use the read-only `log` command. It resolves the effective procServ log file, shows the last 40 lines by default (`-n <count>` to change the depth), and follows the file with `-f`.
