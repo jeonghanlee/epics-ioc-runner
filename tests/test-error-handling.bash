@@ -284,9 +284,6 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S42|error-handling.S42.isolation-tools-available|REQUIRED|direct-inspection"
     "S42|error-handling.S42.no-client-attach-rejected|BEHAVIOR|real-path"
     "S42|error-handling.S42.no-client-monitor-rejected|BEHAVIOR|real-path"
-    "S42|error-handling.S42.nc-available|PREREQUISITE|direct-inspection"
-    "S42|error-handling.S42.nc-only-attach-rejected|BEHAVIOR|real-path"
-    "S42|error-handling.S42.nc-only-monitor-rejected|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 

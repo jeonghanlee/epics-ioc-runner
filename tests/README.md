@@ -379,12 +379,10 @@ no active unit or installed configuration.
   suggested keys, a key prefix, and the IOC target after a supplied key.
 * **Console Client Selection**: Runs the shipped attach and monitor commands
   inside a private mount namespace that hides every fixed con search path,
-  with a mirrored PATH that omits socat and, separately, nc. Both commands
-  must exit 1 with the installation hint before any connection; a visible nc
-  is never selected. Without unprivileged user and mount namespaces, the
-  required isolation-tools check fails and the client checks SKIP; without an
-  installed nc, the two nc-only checks SKIP. Old con without read-only support
-  is not exercised.
+  with a mirrored PATH that omits socat. Both commands must exit 1 with the
+  installation hint before any connection. Without unprivileged user and mount
+  namespaces, the required isolation-tools check fails and the client checks
+  SKIP. Old con without read-only support is not exercised.
 
 ### 4. Source Regression (`test-source-regression.bash`)
 

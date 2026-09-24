@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` does not yet exist; issue #157 is assigned to `Backlog` (9)
 
-Next session entry point: Run the six-suite matrix on both test consumers with the shipped S42 client-selection checks, repin the driver identity from a clean run, and record T10. Continue T9 historical regression and T5 byte-flow tracing. Old con without read-only support is withdrawn by D6. Additional tools require separate discussion. The PTY checks and their identity repin are committed and pushed in `8c200dc`; the S42 checks are committed alongside this register update and await the consumer matrix and identity repin. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: Continue T9 historical regression and T5 byte-flow tracing, then rerun T10. The Check-grade six-suite matrix with the three S42 client-rejection checks passes on both test consumers, and the driver identity is repinned. Old con without read-only support is withdrawn by D6, and nc-specific checks by D7. Additional tools require separate discussion. The S42 checks landed in `ba9ef10`; the nc-only removal and the identity repin are committed alongside this register update. Leftover payload directories on both consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -39,7 +39,8 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D3 | Exclude nc from both attach and monitor. Use con or socat only; fail with an installation hint when neither suitable client is available. Monitor requires con with -r or socat. | 2026-09-22 |
 | D4 | Prefer con for production console access. Support socat for ordinary use while explicitly documenting that production workloads with sustained heavy or burst IOC output have not been validated. Production load testing is outside this change. | 2026-09-22 |
 | D5 | Exclude Python from the new test implementation and its dependencies. Use Bash and util-linux for the PTY procedure; discuss additional tools separately before adding them. | 2026-09-24 |
-| D6 | Exclude old con without read-only support from the remaining verification. T6 covers only nc-only and no-client rejection, and T12 covers only the direct socat path; the old-con fallback cases in the T6 and T12 rows, the Scope clause on con without -r, and the Completion Criteria sentence on con lacking -r are withdrawn. The runner's fallback code is unchanged. | 2026-09-24 |
+| D6 | Exclude old con without read-only support from the remaining verification. T6 covers only rejection without con or socat (D7), and T12 covers only the direct socat path; the old-con fallback cases in the T6 and T12 rows, the Scope clause on con without -r, and the Completion Criteria sentence on con lacking -r are withdrawn. The runner's fallback code is unchanged. | 2026-09-24 |
+| D7 | Add no nc-specific checks. The runner has no nc path after D3, so the nc-only cases in T6, the Scope clause on nc-only rejection, and the Completion Criteria sentence on an nc-only environment are withdrawn. S42 verifies rejection without con or socat; other host tools, including any nc, stay visible to the runner. | 2026-09-24 |
 
 ### Milestone Details
 
@@ -72,8 +73,8 @@ results below distinguish executed cases from pending acceptance evidence.
   procServ discarding Ctrl-C, Ctrl-D, and Ctrl-]. Include the default Ctrl-A
   line-editing limitation in the documentation.
 - Verify the committed nc exclusion from console selection and execution. Cover
-  nc-only rejection for attach and monitor, including con without -r when
-  socat is unavailable (withdrawn by D6). Verify monitor's read-only behavior
+  nc-only rejection for attach and monitor (withdrawn by D7), including con
+  without -r when socat is unavailable (withdrawn by D6). Verify monitor's read-only behavior
   and actual key-driven exit through con with Ctrl-A and socat with Ctrl-C,
   including terminal restoration, IOC continuity, socket continuity, and
   reconnectability.
@@ -105,8 +106,9 @@ release publication, and production deployment.
 - Ordinary IOC input reaches the IOC; the selected detach byte does not reach
   procServ. Ctrl-C and Ctrl-D remain ignored by procServ when neither is the
   selected detach key. Silence alone is not evidence of where a byte stopped.
-- With no con or socat available, both attach and monitor reject an nc-only
-  environment with the documented installation hint. Neither selects nc.
+- With no con or socat available, both attach and monitor reject the
+  environment with the documented installation hint. The nc-only environment
+  and its nc-selection sentence are withdrawn by D7.
   Monitor also fails when con lacks -r and socat is unavailable (withdrawn by D6).
 - Separate shipped monitor checks receive actual IOC output and confirm that
   terminal input does not reach the IOC. Con exits on Ctrl-A and socat on
@@ -392,34 +394,63 @@ using the working tree based on `0397963`:
 | Debian 13 | 6 | 1019 | 1014 | 0 | 0 | 5 | 0 | Check |
 | Rocky 8.10 | 6 | 1019 | 1007 | 0 | 0 | 12 | 0 | Check |
 
-Client-selection verification observed at 2026-09-24T21:04:31Z on the
-development host (Debian 13, x86_64), using the working tree based on `8c200dc`:
+Client-selection verification observed at 2026-09-24T22:55:26Z on the
+development host (Debian 13, x86_64), using the working tree based on `ba9ef10`:
 
 - `REPORT_MACHINE_OUTPUT=1 bash tests/test-error-handling.bash` exited 0:
-  252 PASS, including all six S42 checks, with no FAIL, SKIP, NA, or
+  249 PASS, including all three S42 checks, with no FAIL, SKIP, NA, or
   SCRIPT_ERROR results.
 - The shipped `test_record_validate_file` accepted the captured records with
   producer exit status 0. Records: `/tmp/ioc-console-clients.records`; human
   report: `/tmp/ioc-console-clients.log`. These are temporary local evidence,
   not release Gate evidence. The records SHA-256 is
-  `b9053535d5db76e83c3279d5e79aa72faee5aa3bca061edf91efc6b3f32d9c76`.
+  `a8c0c84e7b64cc57f5ceee494032bccdec00b564dbaba4167c7abfd4ef491ad7`.
 - The shipped `tests/lib/console-client-child.bash` runs the real runner inside
   a private mount namespace (created inside a user namespace when the suite
   does not run as root) that bind-mounts an empty file over every fixed con
-  search path, with PATH set to a mirrored tool directory that omits socat
-  and, for the no-client cases, nc.
+  search path, with PATH set to a mirrored tool directory that omits socat.
   Attach and monitor each exit 1 with the documented error and installation
   hint before any connection. With socat left in the mirror, the same child
   reaches configuration resolution instead, so the rejection checks are not
   vacuous.
-- In a namespace where nc is not executable, the nc prerequisite closes as
-  SKIP with the two nc-only checks, and no S42 check fails; the same run's
-  S25 failure comes from running as mapped root and is outside this scope.
+- The first consumer matrix with the earlier six-check S42 passed on Debian 13
+  and closed the three nc checks as SKIP on Rocky 8.10, which has no nc. D7
+  removed those checks instead of adding nc to the consumers.
 - Bash syntax, `shellcheck -s bash -S warning`, catalog-only validation
-  (252 checks, 43 steps), and `git diff --check` passed. Plain ShellCheck
-  passed for both new helpers.
-- Old con without read-only support is not exercised (D6). The consumer matrix
-  and driver identity repin for the added checks remain under T10.
+  (249 checks, 43 steps), and `git diff --check` passed. Plain ShellCheck
+  passed for both helpers.
+- Old con without read-only support is not exercised (D6).
+
+Consumer matrix with the three S42 checks observed at 2026-09-24T23:10:28Z,
+Check grade on the reused Debian 13 and Rocky 8.10 test consumers, using the
+working tree based on `ba9ef10` with the repinned driver identity:
+
+- Before deployment, the shipped cleanup driver cleared the system and local
+  IOC registrations on both consumers. The leftover payload directories named
+  by `leftovers.bash` remain; they do not affect the six-suite matrix.
+- The shipped push driver delivered the tree with matching source and remote
+  status, and `run-setup-system-infra.bash --full` passed on both consumers.
+  Both installed runners reported `1.4.2-dev (ba9ef10-dirty)` with matching
+  source and installed runner bodies.
+- The run before the repin reported only the expected identity mismatch, with
+  no FAIL, SKIP, or SCRIPT_ERROR result. `EXPECTED_IDENTITY_SHA256` in
+  `gate/drivers/control/suites.bash` is now
+  `06ea31cc4c284b5c83ec3ec8525654d78d088f6e051f97c87ac12a6725dfe3ca`.
+- The confirming run reported `GATE SUITES PASS hosts=2` with both host
+  verdicts `SUITES OK`. The cross-host differences match the accepted
+  2026-09-24T17:11:03Z run line for line. Evidence directory:
+  `work/gate-suites-20260924T230336Z-2238510/`.
+
+| Platform | Suite Blocks | Checks | PASS | FAIL | SKIP | NA | SCRIPT_ERROR | Grade |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Debian 13 | 6 | 1022 | 1017 | 0 | 0 | 5 | 0 | Check |
+| Rocky 8.10 | 6 | 1022 | 1010 | 0 | 0 | 12 | 0 | Check |
+
+Combined machine record SHA-256, Debian:
+`4b553f6c4990e98aba074b703f551c42c8df54a7ddaf141aa018aa6798fc8a29`; Rocky:
+`8723e06e771b112889c8b92c851cd2eec043f7915da8cbe6539d2c08891f396a`;
+`cross-host.diff`:
+`eb41a7de2f8264ff4a5c09aa0f4a5b3140c59dec00ca52c292d8f2fd394baa2e`.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
@@ -428,11 +459,11 @@ development host (Debian 13, x86_64), using the working tree based on `8c200dc`:
 | T3 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con/custom Ctrl-] and Ctrl-B pass all common detach observations |
 | T4 | 2026-09-24T17:11:03Z | PTY matrix above; private namespace hides con | PASS | Socat/custom Ctrl-] and Ctrl-B pass all common detach observations |
 | T5 | 2026-09-24T17:11:03Z | PTY matrix above; transport trace not run | Pending | IOC command input, Ctrl-A line editing under custom keys, and a subsequent default-key connection pass; byte-flow tracing remains pending |
-| T6 | 2026-09-24T21:04:31Z | Development host error suite; private namespace hides con, mirrored PATH omits socat and nc | PASS | S42 rejects attach and monitor in no-client and nc-only environments with exit 1 and the installation hint; old-con fallback cases withdrawn by D6; consumer matrix pending under T10 |
+| T6 | 2026-09-24T23:10:28Z | Development host error suite and both test consumers; private namespace hides con, mirrored PATH omits socat | PASS | S42 rejects attach and monitor without con or socat with exit 1 and the installation hint on all three hosts; nc-only cases withdrawn by D7 and old-con fallback cases by D6 |
 | T7 | 2026-09-24T15:32:17Z | Debian 13 and Rocky 8.10 test consumers; source runner at `74c8b28` plus working-tree tests | PASS | All 47 shipped S41 checks passed within each 246-check error suite; both complete matrices and reporting validation passed after identity repin; Check-grade records and limits above |
 | T8 | 2026-09-24T19:51:43Z | Development host; documented attach example forms executed through the real CLI | PASS | Help key list, attach banner text, four documented attach forms and the backslash quoting, and monitor option rejection agree with executed output; direct-con examples retain default Ctrl-A; monitor exit-key guidance added to both user guides and the ignored-keys note to the local guide; a standalone second-person pass on the changed guidance and register text converged on 2026-09-24 after one accepted count correction |
 | T9 | Not run | Planned historical runner fixture | Pending | Await observed pre-fix failure |
-| T10 | 2026-09-24T17:11:03Z | Local lint/catalog checks plus complete two-host matrix | PASS | Current shipped checks, deployment, identity repin, and reporting validation pass; rerun after remaining regression cases are implemented |
+| T10 | 2026-09-24T23:10:28Z | Local lint/catalog checks plus complete two-host matrix with the three S42 checks | PASS | Current shipped checks, deployment, identity repin, and reporting validation pass at Check grade; rerun after T9 and T5 cases are implemented |
 | T11 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con monitor receives IOC output, blocks input, exits on Ctrl-A, restores the terminal, preserves IOC/socket state, and reconnects |
 | T12 | 2026-09-24T17:11:03Z | PTY matrix above; direct socat only | PASS | Direct socat monitor passes the common observations and exits on Ctrl-C with status 130; the old-con fallback path is withdrawn by D6 |
 

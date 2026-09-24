@@ -1,7 +1,8 @@
 # shellcheck shell=bash
-# Exercise console client selection through the shipped runner with con hidden
+# Exercise console client rejection through the shipped runner with con hidden
 # and socat absent from PATH. Rejection happens before any connection, so no
-# IOC fixture is required. Old con without read-only support is not covered.
+# IOC fixture is required. Other tools on the host, including any nc, stay
+# visible and must not be selected.
 
 declare -g CONSOLE_CLIENT_CHILD
 CONSOLE_CLIENT_CHILD="$(dirname "${BASH_SOURCE[0]}")/console-client-child.bash"
@@ -81,24 +82,9 @@ function test_console_clients {
     chmod 600 "${root}/empty"
 
     console_client_mirror_path "${root}/no-client"
-    rm -f -- "${root}/no-client"/socat* "${root}/no-client"/nc "${root}/no-client"/nc.* \
-        "${root}/no-client"/ncat "${root}/no-client"/netcat
+    rm -f -- "${root}/no-client"/socat*
     verify_client_rejection "Attach rejects an environment without con or socat" \
         attach "${root}/no-client" "${root}/no-client-attach.log"
     verify_client_rejection "Monitor rejects an environment without con or socat" \
         monitor "${root}/no-client" "${root}/no-client-monitor.log"
-
-    console_client_mirror_path "${root}/nc-only"
-    rm -f -- "${root}/nc-only"/socat*
-    if [[ ! -x "${root}/nc-only/nc" ]]; then
-        _log WARN "nc not found; skipping the nc-only client selection cases."
-        record_current_state SKIP "nc is unavailable"
-        close_current_remaining SKIP "requires ${SUITE_ID}.S42.nc-available"
-        return 0
-    fi
-    record_current_state PASS
-    verify_client_rejection "Attach rejects an nc-only environment" \
-        attach "${root}/nc-only" "${root}/nc-only-attach.log"
-    verify_client_rejection "Monitor rejects an nc-only environment" \
-        monitor "${root}/nc-only" "${root}/nc-only-monitor.log"
 }
