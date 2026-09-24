@@ -342,6 +342,15 @@ no active unit or installed configuration.
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
 * **Configuration Parser**: Drives spaces, tabs, matching quotes, CRLF, empty values, embedded `=`, duplicates, and double-quoted escaped regex backslashes through real file-direct installs; unsupported multiline, continuation, and unmatched-quote forms must preserve the prior target. A separate logic-level STEP extracts the exact shipped parser and reader definitions, requires one valid definition of each, and verifies both reader APIs against independent whitespace, quote, empty, and missing-key expectations.
 * **Diff Engine**: Evaluates ANSI-colored diff output prompting and force-overwrite (`-f`) bypass mechanisms.
+* **Console Detach Options**: Executes the shipped CLI to reject missing,
+  empty, invalid, reserved Ctrl-T, and non-attach option forms. All 30 accepted
+  control-key names, uppercase input, option placement, and the documented
+  single-quoted backslash form must reach client resolution. An unavailable
+  client path bounds these checks before connection; they verify parsing,
+  not actual detach.
+* **Console Help and Completion**: Checks the attach-only option and Ctrl-A
+  default in help, then invokes the shipped completion handler for the option,
+  suggested keys, a key prefix, and the IOC target after a supplied key.
 
 ### 4. Source Regression (`test-source-regression.bash`)
 

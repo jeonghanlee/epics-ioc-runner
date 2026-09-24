@@ -234,6 +234,53 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S40|error-handling.S40.reader-equivalence.double-quoted-whitespace-only|BEHAVIOR|real-path"
     "S40|error-handling.S40.reader-equivalence.quoted-empty-present|BEHAVIOR|real-path"
     "S40|error-handling.S40.reader-equivalence.missing-key-api-states|BEHAVIOR|real-path"
+    "S41|error-handling.S41.missing-value|BEHAVIOR|real-path"
+    "S41|error-handling.S41.empty-value|BEHAVIOR|real-path"
+    "S41|error-handling.S41.invalid-name|BEHAVIOR|real-path"
+    "S41|error-handling.S41.invalid-digit|BEHAVIOR|real-path"
+    "S41|error-handling.S41.invalid-length|BEHAVIOR|real-path"
+    "S41|error-handling.S41.reserved-key|BEHAVIOR|real-path"
+    "S41|error-handling.S41.monitor-rejected|BEHAVIOR|real-path"
+    "S41|error-handling.S41.list-rejected|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-a|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-b|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-c|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-d|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-e|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-f|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-g|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-h|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-i|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-j|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-k|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-l|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-m|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-n|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-o|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-p|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-q|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-r|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-s|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-u|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-v|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-w|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-x|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-y|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-z|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-bracket-open|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-backslash|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-bracket-close|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-caret|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-underscore|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-uppercase|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-before-command|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-quoted-backslash|BEHAVIOR|real-path"
+    "S41|error-handling.S41.help-contract|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-available|REQUIRED|direct-inspection"
+    "S41|error-handling.S41.completion-option|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-keys|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-prefix|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-target|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -301,7 +348,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 40; index += 1)); do
+    for ((index = 1; index <= 41; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2459,6 +2506,9 @@ function test_reader_equivalence {
 }
 
 
+# shellcheck source=lib/test-console-options.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-options.bash"
+
 function run_all_tests {
     local -a pipeline=(
         "_setup"
@@ -2501,6 +2551,7 @@ function run_all_tests {
         "test_conf_mode_mismatch_diagnosis"
         "test_conf_parser_contract"
         "test_reader_equivalence"
+        "test_console_options"
     )
     local step=1
     local func
