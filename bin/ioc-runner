@@ -1828,9 +1828,6 @@ declare -g CON_TOOL_PATH=""
 declare -g CON_TOOL_TYPE=""
 
 function resolve_con_tool {
-    local supported_tools="con, socat"
-    local nc_help
-
     CON_TOOL_PATH="${IOC_RUNNER_CON_TOOL:-}"
     CON_TOOL_TYPE=""
 
@@ -1857,21 +1854,7 @@ function resolve_con_tool {
         return 0
     fi
 
-    if [[ "${COMMAND_ACTION}" == "monitor" ]]; then
-        supported_tools+=", nc"
-        if command -v nc >/dev/null 2>&1; then
-            # Capture first, then test: piping 'nc -h' straight into grep -q is a
-            # pipefail false negative (usage exit / SIGPIPE on early grep match).
-            nc_help=$(nc -h 2>&1 || true)
-            if grep -qF -- "-U" <<< "${nc_help}"; then
-                CON_TOOL_PATH="nc"
-                CON_TOOL_TYPE="nc"
-                return 0
-            fi
-        fi
-    fi
-
-    printf "Error: No suitable tool (%s) found for '%s'.\n" "${supported_tools}" "${COMMAND_ACTION}" >&2
+    printf "Error: No suitable tool (con, socat) found for '%s'.\n" "${COMMAND_ACTION}" >&2
     printf "Recommendation: Install 'con' (preferred) or 'socat' for console access.\n" >&2
     printf "Source: https://github.com/jeonghanlee/con\n" >&2
     exit 1
@@ -1880,7 +1863,7 @@ function resolve_con_tool {
 # --- procServ Tool Resolution ---
 # Mirrors resolve_con_tool: IOC_RUNNER_PROCSERV_TOOL takes precedence over the
 # PROCSERV_SEARCH_PATHS default search list. procServ has no client-side
-# fallback (unlike con's socat/nc), so a failed search is a hard error. The
+# fallback (unlike con's socat fallback), so a failed search is a hard error. The
 # '-f && -x' override check matches the IOC_RUNNER_CON_TOOL semantics (a regular
 # executable file, so an executable directory is rejected). Sets
 # PROCSERV_TOOL_PATH on success; exits non-zero otherwise.
@@ -2598,6 +2581,7 @@ function do_attach {
 
 
 function do_monitor {
+    local con_help
 
     resolve_con_tool
     resolve_sock_path
@@ -2608,11 +2592,11 @@ function do_monitor {
 
     case "${CON_TOOL_TYPE}" in
         con)
-            # Same pipefail hazard as the nc -U probe: materialize the help
-            # text before grep so an early -q match cannot fail the pipeline.
-            local con_help
+            # Capture help before grep so usage exits and an early -q match
+            # cannot cause a false negative under pipefail. Match only an
+            # option definition, not an executable path or usage example.
             con_help=$("${CON_TOOL_PATH}" -h 2>&1 || true)
-            if grep -qF -- "-r" <<< "${con_help}"; then
+            if grep -qE -- '^[[:space:]]+-r(\[eadonly\])?([[:space:]]|$)' <<< "${con_help}"; then
                 printf "Use Ctrl-A to exit.\n"
                 print_divider >&2
                 exec "${CON_TOOL_PATH}" -r -c "${RESOLVED_SOCK_PATH}" || exit
@@ -2623,10 +2607,9 @@ function do_monitor {
                     print_divider >&2
                     exec socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT || exit
                 else
-                    printf "Warning: 'con' does not support -r. Falling back to nc.\n" >&2
-                    printf "Use Ctrl-C to exit.\n"
-                    print_divider >&2
-                    exec nc -U "${RESOLVED_SOCK_PATH}" < /dev/null || exit
+                    printf "Error: 'con' does not support -r and socat is unavailable.\n" >&2
+                    printf "Recommendation: Install 'con' with read-only support (-r), or 'socat', for monitor access.\n" >&2
+                    exit 1
                 fi
             fi
             ;;
@@ -2634,11 +2617,6 @@ function do_monitor {
             printf "Use Ctrl-C to exit.\n"
             print_divider >&2
             exec socat -u UNIX-CONNECT:"${RESOLVED_SOCK_PATH}" STDOUT || exit
-            ;;
-        nc)
-            printf "Use Ctrl-C to exit.\n"
-            print_divider >&2
-            exec nc -U "${RESOLVED_SOCK_PATH}" < /dev/null || exit
             ;;
     esac
 }

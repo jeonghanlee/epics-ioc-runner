@@ -147,7 +147,7 @@ Displays the daemon and payload processes associated with the `(LISTEN)` socket.
 
 #### 3. Client Process Context (`ps`)
 
-Displays external processes (e.g., `con`, `socat`, `nc`) currently attached to the IOC console.
+Displays external processes (e.g., `con`, `socat`) currently attached to the IOC console.
 
 - **Data Flow**:
   1. Identifies the server-side PIDs from `lsof`.
@@ -216,9 +216,13 @@ The `epics-ioc-runner` provides two distinct methods for interacting with an act
 | **Input Mapping** | TTY `stdin` → Socket | Disconnected / Read-only |
 | **Primary Use Case** | Debugging, issuing IOC shell commands | Safe observation, live log tailing |
 | **Interleaving Risk** | High (if multiple active clients) | Zero |
-| **UDS Tooling** | `con`, `socat` | `con -r`, `socat -u UNIX-CONNECT:<socket> STDOUT`, `nc -U <socket> < /dev/null` |
+| **UDS Tooling** | `con`, `socat` | `con -r`, `socat -u UNIX-CONNECT:<socket> STDOUT` |
 
 ---
+
+**Supported clients**: Both `attach` and `monitor` use only `con` or `socat`; `nc` is not supported. If neither supported client is available, the command fails with an installation hint. For `monitor`, `con` must support `-r`; otherwise `socat` is required.
+
+**Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
 
 ### `attach` (Read/Write Mode)
 
@@ -237,9 +241,9 @@ The `attach` command establishes a standard, bi-directional terminal session wit
 The `monitor` command establishes a strictly uni-directional session, designed for observing IOC outputs without the risk of accidental input injection.
 
 - **Usage**: `ioc-runner monitor <ioc_name>`
+- **Exit**: Press `Ctrl-A` with `con`, or `Ctrl-C` with `socat`. The `--detach-key` option applies only to `attach`.
 - **Functional Specification**: Captures and displays the `stdout` from the UNIX Domain Socket while explicitly detaching or blocking the client's `stdin`.
 - **Data Flow & Implementation**:
   - Uses the native `-r` (read-only) flag if the primary `con` client supports it.
-  - **Fallback Architecture**: If `con` is not installed, the runner selects `socat`, then `nc` (an `nc` build must support `-U`). If `con` is installed but lacks `-r`, `monitor` falls back to `socat` when available, otherwise `nc`, and prints a warning naming the substitute tool. Each fallback enforces the unidirectional flow itself:
+  - **Fallback Architecture**: If `con` is unavailable or lacks `-r`, the runner uses `socat`. A `con` without `-r` produces a warning when falling back to `socat`. If no read-only client is available, the command fails with an installation hint.
     - **socat**: Executes `socat -u UNIX-CONNECT:<path> STDOUT`. The `-u` (unidirectional) flag transfers data only from the socket to standard output; nothing is read from the terminal.
-    - **nc**: Executes `nc -U <path> < /dev/null`. Standard input is redirected from `/dev/null`, so no keystroke can reach the console. The `nc` fallback is variant-sensitive, and the runner's probe (an `nc` whose help advertises `-U`) cannot tell variants apart: `nc.openbsd` (the default `nc` on Debian) is not a supported monitor fallback — install `con` (preferred) or `socat` for monitor use.

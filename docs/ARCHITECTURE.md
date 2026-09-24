@@ -64,7 +64,7 @@ A pure Bash utility to manage IOC configurations. It copies user-defined `.conf`
 
 ### 3.3. con (Local Console Access)
 A C++ based terminal emulator replacing traditional serial tools. It provides seamless terminal session control by connecting directly to the secure UNIX Domain Sockets created by `procServ`.
-*Note: If `con` is unavailable, the architecture is designed to automatically fall back to standard data pipes like `socat` or `nc`.*
+Both `attach` and `monitor` support only `con` and the `socat` fallback. Monitor requires `con -r` or `socat`; if no suitable client is available, console access fails. **Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
 
 ### 3.4. s6 Service Directory (`--container` mode)
 Container images run without systemd. In container mode the runner supervises `procServ` through s6: the container entrypoint runs `s6-svscan` as PID 1 on the scan directory `/run/s6-procserv`, and every installed IOC owns one service directory beneath it.
