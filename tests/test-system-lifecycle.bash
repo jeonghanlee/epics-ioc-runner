@@ -89,6 +89,15 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S22|system-lifecycle.S22.uds-socket-has-correct-permissions-srw-rw|BEHAVIOR|direct-inspection"
     "S22|system-lifecycle.S22.con-available|REQUIRED|direct-inspection"
     "S22|system-lifecycle.S22.uds-socket-is-in-listening-state|BEHAVIOR|direct-inspection"
+    "S22|system-lifecycle.S22.pty-tools-available|REQUIRED|direct-inspection"
+    "S22|system-lifecycle.S22.con-default-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.con-custom-bracket-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.con-custom-b-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-default-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-custom-bracket-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-custom-b-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.con-monitor-key-exit|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-monitor-key-exit|BEHAVIOR|real-path"
     "S23|system-lifecycle.S23.camonitor-available|REQUIRED|direct-inspection"
     "S23|system-lifecycle.S23.expected-updates-observed|BEHAVIOR|real-path"
     "S24|system-lifecycle.S24.inspect-command-successfully-retrieved-server-netlink-context|BEHAVIOR|real-path"
@@ -211,6 +220,8 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
 declare -g -A SYSTEM_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
+# shellcheck source=tests/lib/test-console-pty.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-pty.bash"
 
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
 # the binary origin; the unset default is the source tree, matching the
@@ -486,6 +497,7 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+    console_pty_close || final_status=1
 
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
         exit "${REPORT_FINAL_STATUS}"
@@ -1052,6 +1064,7 @@ function test_console_attach {
         socket_listening="true"
     fi
     verify_state "true" "${socket_listening}" "UDS socket is in listening state"
+    test_console_pty
 }
 
 function test_channel_access {

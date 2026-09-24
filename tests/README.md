@@ -320,10 +320,36 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **Deployment**: Installs `.conf` and verifies systemd template generation (`@.service`).
 * **Service Control**: Verifies state transitions via `start`, `status`, `view`, `restart`, and `stop`.
 * **Monitoring**: Validates UNIX Domain Socket (UDS) creation and `list` outputs (PID, CPU, MEM, RQ/SQ queue columns).
-* **Connection & Isolation**: Validates `attach` (r/w access via `con`), `monitor` (read-only isolation securely blocking stdin).
+* **Connection & Isolation**: Runs real `ioc-runner attach` and `monitor`
+  sessions through `con` and `socat`, using `script(1)` and FIFO input.
+  Attach checks cover default Ctrl-A and custom Ctrl-] and Ctrl-B. Monitor
+  checks cover con/Ctrl-A and direct socat/Ctrl-C, actual IOC output, and
+  input isolation verified through an IOC environment value.
 * **Netlink Diagnostics**: Validates the `inspect` command in both modes (unprivileged local inspect included); system mode adds anonymous-peer mapping via Kernel Netlink under root.
 * **EPICS Functionality**: Live PV reads via `caget` ensuring actual Channel Access (CA) broadcasting.
 * **Teardown**: Verifies `enable`/`disable` persistence in systemd `.wants` and complete `remove` cleanup.
+
+The PTY checks run in local S27 and system S22 against the selected runner
+origin and the suite's running ServiceTestIOC. Each case checks the banner,
+actual client process name, key-driven exit, exact terminal restoration,
+unchanged procServ/IOC PIDs and socket identity, active service, and a command
+through a fresh attachment. Custom-key cases also execute an IOC command using
+Ctrl-A line editing and reconnect with the default key. A timeout or forced
+termination fails the case. Socat monitor's key-driven SIGINT returns 130;
+the other successful client exits return 0.
+
+Required test tools are Bash, util-linux `script`, `unshare`, and `mount`,
+core utilities, and both con and socat. Local socat checks require enabled
+unprivileged user and mount namespaces; system checks use the suite's existing
+root privilege. Private bind mounts hide all fixed con search paths for the
+socat cases, leaving host installation files unchanged. Local checks do not
+invoke sudo. No Python, bubblewrap, or strace dependency is added.
+
+PTY output, client PID/name, runner version, terminal attributes, exit status,
+and IOC snapshots are retained in the `/tmp/ioc-console-pty.*` directory named
+in the human report. Input FIFOs and client processes are cleaned up. These
+checks do not trace individual bytes between client, procServ, and IOC, exercise
+old con's fallback, or establish production behavior under heavy IOC output.
 
 The system lifecycle suite also installs a dedicated healthy `softIoc`, sends
 `SIGKILL` only to its verified child, and proves procServ recovery through a

@@ -133,6 +133,15 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S27|local-lifecycle.S27.socket-permission-valid|BEHAVIOR"
     "S27|local-lifecycle.S27.con-available|REQUIRED"
     "S27|local-lifecycle.S27.socket-listening|BEHAVIOR"
+    "S27|local-lifecycle.S27.pty-tools-available|REQUIRED"
+    "S27|local-lifecycle.S27.con-default-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.con-custom-bracket-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.con-custom-b-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-default-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-custom-bracket-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-custom-b-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.con-monitor-key-exit|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-monitor-key-exit|BEHAVIOR"
     "S28|local-lifecycle.S28.camonitor-available|REQUIRED"
     "S28|local-lifecycle.S28.expected-updates-observed|BEHAVIOR"
     "S29|local-lifecycle.S29.monitor-isolation-applicable|APPLICABILITY"
@@ -276,6 +285,8 @@ declare -g -a LOCAL_CATALOG_ROWS=(
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
+# shellcheck source=tests/lib/test-console-pty.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-pty.bash"
 
 # --- Managed Architecture Paths ---
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
@@ -698,6 +709,7 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+    console_pty_close || final_status=1
 
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
         exit "${REPORT_FINAL_STATUS}"
@@ -1314,6 +1326,7 @@ function test_console_attach {
     local socket_listening="false"
     if ss -lx 2>/dev/null | grep -q "${UDS_PATH}"; then socket_listening="true"; fi
     verify_state "true" "${socket_listening}" "UDS socket is in listening state"
+    test_console_pty
 }
 
 function test_channel_access {

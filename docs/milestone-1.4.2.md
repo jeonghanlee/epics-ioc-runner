@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` does not yet exist; issue #157 is assigned to `Backlog` (9)
 
-Next session entry point: Commit the reviewed CLI checks and verified suite identity repin together; the Check-grade six-suite matrix passes on both test consumers. Continue the accepted attach and monitor regression plan without Python: determine a Bash-based PTY procedure using existing terminal tools; bubblewrap and strace remain proposed test-only dependencies, pending a decision. Actual PTY detach, monitor, and transport-tracing checks remain to be implemented. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: Review and prepare the Bash/util-linux PTY checks and their verified identity repin for commit. The Check-grade six-suite matrix passes on both test consumers, including all 48 PTY behavior results. Continue T6 client selection, T9 historical regression, T5 byte-flow tracing, and the remaining T8/T12 coverage. Additional tools require separate discussion. CLI checks and their earlier identity pin are committed and pushed in `0397963`; the PTY changes remain uncommitted. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -38,7 +38,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D2 | Keep Ctrl-A as the default for both con and socat, and retain the per-connection `--detach-key` option. Verify both clients with their default and custom keys. | 2026-09-22 |
 | D3 | Exclude nc from both attach and monitor. Use con or socat only; fail with an installation hint when neither suitable client is available. Monitor requires con with -r or socat. | 2026-09-22 |
 | D4 | Prefer con for production console access. Support socat for ordinary use while explicitly documenting that production workloads with sustained heavy or burst IOC output have not been validated. Production load testing is outside this change. | 2026-09-22 |
-| D5 | Exclude Python from the new test implementation and its dependencies. Use Bash with terminal tools for the PTY procedure. | 2026-09-24 |
+| D5 | Exclude Python from the new test implementation and its dependencies. Use Bash and util-linux for the PTY procedure; discuss additional tools separately before adding them. | 2026-09-24 |
 
 ### Milestone Details
 
@@ -53,9 +53,9 @@ Status: In progress
 
 Establish repeatable acceptance evidence for the implemented detach behavior
 and make every console instruction agree with the observed client behavior.
-The current `test_console_attach` functions in the local and system lifecycle
-suites inspect socket permissions, con availability, and socket listening
-state; they do not send a detach key through `ioc-runner attach`.
+The `test_console_attach` functions in the local and system lifecycle suites
+retain their socket checks and invoke the shared Bash PTY helper. Verification
+results below distinguish executed cases from pending acceptance evidence.
 
 ##### Scope
 
@@ -124,9 +124,10 @@ release publication, and production deployment.
 
 - D1-D4 define the release line, key behavior, supported console clients, and
   production validation limits.
-- D5 excludes Python from the new tests. No Python helper has been added to
-  the shipped suite; the completed CLI checks use Bash. Approval of the
-  proposed bubblewrap and strace dependencies remains pending.
+- D5 excludes Python from the new tests. The CLI checks use Bash; the PTY
+  helper uses Bash, util-linux, and existing system utilities. No additional
+  package is authorized or installed for these checks. Byte-flow tracing still
+  needs a method decision; bubblewrap and strace are not dependencies.
 - Completed implementation: initial detach support in `1bb270f`, development
   version in `b8d65c3`, and nc exclusion, monitor detection, and related user
   documentation in `2fa6b55`. These are not requests to reimplement those changes.
@@ -338,20 +339,71 @@ Complete suite matrix verification observed at 2026-09-24T15:32:17Z:
 | Rocky 8.10 | system-infra | system | none | 36 | 0 | 0 | 4 | 0 | PASS | 0s |
 | Rocky 8.10 | system-lifecycle | system | installed | 158 | 0 | 0 | 0 | 0 | PASS | 128s |
 
+PTY verification observed at 2026-09-24T17:11:03Z on Debian 13 and Rocky 8.10,
+using the working tree based on `0397963`:
+
+- `tests/lib/test-console-pty.bash` and `console-pty-child.bash` exercise the
+  real ServiceTestIOC through the selected runner, con/socat, and procServ.
+  Each local S27 and system S22 now registers one required tools check and
+  eight PTY behavior checks. Local catalogs contain 214 checks and 41 steps;
+  system catalogs contain 167 checks and 36 steps. Existing IDs are unchanged.
+- The full setup passed on both test consumers (Debian 9/9; Rocky 12/12).
+  Source and installed runner bodies matched and reported `0397963-dirty`.
+  Six test/catalog/driver file hashes matched between the control tree and
+  both consumers. The manifest is `work/console-pty-candidate.sha256`, SHA-256
+  `67a517c600c1c990dd32ab23ba7a9bf8eaf4de9ea0794c3cf3a7b72c4619ca4a`.
+- Actual client executable hashes are retained in
+  `work/console-pty-debian-clients.sha256` and
+  `work/console-pty-rocky-clients.sha256`. Both consumers had con only at
+  `/usr/local/bin/con` among the runner's fixed search locations; socat was
+  `/usr/bin/socat`. Each PTY capture also records the observed client PID/name.
+- The first complete matrix, under
+  `work/gate-suites-20260924T165505Z-2709607`, had no FAIL, SKIP, or
+  SCRIPT_ERROR. Its sole verdict failure was the expected identity mismatch.
+  The observed pin was
+  `954bedecd60b4fda6e4bb4addf50dbc95e79be96cf6981073c4e79805be4047b`.
+- After repinning and enforcing capture-write failures, the complete driver
+  passed again under `work/gate-suites-20260924T170311Z-2913449`;
+  transcript: `work/console-pty-matrix-repin.log`. Both host verdicts were 0,
+  with six validated suite blocks and 1019 checks each. All 48 PTY behavior
+  results passed across local/source, local/installed, and system/installed
+  on both consumers. This is Check evidence from reused consumers and an
+  uncommitted candidate, not release Gate or production load evidence.
+- Combined machine-record SHA-256: Debian
+  `94f9dd2a6c4b871b67b67870c4bb82455a3cb9ee034b169a9733227d1ee9a750`;
+  Rocky `065112678a46575ef195199666c84d9a70eed809cb51fdf58996aeecc8749b4c`.
+  Every cross-host difference was examined: Debian's five NA results are one
+  RHEL symlink check and four inactive-SELinux checks; Rocky's twelve are eight
+  local journal checks and four regex-policy checks on its glob sudoers policy.
+  `cross-host.diff` SHA-256:
+  `8c66ab56cad507e058804a6a2a64c3a7a38457d9bfd6571061520c8ea3511332`.
+- Bash syntax, ShellCheck warning checks, catalog-only validation, and
+  `git diff --check` passed. Plain ShellCheck reports SC2030/SC2031 for the
+  intentional subshell-local directory reset in the independent attachment;
+  the parent must retain its monitor directory. These are informational
+  diagnostics; the warning gate passes.
+  No Python or additional package was added. Byte tracing, old-con fallback,
+  client-absence regression, and the historical runner check remain pending.
+
+| Platform | Suite Blocks | Checks | PASS | FAIL | SKIP | NA | SCRIPT_ERROR | Grade |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Debian 13 | 6 | 1019 | 1014 | 0 | 0 | 5 | 0 | Check |
+| Rocky 8.10 | 6 | 1019 | 1007 | 0 | 0 | 12 | 0 | Check |
+
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Planned local/system lifecycle fixtures | Pending | Await shipped con/default check |
-| T2 | Not run | Planned local/system lifecycle fixtures | Pending | Await shipped socat/default check |
-| T3 | Not run | Planned local/system lifecycle fixtures | Pending | Await shipped con/custom checks |
-| T4 | Not run | Planned local/system lifecycle fixtures | Pending | Await shipped socat/custom checks |
-| T5 | Not run | Planned real input transport trace | Pending | Await byte-flow, line-editing, and reconnect evidence |
+| T1 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con/default Ctrl-A passes all common detach observations |
+| T2 | 2026-09-24T17:11:03Z | PTY matrix above; private namespace hides con | PASS | Socat/default Ctrl-A passes all common detach observations |
+| T3 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con/custom Ctrl-] and Ctrl-B pass all common detach observations |
+| T4 | 2026-09-24T17:11:03Z | PTY matrix above; private namespace hides con | PASS | Socat/custom Ctrl-] and Ctrl-B pass all common detach observations |
+| T5 | 2026-09-24T17:11:03Z | PTY matrix above; transport trace not run | Pending | IOC command input, Ctrl-A line editing under custom keys, and a subsequent default-key connection pass; byte-flow tracing remains pending |
 | T6 | Not run | Planned console-client search environments | Pending | Await shipped fallback rejection check |
 | T7 | 2026-09-24T15:32:17Z | Debian 13 and Rocky 8.10 test consumers; source runner at `74c8b28` plus working-tree tests | PASS | All 47 shipped S41 checks passed within each 246-check error suite; both complete matrices and reporting validation passed after identity repin; Check-grade records and limits above |
 | T8 | Not run | Planned document-to-output comparison | Pending | Await executed examples and second-person review |
 | T9 | Not run | Planned historical runner fixture | Pending | Await observed pre-fix failure |
-| T10 | 2026-09-24T15:32:17Z | Local lint checks plus Debian 13 and Rocky 8.10 complete six-suite matrices | Pending | Existing suite matrix, candidate deployment, identity pin, reporting validation, Bash syntax, and ShellCheck warning checks pass; regression verification must be repeated after the pending PTY lifecycle checks are implemented |
-| T11 | Not run | Planned local/system con monitor fixtures | Pending | Await shipped con/Ctrl-A monitor check |
-| T12 | Not run | Planned local/system socat monitor fixtures | Pending | Await shipped socat/Ctrl-C monitor checks on direct and old-con fallback paths |
+| T10 | 2026-09-24T17:11:03Z | Local lint/catalog checks plus complete two-host matrix | PASS | Current shipped checks, deployment, identity repin, and reporting validation pass; rerun after remaining regression cases are implemented |
+| T11 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con monitor receives IOC output, blocks input, exits on Ctrl-A, restores the terminal, preserves IOC/socket state, and reconnects |
+| T12 | 2026-09-24T17:11:03Z | PTY matrix above; direct socat only | Pending | Direct socat monitor passes the common observations and exits on Ctrl-C with status 130; old-con fallback remains pending |
 
 ##### Closure Evidence
 
