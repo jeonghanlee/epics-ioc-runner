@@ -281,6 +281,12 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S41|error-handling.S41.completion-keys|BEHAVIOR|real-path"
     "S41|error-handling.S41.completion-prefix|BEHAVIOR|real-path"
     "S41|error-handling.S41.completion-target|BEHAVIOR|real-path"
+    "S42|error-handling.S42.isolation-tools-available|REQUIRED|direct-inspection"
+    "S42|error-handling.S42.no-client-attach-rejected|BEHAVIOR|real-path"
+    "S42|error-handling.S42.no-client-monitor-rejected|BEHAVIOR|real-path"
+    "S42|error-handling.S42.nc-available|PREREQUISITE|direct-inspection"
+    "S42|error-handling.S42.nc-only-attach-rejected|BEHAVIOR|real-path"
+    "S42|error-handling.S42.nc-only-monitor-rejected|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -348,7 +354,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 41; index += 1)); do
+    for ((index = 1; index <= 42; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2508,6 +2514,8 @@ function test_reader_equivalence {
 
 # shellcheck source=lib/test-console-options.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-options.bash"
+# shellcheck source=lib/test-console-clients.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-clients.bash"
 
 function run_all_tests {
     local -a pipeline=(
@@ -2552,6 +2560,7 @@ function run_all_tests {
         "test_conf_parser_contract"
         "test_reader_equivalence"
         "test_console_options"
+        "test_console_clients"
     )
     local step=1
     local func
