@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issue #157 is closed under it
 
-Next session entry point: M1 is Complete and #157 is closed. M2 is in progress under its accepted plan; after M2, open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 and M2 are Complete, and #157 is closed. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Backlog M3 (stale reporting self-test expectations) awaits a release assignment. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -29,7 +29,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
-| Reporting | M2 | Keep multi-line check values out of FAIL reasons | Milestone | In progress | No | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
+| Reporting | M2 | Keep multi-line check values out of FAIL reasons | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
 
 ### Decisions
 
@@ -581,7 +581,7 @@ Last Compared: after 2026-09-25T00:54:56Z with `gh issue view 157`; issue update
 Origin: 1.4.2 / M2
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -744,7 +744,14 @@ test consumer's clock for T1 and from the development host's clock otherwise:
 
 ##### Closure Evidence
 
-None.
+- Implementation, tests, contract documentation, and this detail landed in
+  `7032895` on `release-1.4.2`.
+- Verification: T1-T5 passed as recorded above; the confirming six-suite
+  matrix is `work/gate-suites-20260925T031059Z-464174/` with the pinned
+  identity unchanged.
+- Landing: `git fetch` at 2026-09-25T04:25:31Z observed
+  `origin/release-1.4.2` at `7032895cc179d379916476e91f9d73c5e290404c`.
+- No linked issue.
 
 ## Backlog
 
