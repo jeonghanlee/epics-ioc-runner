@@ -247,7 +247,7 @@ Options:
                  in local mode, a differing shared systemd template or logrotate unit
   -v, -vv        Verbose output (supported only for 'list' command)
   --detach-key KEY  Set the console detach key (attach only; default: ctrl-a)
-                   KEY: ctrl-a..ctrl-z (except ctrl-t), ctrl-[, ctrl-\, ctrl-], ctrl-^, ctrl-_
+                   KEY: ctrl-a..ctrl-z (except ctrl-t), ctrl-\, ctrl-], ctrl-^, ctrl-_
   -V, --version  Show version, git hash, commit date, and install date
   -h, --help     Show this help message and exit
 
@@ -352,9 +352,9 @@ function set_detach_key {
         return 1
     fi
     case "${character}" in
-        [abcdefghijklmnopqrstuvwxyz]|'['|"\\"|']'|'^'|'_') ;;
+        [abcdefghijklmnopqrstuvwxyz]|"\\"|']'|'^'|'_') ;;
         *)
-            printf "Error: Invalid detach key '%s'; use ctrl-a..ctrl-z, ctrl-[, ctrl-\\, ctrl-], ctrl-^, or ctrl-_.\n" "$1" >&2
+            printf "Error: Invalid detach key '%s'; use ctrl-a..ctrl-z, ctrl-\\, ctrl-], ctrl-^, or ctrl-_.\n" "$1" >&2
             return 1
             ;;
     esac

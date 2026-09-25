@@ -42,13 +42,15 @@ function test_console_options {
         "--detach-key expects a control key" attach console_probe --detach-key ctrl-aa
     verify_detach_cli_result "Ctrl-T remains reserved" \
         "Ctrl-T is reserved" attach console_probe --detach-key ctrl-t
+    verify_detach_cli_result "Escape byte ctrl-[ is rejected" \
+        "Invalid detach key" attach console_probe --detach-key 'ctrl-['
     verify_detach_cli_result "Monitor rejects attach-only detach option" \
         "--detach-key is supported only for the 'attach' command" monitor console_probe --detach-key ctrl-b
     verify_detach_cli_result "List rejects attach-only detach option" \
         "--detach-key is supported only for the 'attach' command" list --detach-key ctrl-b
 
     for letter in {a..s} {u..z}; do keys+=("ctrl-${letter}"); done
-    keys+=('ctrl-[' "ctrl-\\" 'ctrl-]' 'ctrl-^' 'ctrl-_')
+    keys+=("ctrl-\\" 'ctrl-]' 'ctrl-^' 'ctrl-_')
     for key in "${keys[@]}"; do
         verify_detach_cli_result "${key} reaches client resolution" \
             "${client_error}" attach console_probe --detach-key "${key}"

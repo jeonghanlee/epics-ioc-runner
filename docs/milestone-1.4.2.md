@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, and #159 are closed under it
 
-Next session entry point: M1, M2, and M3 are Complete, and #157, #158, and #159 are closed. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1, M2, and M3 are Complete, and #157, #158, and #159 are closed. M4 (reject `ctrl-[`) is implemented and verified; once its commit is pushed, record the landing and mark it Complete. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -31,6 +31,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
 | Reporting | M2 | Keep multi-line check values out of FAIL reasons (#159) | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
 | Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
+| Console | M4 | Reject ctrl-[ as a detach key | Milestone | In progress | No | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
 
 ### Decisions
 
@@ -145,9 +146,10 @@ release publication, and production deployment.
   version in `b8d65c3`, and nc exclusion, monitor detection, and related user
   documentation in `2fa6b55`. These are not requests to reimplement those changes.
 - Documentation verification uses the executed banner and input results.
-- The live #157 body still excludes configurable keys and nc changes. D2-D3
-  extend that older scope; the canonical plan is the source for a later issue
-  update and reassignment to 1.4.2. No GitHub mutation is authorized by this plan.
+- The original #157 body excluded configurable keys and nc changes; D2-D3
+  extended that scope. The body was later rewritten from this detail, the issue
+  moved to GitHub milestone `1.4.2`, and it closed as recorded in Closure
+  Evidence.
 
 ##### Implementation Plan
 
@@ -536,8 +538,14 @@ grade on both test consumers, using the working tree based on `f8e13d2`:
 Combined machine record SHA-256, Debian:
 `1f67d06b81bb83f5bff6775fd1ce78eeb3978f81676c856232413e54a9339eb7`; Rocky:
 `fddf567d2351999b83e74e53cf01b1c575ff7b8bc19c148b463ef7a2070796d7`.
-The container run script is covered by the s6 fixed-value check, not by a
-container lifecycle run.
+The container path was then exercised on 2026-09-25T09:50:05Z: the shipped
+`tests/run-container-tests.bash` ran the container lifecycle suite from the
+tree at `2aee5c1` on its four default images, `jeonghanlee/debian13-epics`,
+`ubuntu24-epics`, `rocky8-epics`, and `rocky10-epics` (`latest`). Each image
+passed 64 of 64 checks with no FAIL, SKIP, NA, or `SCRIPT_ERROR`, so the s6 run
+script carrying `--ignore=^D^C` and the escaped `verify_state` reason ran in
+the container backend. The suite does not assert the ignore value itself;
+byte-level evidence for it remains the systemd-path T5 trace.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
@@ -967,6 +975,108 @@ Observed State: closed (completed)
 Observed Labels: bug, tests, P3-low
 Observed Milestone: 1.4.2 (19)
 Last Compared: after 2026-09-25T09:36:17Z with `gh issue view 158`; issue updated at 2026-09-25T09:36:17Z; the body carries the resolution and checked acceptance criteria
+
+
+#### M4 - Reject ctrl-[ as a detach key
+
+Origin: 1.4.2 / M4
+Identity History: none
+GitHub Issue: none
+Status: In progress
+
+##### Summary
+
+Before this work, `set_detach_key` accepted `ctrl-[`, which is byte 0x1b
+(ESC). Arrow, Home, and function keys start with the same byte. Observed on 2026-09-25 on the
+development host in a PTY: socat started with `escape=0x1b` ended on a single
+up-arrow sequence while `escape=0x02` did not, so under socat the IOC shell's
+history keys would detach the console. con 1.1.0 ended only on a lone ESC
+because it honors the exit key only as a single-byte read. The key was added
+in this release line (`1bb270f`) and has not shipped, so removing it breaks no
+released usage.
+
+##### Scope
+
+- Reject `ctrl-[` in `set_detach_key` with the invalid-key error, and remove
+  it from the error text, the help key list, and `docs/CLI_REFERENCE.md`.
+- Replace the S41 acceptance check for `ctrl-[` with a rejection check, update
+  the accepted-key count in `tests/README.md`, and repin the gate identity.
+
+Out of scope: changing the default key, the other accepted keys, or con.
+
+##### Completion Criteria
+
+- `ioc-runner attach <name> --detach-key ctrl-[` exits 1 with the invalid-key
+  error before any client resolution.
+- Help, error text, and documentation list the 29 accepted keys without
+  `ctrl-[`.
+- The S41 catalog carries the rejection check, counts are unchanged, and the
+  gate matrix passes with the repinned identity.
+
+##### Dependencies And Decisions
+
+- Owner direction 2026-09-25: remove `ctrl-[` from the accepted keys, after
+  the conceptual-integrity sweep of this release line.
+- D2 keeps Ctrl-A as the default and the per-connection option; this narrows
+  only the accepted set.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-09-25, owner direction
+Implementation Authorization: 2026-09-25, owner direction
+Superseded Plan Artifacts: none
+
+1. Change `set_detach_key`, its error text, and the help key list in
+   `bin/ioc-runner`, and the key list in `docs/CLI_REFERENCE.md`. Closed by T1.
+2. In `tests/lib/test-console-options.bash` and the S41 catalog of
+   `tests/test-error-handling.bash`, replace the `ctrl-[` acceptance check with
+   a rejection check, and change the count in `tests/README.md`. Closed by T1
+   and T2.
+3. Run the matrix, repin from a run whose only failure is the identity
+   mismatch, and confirm. Closed by T3.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | error-contract | Run the shipped CLI with `--detach-key ctrl-[` and run the error-handling suite | Development host | Exit 1 with the invalid-key error; the S41 rejection check PASS; 249 checks PASS |
+| T2 | reporting | Catalog-only validation and the reporting self-test | Development host | Counts unchanged; self-test PASS |
+| T3 | regression and reporting | Complete six-suite matrix before and after the identity repin | Both test consumers | Only the identity mismatch before the repin; `GATE SUITES PASS` after it |
+
+##### Verification Results
+
+Observed on 2026-09-25 (UTC) against the working tree based on `2aee5c1`:
+
+- T1 on the development host: `ioc-runner --local attach x --detach-key
+  'ctrl-['` and the uppercase form exited 1 with the invalid-key error before
+  client resolution. The error-handling suite passed 249 of 249, including
+  `S41.reject-escape-byte`.
+- T2 on the development host: catalog-only validation reported
+  `checks=249 steps=43 state=PASS`; the reporting self-test passed; the
+  ShellCheck warning gate and `git diff --check` passed.
+- T3 on both test consumers: the first matrix failed only on the expected
+  identity mismatch, with 1026 checks per host and no FAIL, SKIP, or
+  `SCRIPT_ERROR`; `S41.reject-escape-byte` passed on both hosts.
+  `EXPECTED_IDENTITY_SHA256` is now
+  `37db797f5ab7a49786bc3a598702a22ed9c75dc9e5b159ae110ad08ea024fde1`. The
+  confirming run reported `GATE SUITES PASS hosts=2` with the installed
+  runners at `2aee5c1-dirty`; cross-host differences match the earlier
+  accepted runs. Evidence directory:
+  `work/gate-suites-20260925T095858Z-4071740/`. Combined machine record
+  SHA-256, Debian
+  `7a4a96026fa2293e1c5a398e83e5ca889dca2690a385849c3c74941288deed2b`, Rocky
+  `f1186584a10c16a4a984c60a18ba36ee58c054d6654ececaaa569fc0713f0e71`.
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-09-25T09:51:22Z | Development host | PASS | `ctrl-[` rejected; 249/249 |
+| T2 | 2026-09-25T09:51:22Z | Development host | PASS | Counts unchanged; self-test PASS |
+| T3 | 2026-09-25T10:06:02Z | Both test consumers | PASS | Identity mismatch only before the repin; `GATE SUITES PASS hosts=2` after it |
+
+##### Closure Evidence
+
+None.
 
 ## Backlog
 
