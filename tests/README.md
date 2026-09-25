@@ -406,6 +406,11 @@ no active unit or installed configuration.
 * **Candidate Transfer**: Runs the shipped push driver against a real Git
   repository, replacing only SSH transport, and verifies both identical and
   externally changed destination states.
+* **Test Library Self-Tests**: Runs the reporting, record-validator, and
+  reporting-counts self-tests under `tests/lib/` as the invoking user and
+  requires each to exit 0. The reporting self-test derives its catalog and
+  suite-dimension expectations from `tests/reporting-counts.csv` and its own
+  combination list.
 
 ### 5. Infrastructure State (`test-system-infra.bash`)
 

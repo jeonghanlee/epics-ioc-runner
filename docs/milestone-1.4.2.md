@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 and #159 are closed and #158 is open under it
 
-Next session entry point: M1 and M2 are Complete, and #157 is closed. M3 moved from Backlog into this release on 2026-09-24; review and accept its draft plan, then implement and verify it. After M3, open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 and M2 are Complete, and #157 and #159 are closed. M3 is implemented and verified; once its commit is pushed, record the landing, mark M3 Complete, and close #158 with its checked acceptance criteria. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -30,7 +30,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
 | Reporting | M2 | Keep multi-line check values out of FAIL reasons (#159) | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
-| Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Not started | Yes | none | The shipped reporting self-test passes every assertion on the committed tree; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
+| Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | In progress | No | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 
 ### Decisions
 
@@ -776,56 +776,176 @@ Last Compared: after 2026-09-25T04:37:51Z with `gh issue view 159`; issue update
 Origin: 1.4.2 / M3
 Identity History: none
 GitHub Issue: #158, https://github.com/jeonghanlee/epics-ioc-runner/issues/158
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-`tests/lib/test-reporting-self-test.bash` is not part of the gate matrix and
-fails two assertions on the committed tree at `2ddbf80`, observed on
+`tests/lib/test-reporting-self-test.bash` fails two assertions on the
+committed tree. Both compare against a literal value copied when `8a56031`
+(2026-09-03) added the container-lifecycle suite, and neither literal followed
+later changes. Before this work, no gate step or dispatcher mode ran any of
+the three shipped self-tests, so the drift went unnoticed. Observed on
 2026-09-24 on the development host:
 
-- `catalog precedence: exact standard-output contract` expects the
-  source-regression catalog to report 132 checks; the catalog reports 139.
-  The expectation has not changed since `045bcd5`.
-- `dimension-matrix: all accepted combinations finalize` expects 7 accepted
-  combinations and observes 9.
+- `catalog precedence: exact standard-output contract` runs the real
+  source-regression catalog-only path and compares its last line with the
+  literal `checks=132 steps=20`. The catalog grew to 134 in `045bcd5`, 138 in
+  `cd77398`, and 139 in `860fa66`; `tests/reporting-counts.csv` already holds
+  the current value.
+- `dimension-matrix: all accepted combinations finalize` finalizes one run for
+  each of the nine suite-dimension combinations in its list and expects the
+  literal 7 `SUITE` records. The reporter accepts exactly the same nine
+  combinations; `8a56031` added two to both without updating the count.
+
+The record-validator self-test (66 of 66) and the reporting-counts self-test
+(8 of 8) pass.
+
+Run as the gate runs source-regression, with `REPORT_MACHINE_OUTPUT=1`
+inherited, the reporting self-test also fails the two escape assertions that
+`7032895` added. `check_escape_reason` sources the reporter inside a command
+substitution, and with that variable set the reporter routes standard output
+to standard error as it loads, so the capture is empty. Observed on
+2026-09-25 on the Debian 13 test consumer and reproduced on the development
+host. The suites' own `verify_state` path is unaffected because it loads the
+reporter before capturing.
 
 ##### Scope
 
-Derive or update both expectations from the current catalog and accepted
-dimension set, and decide whether the self-test belongs in a routine check.
-Out of scope: changing the reporter contract.
+- Derive the catalog-precedence expectation from the source-regression row of
+  `tests/reporting-counts.csv`.
+- Derive the dimension-matrix expectation from the length of its combination
+  list.
+- Make `check_escape_reason` independent of an inherited
+  `REPORT_MACHINE_OUTPUT` by clearing it in the capturing subshell before the
+  reporter loads.
+- Add a source-regression STEP that runs the three shipped self-tests and
+  requires each to exit 0, so the gate matrix exercises them on every run.
+- Register the new checks, update the catalog count, the inventory, and the
+  test documentation, and repin the gate identity from a clean run.
+
+Out of scope: changing the reporter contract or any self-test assertion other
+than the two stale expectations.
 
 ##### Completion Criteria
 
-- The shipped reporting self-test passes every assertion on the committed
-  tree.
+- The reporting self-test passes every assertion on the committed tree, both
+  with `REPORT_MACHINE_OUTPUT` unset and with `REPORT_MACHINE_OUTPUT=1`
+  inherited.
+- Adding a source-regression check or a suite-dimension combination no longer
+  requires editing either expectation by hand.
+- The gate matrix runs all three self-tests on both test consumers and fails
+  if any of them fails.
+- The catalog, counts, inventory, and pinned identity agree with the new
+  checks.
 
 ##### Dependencies And Decisions
 
-- Assigned from Backlog to the 1.4.2 Milestone by owner decision 2026-09-24.
+- Owner decision 2026-09-24, delegated to the recommended option: run the
+  self-tests routinely rather than by hand, because the two failures went
+  unnoticed for three weeks while nothing ran them.
+- They run in the source-regression suite because its category covers shipped
+  test-script behavior and it already runs on both consumers in the gate. The
+  reporting self-test calls the source-regression suite only in catalog-only
+  mode, which exits before any STEP runs, so the new STEP does not recurse.
+- The escape-assertion defect from `7032895` is fixed within this work rather
+  than as separate work, because a self-test result must not depend on an
+  inherited environment variable (owner decision 2026-09-25, delegated to the
+  recommended option). S26 itself does not expose the defect: its
+  `run_as_invoker` call uses `sudo`, whose `env_reset` on both test consumers
+  drops `REPORT_MACHINE_OUTPUT`, observed on 2026-09-25.
+- The suite-dimension part of the Completion Criteria is closed by inspection:
+  the count is computed from the combination list, and a combination the
+  reporter does not accept cannot be added to the list for an execution test.
+- The self-tests need no root privilege, so S26 runs them through the suite's
+  existing `run_as_invoker`. Each takes under one second on the test
+  consumers.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-25, after third-person and second-person review of this plan
+Implementation Authorization: 2026-09-25 for this accepted plan
 Superseded Plan Artifacts: none
 
-1. Investigate the dimension-matrix count and the catalog expectation, then
-   propose the corrected expectations.
+1. In `tests/lib/test-reporting-self-test.bash`, build the catalog-precedence
+   expected line from the source-regression row of `tests/reporting-counts.csv`
+   and the dimension-matrix count from its combination list, and clear
+   `REPORT_MACHINE_OUTPUT` inside `check_escape_reason` before the reporter
+   loads. Closed by T1.
+2. Add STEP S26 to `tests/test-source-regression.bash` with three
+   `BEHAVIOR`/`real-path` checks that run
+   `tests/lib/test-reporting-self-test.bash`,
+   `tests/lib/test-record-validator-self-test.bash`, and
+   `tests/lib/reporting-counts-self-test.bash` through `run_as_invoker` and
+   require exit 0. Capture each self-test's output in a file under the suite's
+   workspace and print its path and failed assertions only on failure. Update
+   `tests/reporting-counts.csv`, `tests/SOURCE_REGRESSION_INVENTORY.md`, and
+   `tests/README.md`. Closed by T2 and T3.
+3. Run the six-suite matrix, repin `EXPECTED_IDENTITY_SHA256` from a run whose
+   only failure is the identity mismatch, and confirm with a second run.
+   Closed by T4.
+4. Project the current Scope and Completion Criteria into the #158 body under
+   separate Issue authority, then read the issue back. Closed by the recorded
+   GitHub Projection comparison.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | reporting | Run the shipped reporting self-test | Development host | Every assertion PASS |
+| T1 | reporting | Run `tests/lib/test-reporting-self-test.bash` with `REPORT_MACHINE_OUTPUT` unset and again with `REPORT_MACHINE_OUTPUT=1` | Development host | Every assertion PASS in both runs |
+| T2 | reporting | Run catalog-only validation on the development host, then `tests/run-all-tests.bash --source-regression` on a test consumer | Development host and Debian 13 test consumer | Counts agree; the three S26 checks PASS |
+| T3 | reporting | (a) In a `git archive` copy, add one check ID to the S25 entries of the check list in `tests/test-source-regression.bash`, raise the source-regression row of `tests/reporting-counts.csv` to 140, and run the reporting self-test. (b) In a `cp -a` copy on the consumer, change the expected value of one assertion in `tests/lib/reporting-counts-self-test.bash` and run `tests/run-all-tests.bash --source-regression` | (a) development host; (b) Debian 13 test consumer | (a) The catalog-precedence assertion passes with no self-test edit; (b) the matching S26 check records FAIL with a one-line reason and the suite continues |
+| T4 | regression and reporting | Run the complete six-suite matrix before and after the identity repin | Both test consumers | Only the expected identity mismatch before the repin; `GATE SUITES PASS` after it |
 
 ##### Verification Results
 
+Observed on 2026-09-25 (UTC) against the working tree based on `1203427`; the
+times are the completion times of each run's report, read from the Debian 13
+test consumer's clock for T2, T3 (b), and T4 and from the development host's
+clock otherwise:
+
+- T1 on the development host: the reporting self-test passed 118 of 118
+  assertions with `REPORT_MACHINE_OUTPUT` unset and again with
+  `REPORT_MACHINE_OUTPUT=1`.
+- T2: catalog-only validation reported `checks=142 steps=21 state=PASS` on the
+  development host. On the Debian 13 test consumer,
+  `tests/run-all-tests.bash --source-regression` passed with the three S26
+  checks PASS, 141 PASS and 1 NA in total, and no `SCRIPT_ERROR`.
+- T3 (a) on the development host: with one S25 check ID added in a
+  `git archive` copy and the source-regression row raised to 143, catalog-only
+  validation passed and the unedited reporting self-test passed every
+  assertion, including the catalog-precedence expectation.
+- T3 (b) on the Debian 13 test consumer: with one expected message changed in
+  a `cp -a` copy of `tests/lib/reporting-counts-self-test.bash`,
+  `S26.self-test.reporting-counts` recorded FAIL with the one-line reason
+  `expected 0, actual 1`, the human report named the failed assertion and the
+  retained workspace, and all 142 checks ran with no `SCRIPT_ERROR`.
+- T4 on both test consumers: the first matrix failed only on the expected
+  identity mismatch, with 1026 checks per host and no FAIL, SKIP, or
+  `SCRIPT_ERROR`. `EXPECTED_IDENTITY_SHA256` is now
+  `52c1fb53ab4ffc22189a747dee34d5808715e9f0d2157ab7ee0698b6def7d5ab`. The
+  confirming run reported `GATE SUITES PASS hosts=2` with the installed
+  runners at `1203427-dirty`; cross-host differences match the earlier
+  accepted runs. Evidence directory:
+  `work/gate-suites-20260925T054538Z-1684424/`. Combined machine record
+  SHA-256, Debian
+  `aea722c01ed36933f91b17ea2e2946f45768aeb5093791a33f7b243fc936f350`, Rocky
+  `15f278962e649d60c1f526aac0ea8342e732d1abb4facb92b950b9e9d100ffff`.
+- ShellCheck against the committed tree adds only one informational SC1091
+  note for the new `source` line, matching the file's existing `source`
+  notes; the self-test's SC2034 warning predates this work.
+
+| Platform | Suite Blocks | Checks | PASS | FAIL | SKIP | NA | SCRIPT_ERROR | Grade |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Debian 13 | 6 | 1026 | 1021 | 0 | 0 | 5 | 0 | Check |
+| Rocky 8.10 | 6 | 1026 | 1014 | 0 | 0 | 12 | 0 | Check |
+
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Planned development host run | Pending | Await all assertions PASS |
+| T1 | 2026-09-25T05:36:01Z | Development host | PASS | 118/118 in both environments |
+| T2 | 2026-09-25T05:37:28Z | Development host and Debian 13 test consumer | PASS | Catalog 142/21; S26 checks PASS on the consumer |
+| T3 | 2026-09-25T05:37:56Z | Development host and Debian 13 test consumer, temporary copies | PASS | Derived count followed the added check; broken self-test made S26 FAIL with a one-line reason |
+| T4 | 2026-09-25T05:52:41Z | Both test consumers | PASS | Identity mismatch only before the repin; `GATE SUITES PASS hosts=2` after it |
 
 ##### Closure Evidence
 
@@ -833,13 +953,13 @@ None.
 
 ##### GitHub Projection
 
-Title: Reporting self-test carries stale expectations
+Title: Reporting self-test carries stale expectations and runs in no routine check
 Labels: bug, tests, P3-low
 GitHub Milestone: 1.4.2
 Observed State: open
 Observed Labels: bug, tests, P3-low
 Observed Milestone: 1.4.2 (19)
-Last Compared: after 2026-09-25T04:37:45Z with `gh issue view 158`; issue updated at 2026-09-25T04:37:45Z
+Last Compared: after 2026-09-25T09:15:31Z with `gh issue view 158`; issue updated at 2026-09-25T09:15:31Z; the body projects this detail's Scope and Completion Criteria
 
 ## Backlog
 

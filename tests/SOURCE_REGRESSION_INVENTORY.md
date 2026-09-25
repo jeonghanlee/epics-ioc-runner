@@ -356,6 +356,20 @@ unchanged.
 | `source-regression.S25.mismatching-status.exits-one` | `BEHAVIOR` | `real-path` | The push driver exits 1 when external destination state changes after transfer. |
 | `source-regression.S25.mismatching-status.diagnostic` | `BEHAVIOR` | `real-path` | A status mismatch emits the explicit candidate-copy error. |
 
+## S26 Test Library Self-Test Addition
+
+S26 has three real-path behavior identities. It runs each shipped test-library
+self-test as the invoking user and requires exit 0, so the gate matrix
+exercises the reporting library, the record validator, and the count parser on
+every run. Each self-test's output is written to a temporary workspace, which
+is kept and whose failed assertions are printed only when a self-test fails.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S26.self-test.reporting` | `BEHAVIOR` | `real-path` | `tests/lib/test-reporting-self-test.bash` exits 0. |
+| `source-regression.S26.self-test.record-validator` | `BEHAVIOR` | `real-path` | `tests/lib/test-record-validator-self-test.bash` exits 0. |
+| `source-regression.S26.self-test.reporting-counts` | `BEHAVIOR` | `real-path` | `tests/lib/reporting-counts-self-test.bash` exits 0. |
+
 ## Move Invariants
 
 1. Each current assertion and prerequisite receives exactly one accepted D13 disposition and reason.
