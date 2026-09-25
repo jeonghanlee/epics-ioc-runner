@@ -643,7 +643,7 @@ function render_s6_service {
         printf "# Rendered by ioc-runner --container for IOC %s from %s; re-run install to change it.\n" "${ioc_name}" "${conf_file}"
         printf "exec s6-setuidgid %s %s --foreground --logfile=- --name=%s --ignore=%s --autorestartcmd=%s --chdir=%s --port=%s %s\n" \
             "$(sh_quote "${ioc_user}")" "$(sh_quote "${PROCSERV_TOOL_PATH}")" "$(sh_quote "${ioc_name}")" \
-            "$(sh_quote '^D^C^]')" "''" "$(sh_quote "${ioc_chdir}")" "$(sh_quote "${ioc_port}")" "$(sh_quote "${ioc_cmd}")"
+            "$(sh_quote '^D^C')" "''" "$(sh_quote "${ioc_chdir}")" "$(sh_quote "${ioc_port}")" "$(sh_quote "${ioc_cmd}")"
     } > "${tmp_run}"
     chmod 0755 "${tmp_run}"
     mv -f "${tmp_run}" "${svc_dir}/run"
@@ -906,7 +906,7 @@ EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
 RuntimeDirectoryPreserve=restart
-ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 Restart=always
 RestartSec=2

@@ -81,6 +81,7 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S16.launch-arguments.extracted"
     "${SUITE_ID}.S16.launch-arguments.must-agree"
     "${SUITE_ID}.S16.s6-render.fixed-values"
+    "${SUITE_ID}.S16.unit.ignore-set"
     "${SUITE_ID}.S16.completion.mode-options-agree"
     "${SUITE_ID}.S17.metadata.targets-extracted"
     "${SUITE_ID}.S17.metadata.injectors-agree"
@@ -1195,6 +1196,7 @@ function _launch_arguments_contract {
     local extracted="empty"
     local agreement="differ"
     local fixed_values="present"
+    local unit_ignore="present"
     local completion_opts=""
     local mode_option=""
     local mode_options="all"
@@ -1223,13 +1225,22 @@ function _launch_arguments_contract {
 
     if [[ "${render_format}" != *"--logfile=- "* ]]; then
         fixed_values="missing:logfile-stdout"
-    elif ! run_as_invoker grep -qF -- "sh_quote '^D^C^]'" "${runner_script}"; then
+    elif ! run_as_invoker grep -qF -- "sh_quote '^D^C'" "${runner_script}"; then
         fixed_values="missing:ignore-set"
     elif ! run_as_invoker grep -qF -- '"'"''"'"' "${runner_script}"; then
         fixed_values="missing:empty-autorestartcmd"
     fi
     verify_state "present" "${fixed_values}" \
         "${SUITE_ID}.S16.s6-render.fixed-values"
+
+    # procServ converts '^' only before A-Z, so the unit value is pinned exactly.
+    if [[ "${runner_exec}" != *" --ignore=^D^C "* ]]; then
+        unit_ignore="missing:runner-unit"
+    elif [[ "${setup_exec}" != *" --ignore=^D^C "* ]]; then
+        unit_ignore="missing:setup-unit"
+    fi
+    verify_state "present" "${unit_ignore}" \
+        "${SUITE_ID}.S16.unit.ignore-set"
 
     completion_opts=$(run_as_invoker grep -m1 -E '^[[:space:]]*opts="' "${completion_script}" || true)
     completion_opts="${completion_opts#*\"}"

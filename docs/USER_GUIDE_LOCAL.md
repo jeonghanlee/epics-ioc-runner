@@ -120,7 +120,7 @@ Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
 ```
 * **Press Enter** to display the `epics>` prompt if the screen is blank.
 * **Detach**: Press `Ctrl-A` by default to detach from the console while leaving the IOC running. The runner selects `con`, or `socat` if `con` is unavailable; both consume the selected detach key locally, so it never reaches the IOC shell. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line.
-* **Ignored keys**: The runner configures procServ with `--ignore=^D^C^]`. It discards `Ctrl-C`, `Ctrl-D`, and `Ctrl-]` before they reach the IOC. If one of these is selected as the detach key, the client handles it locally and detaches first.
+* **Ignored keys**: The runner configures procServ with `--ignore=^D^C`. It discards `Ctrl-C` and `Ctrl-D` before they reach the IOC; every other byte, including `Ctrl-]`, is forwarded. If `Ctrl-C` or `Ctrl-D` is selected as the detach key, the client handles it locally and detaches first.
 * **Supported clients**: Both `attach` and `monitor` use only `con` or `socat`; `nc` is not supported. If neither supported client is available, the command fails with an installation hint. For `monitor`, `con` must support `-r`; otherwise `socat` is required.
 * **Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
 

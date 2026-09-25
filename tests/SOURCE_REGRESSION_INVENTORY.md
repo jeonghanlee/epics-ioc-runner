@@ -186,8 +186,11 @@ S16 adds four REQUIRED direct-inspection identities for the container execution 
 | --- | --- | --- | --- |
 | `source-regression.S16.launch-arguments.extracted` | `REQUIRED` | `direct-inspection` | Both `ExecStart=` lines and the s6 run-script render format are extracted before comparison. |
 | `source-regression.S16.launch-arguments.must-agree` | `REQUIRED` | `direct-inspection` | The ordered procServ option names agree across the runner unit, the setup unit, and the s6 render. |
-| `source-regression.S16.s6-render.fixed-values` | `REQUIRED` | `direct-inspection` | The s6 render logs to stdout (`--logfile=-`), keeps the `^D^C^]` ignore set, and passes an empty `--autorestartcmd`. |
+| `source-regression.S16.s6-render.fixed-values` | `REQUIRED` | `direct-inspection` | The s6 render logs to stdout (`--logfile=-`), keeps the `^D^C` ignore set, and passes an empty `--autorestartcmd`. |
+| `source-regression.S16.unit.ignore-set` | `REQUIRED` | `direct-inspection` | Both systemd unit `ExecStart=` lines pass exactly `--ignore=^D^C`; procServ reads `^` as a control prefix only before `A` through `Z`. |
 | `source-regression.S16.completion.mode-options-agree` | `REQUIRED` | `direct-inspection` | Every mode option the runner parses (`--local`, `--user`, `--container`) is offered by the completion script. |
+
+The 1.4.2 ignore-set correction adds `source-regression.S16.unit.ignore-set`, a fifth REQUIRED direct-inspection identity in this group. The option-name comparison above does not read values, so this check pins the unit value that the s6 fixed-value check already pins for the container render.
 
 ## Accepted M8 S17 Addition
 

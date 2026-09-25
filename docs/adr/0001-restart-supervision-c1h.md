@@ -43,6 +43,14 @@ remains readable independently of any working session material.
 > the marker without initializing defeats readiness detection by design,
 > and no integrity check on the marker is planned.
 
+> **Correction note (2026-09-24, 1.4.2).** The ignore set is `^D^C`. procServ
+> converts `^` only when `A` through `Z` follows, so the original `^]` entry
+> registered the printable characters `^` and `]` instead of `Ctrl-]`:
+> console input lost those two characters while `Ctrl-]` reached the IOC.
+> Byte tracing at the console socket and the child's stdin confirmed this on
+> both reference platforms. `Ctrl-]` needs no filtering because the supported
+> clients use no telnet escape; the decision is otherwise unchanged.
+
 ---
 
 ## Context
@@ -105,10 +113,10 @@ structural, not an omission: the system unit orders against `network.target`,
   Restart=always               # forced (not on-failure); see "Why each value"
   RestartSec=2                 # pace the loop; the M11 poll (not RestartSec) owns the timing
   SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL   # unchanged under `always`
-  ExecStart= … procServ --ignore=^D^C^] --autorestartcmd='' …
+  ExecStart= … procServ --ignore=^D^C --autorestartcmd='' …
 ```
 
-- `--ignore=^D^C^]` filters `^C`/`^D`/`^]` out of the **child IOC's stdin**.
+- `--ignore=^D^C` filters `^C`/`^D` out of the **child IOC's stdin**.
 - `--autorestartcmd=''` (empty argument) **disables the `^T` autorestart-toggle
   key** by setting procServ's toggle character to 0; the inner autorestart
   itself stays ON.
@@ -123,7 +131,7 @@ structural, not an omission: the system unit orders against `network.target`,
 | `RestartSec=` | `2` | Above systemd's 100 ms default so a fast-failing supervisor does not spin. The timing invariant lives in the M11 poll (poll max-bound > RestartSec + readiness time), not in RestartSec being below the window. |
 | `StartLimitIntervalSec=` | `0` | Disabling the limiter keeps OP1 in-band — a unit never strands in the `reset-failed`-requiring start-limit-hit state. Honest trade: no automatic circuit breaker (a hopeless procServ retries forever). systemd surfaces only procServ death (`activating (auto-restart)`, `NRestarts`); a child crash loop is caught by the Layer-2 log scan, and a `=0` loop is invisible to `systemctl --failed`. Log growth is bounded by the U003 local rotation, not by `=0`. |
 | `StartLimitBurst=` / `StartLimitAction=` | `5` / `none` | Burst is inert while interval=0 (emitted for explicitness); a host-level action on an accelerator floor is never acceptable. |
-| `--ignore` | `^D^C^]` | Filters control characters out of the child IOC's stdin. `^T` is intentionally NOT here — `--ignore` does not disable procServ command keys (see "Mechanism note"). |
+| `--ignore` | `^D^C` | Filters control characters out of the child IOC's stdin. `^T` is intentionally NOT here — `--ignore` does not disable procServ command keys (see "Mechanism note"). |
 | `--autorestartcmd=` | `''` | The mechanism that actually disables the `^T` toggle, closing the silent dead-child/live-procServ trap. |
 | `--oneshot` | excluded | Breaks OP2 (drops the console socket on every child exit) and OP1 (its start-limit `failed` needs `reset-failed`). |
 | `OnFailure=` | excluded | New infrastructure (OP5); down-states are covered by Layer-3 revival and the Layer-2 crash scan (a silent hang is tracked as an out-of-cluster carry-forward, not an alarm-unit case), so an alarm unit adds deployment surface without closing a real gap. |

@@ -122,7 +122,7 @@ If the IOC process crashes (e.g., Segmentation fault, assertion failure), `procS
 ioc-runner attach myioc
 ```
 
-The attached console is hardened against accidents: `^C`, `^D`, and `^]` are filtered out of the IOC's input (`--ignore=^D^C^]`), and procServ's `^T` autorestart-toggle key is disabled (`--autorestartcmd=''`). A stray `^T` can therefore no longer leave a dead child under a live procServ with the socket still open — the child autorestart is always on and cannot be switched off from the console. To stop an IOC intentionally, use `ioc-runner stop` (see Q5 for the manual-debug workflow).
+The attached console is hardened against accidents: `^C` and `^D` are filtered out of the IOC's input (`--ignore=^D^C`), and procServ's `^T` autorestart-toggle key is disabled (`--autorestartcmd=''`). A stray `^T` can therefore no longer leave a dead child under a live procServ with the socket still open — the child autorestart is always on and cannot be switched off from the console. To stop an IOC intentionally, use `ioc-runner stop` (see Q5 for the manual-debug workflow).
 
 **Layer 2 — ioc-runner health checks (startup verification):**
 When `ioc-runner start` (or `restart`) is executed, it polls the procServ log for the EPICS readiness marker (`All initialization complete`) instead of waiting a fixed interval. The verdict depends on what appears before, at, and after that marker:

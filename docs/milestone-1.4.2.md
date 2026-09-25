@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` does not yet exist; issue #157 is assigned to `Backlog` (9)
 
-Next session entry point: Continue T9 historical regression and T5 byte-flow tracing, then rerun T10. The Check-grade six-suite matrix with the three S42 client-rejection checks passes on both test consumers, and the driver identity is repinned. Old con without read-only support is withdrawn by D6, and nc-specific checks by D7. Additional tools require separate discussion. The S42 checks landed in `ba9ef10`; the nc-only removal and the identity repin are committed alongside this register update. Leftover payload directories on both consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: All M1 test rows have Check-grade results, including the D8 ignore-set fix and its unit check. Decide M1 completion and the release Gate on fresh consumers, and carry the D8 upgrade actions into the 1.4.2 release notes. Old con without read-only support is withdrawn by D6, and nc-specific checks by D7. The container run script's D8 value is covered by the source-regression fixed-value check only. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -41,6 +41,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D5 | Exclude Python from the new test implementation and its dependencies. Use Bash and util-linux for the PTY procedure; discuss additional tools separately before adding them. | 2026-09-24 |
 | D6 | Exclude old con without read-only support from the remaining verification. T6 covers only rejection without con or socat (D7), and T12 covers only the direct socat path; the old-con fallback cases in the T6 and T12 rows, the Scope clause on con without -r, and the Completion Criteria sentence on con lacking -r are withdrawn. The runner's fallback code is unchanged. | 2026-09-24 |
 | D7 | Add no nc-specific checks. The runner has no nc path after D3, so the nc-only cases in T6, the Scope clause on nc-only rejection, and the Completion Criteria sentence on an nc-only environment are withdrawn. S42 verifies rejection without con or socat; other host tools, including any nc, stay visible to the runner. | 2026-09-24 |
+| D8 | Set the procServ ignore set to `^D^C` in the system unit, local unit, and container run script. procServ converts `^` only before `A` through `Z`, so `^]` dropped the printable `^` and `]` from console input and let `Ctrl-]` through. The supported clients use no telnet escape, so `Ctrl-]` is forwarded like any other byte. This product fix is within M1 because the console input documentation depends on it. `source-regression.S16.unit.ignore-set` pins the value in both unit templates. The 1.4.2 release notes must state the upgrade actions: rerun system setup, reinstall local IOCs with `--force` because a non-forced install keeps a differing user template, reinstall container IOCs to re-render the run script, and restart running IOCs so procServ receives the new argument. | 2026-09-24 |
 
 ### Milestone Details
 
@@ -70,7 +71,7 @@ results below distinguish executed cases from pending acceptance evidence.
 - Verify the selected client and key in the banner, client exit, terminal
   restoration, IOC continuity, socket continuity, and reconnectability.
 - Verify that the detach key is consumed by the client; distinguish this from
-  procServ discarding Ctrl-C, Ctrl-D, and Ctrl-]. Include the default Ctrl-A
+  procServ discarding Ctrl-C and Ctrl-D (D8). Include the default Ctrl-A
   line-editing limitation in the documentation.
 - Verify the committed nc exclusion from console selection and execution. Cover
   nc-only rejection for attach and monitor (withdrawn by D7), including con
@@ -452,18 +453,96 @@ Combined machine record SHA-256, Debian:
 `cross-host.diff`:
 `eb41a7de2f8264ff4a5c09aa0f4a5b3140c59dec00ca52c292d8f2fd394baa2e`.
 
+Historical regression observed at 2026-09-24T23:26:00Z, Check grade on the
+same Debian 13 and Rocky 8.10 test consumers with the candidate deployed:
+
+- A local driver sourced the shipped `tests/lib/test-console-pty.bash` on each
+  consumer and installed a temporary local IOC whose command execs the real
+  softIoc shell under real procServ. It hid every fixed con search path with
+  the helper's private mount namespace so both runners selected real socat.
+- The pre-fix runner, extracted from `48b7ed9` (`1.4.1 (unknown)`), attached
+  through socat with its `Use Ctrl-C to exit` banner and executed an IOC
+  `echo`. Ctrl-A did not end the client: it was still running after the
+  helper's 10-second deadline, left no exit record, and was then terminated
+  by the helper's cleanup. The procServ/IOC PIDs and socket identity were
+  unchanged.
+- The installed candidate `1.4.2-dev (ba9ef10-dirty)` ran the same sequence
+  against the same IOC; Ctrl-A ended socat with exit 0 and restored the
+  terminal, with the IOC state unchanged.
+- Both consumers produced the same result. The driver removed the temporary
+  IOC afterwards. Driver and output SHA-256: `work/t9-historical.bash`
+  `56497ec41b596503addad48a47d737f7fc314bf00b66b547f69dcf40fe98035a`, Debian `work/t9-debian.log`
+  `8dd269e730bae6d3d8858f8a3076ec152f140303b5b385885287994a4bb44bec`, Rocky `work/t9-rocky.log`
+  `b0a9f6b742d180f890db00eca921251466e585dc6f09226cfcbf836e137b351e`. PTY transcripts remain under the consumers'
+  `/tmp/ioc-t9.*` directories while those hosts keep their temporary files.
+
+Byte-flow tracing observed at 2026-09-24T23:52:00Z, Check grade on both test
+consumers:
+
+- A local driver placed a `socat -x` relay at the procServ socket path and
+  moved the procServ socket beside it, so the unchanged runner attached through
+  the relay. The IOC child was a raw-mode `dd` recorder, so every byte procServ
+  forwarded was written to a file. The driver sourced the shipped PTY helper
+  and used real con and socat.
+- With the original `--ignore=^D^C^]`, both consumers showed the defect D8
+  fixes: `Ctrl-]` reached the child, while typed `]` and `^` reached procServ
+  but not the child.
+- With `--ignore=^D^C` deployed, con and socat gave the same result on both
+  consumers. The default Ctrl-A and custom Ctrl-B detach bytes never reached
+  the relay. Ctrl-C and Ctrl-D reached procServ but not the child. Ordinary
+  input, `Ctrl-]`, `[`, `]`, `^`, and Ctrl-A under a custom key reached the
+  child.
+- Driver and output SHA-256: `work/t5-byteflow.bash`
+  `52ef888c1e0d9e4177ae468d997d37d4983778acb3cdce879b875149a3c5ed65`; before the
+  fix, Debian `work/t5-debian.log`
+  `34c06bd0210a9bdd36bce97e411a29f6277be08d3668e60b021ea8af27a072cc` and Rocky
+  `work/t5-rocky.log`
+  `50fc3a786ed39a900cee7bf04617172498dd389f8f583edaec920ef5f87f81ee`; after the
+  fix, Debian `work/t5-debian-fixed.log`
+  `1a7da7da0c9327828e685c7cd47944d1595ec283febb7f63ae386bf9612e2e92` and Rocky
+  `work/t5-rocky-fixed.log`
+  `1d83239f7a4f73aa0b64865fde4b527e65ab8c1f6ad68001495b660755ebada4`.
+
+Consumer matrix with the D8 ignore set observed at 2026-09-25T00:24:08Z, Check
+grade on both test consumers, using the working tree based on `f8e13d2`:
+
+- The push driver delivered the tree with matching status, and full setup
+  deployed `--ignore=^D^C` in the system unit on both consumers.
+- `source-regression.S16.unit.ignore-set` pins the value in both unit
+  templates. In a temporary copy on the Debian consumer with both templates
+  reverted to `^D^C^]`, the shipped source-regression suite failed only that
+  check (`missing:runner-unit`); every other S16 check passed. Reverting the
+  runner template alone is caught earlier by `S16.templates.must-agree`.
+- The run before the repin reported only the expected identity mismatch.
+  `EXPECTED_IDENTITY_SHA256` is now
+  `917adb4a6c5d9d3ddda77b6a07dfcfaec7e78f2c172979a68578942bc53974ae`.
+- The confirming run reported `GATE SUITES PASS hosts=2`; the cross-host
+  differences match the earlier accepted runs line for line. Evidence
+  directory: `work/gate-suites-20260925T001706Z-2344504/`.
+
+| Platform | Suite Blocks | Checks | PASS | FAIL | SKIP | NA | SCRIPT_ERROR | Grade |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Debian 13 | 6 | 1023 | 1018 | 0 | 0 | 5 | 0 | Check |
+| Rocky 8.10 | 6 | 1023 | 1011 | 0 | 0 | 12 | 0 | Check |
+
+Combined machine record SHA-256, Debian:
+`1f67d06b81bb83f5bff6775fd1ce78eeb3978f81676c856232413e54a9339eb7`; Rocky:
+`fddf567d2351999b83e74e53cf01b1c575ff7b8bc19c148b463ef7a2070796d7`.
+The container run script is covered by the s6 fixed-value check, not by a
+container lifecycle run.
+
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con/default Ctrl-A passes all common detach observations |
 | T2 | 2026-09-24T17:11:03Z | PTY matrix above; private namespace hides con | PASS | Socat/default Ctrl-A passes all common detach observations |
 | T3 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con/custom Ctrl-] and Ctrl-B pass all common detach observations |
 | T4 | 2026-09-24T17:11:03Z | PTY matrix above; private namespace hides con | PASS | Socat/custom Ctrl-] and Ctrl-B pass all common detach observations |
-| T5 | 2026-09-24T17:11:03Z | PTY matrix above; transport trace not run | Pending | IOC command input, Ctrl-A line editing under custom keys, and a subsequent default-key connection pass; byte-flow tracing remains pending |
+| T5 | 2026-09-24T23:52:00Z | Both test consumers; socat -x relay at the socket path and raw dd recorder as the IOC child; real con and socat | PASS | Detach bytes stop at the client; Ctrl-C and Ctrl-D stop at procServ; ordinary input, Ctrl-], `]`, `^`, and Ctrl-A under a custom key reach the child after the D8 ignore-set fix |
 | T6 | 2026-09-24T23:10:28Z | Development host error suite and both test consumers; private namespace hides con, mirrored PATH omits socat | PASS | S42 rejects attach and monitor without con or socat with exit 1 and the installation hint on all three hosts; nc-only cases withdrawn by D7 and old-con fallback cases by D6 |
 | T7 | 2026-09-24T15:32:17Z | Debian 13 and Rocky 8.10 test consumers; source runner at `74c8b28` plus working-tree tests | PASS | All 47 shipped S41 checks passed within each 246-check error suite; both complete matrices and reporting validation passed after identity repin; Check-grade records and limits above |
 | T8 | 2026-09-24T19:51:43Z | Development host; documented attach example forms executed through the real CLI | PASS | Help key list, attach banner text, four documented attach forms and the backslash quoting, and monitor option rejection agree with executed output; direct-con examples retain default Ctrl-A; monitor exit-key guidance added to both user guides and the ignored-keys note to the local guide; a standalone second-person pass on the changed guidance and register text converged on 2026-09-24 after one accepted count correction |
-| T9 | Not run | Planned historical runner fixture | Pending | Await observed pre-fix failure |
-| T10 | 2026-09-24T23:10:28Z | Local lint/catalog checks plus complete two-host matrix with the three S42 checks | PASS | Current shipped checks, deployment, identity repin, and reporting validation pass at Check grade; rerun after T9 and T5 cases are implemented |
+| T9 | 2026-09-24T23:26:00Z | Both test consumers; shipped PTY helper, real socat, procServ, and softIoc; pre-fix runner from `48b7ed9` | PASS | Ctrl-A did not detach the pre-fix socat path within the bounded wait, while the candidate detached with exit 0 on the same IOC; IOC state unchanged in both cases |
+| T10 | 2026-09-25T00:24:08Z | Local lint/catalog checks plus complete two-host matrix with the three S42 checks, the D8 ignore set, and the unit ignore-set check | PASS | Current shipped checks, deployment, identity repin, and reporting validation pass at Check grade |
 | T11 | 2026-09-24T17:11:03Z | PTY matrix above | PASS | Con monitor receives IOC output, blocks input, exits on Ctrl-A, restores the terminal, preserves IOC/socket state, and reconnects |
 | T12 | 2026-09-24T17:11:03Z | PTY matrix above; direct socat only | PASS | Direct socat monitor passes the common observations and exits on Ctrl-C with status 130; the old-con fallback path is withdrawn by D6 |
 
