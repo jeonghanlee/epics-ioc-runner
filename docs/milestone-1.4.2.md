@@ -5,9 +5,9 @@ Milestone index: 1.4.2
 Canonical path: `docs/milestone-1.4.2.md`
 Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
-Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issue #157 is closed under it
+Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 and #159 are closed and #158 is open under it
 
-Next session entry point: M1 and M2 are Complete, and #157 is closed. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Backlog M3 (stale reporting self-test expectations) awaits a release assignment. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 and M2 are Complete, and #157 is closed. M3 moved from Backlog into this release on 2026-09-24; review and accept its draft plan, then implement and verify it. After M3, open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -29,7 +29,8 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
-| Reporting | M2 | Keep multi-line check values out of FAIL reasons | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
+| Reporting | M2 | Keep multi-line check values out of FAIL reasons (#159) | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
+| Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Not started | Yes | none | The shipped reporting self-test passes every assertion on the committed tree; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 
 ### Decisions
 
@@ -43,6 +44,12 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D6 | Exclude old con without read-only support from the remaining verification. T6 covers only rejection without con or socat (D7), and T12 covers only the direct socat path; the old-con fallback cases in the T6 and T12 rows, the Scope clause on con without -r, and the Completion Criteria sentence on con lacking -r are withdrawn. The runner's fallback code is unchanged. | 2026-09-24 |
 | D7 | Add no nc-specific checks. The runner has no nc path after D3, so the nc-only cases in T6, the Scope clause on nc-only rejection, and the Completion Criteria sentence on an nc-only environment are withdrawn. S42 verifies rejection without con or socat; other host tools, including any nc, stay visible to the runner. | 2026-09-24 |
 | D8 | Set the procServ ignore set to `^D^C` in the system unit, local unit, and container run script. procServ converts `^` only before `A` through `Z`, so `^]` dropped the printable `^` and `]` from console input and let `Ctrl-]` through. The supported clients use no telnet escape, so `Ctrl-]` is forwarded like any other byte. This product fix is within M1 because the console input documentation depends on it. `source-regression.S16.unit.ignore-set` pins the value in both unit templates. The 1.4.2 release notes must state the upgrade actions: rerun system setup, reinstall local IOCs with `--force` because a non-forced install keeps a differing user template, reinstall container IOCs to re-render the run script, and restart running IOCs so procServ receives the new argument. | 2026-09-24 |
+
+### Assignment History
+
+| Work Identity | From Canonical | To Canonical | Target Commit | Authority Moved At |
+| --- | --- | --- | --- | --- |
+| 1.4.2 / M3 | 1.4.2 Backlog, `docs/milestone-1.4.2.md`, `release-1.4.2` | 1.4.2 Milestone, `docs/milestone-1.4.2.md`, `release-1.4.2` | this synchronization commit | this synchronization commit |
 
 ### Milestone Details
 
@@ -580,7 +587,7 @@ Last Compared: after 2026-09-25T00:54:56Z with `gh issue view 157`; issue update
 
 Origin: 1.4.2 / M2
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #159, https://github.com/jeonghanlee/epics-ioc-runner/issues/159
 Status: Complete
 
 ##### Summary
@@ -751,25 +758,24 @@ test consumer's clock for T1 and from the development host's clock otherwise:
   identity unchanged.
 - Landing: `git fetch` at 2026-09-25T04:25:31Z observed
   `origin/release-1.4.2` at `7032895cc179d379916476e91f9d73c5e290404c`.
-- No linked issue.
+- Linked issue: #159 filed after the work landed, assigned to GitHub
+  milestone `1.4.2`, and closed as completed at 2026-09-25T04:37:51Z.
 
-## Backlog
+##### GitHub Projection
 
-### Work
-
-| Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Reporting | M3 | Refresh the reporting self-test's stale expectations | Milestone | Not started | Yes | none | The shipped reporting self-test passes every assertion on the committed tree; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
-
-GitHub Backlog was not imported as unrelated release work.
-
-### Backlog Details
+Title: A multi-line check mismatch becomes SCRIPT_ERROR and stops the suite
+Labels: bug, tests, P2-medium
+GitHub Milestone: 1.4.2
+Observed State: closed (completed)
+Observed Labels: bug, tests, P2-medium
+Observed Milestone: 1.4.2 (19)
+Last Compared: after 2026-09-25T04:37:51Z with `gh issue view 159`; issue updated at 2026-09-25T04:37:51Z
 
 #### M3 - Refresh the reporting self-test's stale expectations
 
 Origin: 1.4.2 / M3
 Identity History: none
-GitHub Issue: none
+GitHub Issue: #158, https://github.com/jeonghanlee/epics-ioc-runner/issues/158
 Status: Not started
 
 ##### Summary
@@ -797,7 +803,7 @@ Out of scope: changing the reporter contract.
 
 ##### Dependencies And Decisions
 
-- Not assigned to a release; owner assignment pending.
+- Assigned from Backlog to the 1.4.2 Milestone by owner decision 2026-09-24.
 
 ##### Implementation Plan
 
@@ -822,5 +828,29 @@ Superseded Plan Artifacts: none
 | T1 | Not run | Planned development host run | Pending | Await all assertions PASS |
 
 ##### Closure Evidence
+
+None.
+
+##### GitHub Projection
+
+Title: Reporting self-test carries stale expectations
+Labels: bug, tests, P3-low
+GitHub Milestone: 1.4.2
+Observed State: open
+Observed Labels: bug, tests, P3-low
+Observed Milestone: 1.4.2 (19)
+Last Compared: after 2026-09-25T04:37:45Z with `gh issue view 158`; issue updated at 2026-09-25T04:37:45Z
+
+## Backlog
+
+### Work
+
+| Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+
+No unassigned work is held in this register. GitHub Backlog was not imported
+as unrelated release work.
+
+### Backlog Details
 
 None.
