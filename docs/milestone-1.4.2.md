@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, and #160 are closed under it
 
-Next session entry point: M1 through M4 are Complete, and #157, #158, #159, and #160 are closed. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M4 are Complete, and #157, #158, #159, and #160 are closed. M5 (pasted detach key wording) is implemented and verified in the working tree; commit it, record the landing, and mark it Complete. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -32,6 +32,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Reporting | M2 | Keep multi-line check values out of FAIL reasons (#159) | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
 | Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 | Console | M4 | Reject ctrl-[ as a detach key (#160) | Milestone | Complete | — | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
+| Console | M5 | State how each console client handles a pasted detach key | Milestone | In progress | No | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
 
 ### Decisions
 
@@ -1096,6 +1097,73 @@ Observed State: closed (completed)
 Observed Labels: bug, P3-low, area/shell
 Observed Milestone: 1.4.2 (19)
 Last Compared: after 2026-09-25T16:18:22Z with `gh issue view 160`; issue updated at 2026-09-25T16:18:22Z; the body carries the resolution and checked acceptance criteria
+
+#### M5 - State how each console client handles a pasted detach key
+
+Origin: 1.4.2 / M5
+Identity History: none
+GitHub Issue: none
+Status: In progress
+
+##### Summary
+
+The attach banner and the console documents said that both clients consume
+the detach key, so it never reaches the IOC shell. That holds for a typed key
+only. con honors its exit key only when the key arrives alone in one read, so
+inside pasted text it forwards the key to the IOC shell; socat detaches at its
+escape byte wherever it appears. The con behavior matches the lone-ESC
+observation recorded in M4.
+
+##### Scope
+
+- Change the second attach banner line in `bin/ioc-runner` to state that a
+  typed key detaches and is not sent to the IOC shell.
+- Change the detach sentence in `docs/CLI_REFERENCE.md`, `docs/USER_GUIDE.md`,
+  and `docs/USER_GUIDE_LOCAL.md` to state the typed-key behavior and the con
+  and socat difference for pasted text.
+
+Out of scope: changing either client's behavior, the accepted key set, the
+monitor banner, and `CHANGELOG.md`, which the release cycle writes.
+
+##### Completion Criteria
+
+- The attach banner line in `bin/ioc-runner` reads `A typed <key> detaches and
+  is not sent to the IOC shell.` for the selected key.
+- No console document states that the detach key never reaches the IOC shell,
+  and the three documents state the pasted-text difference.
+- The runner passes `bash -n` and the ShellCheck warning gate.
+
+##### Dependencies And Decisions
+
+- Owner direction 2026-09-25: adopt the proposed banner and document wording,
+  from the conceptual-integrity sweep of this release line, and leave the
+  1.4.2 CHANGELOG entry to the release cycle.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-09-25, owner direction
+Implementation Authorization: 2026-09-25, owner direction
+Superseded Plan Artifacts: none
+
+1. Change the banner line in `bin/ioc-runner`. Closed by T1.
+2. Change the detach sentence in the three console documents. Closed by T1.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | static | `bash -n`, the ShellCheck warning gate, `git diff --check`, and a search of the console documents for the old claim | Development host | All pass; the old claim is absent |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-09-25T19:09:31Z | Development host | PASS | `bash -n`, ShellCheck warning gate, and `git diff --check` passed; the old claim is absent and each console document states the pasted-text difference |
+
+##### Closure Evidence
+
+None.
 
 ## Backlog
 

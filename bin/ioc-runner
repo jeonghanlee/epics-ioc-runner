@@ -2566,7 +2566,7 @@ function do_attach {
     printf "Attaching to %s via %s:\n" "${IOC_NAME}" "${CON_TOOL_TYPE}"
     printf "Path: %s\n" "${RESOLVED_SOCK_PATH}"
     printf "Press %s to detach from the console while leaving the IOC running.\n" "${DETACH_KEY_LABEL}"
-    printf "%s is consumed by the client and is not sent to the IOC shell.\n" "${DETACH_KEY_LABEL}"
+    printf "A typed %s detaches and is not sent to the IOC shell.\n" "${DETACH_KEY_LABEL}"
     print_divider >&2
 
     case "${CON_TOOL_TYPE}" in
