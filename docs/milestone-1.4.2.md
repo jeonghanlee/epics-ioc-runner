@@ -5,9 +5,9 @@ Milestone index: 1.4.2
 Canonical path: `docs/milestone-1.4.2.md`
 Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
-Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` does not yet exist; issue #157 is assigned to `Backlog` (9)
+Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issue #157 is closed under it
 
-Next session entry point: All M1 test rows have Check-grade results, including the D8 ignore-set fix and its unit check. Decide M1 completion and the release Gate on fresh consumers, and carry the D8 upgrade actions into the 1.4.2 release notes. Old con without read-only support is withdrawn by D6, and nc-specific checks by D7. The container run script's D8 value is covered by the source-regression fixed-value check only. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 is Complete and #157 is closed; no Ready row remains in this register. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -28,7 +28,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | In progress | No | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
+| Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
 
 ### Decisions
 
@@ -50,7 +50,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 Origin: 1.4.2 / M1
 Identity History: none
 GitHub Issue: #157, https://github.com/jeonghanlee/epics-ioc-runner/issues/157
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -548,19 +548,32 @@ container lifecycle run.
 
 ##### Closure Evidence
 
-None. Committed implementation: `1bb270f`, `b8d65c3`, and `2fa6b55`.
-M1 remains open until its verification and documentation criteria are met and
-linked-issue closure is handled under the milestone closure procedure.
+- Implementation on `release-1.4.2`: `1bb270f` (detach keys and
+  `--detach-key`), `b8d65c3` (development version), `2fa6b55` (nc exclusion
+  and monitor option detection), and `860fa66` (D8 ignore set and its unit
+  check). Tests and documentation: `74c8b28`, `0397963`, `8c200dc`,
+  `e71a2e6`, `ba9ef10`, `f8e13d2`, and `860fa66`.
+- Verification: every Test Plan row passed at Check grade on the reused Debian
+  13 and Rocky 8.10 test consumers; the final six-suite matrix is
+  `work/gate-suites-20260925T001706Z-2344504/` with the identity pinned in
+  `860fa66`. D6 and D7 withdraw the old-con and nc-only cases. Release Gate
+  evidence on fresh consumers belongs to the release, not to this row.
+- Landing: `git fetch` at 2026-09-25T00:52:57Z observed
+  `origin/release-1.4.2` at `860fa661101ec5701e87e8853ca414707dbbd8a9`, the
+  commit carrying the last implementation change.
+- Linked issue: #157 retitled, moved to GitHub milestone `1.4.2`, its body
+  synchronized with this detail, and closed as completed at
+  2026-09-25T00:54:56Z.
 
 ##### GitHub Projection
 
 Title: Verify console detach keys and document supported clients
 Labels: bug, documentation, P2-medium, area/shell
-GitHub Milestone: 1.4.2 (planned; not created)
-Observed State: open
+GitHub Milestone: 1.4.2
+Observed State: closed (completed)
 Observed Labels: bug, documentation, P2-medium, area/shell
-Observed Milestone: Backlog (9)
-Last Compared: 2026-09-22T17:52:32Z; issue updated at 2026-09-21T22:01:27Z
+Observed Milestone: 1.4.2 (19)
+Last Compared: after 2026-09-25T00:54:56Z with `gh issue view 157`; issue updated at 2026-09-25T00:54:56Z
 
 ## Backlog
 
