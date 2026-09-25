@@ -540,6 +540,44 @@ function scenario_concurrent_duplicate {
     report_finalize 0
 }
 
+# A multi-line reason passed directly to report_record is still rejected.
+function scenario_multiline_reason {
+    local workspace="$1"
+
+    # shellcheck source=tests/lib/test-reporting.bash
+    source "${REPORTER}"
+    report_init source-regression multiline system source debian-13 linux-x86_64 "${workspace}"
+    register_step_and_check source-regression.P00.multiline INTEGRITY direct-inspection "Multi-line reason"
+    report_record source-regression.P00.multiline FAIL $'first line\nsecond line' || true
+    report_finalize 0
+}
+
+# Checks the reason escaping used by every suite's verify_state.
+function check_escape_reason {
+    local escaped=""
+
+    escaped=$(
+        # shellcheck source=tests/lib/test-reporting.bash
+        source "${REPORTER}"
+        report_escape_reason $'a\\b\nc\rd\te'
+    )
+    if [[ "${escaped}" == 'a\\b\nc\rd\te' ]]; then
+        pass "escape: backslash, line feed, carriage return, and tab"
+    else
+        fail "escape: backslash, line feed, carriage return, and tab" 'a\\b\nc\rd\te' "${escaped}"
+    fi
+    escaped=$(
+        # shellcheck source=tests/lib/test-reporting.bash
+        source "${REPORTER}"
+        report_escape_reason "expected agree, actual differ"
+    )
+    if [[ "${escaped}" == "expected agree, actual differ" ]]; then
+        pass "escape: one-line reason unchanged"
+    else
+        fail "escape: one-line reason unchanged" "expected agree, actual differ" "${escaped}"
+    fi
+}
+
 function run_scenario {
     local name="$1"
     local expected_status="$2"
@@ -562,6 +600,7 @@ function run_scenario {
             duplicate) scenario_duplicate_state "${scenario_workspace}" ;;
             unknown) scenario_unknown_id "${scenario_workspace}" ;;
             reason) scenario_missing_reason "${scenario_workspace}" ;;
+            multiline-reason) scenario_multiline_reason "${scenario_workspace}" ;;
             malformed) scenario_malformed_catalog "${scenario_workspace}" ;;
             subshell) scenario_subshell_ledger "${scenario_workspace}" ;;
             cleanup-failure) scenario_reporter_cleanup_failure "${scenario_workspace}" ;;
@@ -738,6 +777,12 @@ expect_not_contains "${SELF_TEST_WORKSPACE}/unknown.out" "SUITE suite=" "unknown
 run_scenario reason 1
 expect_contains "${SELF_TEST_WORKSPACE}/reason.out" "state=SCRIPT_ERROR" "reason: known identity becomes SCRIPT_ERROR"
 expect_contains "${SELF_TEST_WORKSPACE}/reason.out" "FAIL requires a one-line reason" "reason: human detail names defect"
+
+run_scenario multiline-reason 1
+expect_contains "${SELF_TEST_WORKSPACE}/multiline-reason.out" "state=SCRIPT_ERROR" "multiline reason: known identity becomes SCRIPT_ERROR"
+expect_contains "${SELF_TEST_WORKSPACE}/multiline-reason.out" "FAIL requires a one-line reason" "multiline reason: human detail names defect"
+
+check_escape_reason
 
 run_scenario malformed 1
 expect_contains "${SELF_TEST_WORKSPACE}/malformed.out" "REPORTING ERROR: no valid projection was produced" "catalog: invalid metadata diagnostic"

@@ -89,6 +89,18 @@ function _report_text_is_valid {
     [[ -n "${value}" && "${value}" != *$'\n'* && "${value}" != *$'\r'* && "${value}" != *$'\t'* ]]
 }
 
+# Prints a reason with backslash, line feed, carriage return, and tab escaped,
+# so a reason built from multi-line check values meets the one-line contract.
+function report_escape_reason {
+    local value="$1"
+
+    value="${value//\\/\\\\}"
+    value="${value//$'\n'/\\n}"
+    value="${value//$'\r'/\\r}"
+    value="${value//$'\t'/\\t}"
+    printf '%s' "${value}"
+}
+
 function _report_b64url_encode {
     local value="$1"
     local encoded=""

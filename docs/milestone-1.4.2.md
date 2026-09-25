@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issue #157 is closed under it
 
-Next session entry point: M1 is Complete and #157 is closed; no Ready row remains in this register. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 is Complete and #157 is closed. M2 is in progress under its accepted plan; after M2, open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -29,6 +29,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
+| Reporting | M2 | Keep multi-line check values out of FAIL reasons | Milestone | In progress | No | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
 
 ### Decisions
 
@@ -575,16 +576,244 @@ Observed Labels: bug, documentation, P2-medium, area/shell
 Observed Milestone: 1.4.2 (19)
 Last Compared: after 2026-09-25T00:54:56Z with `gh issue view 157`; issue updated at 2026-09-25T00:54:56Z
 
+#### M2 - Keep multi-line check values out of FAIL reasons
+
+Origin: 1.4.2 / M2
+Identity History: none
+GitHub Issue: none
+Status: In progress
+
+##### Summary
+
+The shared reporter requires a one-line reason for every FAIL. Each suite's
+`verify_state` builds that reason from the expected and actual values, so a
+check comparing multi-line values produces a multi-line reason on a
+mismatch. The reporter then records the check as `SCRIPT_ERROR`, the suite
+stops, and every later check closes as `SCRIPT_ERROR`. The real failure is
+hidden and the rest of the suite does not run.
+
+Observed on 2026-09-24 with the shipped suites against temporary copies:
+
+- `source-regression.S16.templates.must-agree`, comparing both unit template
+  bodies, with only the runner template changed on the Debian 13 test
+  consumer: 90 checks, including it, closed as `SCRIPT_ERROR`.
+- `error-handling.S41.completion-keys`, comparing a multi-line completion
+  list, with one completion key changed on the development host: six checks,
+  including it, closed as `SCRIPT_ERROR`.
+- `error-handling.S38.local-mode-mismatch-diagnostic-exact`, comparing a
+  five-line diagnostic, with one diagnostic label changed on the development
+  host: 95 checks, including it, closed as `SCRIPT_ERROR`.
+
+A search of the 578 `verify_state` call sites for actual values produced by
+command substitution also finds multi-line comparisons in
+`source-regression.S17.metadata.injectors-agree`,
+`source-regression.S17.metadata.declaration-anchors-present`, and
+`local-lifecycle.S15.system-default-state-unchanged`, plus the other two
+S38 exact-diagnostic checks.
+
+##### Scope
+
+- Add one shared helper to `tests/lib/test-reporting.bash` that escapes a
+  backslash as `\\` and then line feed, carriage return, and tab as `\n`,
+  `\r`, and `\t` in a reason, so an escaped reason stays unambiguous.
+- Document `report_escape_reason` in the interface list of
+  `tests/REPORTING_CONTRACT.md`, so a new caller escapes multi-line values
+  before `report_record` (added by the second-person review, 2026-09-24).
+- Add shipped assertions to `tests/lib/test-reporting-self-test.bash` for
+  that helper and for a multi-line reason passed directly to `report_record`,
+  which must still become `SCRIPT_ERROR` with the one-line reason diagnostic.
+  The existing reason scenario covers only an empty reason.
+- Use it in the FAIL reason built by `verify_state` in each of the six suites
+  that define one. The human report keeps its multi-line Expected and Actual
+  output.
+- Keep every check ID, kind, and method, so the catalog, counts, and matrix
+  identity are unchanged.
+
+Out of scope: relaxing the reporter's one-line reason validation, which still
+rejects a multi-line reason from any other caller, and rewriting individual
+checks.
+
+##### Completion Criteria
+
+- A check whose multi-line values differ records `FAIL` with a one-line
+  escaped reason, the suite continues to the next check, and the human report
+  shows the full values.
+- With matching values, every check still records `PASS`.
+- The reporter still rejects a multi-line reason passed directly to
+  `report_record`.
+- The catalog, counts, and matrix identity are unchanged.
+
+##### Dependencies And Decisions
+
+- Owner direction 2026-09-24: escape the reason in the shared `verify_state`
+  path rather than rewrite each affected check, because the same pattern
+  spans three suites and would recur in new checks.
+- The reporter's one-line contract in `tests/REPORTING_CONTRACT.md` stays
+  unchanged.
+- The reporting self-test already fails two unrelated assertions on the
+  committed tree: a hard-coded source-regression count of 132 against 139,
+  stale since `045bcd5`, and a dimension-matrix count of 7 against 9. They are
+  tracked as Backlog M3; T4 evaluates only the assertions this work adds or
+  depends on.
+- The FAIL path in the local-lifecycle, system-lifecycle, system-infra, and
+  container-lifecycle suites is the same one-line helper call as in the two
+  exercised suites; it is verified by inspection plus the helper's own
+  self-test assertions, not by a failing check in each suite.
+- The helper's self-test assertions run only when the reporting self-test is
+  run by hand; the gate matrix does not include it. Whether it joins a
+  routine check is decided under M3.
+- An escaped reason keeps every value on one line, so a large comparison
+  yields a long reason: about 1.3 KB for the S16 unit template comparison,
+  whose compared block is 619 bytes on each side. The reporter and the record
+  validator impose no length limit; the human report remains the readable
+  view of the values.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-09-24, after third-person and second-person review of this plan; the revision adding the contract documentation accepted 2026-09-24
+Implementation Authorization: 2026-09-24 for this accepted plan, including that revision
+Superseded Plan Artifacts: none
+
+1. Add the reason-escaping helper to `tests/lib/test-reporting.bash`. Add
+   self-test assertions for the helper and a multi-line reason scenario to
+   `tests/lib/test-reporting-self-test.bash`. Closed by T4. Document the
+   helper in the interface list and reason paragraph of
+   `tests/REPORTING_CONTRACT.md`; closed by a second-person review and by
+   matching the listed name and argument to the function.
+2. Call it where `verify_state` builds its FAIL reason in
+   `tests/test-error-handling.bash`, `tests/test-source-regression.bash`,
+   `tests/test-local-lifecycle.bash`, `tests/test-system-lifecycle.bash`,
+   `tests/test-system-infra.bash`, and `tests/test-container-lifecycle.bash`.
+   Closed by T1-T3 for the FAIL path, T4 for the catalogs, and T5 for the
+   passing path. The container lifecycle suite needs container images, so
+   its call site is covered by syntax, ShellCheck, and catalog-only checks.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | reporting | In a `cp -a` copy of the consumer checkout, change `--ignore=^D^C` to `--ignore=^D^C^]` in the local unit `ExecStart` of `bin/ioc-runner` only, then run `tests/run-all-tests.bash --source-regression` from the copy | Test consumer with sudo | `S16.templates.must-agree` records FAIL with a one-line escaped reason, the remaining checks run, and the human report shows the diff |
+| T2 | reporting | In a `git archive` copy of the candidate, replace `ctrl-b` in the example key list of `bin/ioc-runner-completion.bash`, then run `tests/test-error-handling.bash` from the copy | Development host | `S41.completion-keys` records FAIL with a one-line escaped reason and the remaining checks run |
+| T3 | reporting | In a `git archive` copy of the candidate, change the `Regenerate` label of the configuration mode-mismatch diagnostic in `bin/ioc-runner` to `Regenerat`, then run `tests/test-error-handling.bash` from the copy | Development host | The three S38 exact-diagnostic checks record FAIL with one-line escaped reasons and the remaining checks run |
+| T4 | reporting | Run the unchanged error-handling suite, catalog-only validation for all six suites, and the shipped reporting self-test | Development host | All error-handling checks PASS; counts unchanged; the new helper assertions and the new multi-line reason rejection scenario PASS; the only self-test failures are the two M3 assertions |
+| T5 | regression and reporting | Run the complete six-suite matrix | Both test consumers | `GATE SUITES PASS` with the pinned identity unchanged |
+
+##### Verification Results
+
+Observed on 2026-09-25 (UTC) against the working tree based on `2ddbf80`;
+the times are the completion times of each run's report, read from the Debian
+test consumer's clock for T1 and from the development host's clock otherwise:
+
+- T1 on the Debian 13 test consumer: in a `cp -a` copy with only the runner
+  unit reverted to `--ignore=^D^C^]`, the shipped source-regression suite ran
+  all 139 checks with no `SCRIPT_ERROR`. `S16.templates.must-agree` recorded
+  FAIL with a one-line escaped reason, the human report kept the `diff`, and
+  `S16.unit.ignore-set` also failed as intended.
+- T2 on the development host: with `ctrl-b` replaced in the completion key
+  list, the error-handling suite ran all 249 checks with no `SCRIPT_ERROR`;
+  `S41.completion-keys` and `S41.completion-prefix` recorded FAIL with
+  one-line escaped reasons, and the human report kept the multi-line values.
+- T3 on the development host: with the `Regenerate` label changed, the three
+  S38 exact-diagnostic checks recorded FAIL with one-line escaped reasons, all
+  249 checks ran with no `SCRIPT_ERROR`, and the shipped
+  `test_record_validate_file` accepted the records.
+- T4 on the development host: the unchanged error-handling suite passed
+  249/249; catalog-only validation reported unchanged counts for all six
+  suites; the reporting self-test passed the four new assertions and failed
+  only the two M3 assertions (116 of 118 passed).
+- T5 on both test consumers: the complete driver reported
+  `GATE SUITES PASS hosts=2` with the pinned identity unchanged and the
+  installed runners at `2ddbf80-dirty`; cross-host differences match the
+  earlier accepted runs. Evidence directory:
+  `work/gate-suites-20260925T031059Z-464174/`. Combined machine record
+  SHA-256, Debian
+  `cfaf067df28db66bb59167133679bdc882034e26165915143652151141a2dcec`, Rocky
+  `0f690794bdfb64654e58be3059ddb84e35701320f8fb7333cfeab5017dc627f9`.
+- `bash -n` and `git diff --check` passed for every changed file. The
+  ShellCheck warning gate reports only the SC2034 warning in
+  `tests/test-system-infra.bash` that the committed tree already carries.
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-09-25T03:10:41Z | Debian 13 test consumer, temporary copy | PASS | FAIL with one-line escaped reason; 139 checks ran; no `SCRIPT_ERROR` |
+| T2 | 2026-09-25T03:09:31Z | Development host, temporary copy | PASS | Two S41 FAILs with one-line escaped reasons; 249 checks ran; no `SCRIPT_ERROR` |
+| T3 | 2026-09-25T03:09:44Z | Development host, temporary copy | PASS | Three S38 FAILs with one-line escaped reasons; 249 checks ran; validator accepted |
+| T4 | 2026-09-25T03:10:23Z | Development host | PASS | 249/249; counts unchanged; new self-test assertions PASS; only M3 failures remain |
+| T5 | 2026-09-25T03:18:01Z | Both test consumers | PASS | `GATE SUITES PASS hosts=2`; identity unchanged |
+
+##### Closure Evidence
+
+None.
+
 ## Backlog
 
 ### Work
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| Reporting | M3 | Refresh the reporting self-test's stale expectations | Milestone | Not started | Yes | none | The shipped reporting self-test passes every assertion on the committed tree; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 
-No unassigned work is held in this register. GitHub Backlog was not imported
-as unrelated release work.
+GitHub Backlog was not imported as unrelated release work.
 
 ### Backlog Details
+
+#### M3 - Refresh the reporting self-test's stale expectations
+
+Origin: 1.4.2 / M3
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+`tests/lib/test-reporting-self-test.bash` is not part of the gate matrix and
+fails two assertions on the committed tree at `2ddbf80`, observed on
+2026-09-24 on the development host:
+
+- `catalog precedence: exact standard-output contract` expects the
+  source-regression catalog to report 132 checks; the catalog reports 139.
+  The expectation has not changed since `045bcd5`.
+- `dimension-matrix: all accepted combinations finalize` expects 7 accepted
+  combinations and observes 9.
+
+##### Scope
+
+Derive or update both expectations from the current catalog and accepted
+dimension set, and decide whether the self-test belongs in a routine check.
+Out of scope: changing the reporter contract.
+
+##### Completion Criteria
+
+- The shipped reporting self-test passes every assertion on the committed
+  tree.
+
+##### Dependencies And Decisions
+
+- Not assigned to a release; owner assignment pending.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Investigate the dimension-matrix count and the catalog expectation, then
+   propose the corrected expectations.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | reporting | Run the shipped reporting self-test | Development host | Every assertion PASS |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Planned development host run | Pending | Await all assertions PASS |
+
+##### Closure Evidence
 
 None.

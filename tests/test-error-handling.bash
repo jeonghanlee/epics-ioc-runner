@@ -459,7 +459,7 @@ function verify_state {
         printf "%b[ FAIL ]%b %s\n" "${RED}" "${NC}" "${step_name}" >&2
         printf "  %bExpected : %s%b\n" "${YELLOW}" "${expected}" "${NC}" >&2
         printf "  %bActual   : %s%b\n" "${YELLOW}" "${actual}" "${NC}" >&2
-        reason="${step_name}: expected ${expected}, actual ${actual}"
+        reason=$(report_escape_reason "${step_name}: expected ${expected}, actual ${actual}")
         record_current_state FAIL "${reason}"
     fi
 }

@@ -600,7 +600,7 @@ function verify_state {
         printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
         SUITE_ASSERTION_FAILED=1
         report_record "${check_id}" FAIL \
-            "${step_name}: expected ${expected}, actual ${actual}"
+            "$(report_escape_reason "${step_name}: expected ${expected}, actual ${actual}")"
     fi
 }
 

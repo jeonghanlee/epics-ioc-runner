@@ -115,7 +115,7 @@ function verify_state {
         printf "${RED}[ FAIL ]${NC} %s\n" "${check_id}" >&2
         printf "  ${YELLOW}Expected : %s${NC}\n" "${expected}" >&2
         printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
-        reason="expected ${expected}, actual ${actual}"
+        reason=$(report_escape_reason "expected ${expected}, actual ${actual}")
         report_record "${check_id}" FAIL "${reason}"
     fi
 }

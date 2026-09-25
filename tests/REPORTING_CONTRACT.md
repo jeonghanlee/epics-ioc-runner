@@ -308,6 +308,7 @@ report_register_check check_id step_id category check_kind test_method descripti
 report_close_catalog
 report_verify_catalog_counts
 report_record check_id state [reason]
+report_escape_reason text
 report_finalize original_exit_status
 ```
 
@@ -316,7 +317,11 @@ Every check references a previously declared STEP. `report_close_catalog`
 ends registration before any result event. `report_verify_catalog_counts`
 enforces the Catalog Count Boundary before execution. `report_record` is the
 only path for a test-owned terminal state; `PASS` carries no reason and every
-other state requires one non-empty, single-line reason.
+other state requires one non-empty, single-line reason. `report_escape_reason`
+prints its argument with backslash, line feed, carriage return, and tab
+escaped as `\\`, `\n`, `\r`, and `\t`. A caller that builds a reason from values
+that can span lines passes the escaped text to `report_record`; each suite's
+`verify_state` does so for its FAIL reason.
 
 The caller supplies a dedicated real directory for the private file-backed
 ledger. The directory must be owned by the current effective user, must not be

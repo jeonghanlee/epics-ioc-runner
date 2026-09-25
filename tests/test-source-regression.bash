@@ -210,7 +210,7 @@ function verify_state {
     printf "%b[ FAIL ]%b %s\n" "${RED}" "${NC}" "${check_id}" >&2
     printf "  %bExpected : %s%b\n" "${YELLOW}" "${expected}" "${NC}" >&2
     printf "  %bActual   : %s%b\n" "${YELLOW}" "${actual}" "${NC}" >&2
-    report_record "${check_id}" FAIL "expected ${expected}, actual ${actual}"
+    report_record "${check_id}" FAIL "$(report_escape_reason "expected ${expected}, actual ${actual}")"
 }
 
 function source_check_metadata {
