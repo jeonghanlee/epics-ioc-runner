@@ -5,9 +5,9 @@ Milestone index: 1.4.2
 Canonical path: `docs/milestone-1.4.2.md`
 Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
-Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 and #159 are closed and #158 is open under it
+Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, and #159 are closed under it
 
-Next session entry point: M1 and M2 are Complete, and #157 and #159 are closed. M3 is implemented and verified; once its commit is pushed, record the landing, mark M3 Complete, and close #158 with its checked acceptance criteria. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1, M2, and M3 are Complete, and #157, #158, and #159 are closed. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -30,7 +30,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
 | Reporting | M2 | Keep multi-line check values out of FAIL reasons (#159) | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
-| Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | In progress | No | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
+| Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 
 ### Decisions
 
@@ -776,7 +776,7 @@ Last Compared: after 2026-09-25T04:37:51Z with `gh issue view 159`; issue update
 Origin: 1.4.2 / M3
 Identity History: none
 GitHub Issue: #158, https://github.com/jeonghanlee/epics-ioc-runner/issues/158
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -949,17 +949,24 @@ clock otherwise:
 
 ##### Closure Evidence
 
-None.
+- Implementation, the S26 step, catalog, inventory, documentation, identity
+  repin, and this detail landed in `b638ed9` on `release-1.4.2`.
+- Verification: T1-T4 passed as recorded above; the confirming six-suite
+  matrix is `work/gate-suites-20260925T054538Z-1684424/`.
+- Landing: `git fetch` at 2026-09-25T09:32:11Z observed
+  `origin/release-1.4.2` at `b638ed96d35ead79cb3612823975c69cd037c83f`.
+- Linked issue: #158 body updated with the resolution and checked acceptance
+  criteria, and closed as completed at 2026-09-25T09:36:17Z.
 
 ##### GitHub Projection
 
 Title: Reporting self-test carries stale expectations and runs in no routine check
 Labels: bug, tests, P3-low
 GitHub Milestone: 1.4.2
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: bug, tests, P3-low
 Observed Milestone: 1.4.2 (19)
-Last Compared: after 2026-09-25T09:15:31Z with `gh issue view 158`; issue updated at 2026-09-25T09:15:31Z; the body projects this detail's Scope and Completion Criteria
+Last Compared: after 2026-09-25T09:36:17Z with `gh issue view 158`; issue updated at 2026-09-25T09:36:17Z; the body carries the resolution and checked acceptance criteria
 
 ## Backlog
 
