@@ -5,9 +5,9 @@ Milestone index: 1.4.2
 Canonical path: `docs/milestone-1.4.2.md`
 Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
-Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, and #159 are closed under it
+Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, and #160 are closed under it
 
-Next session entry point: M1, M2, and M3 are Complete, and #157, #158, and #159 are closed. M4 (reject `ctrl-[`) is implemented and verified; once its commit is pushed, record the landing and mark it Complete. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M4 are Complete, and #157, #158, #159, and #160 are closed. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -31,7 +31,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Console | M1 | Verify console detach keys and align documentation (#157) | Milestone | Complete | — | D1, D2, D3, D4, D5 | Real con/socat default and custom-key attach cases and monitor exit-key cases pass; nc exclusion, input handling, banners, and guides agree; socat production validation limits are explicit; [detail](#m1---verify-console-detach-keys-and-align-documentation) |
 | Reporting | M2 | Keep multi-line check values out of FAIL reasons (#159) | Milestone | Complete | — | none | A multi-line mismatch is recorded as FAIL with a one-line escaped reason, the suite continues, and the human report keeps the full values; [detail](#m2---keep-multi-line-check-values-out-of-fail-reasons) |
 | Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
-| Console | M4 | Reject ctrl-[ as a detach key | Milestone | In progress | No | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
+| Console | M4 | Reject ctrl-[ as a detach key (#160) | Milestone | Complete | — | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
 
 ### Decisions
 
@@ -981,8 +981,8 @@ Last Compared: after 2026-09-25T09:36:17Z with `gh issue view 158`; issue update
 
 Origin: 1.4.2 / M4
 Identity History: none
-GitHub Issue: none
-Status: In progress
+GitHub Issue: #160, https://github.com/jeonghanlee/epics-ioc-runner/issues/160
+Status: Complete
 
 ##### Summary
 
@@ -1076,7 +1076,26 @@ Observed on 2026-09-25 (UTC) against the working tree based on `2aee5c1`:
 
 ##### Closure Evidence
 
-None.
+- Rejection, help, error text, CLI reference, the S41 rejection check, test
+  documentation, identity repin, and this detail landed in `ad5b1e7` on
+  `release-1.4.2`.
+- Verification: T1-T3 passed as recorded above. At 2026-09-25T16:13:13Z,
+  re-allowing `ctrl-[` in a temporary copy of `ad5b1e7` made the
+  error-handling suite fail only `S41.reject-escape-byte`.
+- Landing: `git fetch` at 2026-09-25T16:19:35Z observed
+  `origin/release-1.4.2` at `ad5b1e7736f1057447aea2a7624030c71ac2bff9`.
+- Linked issue: #160 filed with the resolution and checked acceptance
+  criteria, and closed as completed at 2026-09-25T16:18:22Z.
+
+##### GitHub Projection
+
+Title: Detach key ctrl-[ is the Escape byte and detaches socat on arrow keys
+Labels: bug, P3-low, area/shell
+GitHub Milestone: 1.4.2
+Observed State: closed (completed)
+Observed Labels: bug, P3-low, area/shell
+Observed Milestone: 1.4.2 (19)
+Last Compared: after 2026-09-25T16:18:22Z with `gh issue view 160`; issue updated at 2026-09-25T16:18:22Z; the body carries the resolution and checked acceptance criteria
 
 ## Backlog
 
