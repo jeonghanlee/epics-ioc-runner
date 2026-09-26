@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, #160, and #162 are closed and #161 is open under it
 
-Next session entry point: M1 through M5 are Complete, and #157, #158, #159, and #160 are closed. M6 (rewrite an identical configuration regardless of its owner) has a draft plan in its detail; review and accept it before implementation. M7 is Complete and #162 is closed. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M5 and M7 are Complete, and #157, #158, #159, #160, and #162 are closed. The remaining work is M6 (#161): its plan in the M6 detail is reviewed and awaits acceptance and implementation authorization; then implement and verify it. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -33,7 +33,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 | Console | M4 | Reject ctrl-[ as a detach key (#160) | Milestone | Complete | — | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
-| Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Not started | No | D10 | Any group member regenerates an identical existing configuration without error, the file carries the target mode afterwards whoever owned it before, and the S04 checks pin the rewrite; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
+| Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Not started | No | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 
 ### Decisions
@@ -50,6 +50,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D8 | Set the procServ ignore set to `^D^C` in the system unit, local unit, and container run script. procServ converts `^` only before `A` through `Z`, so `^]` dropped the printable `^` and `]` from console input and let `Ctrl-]` through. The supported clients use no telnet escape, so `Ctrl-]` is forwarded like any other byte. This product fix is within M1 because the console input documentation depends on it. `source-regression.S16.unit.ignore-set` pins the value in both unit templates. The 1.4.2 release notes must state the upgrade actions: rerun system setup, reinstall local IOCs with `--force` because a non-forced install keeps a differing user template, reinstall container IOCs to re-render the run script, and restart running IOCs so procServ receives the new argument. | 2026-09-24 |
 | D9 | Leave the iocsh history file where iocsh puts it: the runner sets no `EPICS_IOCSH_HISTFILE` and does not manage the ownership of `.iocsh_history`. Each principal switch in a shared IOC directory costs one benign loading error and a history restart, because readline saves the file as a fresh 0600 owned by the running principal; the runner documents this in FAQ Q13 with the per-principal `EPICS_IOCSH_HISTFILE` settings a site can adopt, and records the examined Keep as CLOSED_DOORS CI-44. | 2026-09-25 |
 | D10 | When `generate` finds an identical existing configuration, rewrite it through the staged temporary file and rename, as the differing-content path does, instead of skipping the write and reasserting the mode with `chmod`. A rename needs only directory write permission, so any `ioc` group member corrects the mode, and a file whose creator's account no longer exists is taken over instead of left unfixable by anyone but root. The identical case still asks no overwrite question. | 2026-09-26 |
+| D11 | Supersede D10's last sentence. Rewriting identical content transfers the file to the invoking user, so `generate` asks before that transfer: identical content owned by the invoking user is rewritten without a question; identical content owned by another user is rewritten only after a y/N question that names the current owner, bypassed by `-f`, with a closed standard input or a refusal exiting 1 and leaving the file unchanged; differing content keeps its diff and y/N question. `docs/CLI_REFERENCE.md` gains a `generate` section stating these cases. | 2026-09-26 |
 
 ### Assignment History
 
@@ -1207,31 +1208,55 @@ in local mode under the user's own home, or as root, and
 - In the identical-configuration path of `do_generate` in `bin/ioc-runner`,
   replace the skip and `chmod` with the same staged rewrite the
   differing-content path performs: set the target mode on the temporary file
-  and rename it over the existing one, without the overwrite question.
-- Keep the informational message that the content is unchanged.
+  and rename it over the existing one. When the existing file belongs to the
+  invoking user, rewrite without a question; when it belongs to another
+  user, name that owner and ask y/N first, unless `-f` is given (D11).
+- On identical content, print the `already up-to-date (Identical)` line,
+  drop the `Skipping overwrite.` line, and continue to the common success
+  output.
+- Identical content now also reaches the `.iocsh_history` block after the
+  rename; its failure is ignored, so a non-owner run is unaffected.
 - Change the three S04 checks in `tests/test-error-handling.bash` that pin
-  the skip path so they pin the rewrite and its mode, and repin the gate
-  identity.
+  the skip path so they pin the rewrite and its mode.
+- Add one system-lifecycle check in which a second `ioc` group operator
+  regenerates with `-f` an identical system-mode configuration created by
+  another user, update the system-lifecycle count, inventory, and test
+  documentation, and repin the gate identity.
+- Add a `generate` section to `docs/CLI_REFERENCE.md` stating the four
+  cases (no file, identical and own, identical and another owner, differing),
+  the `-f` bypass, the exit status of a refusal or closed input, that a
+  rewrite transfers the file to the invoking user, and that its group comes
+  from the directory.
 
-Out of scope: the differing-content path, the `.iocsh_history` block (M7),
-and `bin/setup-system-infra.bash`.
+Out of scope: changes to the differing-content path, to the
+`.iocsh_history` block itself (M7), and to `bin/setup-system-infra.bash`.
 
 ##### Completion Criteria
 
-- A non-owner group member regenerating an identical configuration exits 0,
-  and the file carries the target mode afterwards.
-- The owner path produces the same result, including a loosened mode being
-  corrected.
-- The S04 checks pin the rewrite, counts are unchanged, and the gate matrix
-  passes with the repinned identity.
+- A non-owner group member regenerating an identical configuration with
+  `-f` exits 0, and the file carries the target mode and the new owner
+  afterwards; without `-f` the owner is named and a y/N question is asked,
+  and a closed standard input exits 1 with the file unchanged.
+- The owner regenerating an identical configuration exits 0 without a
+  question, including a loosened mode being corrected.
+- `docs/CLI_REFERENCE.md` carries a `generate` section matching this
+  behavior.
+- The S04 checks pin the rewrite with the error-handling count unchanged,
+  the new system-lifecycle check fails against the skip-and-`chmod` code and
+  passes against the rewrite, the system-lifecycle count rises from 167 to
+  168 with 36 steps, and the gate matrix passes with the repinned identity.
 
 ##### Dependencies And Decisions
 
-- D10 sets the rewrite approach.
+- D10 sets the rewrite approach; D11 sets when it asks first.
 - Owner direction 2026-09-25: include this fix in 1.4.2, and sweep the code
   for similar ownership-dependent permission changes.
 - Owner direction 2026-09-26: rewrite regardless of owner rather than skip
   and `chmod`, because the file's creator may no longer exist.
+- Owner direction 2026-09-26: pin the non-owner path with an automated
+  check. The error-handling suite runs as an ordinary user and cannot switch
+  users, so the check belongs to the system-lifecycle suite, which runs as
+  root and already provisions a temporary `ioc` group operator (S27).
 
 ##### Implementation Plan
 
@@ -1240,27 +1265,56 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-1. In `do_generate`, on identical content, keep the message, drop the
-   `chmod` and the early exit, and fall through to the existing mode-setting
-   and rename of the staged file. Closed by T1.
-2. Change the three S04 checks to expect the rewrite: exit 0, the unchanged
-   message, and the target mode after a loosened mode. Closed by T1 and T2.
-3. Add a check that regenerates an identical configuration as a second
-   group member and expects exit 0 with the target mode. Closed by T1 and T2.
+1. In `do_generate`, on identical content, print the `already up-to-date
+   (Identical)` line and drop the `chmod`, the `Skipping overwrite.` line, and
+   the early exit. Compare the existing file's numeric owner UID with `id -u`.
+   When they match, bypass the `FORCE_OVERWRITE` diff-and-question block; when
+   they differ and `-f` is absent, name the owner (the name that
+   `getent passwd <uid>` resolves, or the numeric UID when it resolves none;
+   `stat -c %U` prints `UNKNOWN` there and is not used) and ask y/N, exiting 1
+   on a refusal or a closed standard input. Then reach the existing
+   mode-setting and rename of the staged file and end in the common success
+   output. Closed by T1.
+2. Rename and re-expect the three S04 checks: exit 0, the `already
+   up-to-date (Identical)` line, no prompt on a closed standard input, and
+   the target mode after a loosened mode; update their rows in
+   `tests/ERROR_HANDLING_INVENTORY.md`. The error-handling count stays 249.
+   Closed by T1 and T2.
+3. Inside the system-lifecycle S27 step, which already provisions the temporary
+   `ioc` group operator, run the new check right after the operator is created.
+   S27 gates on `softioc-available` and then on `probe-user-name-available`
+   before creating the operator, so the check skips with the step when either
+   gate fails, although it needs no softIoc; both gates pass on the gate
+   consumers, and the step order is kept. Create a `root:ioc 2775` IOC
+   directory, generate its configuration as root, and have the operator
+   regenerate the identical configuration with `-f`; expect exit 0, mode 0660,
+   and the operator as owner. The step count stays 36 and the check count rises
+   from 167 to 168: update `tests/reporting-counts.csv`,
+   `tests/SYSTEM_LIFECYCLE_INVENTORY.md`, and `tests/README.md`. Repin the gate
+   identity once for both suites' check changes. Closed by T1, T2, and T3.
+4. Append section 6, `generate`, to `docs/CLI_REFERENCE.md`, after the
+   existing five so no section number moves, with the four cases, the `-f`
+   bypass, the refusal exit status, the ownership transfer, and that the
+   rewritten file takes its group from the directory, which the documented
+   `root:ioc 2775` payload directory keeps as `ioc`. Closed by T4.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | behavior | Regenerate an identical configuration owned by another group member, with a matching and a loosened mode, and as the owner with a loosened mode | Test consumer | Exit 0 in every case; the file carries the target mode and the regenerating user afterwards |
-| T2 | regression | Complete six-suite matrix | Both test consumers | `GATE SUITES PASS hosts=2` |
+| T1 | behavior | Regenerate an identical configuration owned by another group member without `-f` on a closed standard input, then with `-f` after loosening its mode, and as the owner with a loosened mode | Test consumer | Without `-f`: the owner is named, exit 1, file unchanged; with `-f`: exit 0, target mode, new owner; as owner: exit 0, no question, target mode |
+| T2 | regression | Run the new system-lifecycle check against the unchanged skip-and-`chmod` code, then against the rewrite | Test consumer | FAIL before the change with the `chmod` error; PASS after it |
+| T3 | regression | Complete six-suite matrix before and after the identity repin | Both test consumers | Only the identity mismatch before the repin; `GATE SUITES PASS hosts=2` after it |
+| T4 | documentation | Compare the `generate` section of `docs/CLI_REFERENCE.md` with the T1 observations | Development host | Every case, the `-f` bypass, and the exit statuses match |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | Test consumer | Pending | none |
-| T2 | Not run | Both test consumers | Pending | none |
+| T2 | Not run | Test consumer | Pending | none |
+| T3 | Not run | Both test consumers | Pending | none |
+| T4 | Not run | Development host | Pending | none |
 
 ##### Closure Evidence
 
@@ -1274,7 +1328,7 @@ GitHub Milestone: 1.4.2
 Observed State: open
 Observed Labels: bug, P2-medium, area/permissions
 Observed Milestone: 1.4.2 (19)
-Last Compared: after 2026-09-26T08:42:58Z with `gh issue view`; issue updated at 2026-09-26T08:42:58Z; the body projects this detail's Summary, Scope, and Completion Criteria
+Last Compared: after 2026-09-26T19:18:34Z with `gh issue view 161`; issue updated at 2026-09-26T19:18:34Z; the body projects this detail's Summary, Scope, and Completion Criteria, including D11
 
 #### M7 - Document iocsh history ownership across principals
 
