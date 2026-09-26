@@ -107,7 +107,7 @@ ioc-runner enable myioc
 
 While the service is stopped, the `.conf` file remains in `/etc/procServ.d/` and the systemd template is unchanged. Only the runtime state is affected.
 
-**History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file for the manual run, so no cross-owned file is left behind. `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file. EPICS documents the empty-string disable in the EPICS Base 7.0 release notes (https://docs.epics-controls.org/projects/base/en/r7.0.9/RELEASE_NOTES.html).
+**History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file for the manual run, so no cross-owned file is left behind; setting it to `~/.iocsh_history` keeps a history that follows the operator instead (see Q13). `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file. EPICS documents the empty-string disable in the EPICS Base 7.0 release notes (https://docs.epics-controls.org/projects/base/en/r7.0.9/RELEASE_NOTES.html).
 
 ---
 
@@ -228,3 +228,29 @@ EPICS_PVA_AUTO_ADDR_LIST="NO"
 ```
 
 The file is optional: an installation without it behaves exactly as before. When present, `install` checks it against the same non-executing `KEY="VALUE"` grammar as a conf — it is not a conf and carries no `IOC_*` keys, so it is validated for syntax only. See [NETWORK_ENV.md](NETWORK_ENV.md) for which variables belong in the shared layer versus a per-IOC conf, and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md) for the mechanism.
+
+---
+
+### Q13: Who owns `.iocsh_history`, and why does the console print `Permission denied ... loading '.iocsh_history'`?
+
+**The file belongs to whichever principal ran the IOC last, and the message is harmless.** iocsh loads the history file when it starts and saves it when it exits, through GNU readline. The file is `.iocsh_history` in the IOC's working directory (`IOC_CHDIR` under the runner, the current directory for a manual run) unless `EPICS_IOCSH_HISTFILE` names another path; a leading `~/` is expanded from `HOME`. On save, readline writes a temporary file next to the history file and renames it over the original, so the result is always a new `0600` file owned by the principal that ran the IOC, and readline's attempt to hand it back to the previous owner succeeds only for root. Saving needs write permission on the directory, not on the existing file, so a `0664` or group-writable history file changes nothing.
+
+Every switch of principal in one directory therefore produces the same two effects and nothing else: the new principal cannot read the previous owner's `0600` file, so iocsh prints one `ERROR Permission denied (13) loading '.iocsh_history'` line (once per iocsh pass, so twice when both `st.cmd` and the interactive shell hit it), and the saved history restarts from that session. The IOC starts and runs normally, the exit status is unchanged, and `start` excludes the line from crash matching (Q6). Verified with readline 7.0 (Rocky 8) and 8.2 (Debian 13) across an operator's manual run, a second operator's manual run, a system-mode run as `ioc-srv`, and back.
+
+| Sequence in one shared IOC directory | Result |
+| --- | --- |
+| Operator A runs manually, then the service runs as `ioc-srv` | `ioc-srv` prints the loading error once and leaves an `ioc-srv:ioc 0600` file |
+| Operator B stops the service, edits `st.cmd`, and runs manually | B prints the loading error once and leaves a B-owned `0600` file |
+| The service runs again | `ioc-srv` prints the loading error once and owns the file again |
+| Two users run the same directory in local mode at the same time | Each start reads whatever file exists at that moment, with the loading error when it belongs to the other user; the user whose IOC exits last owns the file |
+| The directory carries the sticky bit (`1xxx`, as `/tmp` does) | The rename over another owner's file is refused: `Operation not permitted (1) writing` (readline 8) or `Unknown error -1 (-1) writing` (readline 7); the previous file stays; the IOC is unaffected. Runner directories are `2775` (setgid) and never carry it |
+
+To keep every path free of the message, give each principal its own history file outside the shared directory by setting `EPICS_IOCSH_HISTFILE` in the environment the IOC starts from. A file that does not exist yet is not an error, so the first run of each principal is clean and later runs read their own file back.
+
+| Launch path | Where to set it | Value |
+| --- | --- | --- |
+| System-mode service (`ioc-srv`, home `/nonexistent`) | A drop-in on the template, `/etc/systemd/system/epics-@.service.d/history.conf`, with `[Service]` and `Environment=EPICS_IOCSH_HISTFILE=/var/log/procserv/%i.iocsh_history` | One file per IOC in the service log directory, which `ioc-srv` already writes. `site.env` (Q12) also works but carries no `%i`, so every IOC on the host would share one file |
+| Local-mode service | The same drop-in under `${HOME}/.config/systemd/user/epics-@.service.d/` | `%h/.iocsh_history-%i` or any path under the user's home |
+| Manual run in a shell | The site EPICS environment (`setEpicsEnv.bash`) or the operator's profile | `~/.iocsh_history`, so the history follows the person as `.bash_history` does; an empty value disables the file (Q5) |
+
+Both drop-ins were verified through `ioc-runner start` and `stop`: the file appeared at the configured path, owned by the launching principal, and a second start read it back without a message. A manual run made without the site environment falls back to the shared-directory file and the behavior above; the runner cannot control that shell.
