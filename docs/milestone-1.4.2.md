@@ -5,9 +5,9 @@ Milestone index: 1.4.2
 Canonical path: `docs/milestone-1.4.2.md`
 Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
-Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, and #160 are closed under it
+Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, #160, and #162 are closed and #161 is open under it
 
-Next session entry point: M1 through M5 are Complete, and #157, #158, #159, and #160 are closed. Open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M5 are Complete, and #157, #158, #159, and #160 are closed. M6 (rewrite an identical configuration regardless of its owner) has a draft plan in its detail; review and accept it before implementation. M7 is Complete and #162 is closed. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -33,6 +33,8 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 | Console | M4 | Reject ctrl-[ as a detach key (#160) | Milestone | Complete | — | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
+| Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Not started | No | D10 | Any group member regenerates an identical existing configuration without error, the file carries the target mode afterwards whoever owned it before, and the S04 checks pin the rewrite; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
+| Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 
 ### Decisions
 
@@ -46,6 +48,8 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D6 | Exclude old con without read-only support from the remaining verification. T6 covers only rejection without con or socat (D7), and T12 covers only the direct socat path; the old-con fallback cases in the T6 and T12 rows, the Scope clause on con without -r, and the Completion Criteria sentence on con lacking -r are withdrawn. The runner's fallback code is unchanged. | 2026-09-24 |
 | D7 | Add no nc-specific checks. The runner has no nc path after D3, so the nc-only cases in T6, the Scope clause on nc-only rejection, and the Completion Criteria sentence on an nc-only environment are withdrawn. S42 verifies rejection without con or socat; other host tools, including any nc, stay visible to the runner. | 2026-09-24 |
 | D8 | Set the procServ ignore set to `^D^C` in the system unit, local unit, and container run script. procServ converts `^` only before `A` through `Z`, so `^]` dropped the printable `^` and `]` from console input and let `Ctrl-]` through. The supported clients use no telnet escape, so `Ctrl-]` is forwarded like any other byte. This product fix is within M1 because the console input documentation depends on it. `source-regression.S16.unit.ignore-set` pins the value in both unit templates. The 1.4.2 release notes must state the upgrade actions: rerun system setup, reinstall local IOCs with `--force` because a non-forced install keeps a differing user template, reinstall container IOCs to re-render the run script, and restart running IOCs so procServ receives the new argument. | 2026-09-24 |
+| D9 | Leave the iocsh history file where iocsh puts it: the runner sets no `EPICS_IOCSH_HISTFILE` and does not manage the ownership of `.iocsh_history`. Each principal switch in a shared IOC directory costs one benign loading error and a history restart, because readline saves the file as a fresh 0600 owned by the running principal; the runner documents this in FAQ Q13 with the per-principal `EPICS_IOCSH_HISTFILE` settings a site can adopt, and records the examined Keep as CLOSED_DOORS CI-44. | 2026-09-25 |
+| D10 | When `generate` finds an identical existing configuration, rewrite it through the staged temporary file and rename, as the differing-content path does, instead of skipping the write and reasserting the mode with `chmod`. A rename needs only directory write permission, so any `ioc` group member corrects the mode, and a file whose creator's account no longer exists is taken over instead of left unfixable by anyone but root. The identical case still asks no overwrite question. | 2026-09-26 |
 
 ### Assignment History
 
@@ -1171,6 +1175,210 @@ Superseded Plan Artifacts: none
 - Verification: T1 passed as recorded above.
 - Landing: `git fetch` at 2026-09-25T19:52:39Z observed
   `origin/release-1.4.2` at `7c7444c54130cf5968167f2c04f10e5a0bb02886`.
+
+#### M6 - Rewrite an identical configuration regardless of its owner
+
+Origin: 1.4.2 / M6
+Identity History: none
+GitHub Issue: #161, https://github.com/jeonghanlee/epics-ioc-runner/issues/161
+Status: Not started
+
+##### Summary
+
+When `generate` produces a configuration identical to the existing file, it
+skips the overwrite but reasserts the file mode with `chmod` (0660 in system
+and container mode, 0600 in local mode). Only the file owner may change a
+mode, so a member of the `ioc` group who regenerates a shared IOC directory
+whose configuration another member created fails with `chmod: ... Operation
+not permitted` and exits nonzero, even when the mode is already correct; and
+a file whose creator's account no longer exists cannot be corrected by anyone
+but root. Observed on 2026-09-25 on a system-mode host with an existing 0660
+configuration owned by another group member.
+
+A sweep of the shipped code on 2026-09-25 found no other ownership-dependent
+change that aborts: the remaining `chmod` calls act on temporary files the
+runner just created, the `.iocsh_history` mode reassertion ignores failure
+and is inert in any case (M7), `install -d -m` runs only on new directories,
+in local mode under the user's own home, or as root, and
+`bin/setup-system-infra.bash` runs as root.
+
+##### Scope
+
+- In the identical-configuration path of `do_generate` in `bin/ioc-runner`,
+  replace the skip and `chmod` with the same staged rewrite the
+  differing-content path performs: set the target mode on the temporary file
+  and rename it over the existing one, without the overwrite question.
+- Keep the informational message that the content is unchanged.
+- Change the three S04 checks in `tests/test-error-handling.bash` that pin
+  the skip path so they pin the rewrite and its mode, and repin the gate
+  identity.
+
+Out of scope: the differing-content path, the `.iocsh_history` block (M7),
+and `bin/setup-system-infra.bash`.
+
+##### Completion Criteria
+
+- A non-owner group member regenerating an identical configuration exits 0,
+  and the file carries the target mode afterwards.
+- The owner path produces the same result, including a loosened mode being
+  corrected.
+- The S04 checks pin the rewrite, counts are unchanged, and the gate matrix
+  passes with the repinned identity.
+
+##### Dependencies And Decisions
+
+- D10 sets the rewrite approach.
+- Owner direction 2026-09-25: include this fix in 1.4.2, and sweep the code
+  for similar ownership-dependent permission changes.
+- Owner direction 2026-09-26: rewrite regardless of owner rather than skip
+  and `chmod`, because the file's creator may no longer exist.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. In `do_generate`, on identical content, keep the message, drop the
+   `chmod` and the early exit, and fall through to the existing mode-setting
+   and rename of the staged file. Closed by T1.
+2. Change the three S04 checks to expect the rewrite: exit 0, the unchanged
+   message, and the target mode after a loosened mode. Closed by T1 and T2.
+3. Add a check that regenerates an identical configuration as a second
+   group member and expects exit 0 with the target mode. Closed by T1 and T2.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | behavior | Regenerate an identical configuration owned by another group member, with a matching and a loosened mode, and as the owner with a loosened mode | Test consumer | Exit 0 in every case; the file carries the target mode and the regenerating user afterwards |
+| T2 | regression | Complete six-suite matrix | Both test consumers | `GATE SUITES PASS hosts=2` |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Test consumer | Pending | none |
+| T2 | Not run | Both test consumers | Pending | none |
+
+##### Closure Evidence
+
+None.
+
+##### GitHub Projection
+
+Title: generate fails for a non-owner when the existing configuration is identical
+Labels: bug, P2-medium, area/permissions
+GitHub Milestone: 1.4.2
+Observed State: open
+Observed Labels: bug, P2-medium, area/permissions
+Observed Milestone: 1.4.2 (19)
+Last Compared: after 2026-09-26T08:42:58Z with `gh issue view`; issue updated at 2026-09-26T08:42:58Z; the body projects this detail's Summary, Scope, and Completion Criteria
+
+#### M7 - Document iocsh history ownership across principals
+
+Origin: 1.4.2 / M7
+Identity History: none
+GitHub Issue: #162, https://github.com/jeonghanlee/epics-ioc-runner/issues/162
+Status: Complete
+
+##### Summary
+
+The console documents said that iocsh saves `.iocsh_history` as 0600 owned
+by the last principal, and `do_generate` pre-allocates the file as 0664 in
+system mode so that `ioc-srv` can append to it. Reading EPICS Base R7.0.10
+(`iocsh.cpp`, `ReadlineContext`) and GNU readline 7.0 and 8.2
+(`histfile.c`, `history_do_write`) showed that readline saves the file as a
+temporary file renamed over the original, always a fresh 0600 owned by the
+running principal, with a chown back to the previous owner that succeeds only
+for root; saving needs directory write permission, not permission on the
+existing file. The pre-allocated file therefore contributes nothing. The
+sequences an operator follows in practice (manual run, service run as
+`ioc-srv`, a second operator's manual run, local mode by two users, a
+sticky-bit directory) were run on both test consumers and behave as the
+source predicts: one benign loading error per principal switch, a history
+restart, exit status and IOC behavior unchanged.
+
+##### Scope
+
+- Add FAQ Q13 with the file location, the readline mechanism, the verified
+  sequence table, the sticky-bit case, and the per-principal
+  `EPICS_IOCSH_HISTFILE` settings for the service drop-in, the local drop-in,
+  and a shell.
+- Point the Q5 history-file note to Q13.
+- Record the examined Keep as CLOSED_DOORS CI-44.
+
+Out of scope: any change to the runner's launch environment (D9), and the
+`do_generate` pre-allocation block, whose removal is an open decision below.
+
+##### Completion Criteria
+
+- FAQ Q13 is present with the verified table and the three settings, and Q5
+  refers to it.
+- CLOSED_DOORS carries CI-44 with its carrying commit.
+- The documents pass `git diff --check`.
+
+##### Dependencies And Decisions
+
+- D9 fixes the runner boundary this work documents.
+- Owner direction 2026-09-25: run the sticky-bit case as well, write the
+  result into the FAQ, and record the Keep in CLOSED_DOORS.
+- Open: whether to remove the `do_generate` history pre-allocation
+  (`bin/ioc-runner`, the `.iocsh_history` block after the conf rename),
+  which the verification showed to be inert, or to correct its comment only.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-09-25, owner direction
+Implementation Authorization: 2026-09-25, owner direction
+Superseded Plan Artifacts: none
+
+1. Run the principal-switch, runner-path, and sticky-bit sequences on both
+   test consumers. Closed by T1, T2, and T3.
+2. Write FAQ Q13, the Q5 pointer, and CLOSED_DOORS CI-44. Closed by T4.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | behavior | In a `2775` `ioc`-group directory, run a `softIoc` `st.cmd` through `runuser` as `opa`, `opb`, `ioc-srv`, and `opa` again, first with `EPICS_IOCSH_HISTFILE` unset and then set per principal (`~/.iocsh_history` for the operators, a file in the service log directory for `ioc-srv`); record the error lines and the file owner and mode after each run | Both test consumers | Unset: one loading error per principal switch and a fresh 0600 file owned by the runner; per principal: no error, each file owned by its principal, the operator's history retained |
+| T2 | behavior | As `opa`, `generate`, `install`, `start`, and `stop` a system IOC under a template drop-in setting `EPICS_IOCSH_HISTFILE=/var/log/procserv/%i.iocsh_history`, then a second start and stop; as `usera`, the same in local mode under a user drop-in with `%h/.iocsh_history-%i` | Both test consumers | The file appears at the configured path owned by the launching principal; the log carries no history error after the second cycle |
+| T3 | behavior | T1's unset sequence in a `3775` directory | Both test consumers | The second and third principals print a loading error and a writing error; the first principal's file remains |
+| T4 | static | `git diff --check` on the three documents | Development host | Pass |
+
+##### Verification Results
+
+Observed on 2026-09-26 (UTC) with the installed runner at `6209734` on both
+test consumers; each run was cleaned up afterwards.
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | after 2026-09-26T05:51:58Z | Both test consumers | PASS | Unset: `opa:ioc 600` then `opb`, `ioc-srv`, `opa`, one `Permission denied (13) loading` line per switch; per principal: no error, `opa:opa 600`, `opb:opb 600`, `ioc-srv:ioc 600` in the log directory, three retained `dbl` lines for opa |
+| T2 | after 2026-09-26T05:53:54Z | Both test consumers | PASS | `/var/log/procserv/histsys.iocsh_history` as `ioc-srv:ioc 600` after stop, zero history lines in `histsys.log` after the second cycle; `~usera/.iocsh_history-histloc` as `usera 600`; the pre-allocated `.iocsh_history` in each IOC directory untouched |
+| T3 | after 2026-09-26T06:10:30Z | Both test consumers | PASS | `opb` and `ioc-srv` print the loading error and `Operation not permitted (1) writing` (readline 8.2) or `Unknown error -1 (-1) writing` (readline 7.0); the file stays `opa:ioc 600` |
+| T4 | 2026-09-26T06:18:16Z | Development host | PASS | `git diff --check` clean |
+
+##### Closure Evidence
+
+- FAQ Q13, the Q5 pointer, and CLOSED_DOORS CI-44 landed in `d1ee7cb` on
+  `release-1.4.2`; CI-44's carrying commit is `d1ee7cb`.
+- Verification: T1-T4 passed as recorded above.
+- Landing: `git fetch` at 2026-09-26T18:54:03Z observed
+  `origin/release-1.4.2` at `d1ee7cb00b3a694824fda590dd07ddb6c6bdb0cb`.
+- Linked issue: #162 body updated with the resolution and checked acceptance
+  criteria, and closed as completed at 2026-09-26T18:58:04Z.
+
+##### GitHub Projection
+
+Title: Document iocsh history ownership across principals
+Labels: docs, P3-low, area/permissions
+GitHub Milestone: 1.4.2
+Observed State: closed (completed)
+Observed Labels: docs, P3-low, area/permissions
+Observed Milestone: 1.4.2 (19)
+Last Compared: after 2026-09-26T18:58:04Z with `gh issue view 162`; issue updated at 2026-09-26T18:58:04Z; the body carries the resolution and checked acceptance criteria
 
 ## Backlog
 
