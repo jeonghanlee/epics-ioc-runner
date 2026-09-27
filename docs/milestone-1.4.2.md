@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, #160, and #162 are closed and #161 is open under it
 
-Next session entry point: M1 through M5 and M7 are Complete, and #157, #158, #159, #160, and #162 are closed. The remaining work is M6 (#161), whose accepted plan is being implemented; verify it, land it, and close #161. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M5 and M7 are Complete, and #157, #158, #159, #160, and #162 are closed. The remaining work is M6 (#161), whose accepted plan is being implemented, and M8, the documentation rewrite, which lands in 1.4.2 and whose plan is still to be written after M6. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -35,6 +35,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
 | Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | In progress | No | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
+| Documentation | M8 | Rewrite the published documentation from the current code | Milestone | Not started | No | M6 | Every page of the mdBook site is rewritten from the current runner, setup script, and templates for the operator who installs and runs IOCs, without carrying the previous text forward, and every command and output it shows is checked against a real run; [detail](#m8---rewrite-the-published-documentation-from-the-current-code) |
 
 ### Decisions
 
@@ -1478,6 +1479,82 @@ Observed State: closed (completed)
 Observed Labels: docs, P3-low, area/permissions
 Observed Milestone: 1.4.2 (19)
 Last Compared: after 2026-09-26T18:58:04Z with `gh issue view 162`; issue updated at 2026-09-26T18:58:04Z; the body carries the resolution and checked acceptance criteria
+
+#### M8 - Rewrite the published documentation from the current code
+
+Origin: 1.4.2 / M8
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+The mdBook site added in 1.4.1 (`book.toml` with `src = "docs"` and
+`docs/SUMMARY.md`) publishes the existing `docs/` pages as they were: twelve
+pages, about 3000 lines, grown one release at a time. The owner directed on
+2026-09-26 that the whole published set be written again from the current
+code, for the user, without treating the previous pages as the base.
+
+##### Scope
+
+- Every page listed in `docs/SUMMARY.md`: `README.md`, `INSTALL.md`,
+  `UNINSTALL.md`, `USER_GUIDE.md`, `USER_GUIDE_LOCAL.md`, `CLI_REFERENCE.md`,
+  `FAQ.md`, `ARCHITECTURE.md`, `PERMISSION_MODEL.md`, `NETWORK_ENV.md`,
+  `LOG_LAYOUT.md`, and `EXIT_SIGNAL_HANDLING.md`, and `SUMMARY.md` itself.
+- Derive every statement from the current `bin/ioc-runner`,
+  `bin/setup-system-infra.bash`, the unit and container templates, and
+  observed runs, including the M6 `generate` behavior.
+
+Out of scope: `docs/CLOSED_DOORS.md`, the milestone registers, `docs/adr/`,
+`docs/review_sessions/`, the test documentation under `tests/`, the gate
+runbook, and any change to runner behavior.
+
+##### Completion Criteria
+
+- The published pages are rewritten for an operator who installs, runs, and
+  troubleshoots IOCs, and none is an edited copy of its previous text.
+- Every command, option, path, and output the pages show matches the
+  current code and a real run.
+- Links inside the book and from files outside it that point into `docs/`
+  resolve, and the mdBook build passes.
+
+##### Dependencies And Decisions
+
+- Owner direction 2026-09-26: rewrite the whole published documentation set
+  from the current code for the user, without regard to the previous pages.
+- M6 changes `generate` and adds its CLI reference section; the rewrite
+  starts from the landed M6 behavior.
+- Open for plan review: the page structure and names of the new book;
+  whether existing file names and anchors are kept so outside links survive;
+  how facts that only a previous page records (site history, rationale) are
+  carried, dropped, or moved to ADRs.
+- Owner direction 2026-09-26: the rewrite lands in the 1.4.2 release, before
+  the release cycle opens.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+To be written after the open questions above are settled.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | documentation | To be defined with the plan | To be defined | To be defined |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | To be defined | Pending | none |
+
+##### Closure Evidence
+
+None.
 
 ## Backlog
 
