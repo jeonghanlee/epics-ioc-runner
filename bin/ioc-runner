@@ -1987,6 +1987,8 @@ function do_generate {
     local -A validate_map=()
     local mode_flag=""
     local line=""
+    local owner_uid=""
+    local owner_name=""
 
     if [[ ! -d "${target_dir}" ]]; then
         printf "Error: Target '%s' is not a valid directory.\n" "${target_dir}" >&2
@@ -2089,33 +2091,41 @@ EOF
         exit 1
     fi
 
-    # Compares the newly generated configuration with the existing one natively.
-    # If identical, aborts the overwrite process gracefully to prevent unnecessary disk I/O and prompts.
+    # Compares the newly generated configuration with the existing one. An
+    # identical configuration is still rewritten through the staged rename
+    # below, which reasserts the mode (#123) with only directory write
+    # permission, so any group member can correct it; chmod on the existing
+    # file would need its owner (#161). The rewrite transfers the file to the
+    # invoking user, so a file another user owns is taken over only after a
+    # confirmation naming that owner, or with -f. Differing content shows the
+    # diff and asks before overwriting.
     if [[ -f "${generated_conf}" ]]; then
         if cmp -s "${generated_conf}" "${tmp_conf}"; then
-            # Content is identical, so the overwrite is skipped -- but reassert
-            # the mode the write path would set (0660 system / 0600 local) so a
-            # hand-loosened permission on the existing conf is corrected instead
-            # of surviving the skip (#123). Container mode shares the
-            # system-mode group-readable conf.
-            if [[ "${EXEC_MODE}" == "system" || "${EXEC_MODE}" == "container" ]]; then
-                chmod 0660 "${generated_conf}"
-            else
-                chmod 0600 "${generated_conf}"
-            fi
             print_divider
             printf "Info: Existing configuration '%s' is already up-to-date (Identical).\n" "${generated_conf}"
-            printf "Skipping overwrite.\n"
-            rm -f "${tmp_conf}"
-
-            print_sub_divider
-            cat "${generated_conf}"
-            print_divider
-            printf "Next step: %s install %s\n" "${0##*/}" "${generated_conf}"
-            exit 0
-        fi
-
-        if [[ "${FORCE_OVERWRITE}" != "1" ]]; then
+            owner_uid=$(stat -c %u "${generated_conf}")
+            if [[ "${owner_uid}" != "$(id -u)" && "${FORCE_OVERWRITE}" != "1" ]]; then
+                # getent resolves an existing account; a deleted account
+                # leaves only the numeric UID (stat -c %U prints UNKNOWN).
+                if owner_name=$(getent passwd "${owner_uid}"); then
+                    owner_name="${owner_name%%:*}"
+                else
+                    owner_name="UID ${owner_uid}"
+                fi
+                printf "It is owned by %s; rewriting it makes %s the owner.\n" "${owner_name}" "$(id -un)"
+                printf "Do you want to take over the configuration? [y/N]: "
+                if ! read -r confirm; then
+                    printf "\nInfo: Input stream closed (EOF). Aborting generation.\n"
+                    rm -f "${tmp_conf}"
+                    exit 1
+                fi
+                if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
+                    printf "Generation aborted by user.\n"
+                    rm -f "${tmp_conf}"
+                    exit 1
+                fi
+            fi
+        elif [[ "${FORCE_OVERWRITE}" != "1" ]]; then
             print_divider
             printf "Configuration file '%s' already exists with differences.\n" "${generated_conf}"
             print_sub_divider

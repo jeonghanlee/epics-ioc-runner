@@ -130,6 +130,7 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S27|system-lifecycle.S27.probe-user-name-available|PREREQUISITE|direct-inspection"
     "S27|system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.operator-is-not-in-systemd-journal|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.second-operator-takes-over-an-identical-conf-with-f-161|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.journal-less-operator-crash-exit-1|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.journal-less-operator-failed-to-initialize-verdict-reads-log-file-not-journal|BEHAVIOR|real-path"
     "S28|system-lifecycle.S28.logrotate-policy-exists|REQUIRED|direct-inspection"
@@ -1870,6 +1871,30 @@ function test_detection_without_journal {
     if printf "%s" "${op_groups}" | grep -qw "systemd-journal"; then in_journal="true"; fi
     verify_state "true" "${in_ioc}" "Operator is an ioc-group member (sudoers gate reachable)"
     verify_state "false" "${in_journal}" "Operator is NOT in systemd-journal"
+
+    # #161: a second ioc-group member regenerates an identical configuration
+    # that root generated. The runner rewrites it through the staged rename,
+    # which needs only directory write permission, so the operator takes the
+    # file over with -f instead of failing on chmod, which only the owner may
+    # run; the file ends with the system-mode 0660 and the operator as owner.
+    # The owner before the operator's run is part of the state, so a root
+    # generate that left no file cannot pass through the no-file path.
+    local regen_dir="${WORKSPACE}/regenerate_ioc"
+    local regen_conf="${regen_dir}/regenerate_ioc.conf"
+    local regen_rc=0 regen_before="" regen_state=""
+    mkdir -p "${regen_dir}"
+    chown "${OWNER_WORKSPACE}" "${regen_dir}"
+    chmod 2775 "${regen_dir}"
+    printf '#!%s\n' "${softioc_bin}" > "${regen_dir}/st.cmd"
+    chown "${OWNER_WORKSPACE}" "${regen_dir}/st.cmd"
+    chmod 0775 "${regen_dir}/st.cmd"
+    (cd "${regen_dir}" && bash "${RUNNER_SCRIPT}" generate .) >/dev/null 2>&1 || true
+    regen_before=$(stat -c '%U' "${regen_conf}" 2>/dev/null || printf 'missing')
+    runuser -u "${operator}" -- bash -c 'cd "$1" && bash "$2" -f generate .' _ "${regen_dir}" "${RUNNER_SCRIPT}" \
+        >/dev/null 2>&1 < /dev/null || regen_rc=$?
+    regen_state="${regen_before} ${regen_rc} $(stat -c '%a %U' "${regen_conf}" 2>/dev/null || printf 'missing')"
+    verify_state "root 0 660 ${operator}" "${regen_state}" "Second operator takes over an identical conf with -f (#161)"
+    rm -rf "${regen_dir}"
 
     local bad_ioc_name="JournalLessIOC-SYS"
     local bad_ioc_dir="${WORKSPACE}/journalless_ioc"

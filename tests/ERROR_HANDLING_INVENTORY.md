@@ -226,9 +226,9 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S03 | `error-handling.S03.view-without-target-exits-1` | `BEHAVIOR` | `real-path` | 'view' without target exits 1 |
 | S04 | `error-handling.S04.generate-native-dot-path-resolves-successfully` | `BEHAVIOR` | `real-path` | Generate native dot path resolves successfully |
 | S04 | `error-handling.S04.configuration-artifact-created-dynamically` | `BEHAVIOR` | `real-path` | Configuration artifact created dynamically |
-| S04 | `error-handling.S04.identical-artifact-natively-bypasses-overwrite-and-exits-0` | `BEHAVIOR` | `real-path` | Identical artifact natively bypasses overwrite and exits 0 |
-| S04 | `error-handling.S04.identical-re-generate-takes-the-skip-path` | `BEHAVIOR` | `real-path` | Identical re-generate takes the skip path |
-| S04 | `error-handling.S04.identical-skip-reasserts-conf-mode-0600-123` | `BEHAVIOR` | `real-path` | Identical-skip reasserts conf mode 0600 (#123) |
+| S04 | `error-handling.S04.identical-re-generate-exits-0-without-a-question` | `BEHAVIOR` | `real-path` | Identical re-generate exits 0 without a question |
+| S04 | `error-handling.S04.identical-re-generate-reports-unchanged-content` | `BEHAVIOR` | `real-path` | Identical re-generate reports unchanged content |
+| S04 | `error-handling.S04.identical-re-generate-restores-conf-mode-0600-123` | `BEHAVIOR` | `real-path` | Identical re-generate restores conf mode 0600 (#123) |
 | S04 | `error-handling.S04.differential-artifact-prompt-exits-1-on-eof` | `BEHAVIOR` | `real-path` | Differential artifact prompt exits 1 on EOF |
 | S04 | `error-handling.S04.differential-artifact-prompt-exits-1-on-user-decline` | `BEHAVIOR` | `real-path` | Differential artifact prompt exits 1 on user decline |
 | S04 | `error-handling.S04.forced-overwrite-ignores-diff-constraint-and-exits-0` | `BEHAVIOR` | `real-path` | Forced overwrite ignores diff constraint and exits 0 |

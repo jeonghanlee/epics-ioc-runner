@@ -307,6 +307,7 @@ mechanism.
 
 ### 1. Zero-Config & Automation Pipeline
 * **Auto-Generation (`generate .`)**: Validates dynamic configuration creation by scanning native EPICS directory structures (`iocBoot/iocName/st.cmd`) without requiring manual file authoring.
+* **Re-generation**: An identical re-generate by the file's owner rewrites the configuration without a question and restores its mode (error-handling S04); a second `ioc` group operator takes over, with `-f`, an identical configuration that root generated, leaving mode 0660 and the operator as owner (system-lifecycle S27).
 * **Directory-based Routing (`install .`)**: Verifies that the runner can implicitly resolve and install configuration artifacts based on the current working directory's basename.
 * **2x2 Cross-Validation Matrix**: Ensures absolute routing stability by testing all four deployment combinations:
   1. Manual Gen $\rightarrow$ Explicit Install

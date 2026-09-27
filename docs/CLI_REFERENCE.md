@@ -247,3 +247,29 @@ The `monitor` command establishes a strictly uni-directional session, designed f
   - Uses the native `-r` (read-only) flag if the primary `con` client supports it.
   - **Fallback Architecture**: If `con` is unavailable or lacks `-r`, the runner uses `socat`. A `con` without `-r` produces a warning when falling back to `socat`. If no read-only client is available, the command fails with an installation hint.
     - **socat**: Executes `socat -u UNIX-CONNECT:<path> STDOUT`. The `-u` (unidirectional) flag transfers data only from the socket to standard output; nothing is read from the terminal.
+
+## 6. `generate`
+
+`ioc-runner [--local|--container] [-f] generate <dir>` writes `<dir>/<name>.conf`,
+where `<name>` is the directory's basename, for the executable `*.cmd` startup
+script in `<dir>`. When there are several, it asks which one to use. The
+configuration is staged in `<dir>` and renamed into place, so the directory must
+be writable by the invoking user; system and container mode write mode `0660`,
+local mode `0600`.
+
+| Existing `<name>.conf` | Result |
+| --- | --- |
+| None | Written; exit 0. |
+| Identical content, owned by the invoking user | Rewritten without a question, which restores the mode; exit 0. |
+| Identical content, owned by another user | Names that owner (the account name, or the numeric UID when no account exists) and asks before rewriting. `y` rewrites it; a refusal or a closed standard input exits 1 and leaves the file unchanged. |
+| Different content | Shows the difference and asks before overwriting. `y` overwrites it; a refusal or a closed standard input exits 1 and leaves the file unchanged. |
+
+- **Forced mode**: `-f` skips every question, for configuration management and
+  CI/CD use: it selects the first of several startup scripts in name order and
+  rewrites or overwrites an existing configuration.
+- **Ownership**: every rewrite replaces the file, so the invoking user becomes
+  its owner, and the file takes its group from the directory. In the documented
+  shared payload tree (`root:ioc`, mode `2775`, see
+  [INSTALL.md](INSTALL.md#4-shared-deployment-directory-setup-optepics-iocs))
+  the group stays `ioc`, so any `ioc` group member can regenerate an IOC another
+  member created, including one whose creator's account no longer exists.

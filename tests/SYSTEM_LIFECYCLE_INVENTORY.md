@@ -37,7 +37,7 @@ S03, and S04 are setup-only STEPs and own no checks.
 - S26 softIoc availability governs all nineteen crash-detection and
   restart-supervision checks. The verified-child SIGKILL condition governs the
   seven recovery observations that follow it.
-- S27 softIoc and probe-user-name prerequisites govern its four behavior
+- S27 softIoc and probe-user-name prerequisites govern its five behavior
   checks.
 - S28 the installed policy, softIoc, and logrotate conditions govern its ten
   behavior checks.
@@ -131,6 +131,7 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S27 | `system-lifecycle.S27.probe-user-name-available` | `PREREQUISITE` | `direct-inspection` | The journal-less probe user name is not already in use. |
 | S27 | `system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable` | `BEHAVIOR` | `real-path` | Operator is an ioc-group member (sudoers gate reachable) |
 | S27 | `system-lifecycle.S27.operator-is-not-in-systemd-journal` | `BEHAVIOR` | `real-path` | Operator is NOT in systemd-journal |
+| S27 | `system-lifecycle.S27.second-operator-takes-over-an-identical-conf-with-f-161` | `BEHAVIOR` | `real-path` | Second operator takes over an identical conf with -f (#161) |
 | S27 | `system-lifecycle.S27.journal-less-operator-crash-exit-1` | `BEHAVIOR` | `real-path` | Journal-less operator: crash -> exit 1 |
 | S27 | `system-lifecycle.S27.journal-less-operator-failed-to-initialize-verdict-reads-log-file-not-journal` | `BEHAVIOR` | `real-path` | Journal-less operator: failed-to-initialize verdict (reads log file, not journal) |
 | S28 | `system-lifecycle.S28.logrotate-policy-exists` | `REQUIRED` | `direct-inspection` | The installed procServ logrotate policy exists. |

@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, #160, and #162 are closed and #161 is open under it
 
-Next session entry point: M1 through M5 and M7 are Complete, and #157, #158, #159, #160, and #162 are closed. The remaining work is M6 (#161): its plan in the M6 detail is reviewed and awaits acceptance and implementation authorization; then implement and verify it. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M5 and M7 are Complete, and #157, #158, #159, #160, and #162 are closed. The remaining work is M6 (#161), whose accepted plan is being implemented; verify it, land it, and close #161. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -33,7 +33,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 | Console | M4 | Reject ctrl-[ as a detach key (#160) | Milestone | Complete | — | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
-| Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Not started | No | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
+| Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | In progress | No | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 
 ### Decisions
@@ -1182,7 +1182,7 @@ Superseded Plan Artifacts: none
 Origin: 1.4.2 / M6
 Identity History: none
 GitHub Issue: #161, https://github.com/jeonghanlee/epics-ioc-runner/issues/161
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1260,9 +1260,9 @@ Out of scope: changes to the differing-content path, to the
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-26, owner direction
+Implementation Authorization: 2026-09-26, owner direction
 Superseded Plan Artifacts: none
 
 1. In `do_generate`, on identical content, print the `already up-to-date
@@ -1309,12 +1309,57 @@ Superseded Plan Artifacts: none
 
 ##### Verification Results
 
+Observed on 2026-09-26 (UTC) with the working tree based on `1c62846`. The
+development host ran the error-handling suite: 249 of 249 passed, including
+the three renamed S04 checks.
+
+- T1 on both test consumers, with the working-tree runner copied to a
+  temporary path and a `root:ioc 2775` directory under `/opt/epics-iocs`: a
+  configuration generated by `opa` and regenerated identically by `opb`
+  without `-f` on a closed standard input printed `It is owned by opa;
+  rewriting it makes opb the owner.`, exited 1, and left `opa:ioc 660` with
+  no temporary file; a refusal exited 1 and left the loosened `666` mode;
+  `-f` exited 0 with `opb:ioc 660`; `opb` as owner, after loosening the mode,
+  exited 0 without a question and restored `660`; `opa` answering `y` took
+  it back; after a temporary `ioc` user took it over with `-f` and was
+  deleted, `opa` was told `It is owned by UID 1006` and exited 1 on a closed
+  standard input.
+- T2 on the Debian 13 test consumer, system-lifecycle in source mode from
+  two pushed copies of the working tree: with `bin/ioc-runner` from `1c62846`
+  the suite reported 167 of 168 with only
+  `S27.second-operator-takes-over-an-identical-conf-with-f-161` failing,
+  `expected root 0 660 epics-t1-operator, actual root 1 660 root`; with the
+  changed runner it reported 168 of 168 and `Suite State: PASS`. The check
+  records the owner before the operator's run, so a root generate that left
+  no file cannot pass through the no-file path; this run follows that
+  change, after an earlier run of the check without it gave the same
+  verdicts.
+- T3 on both test consumers after `gate/drivers/push.bash` and
+  `bin/run-setup-system-infra.bash --full`, with the installed runners at
+  `1c62846-dirty`: the first matrix failed only on the expected identity
+  mismatch, with 1027 checks per host and no FAIL, SKIP, or `SCRIPT_ERROR`.
+  `EXPECTED_IDENTITY_SHA256` is now
+  `34c01b1f4f4eebc8b69d29c81133a24cbb7bbef2a60e3636cd2725871c5e77d3`. The
+  confirming run reported `GATE SUITES PASS hosts=2`. After the check
+  gained its before-owner field, which keeps its identifier, the matrix was
+  rerun on the final tree without another repin and again reported
+  `GATE SUITES PASS hosts=2` with 1027 checks per host; NA counts (5 on
+  Debian, 12 on Rocky) match the earlier accepted runs. Evidence directory:
+  `work/gate-suites-20260926T204823Z-2765468/`. Combined machine record
+  SHA-256, Debian
+  `ab54f4e57cce9f636f3f0f92856b12bb5cfe05d3feb0b08645587e7d71c4c0a4`, Rocky
+  `22ee8d8fabdf8e40a3d77cb3df5c7ae007ad0ccb4a740c286b83e5ccfabd1c41`.
+- T4 on the development host: each row of the `generate` table in
+  `docs/CLI_REFERENCE.md` section 6, the `-f` bypass, and the ownership and
+  group statements match the T1 observations; the differing-content row
+  matches the unchanged S04 prompt checks.
+
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Test consumer | Pending | none |
-| T2 | Not run | Test consumer | Pending | none |
-| T3 | Not run | Both test consumers | Pending | none |
-| T4 | Not run | Development host | Pending | none |
+| T1 | 2026-09-26T19:59:25Z | Both test consumers | PASS | Every case matched the Test Plan on Debian 13 and Rocky 8.10 |
+| T2 | 2026-09-26T20:48:22Z | Debian 13 test consumer | PASS | FAIL on the old runner with the `chmod` exit, PASS on the change; 168 checks |
+| T3 | 2026-09-26T20:55:25Z | Both test consumers | PASS | Identity mismatch only before the repin; `GATE SUITES PASS hosts=2` after it |
+| T4 | 2026-09-26T20:19:59Z | Development host | PASS | Every documented case matches the observed behavior |
 
 ##### Closure Evidence
 

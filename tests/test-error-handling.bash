@@ -56,9 +56,9 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S03|error-handling.S03.view-without-target-exits-1|BEHAVIOR|real-path"
     "S04|error-handling.S04.generate-native-dot-path-resolves-successfully|BEHAVIOR|real-path"
     "S04|error-handling.S04.configuration-artifact-created-dynamically|BEHAVIOR|real-path"
-    "S04|error-handling.S04.identical-artifact-natively-bypasses-overwrite-and-exits-0|BEHAVIOR|real-path"
-    "S04|error-handling.S04.identical-re-generate-takes-the-skip-path|BEHAVIOR|real-path"
-    "S04|error-handling.S04.identical-skip-reasserts-conf-mode-0600-123|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-re-generate-exits-0-without-a-question|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-re-generate-reports-unchanged-content|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-re-generate-restores-conf-mode-0600-123|BEHAVIOR|real-path"
     "S04|error-handling.S04.differential-artifact-prompt-exits-1-on-eof|BEHAVIOR|real-path"
     "S04|error-handling.S04.differential-artifact-prompt-exits-1-on-user-decline|BEHAVIOR|real-path"
     "S04|error-handling.S04.forced-overwrite-ignores-diff-constraint-and-exits-0|BEHAVIOR|real-path"
@@ -642,21 +642,24 @@ function test_generate_logic {
     if [[ -f "${conf_file}" ]]; then conf_exists="true"; fi
     verify_state "true" "${conf_exists}" "Configuration artifact created dynamically"
 
-    # Evaluates the internal cmp -s integration bypassing identical configuration files.
-    exit_code=$(cd "${test_dir}" && _run bash "${RUNNER_SCRIPT}" --local generate .)
-    verify_exit_code "0" "${exit_code}" "Identical artifact natively bypasses overwrite and exits 0"
+    # An identical re-generate by the file's owner rewrites the conf through
+    # the staged rename without asking (#161): with standard input closed, a
+    # question would end in exit 1.
+    exit_code=$(cd "${test_dir}" && _run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate . < /dev/null")
+    verify_exit_code "0" "${exit_code}" "Identical re-generate exits 0 without a question"
 
-    # Issue #123: the identical-skip must still reassert the conf mode, or a
-    # hand-loosened permission survives the re-generate. Loosen to a different
-    # mode, re-generate identical content, and confirm both that the skip path
-    # actually ran (the "Identical" marker guards against a vacuous green from
-    # the write path) and that the mode is restored to the local-mode 0600.
+    # Issue #123: the identical re-generate must reassert the conf mode, or a
+    # hand-loosened permission survives it. Loosen to a different mode,
+    # re-generate identical content, and confirm both that the identical path
+    # ran (the "Identical" marker guards against a vacuous green from the
+    # differing-content path) and that the mode is restored to the local-mode
+    # 0600.
     chmod 0666 "${conf_file}"
-    local identical_out skip_ran="false"
-    identical_out=$(cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . 2>&1)
-    if printf "%s" "${identical_out}" | grep -q "already up-to-date (Identical)"; then skip_ran="true"; fi
-    verify_state "true" "${skip_ran}" "Identical re-generate takes the skip path"
-    verify_state "600" "$(stat -c %a "${conf_file}")" "Identical-skip reasserts conf mode 0600 (#123)"
+    local identical_out identical_ran="false"
+    identical_out=$(cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . < /dev/null 2>&1)
+    if printf "%s" "${identical_out}" | grep -q "already up-to-date (Identical)"; then identical_ran="true"; fi
+    verify_state "true" "${identical_ran}" "Identical re-generate reports unchanged content"
+    verify_state "600" "$(stat -c %a "${conf_file}")" "Identical re-generate restores conf mode 0600 (#123)"
 
     # Evaluates the ANSI diff engine and interactive prompt behavior using a mocked non-interactive shell.
     printf "\n# Modified\n" >> "${conf_file}"
