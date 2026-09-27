@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 are Complete, and #157 through #162 are closed. The remaining work is M8, the documentation rewrite, which lands in 1.4.2: write its plan in the M8 detail, settle the open questions there, and have it accepted before implementation. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 are Complete, and #157 through #162 are closed. The remaining work is M8, the documentation rewrite, which lands in 1.4.2, and M9, the multi-user gate extension, which also lands before the release Gate. M9's plan is accepted and awaits implementation authorization, and M9 is Blocked on G1, the `opc` fixture account from ansible-provision; M8's plan is still to be written. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -36,6 +36,8 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Complete | — | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 | Documentation | M8 | Rewrite the published documentation from the current code | Milestone | Not started | No | M6 | Every page of the mdBook site is rewritten from the current runner, setup script, and templates for the operator who installs and runs IOCs, without carrying the previous text forward, and every command and output it shows is checked against a real run; [detail](#m8---rewrite-the-published-documentation-from-the-current-code) |
+| Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Blocked | No | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
+| Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Open | No | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers and the next iocrunner bake carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 
 ### Decisions
 
@@ -1559,6 +1561,198 @@ To be written after the open questions above are settled.
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | To be defined | Pending | none |
+
+##### Closure Evidence
+
+None.
+
+#### M9 - Extend the multi-user gate to the 1.4.1 and 1.4.2 changes
+
+Origin: 1.4.2 / M9
+Identity History: none
+GitHub Issue: none
+Status: Blocked
+
+##### Summary
+
+The multi-user contract in `gate/RUNBOOK.md` (L1-L3 in local mode, S1-S11 in
+system mode) predates the 1.4.1 and 1.4.2 changes. A survey of its drivers
+on 2026-09-27 found these changes exercised by the per-suite checks but not
+by any multi-user scenario:
+
+- `ioc-runner log` (1.4.1, #154): S5 reads the service log with `stat` and a
+  direct read, never through the command.
+- The site environment file `site.env` (1.4.1, #152): no scenario writes it
+  as one operator and observes it in another operator's IOC.
+- Console detach keys, the `^D^C` ignore set, and the rejected `ctrl-[`
+  (1.4.2, #157, #160): S4 and S10 attach and monitor with the default key
+  only; no scenario runs two operators' consoles on one IOC at once, a
+  custom key, or `Ctrl-C` and `Ctrl-D` from a console against a shared IOC.
+- `generate` by another operator (1.4.2, #161): S2 appends to the installed
+  configuration only; no scenario regenerates a payload directory another
+  operator created.
+- The sequence an operator follows in practice: one operator tests an IOC in
+  local mode, installs it as a system service, and a second operator stops
+  it, edits `st.cmd`, regenerates, runs it by hand, and returns it to the
+  service. S7 runs its manual run as the same operator, and no scenario
+  moves a payload directory between local and system mode, where the
+  configuration's mode check refuses the other mode's file.
+
+##### Scope
+
+- Add or extend multi-user scenarios for the items above, with their
+  expected results in the Multi-User Contract of `gate/RUNBOOK.md`, their
+  drivers under `gate/drivers/`, and any runner fix a scenario exposes as a
+  separate owner decision.
+
+Out of scope: the six-suite matrix itself, the per-suite checks, and runner
+behavior changes not required by a failing scenario.
+
+##### Completion Criteria
+
+- Each accepted item has a scenario ID, a driver, and an expected result in
+  the Multi-User Contract.
+- The complete multi-user driver (`gate/drivers/control/run-all.bash`) passes
+  on both test consumers.
+
+##### Dependencies And Decisions
+
+- Owner direction 2026-09-26: strengthen the gate for the 1.4.1 and 1.4.2
+  changes, especially the multi-user scenarios, and record it in the
+  milestone.
+- The iocsh history behavior across principals is documented in FAQ Q13 (M7,
+  D9); a scenario observes it as a benign startup message, not as a new
+  runner behavior.
+- Owner direction 2026-09-27: every one of the five items above becomes a
+  multi-user scenario.
+- Probe on both test consumers at 2026-09-27T22:39:27Z, with a temporary
+  system IOC installed by `opa`: `opb`'s `ioc-runner log <ioc> -n 3` exited 0
+  with the IOC's last lines; `obs`'s exited 1 with the ioc-membership message
+  in plan item 2, and `obs` read the `ioc-srv:ioc 0644` log file directly.
+  Owner direction 2026-09-27: take these observed results as S12's expected
+  ones; the runner is unchanged.
+- Owner direction 2026-09-27: give the new items new scenario IDs and keep
+  S1-S11 and L1-L3 unchanged; run the practical operator sequence as one
+  scenario, L4, because its point is the state carried between steps; and
+  land M9 before the 1.4.2 release Gate, which runs the same driver.
+- L4 needs one principal in both the `ioc` group and local mode. The fixture
+  accounts give linger only to `usera` and `userb`, which are outside `ioc`.
+  Owner direction 2026-09-27: add a fixture account for it rather than
+  change linger on an existing one. The account is `opc`, a third operator
+  in `ioc` with linger; `opa` and `opb` keep their roles. The accounts are
+  created by the `testusers` role in ansible-provision, so the account is
+  external gate G1, and M9 is Blocked on it; resume as Not started.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-09-27, owner direction
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Add `opc` and L4's IOC name, `mioc1`, to `gate/drivers/identities.bash`,
+   with the principal assignments of every new scenario; teach
+   `gate/drivers/control/cleanup.bash` and `leftovers.bash` the name and
+   `opc`'s local state; and add `opc` to the fixture table, the fixture
+   check, and its required results in `gate/RUNBOOK.md`. Closed by T3.
+2. S12, `ioc-runner log` on the shared IOC: the second operator's
+   `ioc-runner log <ioc> -n 3` exits 0 and prints the IOC's last lines; the
+   observer's same command exits 1 with `Cannot read /etc/procServ.d to
+   resolve IOC '<ioc>' (ioc group membership required).`, while the
+   observer can still read the log file directly, because procServ creates
+   it `ioc-srv:ioc 0644` as `docs/INSTALL.md` states. Closed by T1.
+3. S13, `site.env`: the first operator writes a distinctive variable into
+   `/etc/procServ.d/site.env`; the second operator restarts the shared IOC,
+   attaches, and reads the value with `epicsEnvShow <VAR>`; the observer's
+   write is refused. The scenario saves any `site.env` that existed before
+   it and restores it, or removes the file when none existed, before the
+   next scenario. Closed by T1.
+4. S14, consoles on one IOC: the first operator attaches with
+   `--detach-key ctrl-b` while the second operator monitors; the attach
+   sends `Ctrl-C` and `Ctrl-D`, which the IOC ignores with its procServ and
+   IOC process IDs unchanged and the unit active; a command the attach
+   types, such as `dbl`, shows its output in the monitor's capture; after
+   the attach detaches with its key, the monitor process is still running
+   and still connected to the socket; and an attach with
+   `--detach-key ctrl-[` is refused before connecting.
+   Closed by T1.
+5. S15, `generate` by another operator: the second operator regenerates the
+   shared IOC's payload that the first operator generated, first without
+   `-f` on a closed standard input, which names the first operator, exits 1,
+   and leaves the file, then with `-f`, which exits 0 and leaves mode 0660,
+   group `ioc`, and the second operator as owner. Closed by T1 and T2.
+6. L4, the operator sequence on its own IOC under `/opt/epics-iocs`, with
+   only one mode running the IOC at a time:
+   - `opc` generates, installs, starts, and stops the IOC in local mode.
+   - `opc` runs a system `install` of the local-mode configuration, which is
+     refused with `Configuration mode mismatch`; `-f generate` in system
+     mode rewrites it, and `install` and `start` succeed.
+   - `opb` stops the service, appends a line to `st.cmd`, regenerates with
+     `-f`, runs `st.cmd` by hand, and starts the service again.
+   - `opc` stops the service; a local `install` of the system-mode
+     configuration is refused with `Configuration mode mismatch`;
+     `--local -f generate`, `--local install`, `start`, and `stop` succeed.
+   - `opc` returns it to system mode the same way and starts it.
+
+   Every step's exit code, both refusals, the active service at the end, and
+   the absence of a crash warning are recorded; the iocsh history loading
+   message is expected and benign (FAQ Q13). Closed by T1.
+7. Run S12-S15 after S11 against the surviving shared IOC and before S9,
+   and L4 after S7 on its own IOC; extend `tally` in
+   `gate/drivers/control/lib.bash` to nineteen IDs; add the five rows to the
+   Multi-User Contract and replace "fourteen" in its driver contract in
+   `gate/RUNBOOK.md`. Closed by T1 and T3.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | multi-user | Complete `gate/drivers/control/run-all.bash` after cleanup and a `P-LEFTOVERS PASS` | Both test consumers | `VERDICT RUN PASS` with nineteen scenarios, each new scenario PASS with its recorded detail |
+| T2 | regression | On one test consumer, install the runner from `1c62846` with `bin/run-setup-system-infra.bash --full` from that commit's tree, run the shared-IOC setup and the S15 driver alone, then reinstall the current runner the same way and run them again | Test consumer | S15 FAIL on the `chmod` exit with the old runner; PASS with the current one; the consumer ends on the current runner |
+| T3 | static | `bash -n` and ShellCheck on every changed driver; compare the contract rows, `tally`, run order, and identities | Development host | All pass; nineteen IDs agree across the four places |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Both test consumers | Pending | none |
+| T2 | Not run | Test consumer | Pending | none |
+| T3 | Not run | Development host | Pending | none |
+
+##### Closure Evidence
+
+None.
+
+#### G1 - Test fixture account `opc` in `ioc` with linger
+
+Origin: 1.4.2 / G1
+Identity History: none
+GitHub Issue: none
+Status: Open
+
+##### Summary
+
+M9's L4 scenario needs one account that is both an `ioc` group member and a
+local-mode user with systemd linger. The fixture accounts come from the
+`testusers` role of ansible-provision (`roles/testusers/`), baked into the
+iocrunner golden: `opa` and `opb` are operators without linger, and `usera`
+and `userb` have linger but are outside `ioc`.
+
+##### Completion Condition
+
+- The `testusers` role creates `opc` in the `ioc` group with linger enabled.
+- Both reused test consumers carry `opc`, and the next iocrunner bake used
+  for the release Gate carries it.
+
+##### Verification Results
+
+Checked on both test consumers with `id -nG opc`, which must list `ioc`,
+and the presence of `/var/lib/systemd/linger/opc`, the same form as the
+fixture check in `gate/RUNBOOK.md`.
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| Not run | Pending | none |
 
 ##### Closure Evidence
 
