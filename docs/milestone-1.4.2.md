@@ -5,9 +5,9 @@ Milestone index: 1.4.2
 Canonical path: `docs/milestone-1.4.2.md`
 Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
-Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157, #158, #159, #160, and #162 are closed and #161 is open under it
+Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M5 and M7 are Complete, and #157, #158, #159, #160, and #162 are closed. The remaining work is M6 (#161), whose accepted plan is being implemented, and M8, the documentation rewrite, which lands in 1.4.2 and whose plan is still to be written after M6. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 are Complete, and #157 through #162 are closed. The remaining work is M8, the documentation rewrite, which lands in 1.4.2: write its plan in the M8 detail, settle the open questions there, and have it accepted before implementation. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -33,7 +33,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Reporting | M3 | Refresh the reporting self-test's stale expectations (#158) | Milestone | Complete | — | none | The reporting self-test passes, its two expectations derive from their sources, and the gate matrix runs all three self-tests; [detail](#m3---refresh-the-reporting-self-tests-stale-expectations) |
 | Console | M4 | Reject ctrl-[ as a detach key (#160) | Milestone | Complete | — | D2 | `--detach-key ctrl-[` fails before connection, the documented key list omits it, and the S41 catalog proves the rejection; [detail](#m4---reject-ctrl--as-a-detach-key) |
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
-| Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | In progress | No | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
+| Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Complete | — | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 | Documentation | M8 | Rewrite the published documentation from the current code | Milestone | Not started | No | M6 | Every page of the mdBook site is rewritten from the current runner, setup script, and templates for the operator who installs and runs IOCs, without carrying the previous text forward, and every command and output it shows is checked against a real run; [detail](#m8---rewrite-the-published-documentation-from-the-current-code) |
 
@@ -1183,7 +1183,7 @@ Superseded Plan Artifacts: none
 Origin: 1.4.2 / M6
 Identity History: none
 GitHub Issue: #161, https://github.com/jeonghanlee/epics-ioc-runner/issues/161
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1364,17 +1364,25 @@ the three renamed S04 checks.
 
 ##### Closure Evidence
 
-None.
+- The runner change, the CLI reference section, the renamed S04 checks, the
+  S27 check, the catalog, inventories, test documentation, the identity
+  repin, and this detail landed in `458403f` on `release-1.4.2`.
+- Verification: T1-T4 passed as recorded above.
+- Landing: `git fetch` at 2026-09-27T06:02:33Z observed
+  `origin/release-1.4.2` at `065e438b5bc8d65718d66ba43066c37e22b417bf`,
+  which contains `458403f`.
+- Linked issue: #161 body updated with the resolution and checked acceptance
+  criteria, and closed as completed at 2026-09-27T09:53:36Z.
 
 ##### GitHub Projection
 
 Title: generate fails for a non-owner when the existing configuration is identical
 Labels: bug, P2-medium, area/permissions
 GitHub Milestone: 1.4.2
-Observed State: open
+Observed State: closed (completed)
 Observed Labels: bug, P2-medium, area/permissions
 Observed Milestone: 1.4.2 (19)
-Last Compared: after 2026-09-26T19:18:34Z with `gh issue view 161`; issue updated at 2026-09-26T19:18:34Z; the body projects this detail's Summary, Scope, and Completion Criteria, including D11
+Last Compared: after 2026-09-27T09:53:36Z with `gh issue view 161`; issue updated at 2026-09-27T09:53:36Z; the body carries the resolution and checked acceptance criteria
 
 #### M7 - Document iocsh history ownership across principals
 
