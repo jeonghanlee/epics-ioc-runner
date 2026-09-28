@@ -21,14 +21,16 @@ GATE_OP_B="opb"          # second operator, in the ioc group
 GATE_OBS="obs"           # observer, NOT in the ioc group - the negative control
 GATE_USER_A="usera"      # local user A, lingering
 GATE_USER_B="userb"      # local user B, lingering
+GATE_OP_C="opc"          # third operator, in the ioc group AND lingering: L4 runs one IOC in both modes
 
 # ------------------------------------------------------------- ioc names -----
 GATE_IOC_L_DUP="lioc1"   # installed under the same name by BOTH local users, for L1
 GATE_IOC_L_OWNED="lioc2" # the owner's uniquely named local IOC - the L2 and L3 target
-GATE_IOC_SHARED="sioc1"  # the one shared system IOC: S1 S2 S5 S6 S10 S11, destroyed by S4
+GATE_IOC_SHARED="sioc1"  # the one shared system IOC: S1 S2 S5 S6 S10-S15, destroyed by S4
 GATE_IOC_S9="sioc9"      # S9 only; system-mode configuration with the payload in a home
 GATE_IOC_S8="sioc8"      # S8's own IOC, which carries the crash token; then opa's half of S3
 GATE_IOC_FRESH="sioc7"   # the fresh IOC: opb's half of S3, and all of S7
+GATE_IOC_MODE="mioc1"    # L4 only; moved between local and system mode under /opt/epics-iocs
 
 # ------------------------------------------------------------- S8 token ------
 # A nonsense string of letters. A token an ordinary log line could carry is
@@ -55,3 +57,13 @@ GATE_S3_OP_A_IOC="${GATE_IOC_S8}"       # in S3 each operator acts on the IOC it
 GATE_S3_OP_B_IOC="${GATE_IOC_FRESH}"
 GATE_S7_ACTOR="${GATE_OP_B}"            # owns the fresh IOC
 GATE_S7_OBSERVER="${GATE_OP_A}"         # one principal cannot both move the state and observe it
+GATE_S12_READER="${GATE_OP_B}"          # reads the shared IOC's log through the command
+GATE_S12_OBSERVER="${GATE_OBS}"         # outside ioc: the command refuses, the 0644 file does not
+GATE_S13_WRITER="${GATE_OP_A}"          # writes site.env, then restores it
+GATE_S13_READER="${GATE_OP_B}"          # restarts the shared IOC and reads the value from its shell
+GATE_S13_OBSERVER="${GATE_OBS}"         # outside ioc: cannot write site.env
+GATE_S14_ATTACH="${GATE_OP_A}"          # attaches with a custom detach key
+GATE_S14_MONITOR="${GATE_OP_B}"         # monitors the same IOC at the same time
+GATE_S15_ACTOR="${GATE_OP_B}"           # regenerates the payload the first operator generated
+GATE_L4_OWNER="${GATE_OP_C}"            # tests in local mode and moves the IOC between modes
+GATE_L4_PEER="${GATE_OP_B}"             # stops, edits, regenerates, runs by hand, restarts

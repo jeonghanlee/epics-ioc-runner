@@ -137,17 +137,21 @@ state from this runbook.
 
 The Golden `P_testusers` operator provides the multi-user accounts, and
 `P_iocrunner` provides the shared IOC infrastructure. This runbook verifies the
-result and never creates or repairs it.
+result and never creates or repairs it. `opc` exists only in iocrunner bakes
+made at ansible-provision `32ea95f` or later; a consumer from an earlier bake
+reports `FIXTURES FAIL` until the provisioning side adds it, with
+`make op.testusers.<vacuum>` from an ansible-provision checkout at `32ea95f` or
+later, or a newer bake replaces the consumer.
 
 ```bash
-ssh vmadmin@<host> 'ok=1; for u in opa opb; do getent group ioc | grep -qw "$u" || ok=0; done; getent passwd obs >/dev/null || ok=0; id -nG obs | grep -qw ioc && ok=0; for u in usera userb; do [ -e /var/lib/systemd/linger/$u ] || ok=0; done; [ "$(stat -c "%U:%G %a" /opt/epics-iocs)" = "root:ioc 2775" ] || ok=0; [ $ok -eq 1 ] && echo "FIXTURES OK" || echo "FIXTURES FAIL"'
+ssh vmadmin@<host> 'ok=1; for u in opa opb opc; do getent group ioc | grep -qw "$u" || ok=0; done; getent passwd obs >/dev/null || ok=0; id -nG obs | grep -qw ioc && ok=0; for u in usera userb opc; do [ -e /var/lib/systemd/linger/$u ] || ok=0; done; [ "$(stat -c "%U:%G %a" /opt/epics-iocs)" = "root:ioc 2775" ] || ok=0; [ $ok -eq 1 ] && echo "FIXTURES OK" || echo "FIXTURES FAIL"'
 ```
 
 Required to continue:
 
-- `opa` and `opb` belong to `ioc`;
+- `opa`, `opb`, and `opc` belong to `ioc`;
 - `obs` exists and does not belong to `ioc`;
-- `usera` and `userb` have systemd linger enabled; and
+- `usera`, `userb`, and `opc` have systemd linger enabled; and
 - `/opt/epics-iocs` is `root:ioc` with mode `2775`.
 
 ### 3. Candidate tree and installed runner
@@ -399,7 +403,7 @@ bash gate/drivers/control/run-all.bash vmadmin@<host>
 Required result: each host reports Pass for every printed `P-*` prerequisite
 verdict, Pass for every scenario in the Multi-User Contract below, and a final
 `VERDICT RUN PASS`. Prerequisite verdicts, including `P-LEFTOVERS`, are not
-included in the fourteen-scenario tally and must be reviewed separately.
+included in the nineteen-scenario tally and must be reviewed separately.
 
 ### 5. root_squash suite execution
 
@@ -507,7 +511,7 @@ Also record:
 - the baseline and three post-deployment configuration fingerprints, their
   SHA-256 digests, and all three successful comparisons; and
 - both complete multi-user `run-all.log` files and SHA-256 digests, including
-  every printed `P-*` verdict, all fourteen scenario verdicts, and the final
+  every printed `P-*` verdict, all nineteen scenario verdicts, and the final
   `VERDICT RUN`; and
 - both `root_squash` `--system --installed` suite logs, one per host, with their
   SHA-256 digests, their completion lines, and their appended `SYSTEM_RC`
@@ -568,9 +572,11 @@ consumers after they reach `iocrunner-nfs`.
 | `obs` | system | no | no | observer negative control |
 | `usera` | local | no | yes | local user A |
 | `userb` | local | no | yes | local user B |
+| `opc` | both | yes | yes | third operator, who moves one IOC between modes (L4) |
 
 `ioc-srv` is the non-login service account. System state changes require an
-operator in `ioc`; local mode remains per-user.
+operator in `ioc`; local mode remains per-user. `opc` is the one account that
+is both an `ioc` member and a lingering local user.
 
 ### Local-mode scenarios
 
@@ -579,6 +585,7 @@ operator in `ioc`; local mode remains per-user.
 | L1 | Session isolation | Both users may use the same IOC name, and each listing shows only the invoker's IOC. |
 | L2 | Cross-user interference | A peer cannot attach to or stop another user's IOC. |
 | L3 | Log isolation | A peer cannot stat or read another user's log; the owner observes mode `0640`. |
+| L4 | Mode carry-over | `opc` tests an IOC under `/opt/epics-iocs` in local mode and moves it to system mode, `opb` stops it, edits `st.cmd`, regenerates with `-f`, runs it by hand, and starts it, and `opc` moves it to local mode and back. Only one mode runs it at a time; each move's install of the other mode's configuration is refused with `Configuration mode mismatch` until `-f generate` rewrites it; every start is free of a crash warning, and the service ends active. |
 
 ### System-mode scenarios
 
@@ -595,6 +602,10 @@ operator in `ioc`; local mode remains per-user.
 | S9 | Working-directory conformance | An unwritable directory warns; a parent-reference path is rejected without override. |
 | S10 | Console access | Operators attach and monitor; observers and non-root inspect callers are denied at their defined gates. |
 | S11 | Sudo-version boundary | The emitted sudoers branch produces its documented malformed-name result. |
+| S12 | Log command | `opb`'s `ioc-runner log <ioc> -n 3` exits 0 with the IOC's last lines; `obs`'s exits 1 with `ioc group membership required`, while `obs` still reads the `ioc-srv:ioc 0644` log file directly. |
+| S13 | Site environment | `opa` writes a value into `/etc/procServ.d/site.env`, `opb` restarts the shared IOC and reads it with `epicsEnvShow`, `obs` cannot write the file, and `opa` returns it to its state before the scenario. |
+| S14 | Concurrent consoles | While `opb` monitors the shared IOC, `opa` attaches with `--detach-key ctrl-b`; a typed command's output reaches the monitor; `Ctrl-C` and `Ctrl-D` leave the procServ and IOC process IDs and the unit unchanged; the monitor survives the detach; `--detach-key ctrl-[` is refused before connecting. |
+| S15 | Regenerate by another operator | `opb` regenerates the shared IOC's payload that `opa` generated: without `-f` it names `opa`, exits 1, and leaves the file; with `-f` it exits 0 and leaves mode `0660`, group `ioc`, and `opb` as owner. |
 
 ### Driver contract
 
@@ -608,7 +619,7 @@ Every scenario prints:
 VERDICT <id> <PASS|FAIL> <detail>
 ```
 
-The final driver verdict must account for all fourteen scenario IDs. A missing
+The final driver verdict must account for all nineteen scenario IDs. A missing
 verdict is Fail, not an omitted result.
 
 Between Check-grade diagnostic reruns, use the shipped cleanup driver:
@@ -626,6 +637,15 @@ ssh vmadmin@<host> 'sudo -n rm -rf /opt/epics-iocs/<name>'
 ssh vmadmin@<host> 'sudo -n rm -rf /home/<user>/iocBoot/<name>'
 ```
 
+S13 writes a marked value into `/etc/procServ.d/site.env` and restores the
+file before the next scenario. A run cut off inside S13 can leave the line
+`GATE_S13_MARK=...`; remove that line, or the whole file when it holds nothing
+else, before the next run:
+
+```bash
+ssh vmadmin@<host> 'sudo -n sed -i "/^GATE_S13_MARK=/d" /etc/procServ.d/site.env'
+```
+
 Confirm the resulting state with the shipped reader:
 
 ```bash
@@ -633,7 +653,7 @@ bash gate/drivers/control/leftovers.bash vmadmin@<host>
 ```
 
 Required result: `P-LEFTOVERS PASS`. It requires successful reads and empty
-system, local, and payload state.
+system, local, and payload state, and no S13 value left in `site.env`.
 
 Gate-grade evidence always comes from the complete driver on the fresh pair,
 not from individual scenario reruns.

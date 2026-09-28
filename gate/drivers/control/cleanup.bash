@@ -28,6 +28,12 @@ capture cleanup-userb local_as 300 "${GATE_USER_B}" "${ub}" cleanup.bash \
     "${GATE_EPICS_ENV}" local "${GATE_USER_B}"
 relay cleanup-userb "P-CLEANUP-${GATE_USER_B}"
 
+# The third operator is a local-mode user as well, for L4.
+uc="$(gate_uid "${GATE_OP_C}")"
+capture cleanup-opc local_as 300 "${GATE_OP_C}" "${uc}" cleanup.bash \
+    "${GATE_EPICS_ENV}" local "${GATE_OP_C}"
+relay cleanup-opc "P-CLEANUP-${GATE_OP_C}"
+
 printf '%s\n' "### payload directories the runner does not reach"
 capture cleanup-payloads timeout 60 "${GATE_SSH[@]}" "${GATE_HOST}" \
     "ls -1 /opt/epics-iocs/ 2>&1; sudo -n ls -1 /home/${GATE_OP_A}/iocBoot /home/${GATE_OP_B}/iocBoot /home/${GATE_USER_A}/iocBoot /home/${GATE_USER_B}/iocBoot 2>&1"

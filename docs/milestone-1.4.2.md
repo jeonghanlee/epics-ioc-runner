@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 are Complete, and #157 through #162 are closed. The remaining work is M8, the documentation rewrite, which lands in 1.4.2, and M9, the multi-user gate extension, which also lands before the release Gate. M9's plan is accepted and awaits implementation authorization, and M9 is Blocked on G1, whose only open condition is an iocrunner bake carrying `opc`, requested from cloud-provision (`opc` already exists on both test consumers); M8's plan is still to be written. Then open the 1.4.2 release through release-cycle: run the release Gate on fresh consumers against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 are Complete, and #157 through #162 are closed. M9, the multi-user gate extension, is in progress on the two test consumers, which carry `opc` (G1 Complete). M8, the documentation rewrite, lands in 1.4.2; its plan is still to be written. Then open the 1.4.2 release through release-cycle once G2, an iocrunner bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -36,8 +36,9 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Complete | — | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 | Documentation | M8 | Rewrite the published documentation from the current code | Milestone | Not started | No | M6 | Every page of the mdBook site is rewritten from the current runner, setup script, and templates for the operator who installs and runs IOCs, without carrying the previous text forward, and every command and output it shows is checked against a real run; [detail](#m8---rewrite-the-published-documentation-from-the-current-code) |
-| Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Blocked | No | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
-| Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Open | No | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers and the next iocrunner bake carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
+| Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | In progress | No | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
+| Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
+| Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 
 ### Decisions
 
@@ -1571,7 +1572,7 @@ None.
 Origin: 1.4.2 / M9
 Identity History: none
 GitHub Issue: none
-Status: Blocked
+Status: In progress
 
 ##### Summary
 
@@ -1641,13 +1642,18 @@ behavior changes not required by a failing scenario.
   change linger on an existing one. The account is `opc`, a third operator
   in `ioc` with linger; `opa` and `opb` keep their roles. The accounts are
   created by the `testusers` role in ansible-provision, so the account is
-  external gate G1, and M9 is Blocked on it; resume as Not started.
+  external gate G1, and M9 was Blocked on it from 2026-09-27; resume as Not
+  started.
+- Owner direction 2026-09-28: split G1. G1 keeps the role change and the two
+  test consumers, both met, and is Complete, which lifts M9's block; the
+  bake that carries `opc` becomes G2, a condition of the 1.4.2 release Gate
+  and not of M9. Implementation is authorized the same day.
 
 ##### Implementation Plan
 
 Plan Status: accepted
 Plan Acceptance: 2026-09-27, owner direction
-Implementation Authorization: none
+Implementation Authorization: 2026-09-28, owner direction
 Superseded Plan Artifacts: none
 
 1. Add `opc` and L4's IOC name, `mioc1`, to `gate/drivers/identities.bash`,
@@ -1713,11 +1719,88 @@ Superseded Plan Artifacts: none
 
 ##### Verification Results
 
+Observed on 2026-09-28 (UTC) with the drivers in the working tree based on
+`7a33601` and the installed runners at `1c62846-dirty`, whose runner body is
+the landed `458403f` change.
+
+- T3 on the development host: `bash -n` and ShellCheck passed on every
+  changed and new driver; the only ShellCheck notice left is the existing
+  SC2016 information note in `gate/drivers/control/lib.bash`, present before
+  the change. The nineteen IDs agree across the Multi-User Contract rows, the
+  `tally` list, and the verdicts the drivers emit; every step in the
+  `run-all.bash` order has its driver; no "fourteen", `S1[01]`, or `L[1-3]`
+  remains under `gate/`, `tests/`, or `docs/` outside the registers.
+- Before T1, the cleanup driver passed on both test consumers for `opa`,
+  `usera`, `userb`, and `opc`, the named payload directories left by earlier
+  runs were removed, and `leftovers.bash` reported `P-LEFTOVERS PASS` on
+  both.
+- T1 on both test consumers, the complete `run-all.bash` run in parallel:
+  each host reported `VERDICT RUN PASS 19 scenarios: pass=19 fail=0
+  missing=none` and every `P-*` verdict PASS. S14 kept the procServ and IOC
+  process IDs across `Ctrl-C` and `Ctrl-D`, the monitor survived the detach
+  and received the attach's output, and `ctrl-[` never connected. Every L4
+  step passed: each move refused the other mode's configuration with
+  `Configuration mode mismatch` until `-f generate`, `opb` owned the
+  configuration after its takeover, the manual run printed one history
+  message, and no start raised a crash warning. Evidence directories:
+  `work/gate-multiuser-20260928T042630Z-150/` (Rocky 8.10) and
+  `work/gate-multiuser-20260928T042630Z-350/` (Debian 13); `run-all.log`
+  SHA-256, Rocky
+  `d28a7515c1201ba2b4134f508f1820192a445df0bd159e77e59bf03ba688b380`, Debian
+  `1be1158edd68f2b5b93e1703b6b27df18c74f14fa2665dae1c084c1074ce078f`.
+- T1 again on two fresh consumers created by cloud-provision on 2026-09-28
+  from the iocrunner bakes `iocrunner-rocky8-20260928T041905Z-37b54bf22f59`
+  and `iocrunner-debian13-20260928T042250Z-ad86c76f6ed5` (ansible-provision
+  `0b23811`, EPICS environment 1.3.0), after the runbook fixture check printed
+  `FIXTURES OK` on both and `gate/drivers/push.bash` and
+  `bin/run-setup-system-infra.bash --full` installed the runner at
+  `7a33601-dirty`: each host reported `VERDICT RUN PASS 19 scenarios:
+  pass=19 fail=0 missing=none`, with every `P-*` verdict PASS and every L4
+  step PASS. Evidence directories:
+  `work/gate-multiuser-20260928T043551Z-rocky8-opc/` and
+  `work/gate-multiuser-20260928T043551Z-debian13-opc/`; `run-all.log`
+  SHA-256, Rocky
+  `8bfaab0714e8c7fec5e0a21244ba872f3b95fecfce534d082c608973faad91fb`, Debian
+  `d1ac1372aa0908cdc3dbf0826ec4a06caceeb646e9f99e4650f5d7d83874a823`. This
+  is Check evidence on fresh consumers, not the release Gate: the bakes come
+  from work branches of both suppliers.
+- After the implementation review, the S14 monitor check gained a
+  connected-socket count: the descendants of the monitor's leader, read with
+  `ss -xp` as their owner, must hold at least one connected unix socket.
+  `script` runs its child in a session of its own, so the count follows
+  parent links; a first version that walked the session counted 0 on both
+  hosts while the monitor was connected. The shared-IOC setup and S14 were
+  rerun on both test consumers at 2026-09-28T04:56:52Z: S14 PASS on both,
+  with `connected unix sockets=1`, the procServ and IOC process IDs unchanged
+  across `Ctrl-C` and `Ctrl-D`, and no `opb` console process left afterwards.
+  Evidence directories: `work/gate-s14-20260928T045635Z-rocky8/` and
+  `work/gate-s14-20260928T045635Z-debian13/`.
+- After the second-person review of the implementation, `leftovers.bash`
+  also reads `/etc/procServ.d/site.env` for a `GATE_S13_MARK` line, which a
+  run cut off inside S13 would leave, and `gate/RUNBOOK.md` gained the
+  removal command and the note that `opc` exists only in bakes at
+  ansible-provision `32ea95f` or later. On the Rocky 8.10 test consumer at
+  2026-09-28T06:09:00Z, with no `site.env` present, the read reported
+  `site.env S13 marks=0`; with a temporary file holding one mark line it
+  reported `marks=1`, which fails `P-LEFTOVERS`; the runbook's `sed` command
+  removed the line, and the temporary file was then removed.
+- T2 on the Debian 13 test consumer: with the runner from `1c62846`
+  installed by full setup from that commit's tree, the shared-IOC setup
+  passed and S15 failed, `without -f rc=1 owner named=1`, `with -f rc=1
+  after=660 opa ioc`; after full setup from the current tree, the same run
+  passed with `660 opb ioc`. The consumer ended on the current runner, and
+  the temporary tree was removed. Evidence directories:
+  `work/gate-m9t2-20260928T042952Z-old/` and
+  `work/gate-m9t2-20260928T042952Z-new/`.
+- The runs leave payload directories under `/opt/epics-iocs` and the local
+  users' `~/iocBoot`, as the runbook states; they are to be cleared before
+  the next run.
+
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Both test consumers | Pending | none |
-| T2 | Not run | Test consumer | Pending | none |
-| T3 | Not run | Development host | Pending | none |
+| T1 | 2026-09-28T04:38:07Z | Both test consumers, and two fresh consumers from the 2026-09-28 bakes | PASS | `VERDICT RUN PASS`, nineteen scenarios on each of the four hosts |
+| T2 | 2026-09-28T04:30:09Z | Debian 13 test consumer | PASS | S15 FAIL on the `1c62846` runner, PASS on the current one |
+| T3 | 2026-09-28T04:24:51Z | Development host | PASS | Lint clean; nineteen IDs agree across the contract, `tally`, and the drivers |
 
 ##### Closure Evidence
 
@@ -1728,7 +1811,7 @@ None.
 Origin: 1.4.2 / G1
 Identity History: none
 GitHub Issue: none
-Status: Open
+Status: Complete
 
 ##### Summary
 
@@ -1741,8 +1824,10 @@ and `userb` have linger but are outside `ioc`.
 ##### Completion Condition
 
 - The `testusers` role creates `opc` in the `ioc` group with linger enabled.
-- Both reused test consumers carry `opc`, and the next iocrunner bake used
-  for the release Gate carries it.
+- Both reused test consumers carry `opc`.
+
+The bake that carries `opc` was a third condition until 2026-09-28, when the
+owner moved it to G2.
 
 ##### Verification Results
 
@@ -1763,13 +1848,65 @@ Observed on 2026-09-28 (UTC):
   `failed=0` on both test consumers; on both, `id -nG opc` printed
   `opc ioc`, `/var/lib/systemd/linger/opc` existed, and `opa` and `opb`
   still had no linger file.
-- The third condition is open: no iocrunner bake made at `32ea95f` or later
-  exists yet. cloud-provision was asked on 2026-09-28 to bake one and
-  report its identifier and date.
+- The bake condition, then open, moved to G2 the same day.
 
 | Observed At | Result | Evidence |
 | --- | --- | --- |
-| 2026-09-28T04:02:13Z | Partial | Conditions 1 and 2 met as recorded above; condition 3, the bake, is open |
+| 2026-09-28T04:02:13Z | Met | Both conditions met as recorded above |
+
+##### Closure Evidence
+
+- Condition 1: ansible-provision `32ea95f` (jeonghanlee/ansible-provision#27).
+- Condition 2: the testusers pass and checks on both test consumers at
+  2026-09-28T04:02:13Z, recorded above.
+- Scope narrowed by owner direction on 2026-09-28; the bake condition moved
+  to G2.
+
+#### G2 - iocrunner bake carrying `opc`
+
+Origin: 1.4.2 / G2
+Identity History: split from G1 on 2026-09-28
+GitHub Issue: none
+Status: Open
+
+##### Summary
+
+The 1.4.2 release Gate creates fresh test consumers from an iocrunner golden
+bake. The bakes kept on 2026-09-28 (2026-09-18 through 2026-09-21) predate
+ansible-provision `32ea95f`, so their consumers would lack `opc`, which M9's
+L4 scenario needs. cloud-provision owns the bakes and was asked on
+2026-09-28 to make one at `32ea95f` or later and report it.
+
+##### Completion Condition
+
+- cloud-provision reports an iocrunner bake made at ansible-provision
+  `32ea95f` or later, with its identifier and date.
+- A consumer created from it carries `opc`, checked with `id -nG opc` and
+  `/var/lib/systemd/linger/opc` as in G1.
+
+##### Verification Results
+
+Observed on 2026-09-28 (UTC):
+
+- cloud-provision reported two iocrunner bakes made at ansible-provision
+  `0b23811`, which contains `32ea95f`:
+  `iocrunner-rocky8-20260928T041905Z-37b54bf22f59` (bake date
+  2026-09-28T04:19:54Z) and `iocrunner-debian13-20260928T042250Z-ad86c76f6ed5`
+  (bake date 2026-09-28T04:23:22Z), with cloud-provision `4c9e97d` and EPICS
+  environment 1.3.0.
+- Two fresh consumers created from them carry `opc`: the runbook fixture
+  check printed `FIXTURES OK` on both, and `id -nG opc` printed `opc ioc`.
+  The complete multi-user driver passed on both (M9 / T1).
+- Both bakes come from work branches of cloud-provision
+  (`m11-middleware-operators`) and ansible-provision
+  (`m14-middleware-reconcile`), not from their masters, so they are not
+  production goldens; cloud-provision plans to bake again for the release
+  Gate. The condition therefore stays open for that bake, which the release
+  Gate's own fixture check verifies.
+
+| Observed At | Result | Evidence |
+| --- | --- | --- |
+| 2026-09-28T04:38:07Z | Partial | Work-branch bakes carry `opc`; the production bake for the release Gate is pending |
 
 ##### Closure Evidence
 

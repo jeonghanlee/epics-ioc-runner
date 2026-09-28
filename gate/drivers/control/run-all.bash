@@ -11,12 +11,16 @@
 #     or manages an existing IOC
 #   the survival check, so a regression in S6's refused removal lands on S6
 #   then S10 and S11 against the IOC that survived
+#   then S12 to S15 against it: S12 reads its log, S13 restarts it under a
+#     site.env it restores afterwards, S14 holds two consoles on it, and S15
+#     regenerates its payload as the other operator
 #   S9, which builds and discards its own payload in the operator's home
 #   S8, which needs its own IOC because its payload carries the token
 #   S4 last of the shared-IOC scenarios
 #   a fresh IOC installed by the second operator, then S3 and S7 - S3 pairs each
 #     operator with the IOC it installed, S7 runs entirely on the fresh one and
 #     is kept off S8's, whose payload emits its token on every start
+#   L4 last, on its own IOC, which it moves between local and system mode
 #
 # Ahead of all of it, `leftovers` reads what a prior run left on the consumer.
 # It removes nothing - clearing is the runbook's step - but a scenario that
@@ -39,8 +43,10 @@ export GATE_RUN_ID GATE_LOG_DIR GATE_REMOTE_RUN GATE_REMOTE_DRIVERS GATE_EPICS_E
         leftovers stage runtime-dirs \
         l1 l2-l3 \
         sys-shared s1-s2-s5 s6 survival s10 s11 \
+        s12 s13 s14 s15 \
         s9 s8 s4 \
         sys-fresh s3 s7 \
+        l4 \
         cleanup
     do
         printf '\n========================================= %s\n' "${step}"

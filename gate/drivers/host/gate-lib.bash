@@ -20,8 +20,8 @@ mkdir -p "${GATE_RUN_DIR}" 2>/dev/null
 #
 # A driver that owns half a scenario prints "<ID>-<HALF>" and the control driver
 # that makes both invocations prints the combined "<ID>". A precondition prints
-# "P-<WHAT>". So the fourteen scenario verdicts of a run are exactly the lines
-# matching  VERDICT (L[1-3]|S[1-9]|S1[01]) (PASS|FAIL)  and nothing else does.
+# "P-<WHAT>". So the nineteen scenario verdicts of a run are exactly the lines
+# matching  VERDICT (L[1-4]|S[1-9]|S1[0-5]) (PASS|FAIL)  and nothing else does.
 #
 # The leading newline keeps the verdict off the tail of a `script` closing
 # message, which carries no trailing newline of its own. A reader must still
@@ -69,6 +69,26 @@ function console {   # $1 seconds   $2 command   $3 capture file
     rc=$?
     gate_clean "$3"
     cat "$3"
+    return "${rc}"
+}
+
+# A console driven by timed input. Each chunk is written two seconds after the
+# previous one, so a detach key arrives alone in one read, which con requires to
+# honor it (a key inside a burst is forwarded to the IOC). Chunks are printf %b
+# strings, so "\001" is Ctrl-A. The wrapper's timeout bounds a client that never
+# detaches; its code is returned, and the feeder is reaped either way.
+function console_fed {   # $1 seconds   $2 command   $3 capture file   $4... input chunks
+    local secs="$1" cmd="$2" out="$3" fifo rc chunk
+    shift 3
+    fifo="${out}.fifo"
+    rm -f "${fifo}"; mkfifo "${fifo}"
+    ( for chunk in "$@"; do sleep 2; printf '%b' "${chunk}"; done; sleep 2 ) > "${fifo}" 2>/dev/null &
+    timeout -k 2 "${secs}" script -qec "${cmd}" /dev/null < "${fifo}" > "${out}" 2>&1
+    rc=$?
+    wait
+    rm -f "${fifo}"
+    gate_clean "${out}"
+    cat "${out}"
     return "${rc}"
 }
 
