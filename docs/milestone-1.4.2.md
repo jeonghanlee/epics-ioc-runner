@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation rewrite, lands in 1.4.2; its plan is still to be written, after the owner settles the open questions in its detail. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan is drafted and awaits owner acceptance and implementation authorization. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -35,7 +35,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
 | Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Complete | — | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
-| Documentation | M8 | Rewrite the published documentation from the current code | Milestone | Not started | No | M6 | Every page of the mdBook site is rewritten from the current runner, setup script, and templates for the operator who installs and runs IOCs, without carrying the previous text forward, and every command and output it shows is checked against a real run; [detail](#m8---rewrite-the-published-documentation-from-the-current-code) |
+| Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | Not started | Yes | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
@@ -55,6 +55,9 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D9 | Leave the iocsh history file where iocsh puts it: the runner sets no `EPICS_IOCSH_HISTFILE` and does not manage the ownership of `.iocsh_history`. Each principal switch in a shared IOC directory costs one benign loading error and a history restart, because readline saves the file as a fresh 0600 owned by the running principal; the runner documents this in FAQ Q13 with the per-principal `EPICS_IOCSH_HISTFILE` settings a site can adopt, and records the examined Keep as CLOSED_DOORS CI-44. | 2026-09-25 |
 | D10 | When `generate` finds an identical existing configuration, rewrite it through the staged temporary file and rename, as the differing-content path does, instead of skipping the write and reasserting the mode with `chmod`. A rename needs only directory write permission, so any `ioc` group member corrects the mode, and a file whose creator's account no longer exists is taken over instead of left unfixable by anyone but root. The identical case still asks no overwrite question. | 2026-09-26 |
 | D11 | Supersede D10's last sentence. Rewriting identical content transfers the file to the invoking user, so `generate` asks before that transfer: identical content owned by the invoking user is rewritten without a question; identical content owned by another user is rewritten only after a y/N question that names the current owner, bypassed by `-f`, with a closed standard input or a refusal exiting 1 and leaving the file unchanged; differing content keeps its diff and y/N question. `docs/CLI_REFERENCE.md` gains a `generate` section stating these cases. | 2026-09-26 |
+| D12 | Supersede the 2026-09-26 direction to rewrite the published documentation without regard to the previous pages. M8 revises and supplements the existing pages against the current code instead: the pages were first written between 2026-03 and 2026-09 and ten of the twelve last changed in 2026-09 alongside the code, so their faults are organization and coverage rather than drift. Revision may split, merge, or move sections between pages; every command, option, path, and output a page shows is still checked against the current code and a real run. | 2026-09-28 |
+| D13 | M8 keeps the twelve published pages and their file names, and adds one glossary page. Sections that mix page types are split or moved between the existing pages, steps repeated between the system and local guides are kept in one place, and `CLI_REFERENCE.md` covers every command and option; in-repository links to a changed heading are updated. The book introduction drops the 1.0.x upgrade section, the release runbook entry, and the milestone register entries; the upgrade steps move into the 1.1.0 Migration section of `CHANGELOG.md`, which points to them. Design rationale that follows from the code stays in the concept pages. | 2026-09-28 |
+| D14 | Narrow D13 on mixed sections: the Manual Setup Reference section of `INSTALL.md` and the Verification section of `PERMISSION_MODEL.md` stay on their pages as their own headed sections, because each checks the subject of its page directly (the setup script, the permission model). The troubleshooting table of `LOG_LAYOUT.md` is the section that moves. | 2026-09-28 |
 
 ### Assignment History
 
@@ -1491,7 +1494,7 @@ Observed Labels: docs, P3-low, area/permissions
 Observed Milestone: 1.4.2 (19)
 Last Compared: after 2026-09-26T18:58:04Z with `gh issue view 162`; issue updated at 2026-09-26T18:58:04Z; the body carries the resolution and checked acceptance criteria
 
-#### M8 - Rewrite the published documentation from the current code
+#### M8 - Revise and supplement the published documentation against the current code
 
 Origin: 1.4.2 / M8
 Identity History: none
@@ -1501,10 +1504,15 @@ Status: Not started
 ##### Summary
 
 The mdBook site added in 1.4.1 (`book.toml` with `src = "docs"` and
-`docs/SUMMARY.md`) publishes the existing `docs/` pages as they were: twelve
-pages, about 3000 lines, grown one release at a time. The owner directed on
-2026-09-26 that the whole published set be written again from the current
-code, for the user, without treating the previous pages as the base.
+`docs/SUMMARY.md`) publishes the existing `docs/` pages: twelve pages, about
+3000 lines, first written between 2026-03 and 2026-09, ten of them last
+changed in 2026-09 alongside the code. A survey on 2026-09-28 found their
+faults in organization and coverage rather than accuracy: pages that mix
+concept, procedure, and reference material; system and local guides that
+repeat the same steps; a CLI reference that covers six of the fifteen
+commands; release history in the book introduction; and no glossary. Under
+D12 the pages are revised and supplemented against the current code rather
+than written again.
 
 ##### Scope
 
@@ -1512,7 +1520,10 @@ code, for the user, without treating the previous pages as the base.
   `UNINSTALL.md`, `USER_GUIDE.md`, `USER_GUIDE_LOCAL.md`, `CLI_REFERENCE.md`,
   `FAQ.md`, `ARCHITECTURE.md`, `PERMISSION_MODEL.md`, `NETWORK_ENV.md`,
   `LOG_LAYOUT.md`, and `EXIT_SIGNAL_HANDLING.md`, and `SUMMARY.md` itself.
-- Derive every statement from the current `bin/ioc-runner`,
+- The 1.1.0 Migration section of `CHANGELOG.md`, which receives the 1.0.x
+  upgrade steps from the book introduction.
+- A new `docs/GLOSSARY.md`, listed in `docs/SUMMARY.md`.
+- Check every statement against the current `bin/ioc-runner`,
   `bin/setup-system-infra.bash`, the unit and container templates, and
   observed runs, including the M6 `generate` behavior.
 
@@ -1522,24 +1533,29 @@ runbook, and any change to runner behavior.
 
 ##### Completion Criteria
 
-- The published pages are rewritten for an operator who installs, runs, and
-  troubleshoots IOCs, and none is an edited copy of its previous text.
+- The published pages are revised and supplemented for an operator who
+  installs, runs, and troubleshoots IOCs: inaccurate text is corrected,
+  missing material is added, and material repeated across pages is kept in
+  one place.
 - Every command, option, path, and output the pages show matches the
   current code and a real run.
 - Links inside the book and from files outside it that point into `docs/`
   resolve, and the mdBook build passes.
+- Every outcome D13 and D14 name is present in the pages: the glossary page,
+  the `SUMMARY.md` groups, the upgrade steps in `CHANGELOG.md` without the
+  pointer, the troubleshooting questions in `FAQ.md`, and no history words
+  in page prose.
 
 ##### Dependencies And Decisions
 
-- Owner direction 2026-09-26: rewrite the whole published documentation set
-  from the current code for the user, without regard to the previous pages.
-- M6 changes `generate` and adds its CLI reference section; the rewrite
+- D12 supersedes the owner direction of 2026-09-26 to rewrite the whole
+  published documentation set without regard to the previous pages.
+- M6 changes `generate` and adds its CLI reference section; the revision
   starts from the landed M6 behavior.
-- Open for plan review: the page structure and names of the new book;
-  whether existing file names and anchors are kept so outside links survive;
-  how facts that only a previous page records (site history, rationale) are
-  carried, dropped, or moved to ADRs.
-- Owner direction 2026-09-26: the rewrite lands in the 1.4.2 release, before
+- D13 settles the book structure, the file names, and the treatment of
+  history in the book introduction; D14 keeps the manual setup and
+  permission verification sections on their pages.
+- Owner direction 2026-09-26: the revision lands in the 1.4.2 release, before
   the release cycle opens.
 
 ##### Implementation Plan
@@ -1549,19 +1565,78 @@ Plan Acceptance: none
 Implementation Authorization: none
 Superseded Plan Artifacts: none
 
-To be written after the open questions above are settled.
+1. Inventory. List every command, global option, command option, path,
+   mode, and printed message that `bin/ioc-runner`,
+   `bin/setup-system-infra.bash`, and the unit and container templates
+   expose, and map each to the page that states it or mark it missing.
+   The inventory is a working file under `work/`; its gaps drive items 2
+   through 8, and its counts go into Verification Results.
+2. `docs/CLI_REFERENCE.md`: add a section for each command it lacks
+   (`install`, `remove`, `start`, `stop`, `restart`, `status`, `enable`,
+   `disable`, `view`) and one for the options (`--local`/`--user`,
+   `--container`, `-f`/`--force`, `-n`/`--lines`, `-v`, `-vv`,
+   `--detach-key`, `-V`/`--version`, `-h`/`--help`), each with its usage,
+   the modes it applies to, and its exit behavior. `-f` is one flag with
+   two meanings: overwrite without a question for `generate` and `install`,
+   follow for `log`. The `start` and `restart` sections absorb the existing
+   Lifecycle Preflight Diagnostics section; the other existing sections
+   stay.
+3. `docs/USER_GUIDE.md` and `docs/USER_GUIDE_LOCAL.md`: the console, list,
+   direct-console, and version steps the two repeat are kept in
+   `USER_GUIDE.md`, which states the system and local values side by side
+   where they differ (socket path, log path, `--local`); `USER_GUIDE_LOCAL.md`
+   keeps only the local-specific steps and links to those sections. Daily
+   operations lead with the runner commands and name direct `systemctl` as
+   the bypass.
+4. `docs/INSTALL.md`, `docs/ARCHITECTURE.md`, `docs/LOG_LAYOUT.md`: prose
+   that restates a mode, owner, or ACL value links to `PERMISSION_MODEL.md`,
+   which states each value once; a command that sets a value stays where it
+   is. Move the troubleshooting table of `LOG_LAYOUT.md` into `FAQ.md` as one
+   question per symptom. Under D14 the Manual Setup Reference section of
+   `INSTALL.md` and the Verification section of `PERMISSION_MODEL.md` stay
+   as their own headed sections.
+5. `docs/README.md` (book introduction): remove the 1.0.x upgrade section,
+   the release runbook entry, and the milestone register entries; move the
+   upgrade steps into the 1.1.0 Migration section of `CHANGELOG.md` in place
+   of its pointer. Its Documentation Index follows the `SUMMARY.md` groups of
+   item 7 and lists the glossary.
+6. `docs/EXIT_SIGNAL_HANDLING.md`, `docs/NETWORK_ENV.md`, `docs/FAQ.md`,
+   `docs/UNINSTALL.md`, `docs/PERMISSION_MODEL.md`: check every statement
+   against the code and correct what differs.
+7. `docs/GLOSSARY.md`: a new page defining each term the book uses once.
+   `docs/SUMMARY.md` keeps the introduction first and groups the pages, with
+   no file renamed: Guides (`INSTALL.md`, `UNINSTALL.md`, `USER_GUIDE.md`,
+   `USER_GUIDE_LOCAL.md`, `FAQ.md`), Concepts (`ARCHITECTURE.md`,
+   `PERMISSION_MODEL.md`, `EXIT_SIGNAL_HANDLING.md`), and Reference
+   (`CLI_REFERENCE.md`, `NETWORK_ENV.md`, `LOG_LAYOUT.md`, `GLOSSARY.md`).
+8. All pages: headings in sentence case without numbering; none of the
+   history words `now`, `still`, `new`, `no longer`, or `previously` in
+   page prose; ASCII punctuation. Every in-repository link to a changed
+   heading is updated; on 2026-09-28 the anchor links into `docs/` sit only
+   in `USER_GUIDE.md`, `USER_GUIDE_LOCAL.md`, `CLI_REFERENCE.md`, and
+   `FAQ.md`, so no out-of-scope file changes.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | documentation | To be defined with the plan | To be defined | To be defined |
+| T1 | build | From the repository top, `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/book -w /book jeonghanlee/mdbook mdbook build`, the image the Pages workflow uses | Control host | Exit 0 with no warning |
+| T2 | links | A Bash check under `work/` of every relative link and anchor in the published pages, the top-level `README.md`, `CHANGELOG.md`, `gate/RUNBOOK.md`, `tests/README.md`, `docs/adr/`, and `bin/setup-system-infra.bash` against the files and the heading ids of the T1 build | Control host | Every link resolves |
+| T3 | commands | With the runner of the current tree installed, run every command a page shows, as shown with placeholders replaced, and compare its output with the page. The commands of `INSTALL.md` and `UNINSTALL.md` change accounts, sudoers, and units, so they run only on a consumer that is set up again afterwards, and only after owner approval | Test consumer in system and local mode; one default image of `tests/run-container-tests.bash` for container commands | Each command runs and prints what the page shows |
+| T4 | static | `LC_ALL=C grep -nP "[^\x00-\x7F]"`, a word-bounded `grep -nwE` for `now`, `still`, `new`, `no longer`, and `previously`, and `tests/check-doc-addresses.bash` over every published page; the item 1 inventory has no missing entry | Control host | No non-ASCII hit other than the semantic glyphs that markdown-authoring section 7 allows, no history word in page prose: each hit is judged and recorded, a word that compares with an earlier state of the runner or the pages fails, and a word that describes current behavior (`a new IOC`, `the IOC is still running`) passes, no address failure, no missing entry |
+| T5 | review | Second-person review pass over the changed pages before commit | Control host | Every finding resolved or ruled on by the owner |
+| T6 | review | Third-person pass that walks plan items 2 through 8, D13, and D14 one by one against the changed pages, including that the material item 3 and item 4 consolidate appears in one place only | Control host | Every item carried out, or ruled on by the owner |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | To be defined | Pending | none |
+| T1 | Not run | — | Pending | none |
+| T2 | Not run | — | Pending | none |
+| T3 | Not run | — | Pending | none |
+| T4 | Not run | — | Pending | none |
+| T5 | Not run | — | Pending | none |
+| T6 | Not run | — | Pending | none |
 
 ##### Closure Evidence
 
