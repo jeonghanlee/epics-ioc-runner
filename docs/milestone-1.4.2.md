@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 are Complete, and #157 through #162 are closed. M9, the multi-user gate extension, is in progress on the two test consumers, which carry `opc` (G1 Complete). M8, the documentation rewrite, lands in 1.4.2; its plan is still to be written. Then open the 1.4.2 release through release-cycle once G2, an iocrunner bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. Leftover payload directories on both reused consumers must be cleared before a scenario-driver run. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation rewrite, lands in 1.4.2; its plan is still to be written, after the owner settles the open questions in its detail. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -36,7 +36,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Complete | — | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 | Documentation | M8 | Rewrite the published documentation from the current code | Milestone | Not started | No | M6 | Every page of the mdBook site is rewritten from the current runner, setup script, and templates for the operator who installs and runs IOCs, without carrying the previous text forward, and every command and output it shows is checked against a real run; [detail](#m8---rewrite-the-published-documentation-from-the-current-code) |
-| Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | In progress | No | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
+| Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 
@@ -1572,7 +1572,7 @@ None.
 Origin: 1.4.2 / M9
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1804,7 +1804,16 @@ the landed `458403f` change.
 
 ##### Closure Evidence
 
-None.
+- The five scenario drivers, the shared driver changes, the runbook's
+  fixture, contract, cleanup, and count updates, and this detail landed in
+  `b7427c8` on `release-1.4.2`.
+- Verification: T1-T3 passed as recorded above, including the S14 and
+  leftovers checks rerun after the implementation reviews.
+- Landing: `git fetch` at 2026-09-28T07:25:53Z observed
+  `origin/release-1.4.2` at `b7427c8abe663a227863ed28f3f0950a05bea355`.
+- External gate: G1 is Complete. G2, the production bake carrying `opc`, is
+  a condition of the 1.4.2 release Gate, not of this work.
+- Linked issue: none.
 
 #### G1 - Test fixture account `opc` in `ioc` with linger
 
