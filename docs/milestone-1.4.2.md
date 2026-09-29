@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. T4 inventory reconciliation covers all 352 entries: 256 covered, 49 partially covered, and 47 missing; resolve the remaining documentation coverage before recording T4 as passing. T1 and T2 passed the earlier documented inputs and need rerunning after the subsequent page edits. Continue with T3 through T6, obtaining owner approval before T3 installation and removal commands on a test consumer. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; its plan is to be written and its issue filed. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. The latest incremental T4 update accounts for all 352 entries: 286 covered, 39 partially covered, and 27 missing; resolve the remaining 66 coverage entries before recording T4 as passing. T1 and T2 passed after the UNINSTALL reference corrections on 2026-09-29. Continue T3 through T6; the installation/removal command verification needs an identified disposable test consumer and its access details. The owner requested the outstanding documentation corrections and verification on 2026-09-29; no consumer has been selected for this run. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; issue #163 is recorded; its implementation plan remains a draft to be written and accepted. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -1632,43 +1632,52 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-09-29T06:21:15Z | Control host; Pages mdBook image | PASS | Test Plan command exited 0 without warnings; `work/m8-t1-build.log`; input hashes in `work/m8-t1-sources.sha256` |
-| T2 | 2026-09-29T06:21:25Z | Control host; T1 HTML and supplemental mdBook rendering | PASS | `bash work/m8-check-links.bash`: 22 Markdown source pages plus setup script, 126 local references, 0 failures; 8 external URLs excluded; `work/m8-t2-links.log` |
+| T1 | 2026-09-29T09:37:24Z | Control host; Pages mdBook image | PASS | Actual mdBook build exited 0 without warnings after the reference corrections; `work/m8-followup-build.log`; input hashes in `work/m8-followup-sources.sha256` |
+| T2 | 2026-09-29T09:37:24Z | Control host; T1 HTML and supplemental mdBook rendering | PASS | `bash work/m8-check-links.bash`: 22 Markdown source pages plus setup script, 143 local references, 0 failures; 8 external URLs excluded; `work/m8-followup-links.log` |
 | T3 | Not run | — | Pending | none |
-| T4 | 2026-09-29T08:26:51Z | Control host; 352 inventory entries and 13 published pages | FAIL | Current inventory: 256 covered, 49 partial, 47 missing; all 11 original mismatch entries have corrected text. The two previously reported omissions are covered. Per-entry evidence and input hashes: `work/m8-t4-inventory-reconciliation.md`, `work/m8-t4-inventory-sources.sha256`. Earlier ASCII/address/history checks remain dated evidence in `work/m8-t4-static.log` and `work/m8-t4-assessment.md`; no fresh full static pass claimed |
+| T4 | 2026-09-29T09:38:07Z | Control host; incremental inventory update and 13 published pages | FAIL | 286 covered, 39 partial, 27 missing after 30 coverage updates; unchanged classifications retain the original assessment. `work/m8-followup-coverage.md` and its SHA-256 manifest identify the evidence. Fresh ASCII, history-word and address checks pass; `work/m8-followup-static.log` |
 | T5 | Not run | — | Pending | none |
 | T6 | Not run | — | Pending | none |
 
-T1 and T2 observed the uncommitted documentation at HEAD `222ab3c`.
-The build image ID was
+T1 and T2 observed the working tree based on `c7dfdd6`, including the
+UNINSTALL reference corrections. The build image ID was
 `sha256:2b53e59ebf0edf2913e0636ff2e31351f0f0c4c7593fb51d1f22b4b629173015`.
 T2 reads links from the rendered article content so mdBook handles Markdown
 syntax, and checks published target anchors against the T1 HTML. For pages
-outside the published book, it renders copies of the original repository
-Markdown with the same image and checks those generated IDs. It also checks
-the repository-relative documentation paths in `bin/setup-system-infra.bash`.
-The supplemental build log and source hashes are retained under
-`work/m8-links.LwpfK2/`. The checker passed `bash -n` and
-`shellcheck -s bash`. Rebuild T1 and refresh its input hashes before rerunning
-T2 after published-page changes; the checker rejects a changed T1 source.
-These results do not complete T3 through T6.
+outside the published book, it renders the repository Markdown with the same
+image and checks those generated IDs. It also checks the repository-relative
+documentation paths in `bin/setup-system-infra.bash`. Supplemental evidence
+is under `work/m8-links.UjChg8/`. The original build and link logs remain in
+`work/m8-t1-build.log` and `work/m8-t2-links.log`; the original T1 input hashes
+are preserved in `work/m8-t1-sources-062115.sha256`. The current checker input
+manifest is `work/m8-t1-sources.sha256`. These results do not complete T3-T6.
 
-T3 preparation: `work/m8-t3-code-blocks.md` contains 100 code blocks extracted
-verbatim from the published pages. Block classification, inline-command
-inventory, and command execution remain pending. No test-consumer deployment
-or installation/removal command has run for T3. The choice of a reused or
-separate disposable consumer is awaiting owner direction.
+T3 preparation: `work/m8-t3-code-blocks.md` is the earlier extraction of 100
+code blocks and must be refreshed against the selected test candidate before
+execution. Block classification, inline-command inventory, and full command
+execution remain pending. No test-consumer deployment or installation/removal
+command has run for T3. The owner requested the outstanding corrections and
+verification on 2026-09-29; the disposable consumer and access details have
+been requested. On the control host, seven real runner invocations confirmed
+system/local configuration-path rejection and the help/version/no-command
+bypass; `work/m8-followup-runner.log`. This targeted check is not full T3.
 
-T4 inventory reconciliation is complete as a source/document comparison, not
-as a passing coverage result: 256 entries are covered, 49 partially covered,
-and 47 missing. These are entry counts, not independent defect counts; a
-single behavior can occur in command, option, path, and message rows. The
-history-file effect (P35) and full-setup prerequisites (S8) are covered by the
-subsequent additions. The 11 original mismatch entries have corrected text;
-their runtime verification remains part of T3. No runner/setup command or
-test-consumer deployment was executed for this reconciliation. No inventory
-entry was waived or removed. Address the remaining coverage and rerun the
-static checks before recording T4 as passing.
+T4 coverage is 286 covered, 39 partially covered, and 27 missing entries.
+`work/m8-followup-coverage.md` records 30 updates for the setup, completion,
+and local-path additions. It explicitly inherits the other classifications
+from the original full inventory assessment; it is not an independent full
+audit. Counts describe inventory entries, not independent defects. All 11
+original mismatch entries have corrected text by static comparison; their
+runtime verification remains part of T3. No entry was waived or removed.
+Resolve the remaining 66 entries before recording T4 as passing.
+
+A scoped second-person review on 2026-09-29 covered the three corrected
+UNINSTALL references, the recent local configuration/log-path requirements,
+and local logrotate path and executable-selection prose. No additional
+wording correction was identified in that scope. The path guards were checked
+with real runner invocations; rotation deployment and cleanup remain subject
+to test-consumer execution. This scoped pass does not complete the whole-book
+T5 or the plan-by-plan T6 review.
 
 Item 1 inventory, 2026-09-28, from the source at `222ab3c`: 352 surfaces
 (36 command rows, 48 options, 53 paths, 215 printed messages), of which 148

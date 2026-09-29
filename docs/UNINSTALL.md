@@ -23,7 +23,10 @@ this installation.
 Use one privileged Bash session for the procedure. Before either identity is
 deleted, a closed session can restart at [Resolve the deployed identity and log path](#resolve-the-deployed-identity-and-log-path) so the identity and log
 path are read again from the deployed source. After an identity deletion
-starts, complete sections 2.2-2.4 without closing the session.
+starts, complete [Service account decision](#service-account-decision),
+[Service group decision](#service-group-decision), and
+[Remove the systemd template](#remove-the-systemd-template) without closing
+the session.
 
 ```bash
 sudo -i
@@ -278,7 +281,10 @@ Otherwise, retain the group and do not run this block.
 
 ### Remove the systemd template
 
-Remove the deployed identity source only after sections 2.1-2.3 are complete.
+Remove the deployed identity source only after completing
+[Installation-dedicated log directory only](#installation-dedicated-log-directory-only),
+[Service account decision](#service-account-decision), and
+[Service group decision](#service-group-decision).
 
 ```bash
 rm -f /etc/systemd/system/epics-@.service
@@ -413,7 +419,8 @@ guide.
 ## Optional per-user local-mode cleanup
 
 System uninstall does not remove per-user local-mode rotation units. Complete
-sections 3 and 4 first, then leave the privileged shell. Each local-mode user
+[Verification](#verification) and [Backup and log retention](#backup-and-log-retention)
+first, then leave the privileged shell. Each local-mode user
 runs the remaining commands from their own login session.
 
 ```bash
