@@ -1,234 +1,164 @@
-# EPICS IOC Local Execution Guide
+# Local-mode IOC guide
 
-This guide describes how to run and test EPICS IOCs in an isolated, user-level systemd environment without requiring root or sudo privileges.
+This guide shows how to run and test an EPICS IOC under your own user
+account, with your user instance of systemd and without `root` or `sudo`.
+Console access, listing, direct `con` access, and the version check work as in
+system mode with `--local` added; they are described once, in
+[USER_GUIDE.md](USER_GUIDE.md), and linked from this page.
 
-## Prerequisites
-Ensure that the core utilities **`procServ`** and **`con`** are available. In local mode the runner searches `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin`, or honors an explicit path in `IOC_RUNNER_PROCSERV_TOOL` / `IOC_RUNNER_CON_TOOL` (full resolution order in the environment-variable section below). You can build and install them from the following repositories:
-* **con**: https://github.com/jeonghanlee/con
-* **procServ**: https://github.com/jeonghanlee/procServ-env
+Prerequisites:
 
-If they are not installed, please refer to the [System Installation Guide](INSTALL.md) or contact your system administrator before proceeding.
+- `procServ` and `con` are installed. In local mode the runner searches
+  `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin`, or uses the path in
+  `IOC_RUNNER_PROCSERV_TOOL` or `IOC_RUNNER_CON_TOOL`. You can build them
+  from [con](https://github.com/jeonghanlee/con) and
+  [procServ-env](https://github.com/jeonghanlee/procServ-env), or ask your
+  system administrator; [INSTALL.md](INSTALL.md) lists the requirements.
+- `ioc-runner` is on your `PATH`. `make install.user` in the
+  `epics-ioc-runner` checkout installs the command in `~/.local/bin` and its
+  Bash completion in `~/.local/share/bash-completion/completions`, without
+  `root`; `~/.local/bin` must be on your `PATH`.
 
-## 1. Preparation: Clone the Repository
-Create a local workspace and clone the target IOC repository. Navigate to the specific IOC boot directory.
+## Run an IOC in local mode
 
-```bash
-mkdir -p ~/gitsrc
-cd ~/gitsrc
-git clone https://your_git_url/tcmd.git
-cd tcmd/iocBoot/iocctrlslab-tcmd/
-```
+To run an IOC locally, you generate its configuration, install it into your
+user configuration directory, and start it.
 
-> **Tip:** To call `ioc-runner` directly instead of the full `~/epics-ioc-runner/bin/ioc-runner` path, run `make install.user` from the `epics-ioc-runner` checkout. It deploys the CLI and Bash completion under `~/.local/bin` with no root. Ensure `~/.local/bin` is on your `PATH`.
+1. In your workspace, clone the IOC repository and change to its boot
+   directory:
 
-## 2. Create the Configuration File
-Prepare the configuration file for the local isolated environment.
+   ```bash
+   git clone <ioc_repository_url>
+   cd <ioc_repository>/iocBoot/<ioc_boot_dir>
+   ```
 
-* **Option A: Automated Generation (Recommended)**
-  Automatically maps `IOC_USER` and `IOC_GROUP` to the current local session.
-  ```bash
-  ~/epics-ioc-runner/bin/ioc-runner generate --local .
-  ```
+   `<ioc_repository_url>` is the Git URL of the IOC, `<ioc_repository>` the
+   directory the clone creates, and `<ioc_boot_dir>` the directory that holds
+   the startup script.
 
-* **Option B: Manual Creation**
-  Ensure the user and group variables match your current local session ID.
-  ```bash
-  cat <<EOF > iocctrlslab-tcmd.conf
-  IOC_USER="$(id -un)"
-  IOC_GROUP="$(id -gn)"
-  IOC_CHDIR="$(pwd)"
-  IOC_PORT=""
-  IOC_CMD="./st.cmd"
-  EOF
-  ```
+2. Generate the configuration with your user and primary group:
 
-The bounded configuration syntax, quote handling, CRLF support, and last-wins
-duplicate rule are identical in local and system mode. See
-[Configuration File Syntax](USER_GUIDE.md#configuration-file-syntax). Files
-using multiline values, continuations, or unsupported quote and escape forms
-are rejected before the installed local configuration is replaced.
+   ```bash
+   ioc-runner --local generate .
+   ```
 
-## 3. Install the Configuration (Local Mode)
-Deploy the configuration to the user-level systemd directory. The wrapper automatically generates the local `epics-@.service` template if missing.
+3. Install the configuration:
 
-```bash
-# For explicitly named files:
-~/epics-ioc-runner/bin/ioc-runner --local install iocctrlslab-tcmd.conf
+   ```bash
+   ioc-runner --local install .
+   ```
 
-# For auto-generated configurations in the current directory:
-~/epics-ioc-runner/bin/ioc-runner --local install .
-```
+   The first local install creates `~/.config/procServ.d`, the log directory,
+   the user unit template `~/.config/systemd/user/epics-@.service`, and the
+   log rotation units. `-f` answers every question with yes, for
+   configuration management and CI/CD use.
 
-### CI/CD and Automated Deployments
-If deploying via configuration management tools, bypass interactive overwrite prompts using the `-f` flag:
-```bash
-~/epics-ioc-runner/bin/ioc-runner -f generate --local .
-~/epics-ioc-runner/bin/ioc-runner -f install --local .
-```
+4. Start the IOC:
 
+   ```bash
+   ioc-runner --local start <ioc_boot_dir>
+   ```
 
-## 4. View the Service Configuration
-To verify that the unit file template is correctly loaded for your IOC, you can view its contents.
+   The runner checks the log directory that the user unit names, starts the
+   service, and reports whether the IOC reached `All initialization
+   complete`.
 
-```bash
-~/epics-ioc-runner/bin/ioc-runner --local view iocctrlslab-tcmd
-```
+### Verification
 
-## 5. Start the IOC
-Once the configuration is installed, start the IOC process explicitly.
+The runner prints `IOC '<ioc_boot_dir>' successfully started.`, and
+`ioc-runner --local status <ioc_boot_dir>` shows the service as
+`active (running)`.
+
+### Write a local configuration by hand
+
+A hand-written local configuration names your user and primary group:
 
 ```bash
-~/epics-ioc-runner/bin/ioc-runner --local start iocctrlslab-tcmd
+cat <<EOF > <ioc_boot_dir>.conf
+IOC_USER="$(id -un)"
+IOC_GROUP="$(id -gn)"
+IOC_CHDIR="$(pwd)"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
 ```
 
-Local `start` and `restart` verify the logfile directory encoded in the
-effective user unit before changing service state. `--local inspect` reports
-the same log-path condition as a warning and checks the running procServ
-executable identity without changing the service.
+The configuration syntax is the same in both modes; see
+[Configuration file syntax](USER_GUIDE.md#configuration-file-syntax). A file
+with multiline values, continuations, or unsupported quote and escape forms is
+rejected before the installed configuration is replaced.
 
-## 6. Enable Auto-Start on Boot (Persistence)
-By default, the `install` command deploys the configuration but does not enable it for auto-start. To ensure the IOC starts automatically after a system reboot, use the `enable` command.
+## Start local IOCs at boot
+
+`install` does not enable the IOC. `enable` makes it start with your user
+instance of systemd, and `disable` reverts that:
 
 ```bash
-# Enable the service to start on boot
-~/epics-ioc-runner/bin/ioc-runner --local enable iocctrlslab-tcmd
-
-# Disable the service from starting on boot
-~/epics-ioc-runner/bin/ioc-runner --local disable iocctrlslab-tcmd
+ioc-runner --local enable <ioc_name>
+ioc-runner --local disable <ioc_name>
 ```
-> **Note:** For user-level services (`--local`), the user session must be active or "lingering" for the service to start on boot. You can enable lingering with: `loginctl enable-linger $(id -un)`
 
-## 7. Verify Service Status
-Check if the IOC process has been successfully started by the user's systemd manager.
+Your user instance runs at boot only when lingering is enabled for your
+account:
 
 ```bash
-systemctl --user status epics-@iocctrlslab-tcmd.service
+loginctl enable-linger "$(id -un)"
 ```
 
-## 8. List Managed IOCs
-You can view the active UNIX Domain Sockets for all locally managed IOCs using the `list` command.
+## Operate and remove local IOCs
+
+The service commands take `--local`:
 
 ```bash
-~/epics-ioc-runner/bin/ioc-runner --local list
+ioc-runner --local status <ioc_name>
+ioc-runner --local view <ioc_name>
+ioc-runner --local stop <ioc_name>
+ioc-runner --local restart <ioc_name>
+ioc-runner --local log <ioc_name>
 ```
 
-## 9. Attach to the IOC Console
-Connect to the UNIX Domain Socket (UDS) to interact with the EPICS shell.
+`view` prints the installed configuration and the unit as systemd resolves
+it. `log` prints the last 40 lines of the IOC log; `-n <count>` sets the
+number of lines and `-f` follows the file.
+
+When you finish testing, `remove` stops and disables the service and deletes
+the configuration; your IOC directory stays in place:
 
 ```bash
-~/epics-ioc-runner/bin/ioc-runner --local attach iocctrlslab-tcmd
+ioc-runner --local remove <ioc_name>
 ```
-* **Press Enter** to display the `epics>` prompt if the screen is blank.
-* **Detach**: Press `Ctrl-A` by default to detach from the console while leaving the IOC running. The runner selects `con`, or `socat` if `con` is unavailable; both consume the selected key when it is typed, so it does not reach the IOC shell. Inside pasted text, `con` forwards it to the IOC shell, while `socat` detaches at it. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line.
-* **Ignored keys**: The runner configures procServ with `--ignore=^D^C`. It discards `Ctrl-C` and `Ctrl-D` before they reach the IOC; every other byte, including `Ctrl-]`, is forwarded. If `Ctrl-C` or `Ctrl-D` is selected as the detach key, the client handles it locally and detaches first.
-* **Supported clients**: Both `attach` and `monitor` use only `con` or `socat`; `nc` is not supported. If neither supported client is available, the command fails with an installation hint. For `monitor`, `con` must support `-r`; otherwise `socat` is required.
-* **Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
 
-To use another key for one connection, pass `--detach-key`; the attach banner names the selected key. The default remains `Ctrl-A` for later connections. See the [CLI reference](CLI_REFERENCE.md#attach-readwrite-mode) for accepted key names.
+For the console, the IOC list, direct `con` access, and the runner version,
+use the sections of the system-mode guide with `--local`:
+
+- [Attach to the IOC console](USER_GUIDE.md#attach-to-the-ioc-console)
+- [List managed IOCs](USER_GUIDE.md#list-managed-iocs)
+- [Connect to the console directly with con](USER_GUIDE.md#connect-to-the-console-directly-with-con)
+- [Check the runner version](USER_GUIDE.md#check-the-runner-version)
+
+## Control the user unit with systemctl directly
+
+Each local IOC is an instance of the user unit template, so
+`systemctl --user` works on it directly. It skips the runner's log-path check
+and startup report, so use it only when you intend that:
 
 ```bash
-ioc-runner --local attach iocctrlslab-tcmd --detach-key ctrl-]
+systemctl --user restart epics-@<ioc_name>.service
+systemctl --user status epics-@<ioc_name>.service
+journalctl --user -u epics-@<ioc_name>.service
 ```
 
-### Read-only monitor
-
-To observe the console without sending input, use `monitor`. It selects
-`con -r`, or `socat` when `con` is unavailable or lacks `-r`; terminal input
-never reaches the IOC. Press `Ctrl-A` to exit with `con`, or `Ctrl-C` with
-`socat`; the monitor banner names the exit key. The `--detach-key` option
-applies only to `attach`.
+The IOC log is `~/.local/state/procserv/<ioc_name>.log`, or the
+`procserv` directory under `$XDG_STATE_HOME` when that variable is set:
 
 ```bash
-ioc-runner --local monitor iocctrlslab-tcmd
+tail -f ~/.local/state/procserv/<ioc_name>.log
 ```
 
-To read the IOC's log without attaching, use the read-only `log` command. It resolves the effective procServ log file, shows the last 40 lines by default (`-n <count>` to change the depth), and follows the file with `-f`.
+The per-user rotation described in [Local log rotation](#local-log-rotation)
+bounds its growth.
 
-```bash
-~/epics-ioc-runner/bin/ioc-runner --local log iocctrlslab-tcmd
-~/epics-ioc-runner/bin/ioc-runner --local -f log iocctrlslab-tcmd
-```
-
-## 10. Service Control and Cleanup (Systemd Operations)
-The wrapper script acts as a frontend for `systemctl`. It fully supports standard systemd service lifecycle commands.
-
-```bash
-# Stop the local IOC service
-~/epics-ioc-runner/bin/ioc-runner --local stop iocctrlslab-tcmd
-
-# Restart the local IOC service
-~/epics-ioc-runner/bin/ioc-runner --local restart iocctrlslab-tcmd
-```
-
-When the local testing is completely finished and you want to clean up the environment, use the `remove` command. This will stop the service and remove the configuration file from the local directory.
-
-```bash
-~/epics-ioc-runner/bin/ioc-runner --local remove iocctrlslab-tcmd
-```
-
-## 11. Direct systemd Control (Alternative)
-Since the architecture relies on standard systemd templates, you can also use native `systemctl` commands directly. Just remember to use the `--user` flag and the `epics-@` prefix for the service name.
-
-Direct `systemctl --user` lifecycle commands bypass `ioc-runner` preflight
-checks, warnings, and readiness reporting. Use `ioc-runner --local start` and
-`ioc-runner --local restart` for normal lifecycle operations; use direct
-`systemctl --user` when that bypass is intentional.
-
-```bash
-# Start, stop, or restart the service directly
-systemctl --user start epics-@iocctrlslab-tcmd.service
-systemctl --user stop epics-@iocctrlslab-tcmd.service
-systemctl --user restart epics-@iocctrlslab-tcmd.service
-
-# Check the detailed status
-systemctl --user status epics-@iocctrlslab-tcmd.service
-
-# View live IOC console output
-tail -f ~/.local/state/procserv/iocctrlslab-tcmd.log
-
-# View user service-manager diagnostics if needed
-journalctl --user -u epics-@iocctrlslab-tcmd.service
-```
-
-Log growth in this directory is bounded by the per-user rotation deployed at `--local install`; see section 15.
-
-## 12. Direct Console Access (Alternative)
-While the `attach` command automatically resolves the socket path, you can also connect to the UNIX Domain Socket directly using the `con` utility.
-
-First, find the exact UDS path for your active IOCs using the `list` command:
-```bash
-~/epics-ioc-runner/bin/ioc-runner --local list
-```
-
-The output will display the full path, which typically follows this pattern for local user sessions:
-`/run/user/$(id -u)/procserv/<ioc_name>/control`
-
-You can then connect directly using `con`:
-```bash
-con -c /run/user/$(id -u)/procserv/iocctrlslab-tcmd/control
-```
-* **Detach**: Press `Ctrl-A` to detach from the console while leaving the IOC running.
-
-
-## 13. Version Tracking
-To verify the version of the local runner script, including the live Git hash if executing directly from a cloned repository:
-
-```bash
-~/epics-ioc-runner/bin/ioc-runner -V
-```
-
-Example output when running directly from a clone (no `setup-system-infra.bash` install step; values shown as placeholders):
-
-```text
-epics-ioc-runner version X.Y.Z (<hash> (live))
-commit date:  <commit date>
-install date: live
-```
-
-`install date: live` indicates the script is being executed straight from the working tree rather than from an installed deployment, so the install timestamp is not pinned.
-
-
-## 14. Advanced: Environment Variable Overrides
+## Override the runner directories and tools
 
 For isolated testing, CI pipelines, or multi-tenant workstations, the runner supports environment variable overrides that redirect the configuration, systemd, and runtime directories without touching the installed script.
 
@@ -243,7 +173,7 @@ For isolated testing, CI pipelines, or multi-tenant workstations, the runner sup
 | `IOC_RUNNER_SYSTEM_CONF_DIR`    | `/etc/procServ.d`              | system-mode conf storage |
 | `IOC_RUNNER_SYSTEM_SYSTEMD_DIR` | `/etc/systemd/system`          | system-mode unit template |
 | `IOC_RUNNER_SYSTEM_RUN_DIR`     | `/run/procserv`                | system-mode socket path in `IOC_PORT` |
-| `IOC_RUNNER_SYSTEM_LOG_DIR`     | `/var/log/procserv`            | system-mode procServ log directory |
+| `IOC_RUNNER_SYSTEM_LOG_DIR`     | `/var/log/procserv`            | no effect in the runner; the system setup reads its own variable of this name to set the `--logfile` directory of the system template |
 
 ### Unified runtime overrides (take precedence over both)
 
@@ -252,13 +182,33 @@ For isolated testing, CI pipelines, or multi-tenant workstations, the runner sup
 | `IOC_RUNNER_CONF_DIR`    | Overrides both `LOCAL_CONF_DIR` and `SYSTEM_CONF_DIR` |
 | `IOC_RUNNER_SYSTEMD_DIR` | Overrides both `LOCAL_SYSTEMD_DIR` and `SYSTEM_SYSTEMD_DIR` |
 | `IOC_RUNNER_RUN_DIR`     | Overrides both `LOCAL_RUN_DIR` and `SYSTEM_RUN_DIR` |
-| `IOC_RUNNER_LOG_DIR`     | Overrides both `LOCAL_LOG_DIR` and `SYSTEM_LOG_DIR` |
+| `IOC_RUNNER_LOG_DIR`     | Overrides `LOCAL_LOG_DIR`; system mode reads the log path from the installed unit |
 | `IOC_RUNNER_CON_TOOL`    | Absolute path to a custom `con`-compatible binary |
-| `IOC_RUNNER_PROCSERV_TOOL` | Absolute path to a custom `procServ` binary (local-mode template generation) |
+| `IOC_RUNNER_PROCSERV_TOOL` | Absolute path to a custom `procServ` binary, used for the local-mode template and the container-mode run script |
+| `IOC_RUNNER_LOGROTATE_TOOL` | Preferred executable for local rotation deployment; see [Local log rotation](LOG_LAYOUT.md#local-mode-log-rotation) for fallback search and installed paths |
 
 Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}_<VAR>` > built-in default. When `IOC_RUNNER_CON_TOOL` / `IOC_RUNNER_PROCSERV_TOOL` are unset, the tool is searched in `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin` (the `~/.local/bin` entry is skipped when HOME cannot be resolved to a real home).
 
-### System-mode setup override (`bin/setup-system-infra.bash`)
+### Configuration and log path requirements
+
+The resolved configuration directory must be absolute and contain no
+whitespace, including spaces and tabs. The runner checks this in every mode
+after the backend preflight and exits 1 on failure, before dispatching the
+command. Help, version, and the no-command usage exit before this check.
+Correct `IOC_RUNNER_CONF_DIR` or the applicable mode-specific configuration
+override when the error names an invalid directory.
+
+Local `install` applies the same absolute-path and no-whitespace requirements
+to the resolved log directory. It exits 1 before copying the configuration or
+deploying shared local assets if that check fails. Correct `IOC_RUNNER_LOG_DIR`,
+`IOC_RUNNER_LOCAL_LOG_DIR`, or `XDG_STATE_HOME`, according to which value supplies
+the path. Quoting a value in the shell does not make whitespace acceptable.
+
+Changing the local configuration directory also changes where the runner
+stores its logrotate configuration. The [log reference](LOG_LAYOUT.md#local-mode-log-rotation)
+gives that calculation and the paths to use for cleanup when overrides apply.
+
+### System setup override (`bin/setup-system-infra.bash`)
 
 System-mode setup reads a separate variable, `IOC_RUNNER_PROCSERV_PATH`, distinct from the runner's `IOC_RUNNER_PROCSERV_TOOL`. It applies only while `bin/setup-system-infra.bash` generates the system template: system-mode setup uses this path as the procServ executable embedded in the system template's `ExecStart`. It takes a single path and replaces the default search list (`/usr/local/bin/procServ`, then `/usr/bin/procServ`) rather than prepending to it.
 
@@ -278,7 +228,7 @@ export IOC_RUNNER_LOCAL_SYSTEMD_DIR="/tmp/sandbox/systemd"
 
 **Caveat: the system-mode runtime directory is fixed**
 
-The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, moving the runtime directory off `/run/procserv` via `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` would split the `IOC_PORT` socket path from where the kernel creates the UDS, so the runner now rejects it with a hard error. Use these overrides only in `--local` mode or for test scaffolding.
+The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, moving the runtime directory off `/run/procserv` via `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` would split the `IOC_PORT` socket path from where the kernel creates the UDS, so the runner rejects it with an error. Use these overrides only in `--local` mode or for test scaffolding.
 
 **Install-time paths are read from the effective unit**
 
@@ -289,19 +239,17 @@ current environment:
 - `start`, `restart`, and `inspect` resolve `--logfile` from effective
   `ExecStart`; startup readiness scans therefore follow the same path procServ
   uses.
-- If the installed `IOC_PORT` socket path no longer matches the current `RUN_DIR` resolution, it prints `Warning: the installed IOC_PORT socket (...) does not match the current RUN_DIR resolution (...).` — `attach`/`list` would look in the wrong place; re-run `install` after changing `IOC_RUNNER_LOCAL_RUN_DIR` / `IOC_RUNNER_RUN_DIR`.
+- If the installed `IOC_PORT` socket path no longer matches the current `RUN_DIR` resolution, it prints `Warning: the installed IOC_PORT socket (...) does not match the current RUN_DIR resolution (...).` Then `attach` and `list` look in the wrong place; re-run `install` after changing `IOC_RUNNER_LOCAL_RUN_DIR` / `IOC_RUNNER_RUN_DIR`.
 
 After changing any install-time override, re-run `ioc-runner --local install`
 so the unit, configuration, socket lookup, and log path remain aligned.
 
-## 15. Local Log Rotation
+## Local log rotation
 
-`--local install` also deploys best-effort per-user log rotation, because a crash-looping user IOC under `Restart=always` would otherwise grow its log without bound:
-
-- **Objects**: `~/.config/ioc-runner/logrotate.conf`, plus `epics-logrotate.service` (oneshot) and `epics-logrotate.timer` in the user systemd directory. One timer rotates every `*.log` in the local log directory.
-- **Policy**: rotate weekly, or as soon as a log exceeds 50 MB (`maxsize 50M`); keep 8 compressed rotations; `copytruncate` so procServ keeps writing to the same open file during rotation.
-- **Schedule**: the timer fires hourly (`OnCalendar=hourly`, `Persistent=true`, randomized by up to 5 minutes) and each tick evaluates the weekly/size policy.
-- **Best effort**: a missing `logrotate` binary, an invalid generated config, or an unreachable user bus prints a warning and skips rotation — the IOC install itself always succeeds. Re-run `ioc-runner --local install` after fixing the cause.
-- **Generated files**: Do not hand-edit `~/.config/ioc-runner/logrotate.conf` or the `epics-logrotate.*` units: every `ioc-runner --local install` re-renders them and replaces any file whose content differs, so local edits are not preserved. Site-specific rotation policy belongs in a separate operator-owned logrotate config, not in these generated files.
-- **Never auto-removed**: `remove` deletes only the IOC; the rotation config and units stay until you remove them yourself (`systemctl --user disable --now epics-logrotate.timer`, then delete the three files).
-- **Monitoring**: `ioc-runner --local list` warns when the timer is installed but inactive. Like the IOC units, the timer only fires while your user manager is running — enable lingering (`loginctl enable-linger $(id -un)`) on headless hosts.
+`ioc-runner --local install` also deploys per-user log rotation, because a
+crash-looping IOC under `Restart=always` would otherwise grow its log without
+limit. One user timer, `epics-logrotate.timer`, rotates every log in the local
+log directory weekly, or as soon as a log exceeds 50 MB. The timer runs only
+while your user instance of systemd runs, so enable lingering on a headless
+host, and `remove` leaves it in place. [LOG_LAYOUT.md](LOG_LAYOUT.md#local-mode-log-rotation)
+gives the files, the policy, and how to remove rotation.

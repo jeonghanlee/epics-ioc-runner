@@ -1,10 +1,10 @@
-# Operations FAQ (Frequently Asked Questions)
+# Operations FAQ (frequently asked questions)
 
 This document addresses common operational questions and scenarios regarding the `epics-ioc-runner` architecture, particularly for facilities transitioning from legacy management scripts or custom databases.
 
 ---
 
-### Q1: Do we need a sysadmin (root password) to restart a crashed IOC at 11 PM?
+### Do I need a root password to restart an IOC?
 
 **No.** We specifically designed the architecture to avoid this bottleneck.
 
@@ -20,13 +20,13 @@ or equivalently:
 sudo systemctl restart epics-@myioc.service
 ```
 
-No root password is required, and no sysadmin needs to be contacted. The `sudo` command is still used under the hood — `ioc-runner` internally calls `sudo systemctl ...` for system-wide operations — but the sudoers policy grants `NOPASSWD` to the `ioc` group, so no password prompt appears for an operator whose sudo rights come from this policy. The key distinction is: **`sudo` (the command) is required, but `sudo` (the password) is not.** One exception: on a host that resolves sudoers from SSSD/LDAP as well as local files (`sudoers: files sss` in `/etc/nsswitch.conf`), an SSSD-sourced broad grant for the same user (for example a `(root) ALL` rule) is evaluated after the local drop-in and overrides this `NOPASSWD` by sudo's last-match rule, so that user is prompted for a password. This is a site sudo-policy condition, not an `ioc-runner` setting; the recommended fix is a site LDAP `sudoRole` granting `NOPASSWD` for the EPICS commands with a higher `sudoOrder` than the broad grant. After applying it, `sudo -k; sudo -n /usr/bin/systemctl daemon-reload` should return exit 0 for the affected user. Additionally, the policy is scoped exclusively to EPICS IOC template instances (`epics-@<name>.service`, where `<name>` follows the runner IOC-name model), so engineers cannot accidentally affect unrelated system services.
+No root password is required, and no sysadmin needs to be contacted. The `sudo` command is still used under the hood - `ioc-runner` internally calls `sudo systemctl ...` for system-wide operations - but the sudoers policy grants `NOPASSWD` to the `ioc` group, so no password prompt appears for an operator whose sudo rights come from this policy. The key distinction is: **`sudo` (the command) is required, but `sudo` (the password) is not.** One exception: on a host that resolves sudoers from SSSD/LDAP as well as local files (`sudoers: files sss` in `/etc/nsswitch.conf`), an SSSD-sourced broad grant for the same user (for example a `(root) ALL` rule) is evaluated after the local drop-in and overrides this `NOPASSWD` by sudo's last-match rule, so that user is prompted for a password. This is a site sudo-policy condition, not an `ioc-runner` setting; the recommended fix is a site LDAP `sudoRole` granting `NOPASSWD` for the EPICS commands with a higher `sudoOrder` than the broad grant. After applying it, `sudo -k; sudo -n /usr/bin/systemctl daemon-reload` should return exit 0 for the affected user. The policy covers only `epics-@<name>.service` instances and `systemctl daemon-reload`, so engineers cannot affect unrelated system services. On sudo 1.9.10 and later it accepts only names that follow the runner IOC-name model; on older sudo it uses the broader `epics-@*.service` pattern (see [PERMISSION_MODEL.md](PERMISSION_MODEL.md)).
 
 ---
 
-### Q2: Our current database includes metadata like `gitRepo` and `groupName`. Can we include this information in the `.conf` files?
+### Can IOC configuration files include metadata?
 
-**Yes.** The `<ioc_name>.conf` files are loaded by `systemd` as standard `EnvironmentFile`s, and every `KEY="VALUE"` pair — not only the `IOC_*` keys the runner acts on — is exported into the procServ process environment and inherited by the IOC process itself (visible via `epicsEnvShow` or `/proc/<pid>/environ`). Metadata keys should use the `IOC_META_` prefix (a documentation contract — no code enforces the prefix): it keeps them clearly inert to the runner and avoids colliding with EPICS, vendor, or system environment variables that could change IOC behavior. Do not store secrets in the conf; anything in it becomes process environment. Example:
+**Yes.** The `<ioc_name>.conf` files are loaded by `systemd` as standard `EnvironmentFile`s, and every `KEY="VALUE"` pair - not only the `IOC_*` keys the runner acts on - is exported into the procServ process environment and inherited by the IOC process itself (visible via `epicsEnvShow` or `/proc/<pid>/environ`). Metadata keys should use the `IOC_META_` prefix (a documentation contract - no code enforces the prefix): it keeps them clearly inert to the runner and avoids colliding with EPICS, vendor, or system environment variables that could change IOC behavior. Do not store secrets in the conf; anything in it becomes process environment. Example:
 
 ```bash
 IOC_USER="ioc-srv"
@@ -39,11 +39,11 @@ IOC_META_GROUP="time-travel"
 IOC_META_CONTACT="jeonghan.lee@gmail.com"
 ```
 
-This approach lets the `.conf` file serve as the single source of truth. Because the `IOC_META_` prefix is the documented convention for metadata, external tools (Python scripts, web dashboards, CI/CD pipelines) can parse these files directly — and IOC-side logic can read the same values from its environment — to generate or sync with legacy databases like `siocmgr`, following the DRY principle. Every assignment must pass the runner's bounded, non-executing configuration parser; only the `IOC_*` operational keys and `CRASH_LOG_PATTERNS_EXTRA` receive additional field-specific validation. See [Configuration File Syntax](USER_GUIDE.md#configuration-file-syntax) for the accepted single-line forms. Full systemd multiline, continuation, quote, and escape grammar is intentionally not accepted.
+This approach lets the `.conf` file serve as the single source of truth. Because the `IOC_META_` prefix is the documented convention for metadata, external tools (Python scripts, web dashboards, CI/CD pipelines) can parse these files directly - and IOC-side logic can read the same values from its environment - to generate or sync with legacy databases like `siocmgr`, following the DRY principle. Every assignment must pass the runner's bounded, non-executing configuration parser; only the `IOC_*` operational keys and `CRASH_LOG_PATTERNS_EXTRA` receive additional field-specific validation. See [Configuration file syntax](USER_GUIDE.md#configuration-file-syntax) for the accepted single-line forms. Full systemd multiline, continuation, quote, and escape grammar is intentionally not accepted.
 
 ---
 
-### Q3: Is there a way to show all running IOCs on a specific host?
+### How do I list running IOCs on a host?
 
 **Yes.** The `list` command provides three levels of detail:
 
@@ -66,7 +66,7 @@ ls /etc/procServ.d/*.conf
 
 ---
 
-### Q4: How do we determine which IOC runs on which host across the entire facility?
+### How do I locate IOCs across the facility?
 
 For a single host, `ioc-runner list` provides the answer. For facility-wide visibility, the architecture integrates with higher-level tools:
 
@@ -78,13 +78,13 @@ for host in proton electron kaon photon up down strange bottom top muon neutrino
 done
 ```
 
-**Conserver (`conserver.cf`)** *(in design)*: Will act as the global routing inventory. An engineer will simply type `console <ioc_name>` on the central server, and the connection will be automatically routed to the correct host without the engineer needing to know which server it runs on. See `system-wide/conserver/docs/ARCHITECTURE.md` for the current design.
+**Conserver (`conserver.cf`)** *(in design)*: Will act as the global routing inventory. An engineer will simply type `console <ioc_name>` on the central server, and the connection will be automatically routed to the correct host without the engineer needing to know which server it runs on.
 
 **Cockpit Multi-host** *(in design)*: Will use Cockpit with a custom plugin to provide a single web-based dashboard that monitors all IOCs across 20+ servers simultaneously. See `system-wide/cockpit/docs/ARCHITECTURE.md` for the current design.
 
 ---
 
-### Q5: Can an IOC be "disabled" temporarily and run manually for testing?
+### Can I run a managed IOC manually for testing?
 
 **Yes.** The architecture fully supports this workflow using standard systemd lifecycle commands:
 
@@ -107,44 +107,44 @@ ioc-runner enable myioc
 
 While the service is stopped, the `.conf` file remains in `/etc/procServ.d/` and the systemd template is unchanged. Only the runtime state is affected.
 
-**History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file for the manual run, so no cross-owned file is left behind; setting it to `~/.iocsh_history` keeps a history that follows the operator instead (see Q13). `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file. EPICS documents the empty-string disable in the EPICS Base 7.0 release notes (https://docs.epics-controls.org/projects/base/en/r7.0.9/RELEASE_NOTES.html).
+**History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file for the manual run, so no cross-owned file is left behind; setting it to `~/.iocsh_history` keeps a history that follows the operator instead (see [Why does IOC shell history report permission denied?](#why-does-ioc-shell-history-report-permission-denied)). `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file. EPICS documents the empty-string disable in the EPICS Base 7.0 release notes (https://docs.epics-controls.org/projects/base/en/r7.0.9/RELEASE_NOTES.html).
 
 ---
 
-### Q6: What happens when an IOC crashes on boot or hangs trying to connect to hardware?
+### What happens when IOC startup crashes or hangs?
 
 The architecture provides multiple layers of protection for these scenarios:
 
-**Layer 1 — procServ (child process management):**
+**Layer 1 - procServ (child process management):**
 If the IOC process crashes (e.g., Segmentation fault, assertion failure), `procServ` does not die. It catches the child exit, logs the event, and automatically restarts the child process. The UNIX Domain Socket remains open throughout, so an engineer can attach to the console at any time to observe the crash-restart cycle in real time:
 
 ```bash
 ioc-runner attach myioc
 ```
 
-The attached console is hardened against accidents: `^C` and `^D` are filtered out of the IOC's input (`--ignore=^D^C`), and procServ's `^T` autorestart-toggle key is disabled (`--autorestartcmd=''`). A stray `^T` can therefore no longer leave a dead child under a live procServ with the socket still open — the child autorestart is always on and cannot be switched off from the console. To stop an IOC intentionally, use `ioc-runner stop` (see Q5 for the manual-debug workflow).
+The attached console is hardened against accidents: `^C` and `^D` are filtered out of the IOC's input (`--ignore=^D^C`), and procServ's `^T` autorestart-toggle key is disabled (`--autorestartcmd=''`). A stray `^T` therefore cannot leave a dead child under a live procServ with the socket still open - the child autorestart is always on and cannot be switched off from the console. To stop an IOC intentionally, use `ioc-runner stop` (see [Can I run a managed IOC manually for testing?](#can-i-run-a-managed-ioc-manually-for-testing) for the manual-debug workflow).
 
-**Layer 2 — ioc-runner health checks (startup verification):**
+**Layer 2 - ioc-runner health checks (startup verification):**
 When `ioc-runner start` (or `restart`) is executed, it polls the procServ log for the EPICS readiness marker (`All initialization complete`) instead of waiting a fixed interval. The verdict depends on what appears before, at, and after that marker:
 
-1. **Before the marker (up to a 30-second readiness timeout):** a fatal-subset token — `FATAL`, `Segmentation fault`, `undefined symbol`, `error while loading`, `Unbalanced quote` — reports an immediate hard failure (`Error: IOC '<name>' failed to initialize (fatal error before iocInit).`, exit 1). A procServ death banner that recurs (the child dies and relaunches before initialization) reports a pre-iocInit crash loop (`Error: IOC '<name>' is crash-looping before reaching iocInit.`, exit 1). Corroborating tokens — the message phrases `Can't open`, `cannot open`, `No such file or directory`, `Invalid directory path`, and the framework severity markers (the uppercase `ERROR` word EPICS `ERL_ERROR` emits, the PVXS ` ERR ` / ` CRIT ` level words, an errlog `sevr=major` / `sevr=fatal` prefix — matched case-sensitively) — never fail on their own: a healthy IOC may print a phrase (a missing optional file, a skipped path) and reach initialization a moment later. English error vocabulary is deliberately not matched: a report's `Error count : 0` field, an `errors` column header, or lowercase device prose is vocabulary, not a severity marker, and does not qualify (ADR 0004).
+1. **Before the marker (up to a 30-second readiness timeout):** a fatal-subset token - `FATAL`, `Segmentation fault`, `undefined symbol`, `error while loading`, `Unbalanced quote` - reports an immediate hard failure (`Error: IOC '<name>' failed to initialize (fatal error before iocInit).`, exit 1). A procServ death banner that recurs (the child dies and relaunches before initialization) reports a pre-iocInit crash loop (`Error: IOC '<name>' is crash-looping before reaching iocInit.`, exit 1). Corroborating tokens - the message phrases `Can't open`, `cannot open`, `No such file or directory`, `Invalid directory path`, and the framework severity markers (the uppercase `ERROR` word EPICS `ERL_ERROR` emits, the PVXS ` ERR ` / ` CRIT ` level words, an errlog `sevr=major` / `sevr=fatal` prefix - matched case-sensitively) - never fail on their own: a healthy IOC may print a phrase (a missing optional file, a skipped path) and reach initialization a moment later. English error vocabulary is deliberately not matched: a report's `Error count : 0` field, an `errors` column header, or lowercase device prose is vocabulary, not a severity marker, and does not qualify (ADR 0004).
 
-2. **At the marker (confirmed over a short ~3-second dwell):** a procServ death banner emitted after the marker reports a crash loop (`Error: IOC '<name>' is crash-looping.`, exit 1) — the only standalone failure trigger in this phase. A crash pattern emitted while the IOC stays alive (for example an `ERL_ERROR` line) is reported as a heuristic warning, not a failure, and the matched line(s) are shown so the operator can judge them:
+2. **At the marker (confirmed over a short ~3-second dwell):** a procServ death banner emitted after the marker reports a crash loop (`Error: IOC '<name>' is crash-looping.`, exit 1) - the only standalone failure trigger in this phase. A crash pattern emitted while the IOC stays alive (for example an `ERL_ERROR` line) is reported as a heuristic warning, not a failure, and the matched line(s) are shown so the operator can judge them:
 
    *"Warning: IOC '\<name\>' is active, but its post-initialization log has line(s) matching an error pattern. This is a heuristic pattern match, not a verdict; confirm in the log below."*
 
    ANSI color sequences are removed from the log window before matching, so the ANSI-colored `ERROR` marker `ERL_ERROR` emits still matches.
 
-3. **Readiness timeout (no marker within the window):** if the unit is still active, it reports that the IOC is active but did not report initialization complete (a warning, exit 0 — the case of a slow device connection or a gateway IOC); if the unit is not active, it reports a hard failure (exit 1). If the log cannot be read, it says the startup log could not be read rather than claiming a clean start.
+3. **Readiness timeout (no marker within the window):** if the unit is still active, it reports that the IOC is active but did not report initialization complete (a warning, exit 0 - the case of a slow device connection or a gateway IOC); if the unit is not active, it reports a hard failure (exit 1). If the log cannot be read, it says the startup log could not be read rather than claiming a clean start.
 
-A `start` on an IOC that is already running short-circuits to `IOC '<name>' is already running.` once a clean, marked startup is confirmed in the existing log. Known benign startup noise is removed line by line before crash matching (`CRASH_LOG_EXCLUDE_PATTERNS`): the iocsh history-file load/save failure (`ERROR Permission denied ... '.iocsh_history'`, see Q5) is never a crash indicator.
+A `start` on an IOC that is already running short-circuits to `IOC '<name>' is already running.` once a clean, marked startup is confirmed in the existing log. Known benign startup noise is removed line by line before crash matching (`CRASH_LOG_EXCLUDE_PATTERNS`): the iocsh history-file load/save failure (`ERROR Permission denied ... '.iocsh_history'`, see [Can I run a managed IOC manually for testing?](#can-i-run-a-managed-ioc-manually-for-testing)) is never a crash indicator.
 
-**Layer 3 — systemd (daemon lifecycle):**
-`systemd` supervises the `procServ` process itself. If `procServ` dies for any reason — OOM kill, unrecoverable error, stray signal — `systemd` restarts it (`Restart=always`, `RestartSec=2`); the restart limiter is disabled (`StartLimitIntervalSec=0`), so the unit never strands in a `failed` state that would need manual `reset-failed`. `Restart=always` rather than `on-failure` is deliberate: the `SuccessExitStatus` directive classifies normal shutdown signals (SIGTERM, SIGKILL) as success so they are not falsely reported as failures, which means an OOM kill also counts as "success" and only `always` revives it. See `docs/EXIT_SIGNAL_HANDLING.md` and ADR 0001 (`docs/adr/0001-restart-supervision-c1h.md`) for the full rationale.
+**Layer 3 - systemd (daemon lifecycle):**
+`systemd` supervises the `procServ` process itself. If `procServ` dies for any reason - OOM kill, unrecoverable error, stray signal - `systemd` restarts it (`Restart=always`, `RestartSec=2`); the restart limiter is disabled (`StartLimitIntervalSec=0`), so the unit never strands in a `failed` state that would need manual `reset-failed`. `Restart=always` rather than `on-failure` is deliberate: the `SuccessExitStatus` directive classifies normal shutdown signals (SIGTERM, SIGKILL) as success so they are not falsely reported as failures, which means an OOM kill also counts as "success" and only `always` revives it. See `docs/EXIT_SIGNAL_HANDLING.md` and ADR 0001 (`docs/adr/0001-restart-supervision-c1h.md`) for the full rationale.
 
 ---
 
-### Q7: How are the crash detection patterns configured?
+### How are crash detection patterns configured?
 
 The patterns used by the startup health check are defined as a global variable at the top of the `ioc-runner` script:
 
@@ -152,26 +152,26 @@ The patterns used by the startup health check are defined as a global variable a
 CRASH_LOG_PATTERNS="(${CRASH_LOG_PATTERNS_FATAL}|${CRASH_LOG_PATTERNS_AMBIGUOUS})"
 ```
 
-The base set is composed directly from `CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, so the two subsets are its single source of truth. Fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens never participate in a failure verdict at all - crash-loop failures are triggered by the procServ death banner alone. `FATAL` requires the start or end of a line, or a non-identifier character, on each respective side. The leading-only `device_nonfatal`, trailing-only `fatalFlag`, and both-sides `device_nonfatal_state` forms are therefore not fatal tokens. The only effect of a corroborating token is the post-initialization warning on a still-alive IOC — a heuristic hint that shows the matched line(s) and asks the operator to confirm in the log, never a failure. Alongside the case-insensitive message phrases, a case-sensitive severity subset (`CRASH_LOG_PATTERNS_SEVERITY`) matches the framework markers — the uppercase `ERROR` word (`ERL_ERROR`), the PVXS ` ERR ` / ` CRIT ` level words, and `sevr=major` / `sevr=fatal` — with ANSI color sequences stripped from the log window first. English error vocabulary (`error`, `Error`, `failed`, `Timeout`) is deliberately outside the built-in set: modules phrase errors too differently for vocabulary to separate signal from healthy report text (ADR 0004), so module-specific phrasing belongs in `CRASH_LOG_PATTERNS_EXTRA` below. See Q6 for the full phase-by-phase behavior.
+The base set is composed directly from `CRASH_LOG_PATTERNS_FATAL` and `CRASH_LOG_PATTERNS_AMBIGUOUS`, so the two subsets are its single source of truth. Fatal tokens are a standalone failure before the readiness marker, while ambiguous tokens never participate in a failure verdict at all - crash-loop failures are triggered by the procServ death banner alone. `FATAL` requires the start or end of a line, or a non-identifier character, on each respective side. The leading-only `device_nonfatal`, trailing-only `fatalFlag`, and both-sides `device_nonfatal_state` forms are therefore not fatal tokens. The only effect of a corroborating token is the post-initialization warning on a still-alive IOC - a heuristic hint that shows the matched line(s) and asks the operator to confirm in the log, never a failure. Alongside the case-insensitive message phrases, a case-sensitive severity subset (`CRASH_LOG_PATTERNS_SEVERITY`) matches the framework markers - the uppercase `ERROR` word (`ERL_ERROR`), the PVXS ` ERR ` / ` CRIT ` level words, and `sevr=major` / `sevr=fatal` - with ANSI color sequences stripped from the log window first. English error vocabulary (`error`, `Error`, `failed`, `Timeout`) is deliberately outside the built-in set: modules phrase errors too differently for vocabulary to separate signal from healthy report text (ADR 0004), so module-specific phrasing belongs in `CRASH_LOG_PATTERNS_EXTRA` below. See [What happens when IOC startup crashes or hangs?](#what-happens-when-ioc-startup-crashes-or-hangs) for the full phase-by-phase behavior.
 
-For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. The phrase matching — the built-in message phrases and `CRASH_LOG_PATTERNS_EXTRA` alike — is case-insensitive, so `Bergoz link lost` also matches `BERGOZ LINK LOST`; write tokens in their natural case and do not add case variants. (Only the severity subset above is case-sensitive, by design.) These per-IOC tokens are corroborating only — they raise a warning on a still-alive IOC, never a standalone startup failure:
+For hardware-specific or vendor-module error strings that should only apply to one IOC, set `CRASH_LOG_PATTERNS_EXTRA` in the IOC conf file. The runner appends this to the global pattern set at `start`/`restart` time without modifying the script. The phrase matching - the built-in message phrases and `CRASH_LOG_PATTERNS_EXTRA` alike - is case-insensitive, so `Bergoz link lost` also matches `BERGOZ LINK LOST`; write tokens in their natural case and do not add case variants. (Only the severity subset above is case-sensitive, by design.) These per-IOC tokens are corroborating only - they raise a warning on a still-alive IOC, never a standalone startup failure:
 
 ```bash
 # In the IOC conf
 CRASH_LOG_PATTERNS_EXTRA="Bergoz link lost|NPCT overrange|Keithley buffer full"
 ```
 
-Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Install time is the strict gate: the character whitelist applies there and nowhere else, and install rejects illegal characters, regex that does not compile, empty alternations (a leading, trailing, or doubled `|` would match every log line), and degenerate patterns that match ordinary log text (such as a bare `.`). The pattern is also re-read at every `start`/`restart` and put through those same three pattern checks; if the conf was edited since install and the value no longer passes one of them, the runner names the reason, ignores that value for the run, and tells you to fix it and re-run `install` — the built-in pattern set remains active, so one bad per-IOC key can never disable crash detection.
+Allowed characters are alphanumerics, `_ . / : space - | ( ) \`. Install time is the strict gate: the character whitelist applies there and nowhere else, and install rejects illegal characters, regex that does not compile, empty alternations (a leading, trailing, or doubled `|` would match every log line), and degenerate patterns that match ordinary log text (such as a bare `.`). The pattern is also re-read at every `start`/`restart` and put through those same three pattern checks; if the conf was edited since install and the value no longer passes one of them, the runner names the reason, ignores that value for the run, and tells you to fix it and re-run `install` - the built-in pattern set remains active, so one bad per-IOC key can never disable crash detection.
 
 ---
 
-### Q8: Can I deploy IOCs from my home directory or a personal NFS mount?
+### Can I deploy IOCs from personal directories?
 
 **No, not in system mode.** `procServ` runs as the `ioc-srv` service account, and the IOC payload inherits `IOC_CHDIR` as its working directory. At runtime, the IOC writes `.iocsh_history`, autosave files, save/restore snapshots, and any site-specific artifacts created by `st.cmd` to this directory. If the directory is not writable by `ioc-srv`, these writes fail silently.
 
-Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure still emits `ERROR` lines into the procServ log file, but they are benign noise excluded from the crash scan (Q6), so the start warning does not surface this misconfiguration; the install-time `IOC_CHDIR` permission check described below is the dedicated guard.
+Personal home directories (`/home/<user>`) and NFS mounts without `ioc` group access do not grant `ioc-srv` write permission. The `.iocsh_history` failure still emits `ERROR` lines into the procServ log file, but they are benign noise excluded from the crash scan ([What happens when IOC startup crashes or hangs?](#what-happens-when-ioc-startup-crashes-or-hangs)), so the start warning does not surface this misconfiguration; the install-time `IOC_CHDIR` permission check described below is the dedicated guard.
 
-The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mode `2775`, or equivalent setgid + group write/execute, so `ioc-srv` writes via `ioc` group membership; see `INSTALL.md` Section 4).
+The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mode `2775`, or equivalent setgid + group write/execute, so `ioc-srv` writes via `ioc` group membership; see [Shared deployment directory setup](INSTALL.md#shared-deployment-directory-setup-optepics-iocs)).
 
 **Detection:** During `install`, the runner checks that `IOC_CHDIR` conforms to the permission model: an absolute, non-symlinked directory group-owned by `ioc` with setgid plus group write and execute (mode `2775`, or equivalent permissions), and every parent traversable by `ioc-srv`. It reads file metadata directly (no `sudo`), so it gives the same result for `root` and for an `ioc`-group operator. A quick leaf check:
 
@@ -179,43 +179,43 @@ The correct location is `/opt/epics-iocs/` (or any tree owned `root:ioc` with mo
 stat -c '%G %a' "${IOC_CHDIR}"
 ```
 
-Expect group `ioc` and mode `2775`. This checks the leaf only; a non-absolute `IOC_CHDIR` is rejected outright at validation time (hard error, `--force` does not bypass it; M6/#109), and the install-time check further validates the non-symlinked leaf and parent traversal. If the directory does not conform to the group/mode model, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains. One case is excluded from this warning flow: an `IOC_CHDIR` containing a `..` path component is malformed input, not a permission mismatch — `install` rejects it outright with a hard error, no confirmation prompt, and `--force` does not bypass it.
+Expect group `ioc` and mode `2775`. This checks the leaf only; a non-absolute `IOC_CHDIR` is rejected outright at validation time (hard error, `--force` does not bypass it), and the install-time check further validates the non-symlinked leaf and parent traversal. If the directory does not conform to the group/mode model, a warning is emitted and confirmation is required before proceeding. Use `-f` (or `--force`) to suppress the prompt in CI/CD contexts, though the underlying condition remains. One case is excluded from this warning flow: an `IOC_CHDIR` containing a `..` path component is malformed input, not a permission mismatch - `install` rejects it outright with a hard error, no confirmation prompt, and `--force` does not bypass it.
 
-**Partial mitigation:** Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file and so removes the error (see Q5); `IOCSH_HISTSIZE` does not (it only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup). Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
+**Partial mitigation:** Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file and so removes the error (see [Can I run a managed IOC manually for testing?](#can-i-run-a-managed-ioc-manually-for-testing)); `IOCSH_HISTSIZE` does not (it only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup). Autosave and save/restore write failures remain, and will surface later when those modules attempt to persist state.
 
 **Local mode:** `--local` deployments run as the invoking user, so this constraint does not apply.
 
 
-### Q9: Can we read system logs for IOCs running in system-wide mode?
+### How do I read logs in system mode?
 
-IOC console output is written to the dedicated procServ log file (`/var/log/procserv/<name>.log`, mode `0644`), so reading it needs no `systemd-journal` membership — `ioc` group membership gates privileged IOC management, not log reads. The systemd journal is only an optional service-metadata diagnostic: reading it with `journalctl -u epics-@myioc.service` still requires the `adm` or `systemd-journal` group and returns empty without it.
+IOC console output is written to the dedicated procServ log file (`/var/log/procserv/<name>.log`, mode `0644`), so reading it needs no `systemd-journal` membership - `ioc` group membership gates privileged IOC management, not log reads. The systemd journal is only an optional service-metadata diagnostic: reading it with `journalctl -u epics-@myioc.service` still requires the `adm` or `systemd-journal` group and returns empty without it.
 
 `ioc-runner`'s startup crash detection reads the procServ log file (it polls that file for the readiness marker and for crash indicators), so crash detection does not require journal group membership. If the procServ log file cannot be read, the runner reports that the startup log could not be read instead of claiming a clean start. The `systemctl is-active` check used at the readiness timeout is unaffected.
 
-For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout. The lifecycle test (`tests/test-local-lifecycle.bash`) detects an empty or inactive journal and SKIPs STEP 24 monitor-isolation coverage with a WARN.
+For local mode (`--local`), `journalctl --user` works during an active login session by default. Linger (`loginctl enable-linger <user>`) and a persistent `/var/log/journal/<machine-id>` make the user journal durable across logout.
 
 
 `ioc-runner log <name>` (add `-f` to follow) prints the same effective log file without hand-building the path.
 
 ---
 
-### Q10: What happens to my `attach` or `monitor` session when a colleague stops or removes the IOC?
+### What happens to console sessions when an IOC stops?
 
-The session ends immediately and cleanly. When another operator runs `stop` or `remove` on the IOC whose console you are holding, your console client receives EOF and exits as soon as the service goes down; the socket directory (`/run/procserv/<name>/`) is removed together with the unit, so no stale socket or hung session remains. Nothing needs to be cleaned up on your side — reconnect with `ioc-runner attach <name>` after the IOC is started again. (Verified on both reference platforms in the multi-user test plan, scenario S4.)
+The session ends immediately and cleanly. When another operator runs `stop` or `remove` on the IOC whose console you are holding, your console client receives EOF and exits as soon as the service goes down; the socket directory (`/run/procserv/<name>/`) is removed together with the unit, so no stale socket or hung session remains. Nothing needs to be cleaned up on your side - reconnect with `ioc-runner attach <name>` after the IOC is started again.
 
-If `remove` cannot stop the service, it aborts before deleting anything: the configuration stays in place, the runner prints `Error: Removal aborted. Service '<name>' did not stop (State: ...).` together with systemctl's own message, and the recovery is to check your sudo permissions and the unit state (`systemctl status`), then re-run `remove`. Since 1.2.1 the removal outcome is verified rather than assumed, so a `remove` that reports success has really deleted the configuration.
-
----
-
-### Q11: `attach` says "Configuration for `<name>` not found" but the IOC is clearly running. Why?
-
-This is almost always a permission gate, not a missing configuration. Resolving a console target reads the IOC's `.conf` in `/etc/procServ.d/`, and that directory is `2770 root:ioc` — a user outside the `ioc` group cannot read it, so the lookup reports the configuration as not found before any socket access is attempted. The console socket sits behind a second gate: its directory (`/run/procserv/<name>/`, `0770 ioc-srv:ioc`) is not traversable outside the `ioc` group, and the socket file itself is `0660 ioc-srv:ioc`. Ask to be added to the `ioc` group if your role requires console access; read-only observation of service state works without it via `ioc-runner status <name>` or `systemctl status epics-@<name>.service`. The same boundary makes `ioc-runner list` show no sockets for non-`ioc` users (see the principal model in `PERMISSION_MODEL.md` and the multi-user scenarios S6 and S10 in `gate/RUNBOOK.md`).
+If `remove` cannot stop the service, it aborts before deleting anything: the configuration stays in place, the runner prints `Error: Removal aborted. Service '<name>' did not stop (State: ...).` together with systemctl's own message, and the recovery is to check your sudo permissions and the unit state (`systemctl status`), then re-run `remove`. A `remove` that reports success has deleted the configuration.
 
 ---
 
-### Q12: How do we set an EPICS environment variable the same way for every IOC on a host?
+### Why can attach not read the configuration directory?
 
-**Use the optional site-wide environment file, `site.env`.** Place it next to the per-IOC confs — `${HOME}/.config/procServ.d/site.env` in local mode, `/etc/procServ.d/site.env` in system-wide mode — and each IOC unit reads it *before* its own `<ioc>.conf`. A `KEY="VALUE"` set only in `site.env` reaches every IOC on the host; a key set in an IOC's conf overrides the site value for that IOC alone, because `systemd` applies later `EnvironmentFile`s over earlier ones.
+You are not in the `ioc` group. Resolving a console target reads the IOC's `.conf` in `/etc/procServ.d/`, which users outside the `ioc` group cannot read, so `attach`, `monitor`, and `view` stop before any socket access with `Error: Cannot read /etc/procServ.d to resolve IOC '<name>' (ioc group membership required).` and exit 1. `Error: Configuration for <name> not found.` appears only to a member of the group when the configuration is really missing. The console socket sits behind a second gate: its directory (`/run/procserv/<name>/`, `0770 ioc-srv:ioc`) is not traversable outside the `ioc` group, and the socket file itself is `0660 ioc-srv:ioc`. Ask to be added to the `ioc` group if your role requires console access; read-only observation of service state works without it via `ioc-runner status <name>` or `systemctl status epics-@<name>.service`. The same boundary makes `ioc-runner list` show no sockets for non-`ioc` users (see the principal model in [PERMISSION_MODEL.md](PERMISSION_MODEL.md)).
+
+---
+
+### How do I share environment values across IOCs?
+
+**Use the optional site-wide environment file, `site.env`.** Place it next to the per-IOC confs - `${HOME}/.config/procServ.d/site.env` in local mode, `/etc/procServ.d/site.env` in system-wide mode - and each IOC unit reads it *before* its own `<ioc>.conf`. A `KEY="VALUE"` set only in `site.env` reaches every IOC on the host; a key set in an IOC's conf overrides the site value for that IOC alone, because `systemd` applies later `EnvironmentFile`s over earlier ones.
 
 The clearest use is the Channel Access and PV Access client discovery lists, which are identical for every IOC on a network:
 
@@ -227,15 +227,15 @@ EPICS_PVA_ADDR_LIST="192.0.2.10 192.0.2.11"
 EPICS_PVA_AUTO_ADDR_LIST="NO"
 ```
 
-The file is optional: an installation without it behaves exactly as before. When present, `install` checks it against the same non-executing `KEY="VALUE"` grammar as a conf — it is not a conf and carries no `IOC_*` keys, so it is validated for syntax only. See [NETWORK_ENV.md](NETWORK_ENV.md) for which variables belong in the shared layer versus a per-IOC conf, and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md) for the mechanism.
+The file is optional: without it, each IOC reads only its own conf. When present, `install` checks it against the same non-executing `KEY="VALUE"` grammar as a conf - it is not a conf and carries no `IOC_*` keys, so it is validated for syntax only. See [NETWORK_ENV.md](NETWORK_ENV.md) for which variables belong in the shared layer versus a per-IOC conf, and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md) for the mechanism.
 
 ---
 
-### Q13: Who owns `.iocsh_history`, and why does the console print `Permission denied ... loading '.iocsh_history'`?
+### Why does IOC shell history report permission denied?
 
 **The file belongs to whichever principal ran the IOC last, and the message is harmless.** iocsh loads the history file when it starts and saves it when it exits, through GNU readline. The file is `.iocsh_history` in the IOC's working directory (`IOC_CHDIR` under the runner, the current directory for a manual run) unless `EPICS_IOCSH_HISTFILE` names another path; a leading `~/` is expanded from `HOME`. On save, readline writes a temporary file next to the history file and renames it over the original, so the result is always a new `0600` file owned by the principal that ran the IOC, and readline's attempt to hand it back to the previous owner succeeds only for root. Saving needs write permission on the directory, not on the existing file, so a `0664` or group-writable history file changes nothing.
 
-Every switch of principal in one directory therefore produces the same two effects and nothing else: the new principal cannot read the previous owner's `0600` file, so iocsh prints one `ERROR Permission denied (13) loading '.iocsh_history'` line (once per iocsh pass, so twice when both `st.cmd` and the interactive shell hit it), and the saved history restarts from that session. The IOC starts and runs normally, the exit status is unchanged, and `start` excludes the line from crash matching (Q6). Verified with readline 7.0 (Rocky 8) and 8.2 (Debian 13) across an operator's manual run, a second operator's manual run, a system-mode run as `ioc-srv`, and back.
+Every switch of principal in one directory therefore produces the same two effects and nothing else: the new principal cannot read the previous owner's `0600` file, so iocsh prints one `ERROR Permission denied (13) loading '.iocsh_history'` line (once per iocsh pass, so twice when both `st.cmd` and the interactive shell hit it), and the saved history restarts from that session. The IOC starts and runs normally, the exit status is unchanged, and `start` excludes the line from crash matching ([What happens when IOC startup crashes or hangs?](#what-happens-when-ioc-startup-crashes-or-hangs)). This holds for readline 7.0 (Rocky 8) and 8.2 (Debian 13), for manual runs by different operators and for system-mode runs as `ioc-srv`.
 
 | Sequence in one shared IOC directory | Result |
 | --- | --- |
@@ -243,14 +243,81 @@ Every switch of principal in one directory therefore produces the same two effec
 | Operator B stops the service, edits `st.cmd`, and runs manually | B prints the loading error once and leaves a B-owned `0600` file |
 | The service runs again | `ioc-srv` prints the loading error once and owns the file again |
 | Two users run the same directory in local mode at the same time | Each start reads whatever file exists at that moment, with the loading error when it belongs to the other user; the user whose IOC exits last owns the file |
-| The directory carries the sticky bit (`1xxx`, as `/tmp` does) | The rename over another owner's file is refused: `Operation not permitted (1) writing` (readline 8) or `Unknown error -1 (-1) writing` (readline 7); the previous file stays; the IOC is unaffected. Runner directories are `2775` (setgid) and never carry it |
+| The directory carries the sticky bit (`1xxx`, as `/tmp` does) | The rename over another owner's file is refused: `Operation not permitted (1) writing` (readline 8) or `Unknown error -1 (-1) writing` (readline 7); the previous file stays; the IOC is unaffected. The directories that the setup and the runner create carry no sticky bit |
 
 To keep every path free of the message, give each principal its own history file outside the shared directory by setting `EPICS_IOCSH_HISTFILE` in the environment the IOC starts from. A file that does not exist yet is not an error, so the first run of each principal is clean and later runs read their own file back.
 
 | Launch path | Where to set it | Value |
 | --- | --- | --- |
-| System-mode service (`ioc-srv`, home `/nonexistent`) | A drop-in on the template, `/etc/systemd/system/epics-@.service.d/history.conf`, with `[Service]` and `Environment=EPICS_IOCSH_HISTFILE=/var/log/procserv/%i.iocsh_history` | One file per IOC in the service log directory, which `ioc-srv` already writes. `site.env` (Q12) also works but carries no `%i`, so every IOC on the host would share one file |
+| System-mode service (`ioc-srv`, home `/nonexistent`) | A drop-in on the template, `/etc/systemd/system/epics-@.service.d/history.conf`, with `[Service]` and `Environment=EPICS_IOCSH_HISTFILE=/var/log/procserv/%i.iocsh_history` | One file per IOC in the service log directory, which `ioc-srv` already writes. `site.env` ([How do I share environment values across IOCs?](#how-do-i-share-environment-values-across-iocs)) also works but carries no `%i`, so every IOC on the host would share one file |
 | Local-mode service | The same drop-in under `${HOME}/.config/systemd/user/epics-@.service.d/` | `%h/.iocsh_history-%i` or any path under the user's home |
-| Manual run in a shell | The site EPICS environment (`setEpicsEnv.bash`) or the operator's profile | `~/.iocsh_history`, so the history follows the person as `.bash_history` does; an empty value disables the file (Q5) |
+| Manual run in a shell | The site EPICS environment (`setEpicsEnv.bash`) or the operator's profile | `~/.iocsh_history`, so the history follows the person as `.bash_history` does; an empty value disables the file ([Can I run a managed IOC manually for testing?](#can-i-run-a-managed-ioc-manually-for-testing)) |
 
-Both drop-ins were verified through `ioc-runner start` and `stop`: the file appeared at the configured path, owned by the launching principal, and a second start read it back without a message. A manual run made without the site environment falls back to the shared-directory file and the behavior above; the runner cannot control that shell.
+With either drop-in, `ioc-runner start` creates the file at the configured path, owned by the launching principal, and a later start reads it back without a message. A manual run made without the site environment falls back to the shared-directory file and the behavior above; the runner cannot control that shell.
+
+---
+
+### Why is an active IOC's startup log unreadable?
+
+The runner reads the log file named by the unit's `--logfile` to judge the
+startup, and that file was missing or unreadable when it looked. Check that
+the file and its directory exist with the owners and modes in
+[PERMISSION_MODEL.md](PERMISSION_MODEL.md), for example with
+`stat /var/log/procserv/<name>.log` in system mode. The IOC itself is running;
+only the startup report is incomplete.
+
+---
+
+### Why does the journal show no IOC output?
+
+procServ writes the IOC's console output to the log file, not to the journal;
+the journal holds only systemd's and procServ's own messages about the
+service. Read the IOC output with `ioc-runner log <name>`, or the file itself
+as [LOG_LAYOUT.md](LOG_LAYOUT.md) describes.
+
+---
+
+### Why are log lines missing after rotation?
+
+Rotation uses `copytruncate`: logrotate copies the live file to
+`<name>.log.1.gz` and truncates the original in place. The earlier lines are in
+the rotated archive; read it with `zcat` or `zless`.
+
+---
+
+### Where is the log of a local-mode IOC?
+
+It is under `$XDG_STATE_HOME/procserv`, or `~/.local/state/procserv` when
+`XDG_STATE_HOME` is unset, unless `IOC_RUNNER_LOCAL_LOG_DIR` or
+`IOC_RUNNER_LOG_DIR` was set at install time. `ioc-runner --local log <name>`
+reads the path from the installed unit, so it finds the file in every case:
+
+```bash
+ls "${XDG_STATE_HOME:-$HOME/.local/state}/procserv"
+```
+
+---
+
+### Why are my local-mode logs not rotated?
+
+The user timer is not running, lingering is off, or `logrotate` was missing
+when you installed. Check the timer, enable it, and enable lingering:
+
+```bash
+systemctl --user list-timers | grep epics-logrotate
+systemctl --user enable --now epics-logrotate.timer
+loginctl enable-linger "$(id -un)"
+```
+
+When `logrotate` was missing, `install` deployed no rotation units. Install
+`logrotate`, stop one local IOC, and run `ioc-runner --local -f install <ioc_dir>`
+for it again, where `<ioc_dir>` is the IOC directory that holds its conf; `install` refuses an IOC that is running.
+
+---
+
+### Why do manually created files have different log permissions?
+
+The directory's default ACL gives the `ioc` group write access to files that
+operators create there, while procServ creates its log files with a fixed mode
+that the ACL does not widen. Both results are intended;
+[PERMISSION_MODEL.md](PERMISSION_MODEL.md) gives the values and the reason.

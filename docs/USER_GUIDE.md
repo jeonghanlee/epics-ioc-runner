@@ -1,51 +1,112 @@
-# EPICS IOC Runner - Operations User Guide
+# System-mode IOC operations guide
 
-This guide provides instructions for trained engineers on how to deploy, monitor, and manage EPICS IOCs system-wide using the `ioc-runner` utility.
+This guide shows an operator how to deploy, run, observe, and remove EPICS
+IOCs that systemd runs as the `ioc-srv` service account. Local mode, which
+runs IOCs under your own user account, has its own guide in
+[USER_GUIDE_LOCAL.md](USER_GUIDE_LOCAL.md) and shares the console, listing,
+and version sections of this page. The command reference, with every option
+and exit status, is [CLI_REFERENCE.md](CLI_REFERENCE.md).
 
-It assumes the system administrator has already configured the shared deployment directory (`/opt/epics-iocs`) and that you are a member of the `ioc` group.
+Prerequisites:
 
-## 1. IOC Deployment Workflow
-The standard procedure for deploying a new IOC involves cloning the repository into the shared directory, generating a `.conf` file, and installing it into the system manager.
+- An administrator has run the system setup and prepared the shared
+  deployment directory `/opt/epics-iocs`; see [INSTALL.md](INSTALL.md).
+- You are a member of the `ioc` group.
 
-**Step 1: Clone the IOC Repository**
-Navigate to the shared deployment directory and clone your IOC repository.
+## Deploy an IOC in system mode
+
+To deploy an IOC, you clone it into the shared directory, generate its
+configuration, install the configuration, and start the service.
+
+1. In `/opt/epics-iocs`, clone the IOC repository and change to its boot
+   directory:
+
+   ```bash
+   cd /opt/epics-iocs
+   git clone <ioc_repository_url>
+   cd <ioc_repository>/iocBoot/<ioc_boot_dir>
+   ```
+
+   `<ioc_repository_url>` is the Git URL of the IOC, `<ioc_repository>` the
+   directory the clone creates, and `<ioc_boot_dir>` the directory that holds
+   the startup script.
+
+2. Generate the configuration for this directory:
+
+   ```bash
+   ioc-runner generate .
+   ```
+
+   The runner writes `<ioc_boot_dir>.conf` with the absolute paths and the
+   `ioc-srv` identity. The startup script named in `IOC_CMD` must be
+   executable, or `install` rejects the configuration.
+
+3. Install the configuration:
+
+   ```bash
+   ioc-runner install .
+   ```
+
+   `install .` reads `<ioc_boot_dir>.conf` from the current directory; you can
+   also pass the file name. The runner asks before it overwrites an installed
+   configuration; `-f` answers yes, for configuration management and CI/CD
+   use.
+
+4. Start the IOC:
+
+   ```bash
+   ioc-runner start <ioc_boot_dir>
+   ```
+
+   The runner checks the log path, starts the service, and reports whether
+   the IOC reached `All initialization complete`.
+
+### Verification
+
+The runner prints `IOC '<ioc_boot_dir>' successfully started.`, and
+`ioc-runner status <ioc_boot_dir>` shows the service as `active (running)`.
+
+### Deployment directory requirement
+
+In system mode the IOC runs as `ioc-srv` and writes runtime files, such as
+`.iocsh_history`, autosave files, and save/restore snapshots, to its working
+directory. `IOC_CHDIR` must therefore be writable by `ioc-srv`.
+
+The shared `/opt/epics-iocs` tree carries a default ACL, described in
+[INSTALL.md](INSTALL.md#shared-deployment-directory-setup-optepics-iocs),
+so that `IOC_CHDIR` is writable by `ioc-srv`. The setgid bit of the
+`root:ioc 2775` parent alone is not enough: it passes the `ioc` group to a
+directory that `git clone` creates, but the mode bits follow the creating
+user's `umask`, so a clone made under `umask 022` is `2755` and `ioc-srv`
+cannot write to it. The default ACL gives the group `rwx` on new entries
+regardless of `umask`. Without it, clone under `umask 002`, or correct the
+clone with `chmod -R g+w /opt/epics-iocs/<clone>`. Home directories and NFS
+mounts without `ioc` group access are not writable by `ioc-srv` and cause
+runtime failures under procServ.
+
+During `install`, the runner checks that `IOC_CHDIR` is group-owned by `ioc`
+with setgid and group write and execute, and that `ioc-srv` can traverse it.
+It reads the file metadata directly, without `sudo`. When the directory does
+not conform, the runner prints a warning and asks before it continues.
+
+### Write a configuration by hand
+
+A configuration can also be written by hand. For `install .` to find it, the
+file name must be the directory name followed by `.conf`:
+
 ```bash
-cd /opt/epics-iocs
-git clone https://your_git_url/myioc.git
-cd myioc/iocBoot/iocmyioc
+cat <<EOF > <ioc_boot_dir>.conf
+IOC_USER="ioc-srv"
+IOC_GROUP="ioc"
+IOC_CHDIR="$(pwd)"
+IOC_PORT=""
+IOC_CMD="./st.cmd"
+EOF
 ```
 
-**Deployment Directory Requirement**
+`install` fills an empty `IOC_PORT` with the standard socket path.
 
-In system mode, the IOC process runs as `ioc-srv` and writes runtime artifacts (`.iocsh_history`, autosave files, save/restore snapshots) to its working directory. `IOC_CHDIR` must therefore be writable by `ioc-srv`.
-
-The shared `/opt/epics-iocs` tree must carry the default ACL described in [System Installation Guide](INSTALL.md#4-shared-deployment-directory-setup-optepics-iocs) section 4 so that `IOC_CHDIR` is writable by `ioc-srv`. The parent's `root:ioc 2775` setgid alone is not sufficient: setgid propagates group ownership to a newly created (for example, `git clone`d) subdirectory, but its mode bits follow the creating user's `umask`, so a clone made under the conventional `umask 022` is `2755` with no group write and `ioc-srv` cannot write there. The default ACL forces group `rwx` on newly created entries regardless of `umask`; without it, each clone under the tree must be made under `umask 002` or corrected afterward with `chmod -R g+w /opt/epics-iocs/<clone>`. Personal home directories and NFS mounts without `ioc` group access are not writable by `ioc-srv` at all and will cause silent runtime failures under `procServ`.
-
-During `install`, the runner checks that `IOC_CHDIR` is group-owned by `ioc` with setgid + group write/execute and is traversable by `ioc-srv`, reading file metadata directly (no `sudo`). If it does not conform, a warning is emitted and confirmation is required before proceeding.
-
-**Step 2: Create the Configuration File**
-Select either the automated generation tool or manual creation.
-
-* **Option A: Automated Generation (Recommended)**
-  Dynamically resolves absolute paths and generates the configuration based on the target `iocBoot` directory.
-  ```bash
-  ioc-runner generate .
-  ```
-
-* **Option B: Manual Creation**
-  Manually define parameters. To use directory-based installation (`install .`), the filename must exactly match the directory name.
-  ```bash
-  cat <<EOF > iocmyioc.conf
-  IOC_USER="ioc-srv"
-  IOC_GROUP="ioc"
-  IOC_CHDIR="$(pwd)"
-  IOC_PORT=""
-  IOC_CMD="./st.cmd"
-  EOF
-  ```
-*Important: Ensure your `IOC_CMD` (e.g., `st.cmd`) has execute permissions (`chmod +x st.cmd`), otherwise the installation will be strictly rejected.*
-
-### Configuration File Syntax
+### Configuration file syntax
 
 The runner accepts a bounded, single-line subset of systemd
 `EnvironmentFile` syntax:
@@ -80,200 +141,210 @@ above rather than the wider systemd grammar. Every key must pass this syntax
 check; operational `IOC_*` keys and `CRASH_LOG_PATTERNS_EXTRA` also receive
 their field-specific validation.
 
-An environment variable that is identical for every IOC on the host — most
-commonly the Channel Access and PV Access client discovery lists — can be set
+An environment variable that is identical for every IOC on the host, most
+commonly the Channel Access and PV Access client discovery lists, can be set
 once in an optional site-wide file, `site.env`, alongside the per-IOC confs,
 rather than repeated in each conf. Each IOC reads it before its own conf, and a
 per-IOC conf overrides it. See [NETWORK_ENV.md](NETWORK_ENV.md) for which
 variables belong in the shared layer and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md)
 for the mechanism.
 
-**Step 3: Install the Configuration**
-Deploy the configuration to the system manager. Pass the explicit filename or use the current directory (`.`) if generated automatically.
-```bash
-# For explicitly named files:
-ioc-runner install myioc.conf
+## Attach to the IOC console
 
-# For auto-generated configurations in the current directory:
-ioc-runner install .
+`attach` connects your terminal to the IOC shell through the console socket.
+It is the same in both modes; local mode adds `--local`:
+
+```bash
+ioc-runner attach <ioc_name>
+ioc-runner --local attach <ioc_name>
 ```
 
-### CI/CD and Automated Deployments
-If you are deploying IOCs via configuration management tools (e.g., Ansible) or CI/CD pipelines, the interactive overwrite prompt will halt the process. Use the `-f` (or `--force`) flag to force installation:
+Press Enter to show the `epics>` prompt when the screen is blank.
+
+- **Detach**: Press `Ctrl-A`, the default, to detach and leave the IOC
+  running. The runner selects `con`, or `socat` when `con` is unavailable;
+  both consume the key when you type it, so it does not reach the IOC shell.
+  Inside pasted text, `con` forwards the key to the IOC shell, while `socat`
+  detaches at it. With the default key, `Ctrl-A` cannot move the cursor to the
+  beginning of the input line.
+- **Ignored keys**: The runner starts procServ with `--ignore=^D^C`, which
+  discards `Ctrl-C` and `Ctrl-D` before they reach the IOC; every other byte,
+  including `Ctrl-]`, is forwarded. When `Ctrl-C` or `Ctrl-D` is the detach
+  key, the client handles it and detaches first.
+- **Supported clients**: `attach` and `monitor` use only `con` or `socat`.
+  When neither is available, the command fails with an installation hint.
+  For `monitor`, `con` must support `-r`; otherwise `socat` is required.
+- **Production use**: Prefer `con` for production console access. `socat` is
+  supported for ordinary console use, but it has not been validated for
+  production workloads with sustained heavy output or sudden bursts of IOC
+  output. This limitation applies to both `attach` and `monitor`.
+
+To use another key for one connection, pass `--detach-key`; the attach banner
+names the selected key, and later connections use `Ctrl-A` again. The
+[CLI reference](CLI_REFERENCE.md#attach-readwrite-mode) lists the accepted key
+names.
 
 ```bash
-ioc-runner -f install myioc.conf
-```
-
-**Step 4: Start the Service**
-Start the IOC process.
-```bash
-ioc-runner start myioc
-```
-
-`start` and `restart` verify the effective procServ log path before asking
-systemd to change service state. A create, write, sync, or cleanup failure
-blocks the transition. `sudo ioc-runner inspect myioc` reports the same
-log-path condition as a warning and also checks whether the running procServ
-executable still matches the effective unit.
-
-## 2. Attaching to the IOC Console
-To interact with the IOC shell, connect to the UNIX Domain Socket.
-
-```bash
-ioc-runner attach myioc
-```
-* **Detach**: Press `Ctrl-A` by default to detach from the console while leaving the IOC running. The runner selects `con`, or `socat` if `con` is unavailable; both consume the selected key when it is typed, so it does not reach the IOC shell. Inside pasted text, `con` forwards it to the IOC shell, while `socat` detaches at it. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line.
-* **Ignored keys**: The runner configures procServ with `--ignore=^D^C`. It discards `Ctrl-C` and `Ctrl-D` before they reach the IOC; every other byte, including `Ctrl-]`, is forwarded. If `Ctrl-C` or `Ctrl-D` is selected as the detach key, the client handles it locally and detaches first.
-* **Supported clients**: Both `attach` and `monitor` use only `con` or `socat`; `nc` is not supported. If neither supported client is available, the command fails with an installation hint. For `monitor`, `con` must support `-r`; otherwise `socat` is required.
-* **Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
-
-To use another key for one connection, pass `--detach-key`; the attach banner names the selected key. The default remains `Ctrl-A` for later connections. See the [CLI reference](CLI_REFERENCE.md#attach-readwrite-mode) for accepted key names.
-
-```bash
-ioc-runner attach myioc --detach-key ctrl-]
+ioc-runner attach <ioc_name> --detach-key ctrl-]
 ```
 
 ### Read-only monitor
 
-To observe the console without sending input, use `monitor`. It selects
-`con -r`, or `socat` when `con` is unavailable or lacks `-r`; terminal input
-never reaches the IOC. Press `Ctrl-A` to exit with `con`, or `Ctrl-C` with
-`socat`; the monitor banner names the exit key. The `--detach-key` option
-applies only to `attach`.
+`monitor` shows the console without sending input. It selects `con -r`, or
+`socat` when `con` is unavailable or lacks `-r`; terminal input never reaches
+the IOC. Press `Ctrl-A` to exit with `con`, or `Ctrl-C` with `socat`; the
+monitor banner names the exit key. `--detach-key` applies only to `attach`.
 
 ```bash
-ioc-runner monitor myioc
+ioc-runner monitor <ioc_name>
+ioc-runner --local monitor <ioc_name>
 ```
 
-## 3. Daily Operations (Systemd Native Commands)
-Because the IOCs are managed by `systemd` templates, you can use native `systemctl` commands without a password.
+## Operate the IOC service
 
-Direct `systemctl` lifecycle commands bypass `ioc-runner` preflight checks,
-warnings, and readiness reporting. Use `ioc-runner start` and
-`ioc-runner restart` for normal lifecycle operations; use direct `systemctl`
-when that bypass is intentional.
-
-**Check IOC Status:**
-```bash
-sudo systemctl status epics-@myioc.service
-```
-
-**Restart the IOC:**
-```bash
-sudo systemctl restart epics-@myioc.service
-```
-
-**Stop the IOC temporarily:**
-```bash
-sudo systemctl stop epics-@myioc.service
-```
-
-**Enable/Disable IOC auto-start on boot:**
-```bash
-sudo systemctl enable epics-@myioc.service
-sudo systemctl disable epics-@myioc.service
-```
-
-
-## 4. Viewing IOC Logs
-By default, procServ writes IOC standard output and standard error to a dedicated log file under `/var/log/procserv/`.
-
-**Show the log with the runner** (resolves the effective file for you; `-f` follows):
-```bash
-ioc-runner log myioc
-ioc-runner -f log myioc
-ioc-runner -n 200 log myioc
-```
-
-**Watch logs in real-time (raw path):**
-```bash
-tail -f /var/log/procserv/myioc.log
-```
-
-**View recent IOC output:**
-```bash
-tail -n 200 /var/log/procserv/myioc.log
-```
-
-Use `journalctl -u epics-@myioc.service` when you need systemd service-manager diagnostics rather than IOC console output.
-
-**Log rotation:** `/var/log/procserv/*.log` is rotated weekly with 8-week retention via `/etc/logrotate.d/procserv` (deployed by `setup-system-infra.bash --full`). Rotated files are compressed as `myioc.log.1.gz`, `myioc.log.2.gz`, and so on; read them with `zcat` or `zless`. Rotation uses `copytruncate`, so the running IOC keeps writing to the same path without a restart.
-
-## 5. Removing an IOC
-To permanently stop and remove an IOC from the system:
+The runner commands operate the service and are the normal path; the
+[CLI reference](CLI_REFERENCE.md) gives their checks and exit status:
 
 ```bash
-ioc-runner remove myioc
+ioc-runner status <ioc_name>
+ioc-runner stop <ioc_name>
+ioc-runner restart <ioc_name>
+ioc-runner enable <ioc_name>
+ioc-runner disable <ioc_name>
 ```
-*This command stops the service and removes the configuration file from `/etc/procServ.d/`. It leaves your cloned repository in `/opt/epics-iocs` untouched.*
 
+`enable` and `disable` decide only whether the IOC starts at boot. `start` and
+`restart` check the log path first and report whether the IOC came up.
 
-## 6. List Managed IOCs
-You can view the active UNIX Domain Sockets and statuses for all system-wide managed IOCs using the `list` command.
+Because each IOC is an instance of the `epics-@.service` template, the
+`systemctl` commands work on the same unit without a password. They skip the
+runner's log-path check and startup report, so use them only when you intend
+that:
 
 ```bash
-ioc-runner list
+sudo systemctl restart epics-@<ioc_name>.service
 ```
-*(For detailed metrics including PID, CPU, and Memory, use `ioc-runner -v list`)*
 
+## Read IOC logs
 
-## 7. Direct Console Access (Alternative)
-While the `attach` command automatically resolves the socket path, you can also connect to the UNIX Domain Socket directly using the `con` utility.
+procServ writes the IOC's standard output and standard error to
+`/var/log/procserv/<ioc_name>.log`. `log` resolves the file from the
+installed unit and prints its last 40 lines; `-n <count>` sets the number of
+lines and `-f` follows the file:
 
-First, find the exact UDS path for your active IOCs using the `list` command:
+```bash
+ioc-runner log <ioc_name>
+ioc-runner -n 200 log <ioc_name>
+ioc-runner -f log <ioc_name>
+```
+
+For systemd's own messages about the service, rather than IOC output, read
+the journal:
+
+```bash
+journalctl -u epics-@<ioc_name>.service
+```
+
+`/etc/logrotate.d/procserv` rotates the logs into compressed archives,
+`<ioc_name>.log.1.gz` and onward; read them with `zcat` or `zless`. The IOC
+keeps writing to the same path during rotation.
+[LOG_LAYOUT.md](LOG_LAYOUT.md#system-mode-log-rotation) gives the policy.
+
+## Remove an IOC
+
+`remove` stops and disables the service and deletes the installed
+configuration:
+
+```bash
+ioc-runner remove <ioc_name>
+```
+
+The IOC's own directory under `/opt/epics-iocs` stays in place.
+
+## List managed IOCs
+
+`list` shows each IOC's console socket and service state; `-v` adds PID, CPU,
+and memory, and `-vv` adds kernel socket details:
+
 ```bash
 ioc-runner list
+ioc-runner --local list
+ioc-runner list -v
 ```
 
-The output will display the full path, which typically follows this pattern for system-wide sessions:
-`/run/procserv/<ioc_name>/control`
+In system mode, a user outside the `ioc` group sees no sockets.
 
-You can then connect directly using `con`:
+## Connect to the console directly with con
+
+`attach` resolves the socket path for you; `con` can also connect to the
+socket directly. The socket path depends on the mode:
+
+| Mode | Socket path |
+| --- | --- |
+| System | `/run/procserv/<ioc_name>/control` |
+| Local | `/run/user/<uid>/procserv/<ioc_name>/control` |
+
+`<uid>` is your numeric user ID, as `id -u` prints it. `ioc-runner list`
+prints the full path of each socket. To connect to a system-mode IOC:
+
 ```bash
-con -c /run/procserv/myioc/control
+con -c /run/procserv/<ioc_name>/control
 ```
-* **Detach**: Press `Ctrl-A` to detach from the console while leaving the IOC running.
 
+Press `Ctrl-A` to detach and leave the IOC running.
 
-## 8. Container Mode (`--container`)
+## Run IOCs in container mode
 
 Inside a systemd-less container image prepared with
-`setup-system-infra.bash --container` (see [`INSTALL.md`](INSTALL.md)), the
-same commands run as root with `--container` instead of `sudo`; s6
-supervises `procServ` and there is no `systemctl`.
+`setup-system-infra.bash --container` (see [INSTALL.md](INSTALL.md)), the
+same commands run as root with `--container`; s6 supervises procServ and
+there is no `systemctl`:
 
 ```bash
-ioc-runner --container generate /opt/epics-iocs/myioc
-ioc-runner --container install  /opt/epics-iocs/myioc
-ioc-runner --container start    myioc     # readiness: the control socket appears
-ioc-runner --container status   myioc     # s6-svstat line, e.g. "up (pid 123) 42 seconds"
+ioc-runner --container generate /opt/epics-iocs/<ioc_name>
+ioc-runner --container install /opt/epics-iocs/<ioc_name>
+ioc-runner --container start <ioc_name>
+ioc-runner --container status <ioc_name>
 ioc-runner --container list -v
-ioc-runner --container attach   myioc
-ioc-runner --container stop     myioc
-ioc-runner --container enable   myioc     # start at container boot (removes the s6 "down" file)
-ioc-runner --container disable  myioc     # stay down at container boot; the running IOC is untouched
-ioc-runner --container remove   myioc
+ioc-runner --container attach <ioc_name>
+ioc-runner --container stop <ioc_name>
+ioc-runner --container remove <ioc_name>
 ```
 
-IOC output goes to the container stdout (`docker logs <container>`); there
-is no log file, log rotation, or `journalctl`. The runner requires a live
-`s6-svscan` on `/run/s6-procserv`, which the container entrypoint starts as
-PID 1, and refuses to run as a non-root user.
+`start` waits for the control socket to appear. `status` prints the IOC name
+and the `s6-svstat` line, for example `myioc: up (pid 123) 42 seconds`.
+`enable` deletes the service's s6 `down` file so the IOC starts when the
+container starts, and `disable` creates it; neither touches the running IOC.
 
-## 9. Version Tracking
-To verify the exact version, Git commit hash, commit date, and install date of the deployment tool you are using:
+IOC output goes to the container's standard output (`docker logs
+<container>`); there is no log file, no log rotation, and no journal. The
+runner requires a running `s6-svscan` on `/run/s6-procserv`, which the
+container entrypoint starts as PID 1, and refuses to run as a non-root user.
+
+## Check the runner version
+
+`-V` prints the runner version, Git commit, commit date, and install date:
 
 ```bash
 ioc-runner -V
 ```
 
-Example output (values shown as placeholders):
+An installed runner prints its recorded values:
 
 ```text
-epics-ioc-runner version X.Y.Z (<hash>)
+epics-ioc-runner version <version> (<hash>)
 commit date:  <commit date>
 install date: <install date>
 ```
 
-The commit date answers which revision is on this host; the install date answers how long the deployed artefact has been in place.
+A runner run from a Git checkout without installation prints the live commit
+and `install date: live`; uncommitted changes add `-dirty` to the hash:
+
+```text
+epics-ioc-runner version <version> (<hash> (live))
+commit date:  <commit date>
+install date: live
+```
+
+The commit date identifies the revision on this host, and the install date
+shows how long it has been in place.

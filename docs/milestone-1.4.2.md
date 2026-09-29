@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan is drafted and awaits owner acceptance and implementation authorization. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. T4 inventory reconciliation covers all 352 entries: 256 covered, 49 partially covered, and 47 missing; resolve the remaining documentation coverage before recording T4 as passing. T1 and T2 passed the earlier documented inputs and need rerunning after the subsequent page edits. Continue with T3 through T6, obtaining owner approval before T3 installation and removal commands on a test consumer. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; its plan is to be written and its issue filed. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -35,8 +35,9 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
 | Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Complete | — | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
-| Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | Not started | Yes | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
+| Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | In progress | No | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
+| Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Not started | Yes | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 
@@ -1499,7 +1500,7 @@ Last Compared: after 2026-09-26T18:58:04Z with `gh issue view 162`; issue update
 Origin: 1.4.2 / M8
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1560,9 +1561,9 @@ runbook, and any change to runner behavior.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-28, the plan as committed in `222ab3c`
+Implementation Authorization: 2026-09-28, the accepted plan
 Superseded Plan Artifacts: none
 
 1. Inventory. List every command, global option, command option, path,
@@ -1631,12 +1632,55 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | — | Pending | none |
-| T2 | Not run | — | Pending | none |
+| T1 | 2026-09-29T06:21:15Z | Control host; Pages mdBook image | PASS | Test Plan command exited 0 without warnings; `work/m8-t1-build.log`; input hashes in `work/m8-t1-sources.sha256` |
+| T2 | 2026-09-29T06:21:25Z | Control host; T1 HTML and supplemental mdBook rendering | PASS | `bash work/m8-check-links.bash`: 22 Markdown source pages plus setup script, 126 local references, 0 failures; 8 external URLs excluded; `work/m8-t2-links.log` |
 | T3 | Not run | — | Pending | none |
-| T4 | Not run | — | Pending | none |
+| T4 | 2026-09-29T08:26:51Z | Control host; 352 inventory entries and 13 published pages | FAIL | Current inventory: 256 covered, 49 partial, 47 missing; all 11 original mismatch entries have corrected text. The two previously reported omissions are covered. Per-entry evidence and input hashes: `work/m8-t4-inventory-reconciliation.md`, `work/m8-t4-inventory-sources.sha256`. Earlier ASCII/address/history checks remain dated evidence in `work/m8-t4-static.log` and `work/m8-t4-assessment.md`; no fresh full static pass claimed |
 | T5 | Not run | — | Pending | none |
 | T6 | Not run | — | Pending | none |
+
+T1 and T2 observed the uncommitted documentation at HEAD `222ab3c`.
+The build image ID was
+`sha256:2b53e59ebf0edf2913e0636ff2e31351f0f0c4c7593fb51d1f22b4b629173015`.
+T2 reads links from the rendered article content so mdBook handles Markdown
+syntax, and checks published target anchors against the T1 HTML. For pages
+outside the published book, it renders copies of the original repository
+Markdown with the same image and checks those generated IDs. It also checks
+the repository-relative documentation paths in `bin/setup-system-infra.bash`.
+The supplemental build log and source hashes are retained under
+`work/m8-links.LwpfK2/`. The checker passed `bash -n` and
+`shellcheck -s bash`. Rebuild T1 and refresh its input hashes before rerunning
+T2 after published-page changes; the checker rejects a changed T1 source.
+These results do not complete T3 through T6.
+
+T3 preparation: `work/m8-t3-code-blocks.md` contains 100 code blocks extracted
+verbatim from the published pages. Block classification, inline-command
+inventory, and command execution remain pending. No test-consumer deployment
+or installation/removal command has run for T3. The choice of a reused or
+separate disposable consumer is awaiting owner direction.
+
+T4 inventory reconciliation is complete as a source/document comparison, not
+as a passing coverage result: 256 entries are covered, 49 partially covered,
+and 47 missing. These are entry counts, not independent defect counts; a
+single behavior can occur in command, option, path, and message rows. The
+history-file effect (P35) and full-setup prerequisites (S8) are covered by the
+subsequent additions. The 11 original mismatch entries have corrected text;
+their runtime verification remains part of T3. No runner/setup command or
+test-consumer deployment was executed for this reconciliation. No inventory
+entry was waived or removed. Address the remaining coverage and rerun the
+static checks before recording T4 as passing.
+
+Item 1 inventory, 2026-09-28, from the source at `222ab3c`: 352 surfaces
+(36 command rows, 48 options, 53 paths, 215 printed messages), of which 148
+are stated on no page, 101 of them `ioc-runner` messages. Eleven page
+statements differ from the code: the manual unit in `INSTALL.md` lacks the
+`site.env` line and leaves `${IOC_CHDIR}`, `${IOC_PORT}`, and `${IOC_CMD}`
+unescaped; the sudoers example in `ARCHITECTURE.md` pads the verbs; the
+local template mode in `PERMISSION_MODEL.md`, the local asset replacement
+in `USER_GUIDE_LOCAL.md` and `PERMISSION_MODEL.md`, the system-mode
+`IOC_RUNNER_LOG_DIR` behavior in `LOG_LAYOUT.md`, the FAQ Q11 message, the
+scope of `IOC_RUNNER_PROCSERV_TOOL` and `IOC_RUNNER_SYSTEM_LOG_DIR`, and the
+container `status` output differ. The working file is `work/m8-inventory.md`.
 
 ##### Closure Evidence
 
@@ -1889,6 +1933,86 @@ the landed `458403f` change.
 - External gate: G1 is Complete. G2, the production bake carrying `opc`, is
   a condition of the 1.4.2 release Gate, not of this work.
 - Linked issue: none.
+
+#### M10 - Correct the command-line help, completion, and mode-specific messages
+
+Origin: 1.4.2 / M10
+Identity History: none
+GitHub Issue: #163 (https://github.com/jeonghanlee/epics-ioc-runner/issues/163)
+Status: Not started
+
+##### Summary
+
+The M8 inventory of the command surface, checked against the code on
+2026-09-28 at `222ab3c`, found seven places where the runner's completion,
+help, or messages disagree with its own behavior. None changes what a command
+does; each misleads an operator who reads the prompt, the help, or the error.
+
+##### Scope
+
+- `bin/ioc-runner-completion.bash`: the command list omits `log`
+  (line 14), and the option list omits `-n` and `--lines` (line 15).
+- `bin/ioc-runner` usage: the `log` entry shows `-n <count>` without its long
+  form `--lines` (line 267).
+- `bin/ioc-runner` `validate_conf`: in container mode an identity mismatch
+  prints `Local IOCs must run as` and `Local IOCs must run under group`,
+  because the message branches only on `system` (lines 1763-1773).
+- `bin/ioc-runner` `do_inspect`: in container mode the root check prints
+  `requires root privileges in system mode` (line 3031).
+- `bin/setup-system-infra.bash`: the root check runs before argument parsing,
+  so `--help` as a non-root user prints the root error instead of the usage
+  (lines 79-83).
+- `bin/setup-system-infra.bash`: a failed logrotate validation prints
+  `Skipping deployment.` and then exits 1 (lines 745-747).
+- Decide whether `bin/run-setup-system-infra.bash` should forward
+  `IOC_RUNNER_SCAN_DIR`, which the setup script reads (line 75) and the
+  launcher does not forward (lines 57-65). The launcher serves `--full` and
+  the CLI update; container setup runs the setup script directly.
+
+Out of scope: changing any command's behavior, exit status, or accepted
+input beyond these texts and lists, and the published pages, which M8 owns.
+
+##### Completion Criteria
+
+- Completion offers `log`, `-n`, and `--lines`.
+- The usage names `--lines`.
+- Container mode prints mode-correct identity and `inspect` root messages.
+- `setup-system-infra.bash --help` prints the usage for a non-root user and
+  exits 0.
+- A failed logrotate validation states that setup stops.
+- The `IOC_RUNNER_SCAN_DIR` forwarding question is settled as a change or a
+  recorded Keep.
+- The affected suites pass with their counts updated where checks change.
+
+##### Dependencies And Decisions
+
+- Owner direction 2026-09-28: record these code-side findings as separate
+  work in 1.4.2, with a GitHub issue.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+To be written.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | behavior | To be defined with the plan | To be defined | To be defined |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | — | Pending | none |
+
+##### Closure Evidence
+
+None.
 
 #### G1 - Test fixture account `opc` in `ioc` with linger
 

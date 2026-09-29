@@ -1,4 +1,4 @@
-# EPICS IOC Runner - System Uninstallation Guide
+# Uninstall EPICS IOC Runner
 
 ## Scope
 
@@ -13,14 +13,15 @@ this installation.
 ## Prerequisites
 
 - Root access to the target server.
-- No active `epics-@*.service` instances.
-- No IOC configuration files remaining in `/etc/procServ.d`.
+- No loaded `epics-@*.service` instances.
+- No IOC configuration files remaining in `/etc/procServ.d`, and a copy of
+  `/etc/procServ.d/site.env` if the site still needs its settings.
 - The deployed `/etc/systemd/system/epics-@.service` is still present.
 - Site records or operator knowledge that distinguish installation-dedicated
   resources from pre-existing or shared resources.
 
 Use one privileged Bash session for the procedure. Before either identity is
-deleted, a closed session can restart at section 1.3 so the identity and log
+deleted, a closed session can restart at [Resolve the deployed identity and log path](#resolve-the-deployed-identity-and-log-path) so the identity and log
 path are read again from the deployed source. After an identity deletion
 starts, complete sections 2.2-2.4 without closing the session.
 
@@ -31,18 +32,19 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 umask 077
 ```
 
-## 1. Pre-Removal Safety Checks
+## Checks before removing infrastructure
 
-### 1.1 Active services
+### Check active services
 
 ```bash
-systemctl list-units 'epics-@*.service' --state=active
+systemctl list-units 'epics-@*.service' --all
 ```
 
-If any service is listed, stop and remove each instance with
+The `--all` listing includes instances that are restarting or failed. If any
+instance is listed, stop and remove each instance with
 `ioc-runner remove <ioc-name>` before continuing.
 
-### 1.2 Existing IOC configurations
+### Check existing IOC configurations
 
 ```bash
 find /etc/procServ.d -maxdepth 1 -type f -name '*.conf' -print
@@ -50,9 +52,10 @@ find /etc/procServ.d -maxdepth 1 -type f -name '*.conf' -print
 
 If any configuration is listed, stop and remove its IOC through `ioc-runner`.
 Do not force-delete configuration files because the normal removal path also
-disables the corresponding systemd instance.
+disables the corresponding systemd instance. The shared `site.env`, when
+present, is not an IOC configuration; [Shared configuration directory](#shared-configuration-directory) deletes it.
 
-### 1.3 Resolve the deployed identity and log path
+### Resolve the deployed identity and log path
 
 The deployed unit is the source for the service account, group, and logfile
 template. The resolver requires the root-owned `0644` regular file produced by
@@ -168,7 +171,7 @@ Compare all displayed values with the installation and site records. Stop if
 any value is unexpected. Do not edit the resolved variables to bypass a failed
 check.
 
-### 1.4 Classify resources before changing metadata
+### Classify resources before changing metadata
 
 The installer creates a missing account, group, or log directory, but reuses
 an existing one. It does not record which case occurred. Treat each decision
@@ -182,7 +185,7 @@ independently and use the conservative result when the origin is unknown.
 
 For an existing, shared, or origin-unknown log directory, record its metadata
 and numeric ACL state before continuing. Keep this value in the same privileged
-Bash session through section 3.
+Bash session through [Verification](#verification).
 
 ```bash
 declare IOC_PRESERVED_LOG_STATE=""
@@ -200,9 +203,9 @@ IOC_PRESERVED_LOG_STATE=$(fingerprint_ioc_runner_log_tree "${IOC_SYSTEM_LOG_DIR}
 printf "Preserved log state: %s\n" "${IOC_PRESERVED_LOG_STATE}"
 ```
 
-## 2. Ordered Removal Steps
+## Remove infrastructure in order
 
-### 2.1 Installation-dedicated log directory only
+### Installation-dedicated log directory only
 
 Skip this section when the log directory is existing, shared, or of unknown
 origin. In that conservative case, do not change its ownership or ACLs and do
@@ -238,7 +241,7 @@ if find -P "${IOC_SYSTEM_LOG_DIR}" -xdev ! -type l -exec getfacl -n -p -- {} + 2
 fi
 ```
 
-### 2.2 Service account decision
+### Service account decision
 
 Run the deletion block only when the service account is confirmed as
 installation-dedicated and no retained log directory requires it. The process
@@ -254,7 +257,7 @@ userdel -- "${IOC_SYSTEM_USER}"
 
 Otherwise, retain the account and do not run this block.
 
-### 2.3 Service group decision
+### Service group decision
 
 Run the deletion block only when the service group is confirmed as
 installation-dedicated, has no other use, and no retained log directory
@@ -273,7 +276,7 @@ groupdel -- "${IOC_SYSTEM_GROUP}"
 
 Otherwise, retain the group and do not run this block.
 
-### 2.4 Systemd template
+### Remove the systemd template
 
 Remove the deployed identity source only after sections 2.1-2.3 are complete.
 
@@ -282,33 +285,37 @@ rm -f /etc/systemd/system/epics-@.service
 systemctl daemon-reload
 ```
 
-### 2.5 Bash completion and CLI wrapper
+### Bash completion and CLI wrapper
 
-The `/usr/bin` path applies to Rocky/RHEL. `rm -f` is a no-op when a path is
-absent.
+The setup creates the `/usr/bin/ioc-runner` symlink on the RHEL family; the
+last command deletes it only when it points to the installed runner. `rm -f`
+is a no-op when a path is absent.
 
 ```bash
 rm -f /etc/bash_completion.d/ioc-runner
 rm -f /usr/local/bin/ioc-runner
-rm -f /usr/bin/ioc-runner
+if [[ "$(readlink /usr/bin/ioc-runner 2>/dev/null)" == "/usr/local/bin/ioc-runner" ]]; then rm -f /usr/bin/ioc-runner; fi
 ```
 
-### 2.6 Sudoers and log rotation policies
+### Sudoers and log rotation policies
 
 ```bash
 rm -f /etc/sudoers.d/10-epics-ioc
 rm -f /etc/logrotate.d/procserv
 ```
 
-### 2.7 Shared configuration directory
+### Shared configuration directory
 
-The directory removal refuses to continue when IOC configuration remains.
+Delete the shared `site.env`, keeping a copy first when the site still needs
+its settings. The directory removal then refuses to continue when IOC
+configuration remains.
 
 ```bash
+rm -f /etc/procServ.d/site.env
 rmdir /etc/procServ.d
 ```
 
-## 3. Verification
+## Verification
 
 The deployed infrastructure must be absent.
 
@@ -341,7 +348,7 @@ fi
 ```
 
 Run only the applicable line when one identity was retained. A retained record
-must match the record captured in section 1.3.
+must match the record captured in [Resolve the deployed identity and log path](#resolve-the-deployed-identity-and-log-path).
 
 ```bash
 test "$(getent passwd -- "${IOC_SYSTEM_USER}")" = "${IOC_USER_RECORD}"
@@ -363,7 +370,7 @@ fi
 
 For an existing, shared, or origin-unknown log directory, do not run the
 dedicated-directory verification. Confirm instead that its metadata and ACL
-state match the value captured in section 1.4. Both related identities must
+state match the value captured in [Classify resources before changing metadata](#classify-resources-before-changing-metadata). Both related identities must
 also pass the retained-record checks above.
 
 ```bash
@@ -374,10 +381,11 @@ if [[ -z "${IOC_PRESERVED_LOG_STATE}" || "${IOC_CURRENT_LOG_STATE}" != "${IOC_PR
 fi
 ```
 
-## 4. Backup and Log Retention
+## Backup and log retention
 
 The installer writes timestamped backups under
-`/var/backups/epics-ioc-runner`. Uninstall leaves this directory in place so a
+`/var/backups/epics-ioc-runner`, or under the directory that
+`IOC_RUNNER_BACKUP_DIR` named when setup ran. Uninstall leaves this directory in place so a
 previous configuration can be recovered.
 
 Run the following command only when the backups are no longer required.
@@ -402,7 +410,7 @@ rm -rf -- "${IOC_SYSTEM_LOG_DIR}"
 Do not remove an existing, shared, or origin-unknown log directory through this
 guide.
 
-## 5. Optional Per-User Local-Mode Cleanup
+## Optional per-user local-mode cleanup
 
 System uninstall does not remove per-user local-mode rotation units. Complete
 sections 3 and 4 first, then leave the privileged shell. Each local-mode user
@@ -412,21 +420,17 @@ runs the remaining commands from their own login session.
 exit
 ```
 
-```bash
-systemctl --user disable --now epics-logrotate.timer
-rm -f ~/.config/systemd/user/epics-logrotate.service
-rm -f ~/.config/systemd/user/epics-logrotate.timer
-rm -f ~/.config/ioc-runner/logrotate.conf
-systemctl --user daemon-reload
-```
+Each local-mode user then removes rotation as
+[LOG_LAYOUT.md](LOG_LAYOUT.md#local-mode-log-rotation) describes under
+Removal.
 
-## 6. Recovery and Failure Conditions
+## Recovery and failure conditions
 
 ### Interrupted during identity removal
 
 Keep the unit in place until all identity-dependent work is complete. If the
 root shell closes before either identity is deleted, open a new root shell and
-restart at section 1.3. If the shell closes after an account or group deletion,
+restart at [Resolve the deployed identity and log path](#resolve-the-deployed-identity-and-log-path). If the shell closes after an account or group deletion,
 stop and inspect the deployed unit, the remaining identity records, and the log
 tree before continuing. The resolver requires both identities to exist and is
 not a recovery mechanism after deletion begins. Do not reconstruct identity

@@ -1,65 +1,48 @@
-# EPICS IOC Runner - Documentation
+# EPICS IOC Runner
 
-**The `epics-ioc-runner` is a zero-dependency, systemd-native architecture designed for securely deploying and managing EPICS IOCs in both production and isolated local environments.**
+`epics-ioc-runner` deploys and runs EPICS IOCs under procServ with the
+service manager the host already has. In system mode, systemd runs each IOC
+from one template unit as the `ioc-srv` service account, and operators in the
+`ioc` group manage the IOCs without a root password. In local mode, an
+engineer runs IOCs under their own account with the user instance of systemd.
+In container mode, s6 supervises the IOCs inside a container image without
+systemd. One command, `ioc-runner`, generates, installs, starts, observes, and
+removes IOCs in all three modes.
 
-This directory contains the complete documentation for deploying, managing, and understanding the architecture. The documentation is divided into architectural overviews, system administrator guides, and end-user operational manuals.
+This book is for the administrator who sets up a host and the operator who
+deploys and runs IOCs on it.
 
-## Prerequisites and Operational Facts
-* **EPICS Environment Permissions**: When running in system-wide mode, the IOC daemon operates under the restricted `ioc-srv` user account. If your EPICS environment is dynamically linked, you must ensure that the `ioc-srv` user has directory traversal (`+x`) and read (`+r`) permissions for the entire path where EPICS Base and modules are installed. Restricted parent directories (like a user's home directory) will cause dynamic linker (`ld.so`) failures (Exit Code 127).
-* **Systemd Exit Status Handling**: The generated systemd templates are configured with specific `SuccessExitStatus` codes (0, 1, 2, 15, 143, SIGTERM, SIGKILL). This ensures that standard termination signals sent to `procServ` and the underlying IOC process are evaluated as clean exits (`inactive`) rather than failure states (`failed`). For a detailed technical explanation, see **[EXIT_SIGNAL_HANDLING.md](EXIT_SIGNAL_HANDLING.md)**.
+## Guides
 
-## Documentation Index
+- [INSTALL.md](INSTALL.md): set up a host for system mode or a container
+  image for container mode, including the accounts, directories, sudoers
+  policy, unit template, and log rotation.
+- [UNINSTALL.md](UNINSTALL.md): remove the system-mode installation from a
+  host.
+- [USER_GUIDE.md](USER_GUIDE.md): deploy, run, observe, and remove IOCs in
+  system mode, and use the console, listing, and version commands that all
+  modes share.
+- [USER_GUIDE_LOCAL.md](USER_GUIDE_LOCAL.md): run and test IOCs under your
+  own account in local mode.
+- [FAQ.md](FAQ.md): answers to operational questions, from restarting an IOC
+  without a root password to reading logs and history files.
 
-### 1. Architecture and Design
-* **[ARCHITECTURE.md](ARCHITECTURE.md)**
-  Describes the core design principles, the zero-dependency approach, and the native systemd template (`@.service`) architecture. It also details the security model, including Role-Based Access Control (RBAC) via traditional Unix groups and sudoers policies, and the s6-backed `--container` mode for systemd-less container images.
-* **[CLI_REFERENCE.md](CLI_REFERENCE.md)**
-  Provides technical specifications, kernel-level socket state mappings, and data flow architecture for the diagnostic and console access commands (`list`, `inspect`, `attach`, `monitor`).
-* **[EXIT_SIGNAL_HANDLING.md](EXIT_SIGNAL_HANDLING.md)**
-  Provides a technical deep dive into the signaling mechanics between systemd and procServ. It explains why specific exit codes (e.g., 143) are whitelisted to ensure reliable service monitoring.
-* **[NETWORK_ENV.md](NETWORK_ENV.md)**
-  Topic reference for the Channel Access and PV Access network environment variables an IOC reads: which values belong in the shared `site.env` layer versus a per-IOC conf, the four variable tables with their defaults, the CA/PVA beacon asymmetries, and a multi-homed worked example.
+## Concepts
 
-### 2. Infrastructure Setup (System Administrators)
-* **[INSTALL.md](INSTALL.md)**
-  Provides step-by-step instructions for the initial server setup. It covers creating dedicated service accounts, setting up shared configuration directories with SetGID permissions, configuring sudoers, and deploying the static system-wide systemd template unit.
-* **[PERMISSION_MODEL.md](PERMISSION_MODEL.md)**
-  Filesystem permission model covering every directory and file the runner installs, references, or creates: setup-managed paths, site-provisioned paths, three-principal model, end-state targets, and permission lifecycle (Create / Manage / Track) per principal across system and local modes.
-* **[LOG_LAYOUT.md](LOG_LAYOUT.md)**
-  Log file paths, ownership and permissions, and rotation policy for system and local modes: data flow from procServ to the log file, the `0644`/`0640` file modes, the logrotate `copytruncate` policy, the read-access model, and troubleshooting.
+- [ARCHITECTURE.md](ARCHITECTURE.md): the components, the template unit, the
+  sudoers delegation, and the s6 service layout of container mode.
+- [PERMISSION_MODEL.md](PERMISSION_MODEL.md): the owner, mode, and ACL of
+  every path the runner installs, references, or creates, and which principal
+  can do what.
+- [EXIT_SIGNAL_HANDLING.md](EXIT_SIGNAL_HANDLING.md): how systemd and
+  procServ exit codes map to a clean stop.
 
-### 3. System-Wide Operations (Engineers)
-* **[USER_GUIDE.md](USER_GUIDE.md)**
-  The primary manual for engineers deploying and managing production IOCs globally on the server. It explains how to use the `ioc-runner` CLI wrapper to install configurations and how to use native `systemctl` and `journalctl` commands for daily operations.
+## Reference
 
-### 4. Local Isolated Testing (Engineers)
-* **[USER_GUIDE_LOCAL.md](USER_GUIDE_LOCAL.md)**
-  A guide for running and testing IOCs completely within an isolated user space. It demonstrates how to utilize the `--local` flag to dynamically generate user-level systemd templates, allowing engineers to verify their IOC configurations safely without requiring root privileges.
-
-### 5. Operations FAQ
-* **[FAQ.md](FAQ.md)**
-  Answers common operational questions including emergency access without root passwords, metadata extensions for legacy database migration, facility-wide IOC visibility, manual debugging workflows, and crash detection behavior.
-
-### 6. Release Cycle Runbook
-* **[gate/RUNBOOK.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/gate/RUNBOOK.md)**
-  The standing procedure for verifying a tree on the golden images: preconditions, the gate steps and their execution modes, the evidence format, red triage, and the multi-user scenarios with the commands that drive them. It names no version and is not cleared when a release cycle opens.
-
-### 7. Milestone Registers
-* **`docs/milestone-1.4.2.md` on `release-1.4.2`**
-  Active canonical register for console detach verification and documentation.
-* **[milestone-1.4.1.md](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/milestone-1.4.1.md)**
-  Released 1.4.1 record.
-
-## Upgrading from 1.0.x
-
-1.1.0 moves IOC output from the systemd journal to dedicated procServ log files. Site administrators upgrading from 1.0.x:
-
-1. Install the 1.1.0 `ioc-runner` binary.
-2. Re-run `sudo ./bin/setup-system-infra.bash --full` to deploy the updated system systemd template and the logrotate config.
-3. `sudo systemctl daemon-reload`, then restart each IOC; `procServ` begins writing to `/var/log/procserv/<name>.log`.
-4. Verify the log file: `stat -c '%U:%G %a' /var/log/procserv/<name>.log` returns `ioc-srv:ioc 644`.
-5. Remove the now-unnecessary `systemd-journal` group from IOC operator accounts: `sudo gpasswd -d <operator> systemd-journal`, then confirm with `id <operator>`.
-
-Verify the deployment: `systemctl cat epics-@<name>.service` shows `--logfile=`, and `logrotate -d /etc/logrotate.d/procserv` reports no errors.
-
-See **[LOG_LAYOUT.md](LOG_LAYOUT.md)** for the full log path, permission, and rotation reference, and **[PERMISSION_MODEL.md](PERMISSION_MODEL.md)** for the access model.
+- [CLI_REFERENCE.md](CLI_REFERENCE.md): every command and option, with its
+  checks, output, and exit status.
+- [NETWORK_ENV.md](NETWORK_ENV.md): the Channel Access and PV Access network
+  variables an IOC reads, and which belong in the shared `site.env`.
+- [LOG_LAYOUT.md](LOG_LAYOUT.md): log paths and rotation in system and local
+  mode.
+- [GLOSSARY.md](GLOSSARY.md): the terms this book uses.

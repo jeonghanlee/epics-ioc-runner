@@ -1,9 +1,9 @@
-# Network Environment Reference
+# Network environment reference
 
 This document is the topic reference for the Channel Access (CA) and PV Access
 (PVA) network environment variables an IOC managed by `epics-ioc-runner` reads.
-It states where each variable belongs — a value shared by every IOC on a host,
-or a value specific to one IOC — and documents the CA/PVA asymmetries that most
+It states where each variable belongs - a value shared by every IOC on a host,
+or a value specific to one IOC - and documents the CA/PVA asymmetries that most
 often lead to a wrong placement.
 
 It carries no site addresses. Every address below is drawn from the RFC 5737
@@ -14,9 +14,9 @@ documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`).
 Under the systemd backends, an IOC's environment is assembled from two files,
 read in order by the unit template:
 
-1. `${CONF_DIR}/site.env` — an optional site-wide file, loaded first. It is the
+1. `${CONF_DIR}/site.env` - an optional site-wide file, loaded first. It is the
    place for values identical across every IOC on the host.
-2. `${CONF_DIR}/<ioc>.conf` — the per-IOC file, loaded second. It carries the
+2. `${CONF_DIR}/<ioc>.conf` - the per-IOC file, loaded second. It carries the
    `IOC_*` operational keys and may also carry any environment variable specific
    to that IOC.
 
@@ -28,7 +28,7 @@ the per-IOC value. A key set only in `site.env` reaches every IOC; a key set
 only in a conf reaches that IOC alone. The mechanism, its optional-file wiring,
 and the grammar rule for `site.env` are defined in
 [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md); the conf as an `EnvironmentFile`
-is covered in [FAQ.md](FAQ.md) Q2.
+is covered in [IOC configuration metadata](FAQ.md#can-ioc-configuration-files-include-metadata).
 
 The layering does not apply to the container backend, whose run script exports
 no conf environment (see ADR 0003, Consequences).
@@ -38,7 +38,7 @@ no conf environment (see ADR 0003, Consequences).
 The three scenarios below cover the placements a site actually meets. Each names
 the variables it needs and the file they belong in.
 
-### Scenario 1 — One shared discovery network
+### One shared discovery network
 
 Every IOC on the host reads PVs from the same CA/PVA network, and no IOC needs a
 non-default server binding. This is the common case and the reason the site
@@ -46,7 +46,7 @@ layer exists.
 
 Place the client discovery lists in `site.env` once. They are identical for
 every IOC on the network, so a single shared value removes the per-conf
-duplication that ADR 0003 (Context) and issue #152 describe.
+duplication that ADR 0003 (Context) describes.
 
 ```bash
 # ${CONF_DIR}/site.env
@@ -59,13 +59,13 @@ EPICS_PVA_AUTO_ADDR_LIST="NO"
 Each `<ioc>.conf` then carries only its `IOC_*` keys and needs no network
 variable at all.
 
-### Scenario 2 — A multi-homed IOC
+### A multi-homed IOC
 
 The host has more than one interface, and an IOC's server must be reachable on a
-specific one — the client discovery network stays shared, but the server binding
+specific one - the client discovery network stays shared, but the server binding
 is particular to the IOC.
 
-Client discovery stays in `site.env` (Scenario 1). The server interface binding
+Client discovery stays in `site.env` (see [One shared discovery network](#one-shared-discovery-network)). The server interface binding
 is a per-IOC value, so it belongs in that IOC's conf:
 
 ```bash
@@ -79,9 +79,9 @@ EPICS_PVAS_INTF_ADDR_LIST="198.51.100.5"
 ```
 
 The full worked form of this scenario, including the beacon consequences of the
-binding, is in [Worked example](#worked-example--a-multi-homed-ioc) below.
+binding, is in [Worked example](#worked-example-a-multi-homed-ioc) below.
 
-### Scenario 3 — A per-IOC exception
+### A per-IOC exception
 
 Most IOCs share the discovery network from `site.env`, but one IOC must search a
 different network (a test subnet, a segregated device network).
@@ -91,7 +91,7 @@ its value overrides the shared one for that IOC only; every other IOC keeps the
 `site.env` value.
 
 ```bash
-# ${CONF_DIR}/test-ioc.conf — overrides the shared discovery list
+# ${CONF_DIR}/test-ioc.conf - overrides the shared discovery list
 EPICS_CA_ADDR_LIST="203.0.113.20"
 EPICS_PVA_ADDR_LIST="203.0.113.20"
 ```
@@ -100,7 +100,7 @@ EPICS_PVA_ADDR_LIST="203.0.113.20"
 
 The variables split by role. Client variables (`EPICS_CA_*`, `EPICS_PVA_*`)
 govern where an IOC's *client* side searches for PVs and are identical across
-IOCs on a network — the site-layer candidates. Server variables (`EPICS_CAS_*`,
+IOCs on a network - the site-layer candidates. Server variables (`EPICS_CAS_*`,
 `EPICS_PVAS_*`) bind an IOC's *server* and differ per IOC on a multi-homed host.
 
 Defaults for the CA variables are from `configure/CONFIG_ENV` in EPICS Base
@@ -122,7 +122,7 @@ R7.0.10; PVA defaults are from the PVXS 1.5.1 references.
 | --- | --- | --- | --- |
 | `EPICS_CAS_INTF_ADDR_LIST` | empty (binds all interfaces) | Local interfaces the CA server binds to | `configure/CONFIG_ENV`, `modules/database/src/ioc/rsrv/caservertask.c` (interface list) |
 | `EPICS_CAS_BEACON_ADDR_LIST` | empty | Explicit beacon destinations, augmenting the auto list | `configure/CONFIG_ENV`, `caservertask.c` (beacon address list) |
-| `EPICS_CAS_AUTO_BEACON_ADDR_LIST` | empty → auto (`YES`) | Auto-populate beacon destinations from local broadcast addresses | `caservertask.c` (`envGetBoolConfigParam`, default 1) |
+| `EPICS_CAS_AUTO_BEACON_ADDR_LIST` | empty -> auto (`YES`) | Auto-populate beacon destinations from local broadcast addresses | `caservertask.c` (`envGetBoolConfigParam`, default 1) |
 | `EPICS_CAS_SERVER_PORT` | empty (falls back to `EPICS_CA_SERVER_PORT`) | TCP/UDP port the CA server binds | `configure/CONFIG_ENV`, `caservertask.c` (server port) |
 | `EPICS_CAS_IGNORE_ADDR_LIST` | empty | Client addresses whose name-resolution requests are ignored | `configure/CONFIG_ENV` |
 
@@ -151,21 +151,19 @@ A PVA server prefers the `EPICS_PVAS_*` variable and falls back to the paired
 
 ## Points that mislead
 
-### The client address list feeds the PVA server beacon, but not the CA server beacon
+### Client address lists and server beacons
 
 This is the asymmetry that most often places a value wrongly.
 
 - **PVA.** The server beacon destination list is `EPICS_PVAS_BEACON_ADDR_LIST`
-  or, when that is unset, `EPICS_PVA_ADDR_LIST` — the client discovery list
+  or, when that is unset, `EPICS_PVA_ADDR_LIST` - the client discovery list
   (`server.rst`, configuration list: "`EPICS_PVA_ADDR_LIST` is only checked if
   `EPICS_PVAS_BEACON_ADDR_LIST` is unset"). A client discovery list set in
   `site.env` therefore also steers PVA server beacons.
-- **CA.** The CA server no longer reads `EPICS_CA_ADDR_LIST` for its beacon
-  list. The CA reference (`modules/ca/src/client/CAref.html`) records this as a
-  version change: "Prior to R3.15.4 CA servers would build the beacon address
-  list using `EPICS_CA_ADDR_LIST` if `EPICS_CAS_BEACON_ADDR_LIST` was not set."
-  From R3.15.4 on — and so in R7.0.10 — the CA server builds beacons from
-  `EPICS_CAS_AUTO_BEACON_ADDR_LIST` and `EPICS_CAS_BEACON_ADDR_LIST` only.
+- **CA.** In EPICS Base R7.0.10, the CA server builds its beacon list from
+  `EPICS_CAS_AUTO_BEACON_ADDR_LIST` and `EPICS_CAS_BEACON_ADDR_LIST`, without
+  using `EPICS_CA_ADDR_LIST`. The CA reference
+  (`modules/ca/src/client/CAref.html`) describes these beacon settings.
 
 The consequence: the same client discovery list in `site.env` reaches PVA
 server beacons but not CA server beacons.
@@ -178,10 +176,10 @@ is unset (`caservertask.c`, server port). One value in `site.env` therefore
 moves both the client search port and the server bind port together. Split the
 two roles with `EPICS_CAS_SERVER_PORT` only when they must differ.
 
-### Binding to a specific interface narrows the beacon list (CA and PVA alike)
+### Interface binding narrows the beacon list
 
 Binding a server to a specific interface also narrows its automatic beacon
-list — for both protocols. When `EPICS_CAS_INTF_ADDR_LIST` or
+list - for both protocols. When `EPICS_CAS_INTF_ADDR_LIST` or
 `EPICS_PVAS_INTF_ADDR_LIST` names one interface, the auto-beacon populates the
 beacon list with only that interface's broadcast address, not every local
 broadcast address. Binding a server is therefore not a pure receive-side change;
@@ -195,20 +193,20 @@ it also limits where beacons go.
 - **PVA.** The auto-beacon expands the beacon list from the interface list: the
   default wildcard interface adds every local broadcast address, while a
   specific interface adds only that interface's broadcast (`config.cpp`,
-  `Config::expand` and `expandAddrList`). Observed on a four-interface host
-  (PVXS 1.5.1, `pvxsr 1`): with the wildcard interface the beacon list held the
-  loopback broadcast and all four interface broadcasts; with one interface named
-  it held the loopback broadcast and that one interface's broadcast only.
+  `Config::expand` and `expandAddrList`). With PVXS 1.5.1 and the wildcard
+  interface, the beacon list holds the loopback broadcast and every interface
+  broadcast; with one interface named, it holds the loopback broadcast and that
+  interface's broadcast only.
 
 The `server.rst` phrasing "supplemented all local broadcast addresses if
 auto-beacon is `YES`" holds only for the default wildcard interface; with a
 named interface the supplement is that interface's broadcast alone.
 
-### One UDP search port is shared by every IOC on a host
+### IOCs share a UDP search port
 
 CA searches leave on `EPICS_CA_SERVER_PORT` (`5064`) and PVA searches on
 `EPICS_PVA_BROADCAST_PORT` (`5076`). These are destination ports, not
-per-process bindings, so every IOC on a host shares them without conflict —
+per-process bindings, so every IOC on a host shares them without conflict -
 which is exactly why the client discovery values are host-common and belong in
 `site.env`. The server *bind* ports (`EPICS_CAS_SERVER_PORT`,
 `EPICS_PVAS_SERVER_PORT`) are a different matter: two CA or two PVA servers on
@@ -216,7 +214,7 @@ one host bind ports independently, and the second to start takes a random free
 port if the preferred one is in use (PVA: `server.rst`, `Config::tcp_port`; CA:
 `caservertask.c` retries on `EADDRINUSE`).
 
-## Worked example — a multi-homed IOC
+## Worked example: a multi-homed IOC
 
 A host has two interfaces: `198.51.100.5` on the accelerator control network and
 `203.0.113.5` on a device network. Every IOC on the host reads PVs from the
@@ -250,15 +248,15 @@ Consequences to expect, from the asymmetries above:
 - `dev-gateway`'s CA server binds `203.0.113.5`, and its CA beacons narrow to
   that interface's broadcast address (`EPICS_CAS_INTF_ADDR_LIST` narrowing).
 - `dev-gateway`'s PVA server binds `203.0.113.5`, and with auto-beacon `YES` its
-  PVA beacons narrow the same way — to that interface's broadcast, not every
+  PVA beacons narrow the same way - to that interface's broadcast, not every
   local broadcast address.
 - Every other IOC keeps the shared control-network discovery from `site.env` and
   binds its servers to all interfaces (the empty-list default).
 
-## See also
+## Related network documentation
 
-- [ADR 0003 — Site-Wide Environment Layer](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md)
-  — the decision, the optional-file wiring, and the `site.env` grammar rule.
-- [FAQ.md](FAQ.md) — the shared-variable question and the conf as an
+- [ADR 0003 - Site-Wide Environment Layer](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md)
+  - the decision, the optional-file wiring, and the `site.env` grammar rule.
+- [FAQ.md](FAQ.md) - the shared-variable question and the conf as an
   `EnvironmentFile`.
-- [USER_GUIDE.md](USER_GUIDE.md) — installing and managing system-wide IOCs.
+- [USER_GUIDE.md](USER_GUIDE.md) - installing and managing system-wide IOCs.

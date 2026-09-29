@@ -1,12 +1,8 @@
-# Filesystem Permission Model
+# Filesystem permission model
 
-This document captures the filesystem permission model for the
-`epics-ioc-runner` 1.2.1 release (first written at 1.1.0; refreshed for
-1.2.1 — socket permissions, conf-integrity boundary, and local log-rotation
-objects added). It covers every directory and
-file the runner installs, references, or creates at IOC start time,
-plus the principals authorized to create, manage, and read each
-object.
+This page gives the owner, mode, and ACL of every directory and file that
+the setup script and the runner install, reference, or create, and the
+principals that can create, manage, and read each one.
 
 Scope:
 
@@ -19,12 +15,13 @@ Scope:
 - Three-principal model and end-state targets for the log directory
 - Permission lifecycle (Create / Manage / Track) per principal
 
-## Filesystem Layout
+## Managed filesystem paths
 
 ### Setup-managed paths
 
-Paths created or installed by `setup-system-infra.bash`. Owner and
-mode are enforced at install time and re-verified by the script.
+Paths created or installed by `setup-system-infra.bash`, which sets the owner
+and mode of each one when it deploys it. A re-run restores the owner, mode,
+and default ACL of the log directory.
 
 | Path | Owner:Group | Mode | Variable | Notes |
 | --- | --- | --- | --- | --- |
@@ -32,10 +29,11 @@ mode are enforced at install time and re-verified by the script.
 | `/etc/sudoers.d/10-epics-ioc` | `root:root` | `0440` | `SUDOERS_FILE` / `PERM_SUDOERS` | sudo policy granting `%ioc` the privileged systemctl verbs |
 | `/etc/systemd/system/epics-@.service` | `root:root` | `0644` | `SYSTEMD_TEMPLATE` | system-mode unit template |
 | `/var/log/procserv/` | `root:ioc` | `2775` (setgid) | `SYSTEM_LOG_DIR` / `PERM_LOG_DIR` | procServ log directory; default ACL `g:ioc:rw, o::r--, m::rw` |
-| `/var/backups/epics-ioc-runner/` | `root:root` | `0700` | `BACKUP_DIR` / `PERM_BACKUP_DIR` | atomic backups before template rewrites |
+| `/var/backups/epics-ioc-runner/` | `root:root` | `0700` | `BACKUP_DIR` / `PERM_BACKUP_DIR` | created at the first backup; holds `cp -a` copies of the sudoers file, unit template, logrotate policy, runner, and completion taken before setup replaces them |
 | `/usr/local/bin/ioc-runner` | `root:root` | `0755` | `RUNNER_SCRIPT_DEST` | runner script |
-| `/usr/bin/ioc-runner` | symlink → `/usr/local/bin/ioc-runner` | — | `RUNNER_SCRIPT_SYMLINK` | RHEL-family `secure_path` workaround |
+| `/usr/bin/ioc-runner` | symlink -> `/usr/local/bin/ioc-runner` | - | `RUNNER_SCRIPT_SYMLINK` | RHEL-family `secure_path` workaround |
 | `/etc/bash_completion.d/ioc-runner` | `root:root` | `0644` | `BASH_COMP_DEST` | tab completion |
+| `/etc/logrotate.d/procserv` | `root:root` | `0644` | `LOGROTATE_FILE` / `PERM_LOGROTATE` | weekly rotation policy for the system log directory |
 
 ### Site-provisioned paths
 
@@ -46,7 +44,7 @@ responsible for owner and mode at provisioning time (typically via
 | Path | Typical Owner:Group | Typical Mode | Source | Runner's role |
 | --- | --- | --- | --- | --- |
 | `/opt/epics-iocs/` | `root:ioc` | `2775` | site provisioning | `bin/ioc-runner` runs a metadata-based model-conformance check on `IOC_CHDIR` |
-| `/opt/epics-iocs/epics/<base-suite>/<distro>/<base-ver>/base` | site | site-defined | site provisioning | unused by the runner — IOC `.conf` references it via environment |
+| `/opt/epics-iocs/epics/<base-suite>/<distro>/<base-ver>/base` | site | site-defined | site provisioning | unused by the runner - IOC `.conf` references it via environment |
 | `/usr/local/bin/procServ` or `/usr/bin/procServ` | site | site-defined | package or site build | discovered via `PROCSERV_SEARCH_PATHS` |
 
 The runner's `IOC_CHDIR` writability check is satisfied by directory
@@ -66,10 +64,9 @@ both `bin/ioc-runner` and `bin/setup-system-infra.bash` resolve
 `IOC_RUNNER_SYSTEM_USER` / `IOC_RUNNER_SYSTEM_GROUP` with the shipped
 defaults `ioc-srv` / `ioc`. A site deploying under a different account
 or group sets the two variables once, for both the setup run and every
-runner invocation; the shared defaults are pinned by a static guard
-test. Note that shell-exported overrides do not survive sudo's
-`env_reset`; pass them on the sudo command line itself (see INSTALL.md
-section 1).
+runner invocation. The staging launcher forwards both variables across the
+sudo boundary; set them on the launcher invocation, as [INSTALL.md](INSTALL.md)
+shows.
 
 ### Local-mode paths
 
@@ -79,20 +76,23 @@ user's account.
 | Path | Owner:Group | Mode | Variable | Notes |
 | --- | --- | --- | --- | --- |
 | `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `<user>:<user>` | `0750` | `LOG_DIR` | created by `do_install` local branch; `IOC_RUNNER_LOG_DIR` or `IOC_RUNNER_LOCAL_LOG_DIR` can override the default |
-| `${LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | — | procServ-created with user unit `UMask=0027` |
-| `~/.config/systemd/user/epics-@.service` | `<user>:<user>` | umask-dependent (`0644` at the conventional `umask 022`) | — | written by `deploy_local_template` via `cat`; no explicit `chmod`, so the final mode follows the invoking user's umask |
-| `~/.config/ioc-runner/` | `<user>:<user>` | `0700` | — | local logrotate config dir (M19/#103), created by `deploy_local_logrotate` |
-| `~/.config/ioc-runner/logrotate.conf` | `<user>:<user>` | `0600` | — | mktemp-staged; redeployed by content diff on every `--local install` |
-| `~/.config/systemd/user/epics-logrotate.service`, `.timer` | `<user>:<user>` | `0600` | — | oneshot rotation service + hourly timer; timer enabled, service never |
-| `/run/user/<uid>/ioc-runner-logrotate.state` | `<user>:<user>` | logrotate-managed | — | rotation state, host-local via the `%t` specifier |
+| `${LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | - | procServ-created with user unit `UMask=0027` |
+| `~/.config/procServ.d/` | `<user>:<user>` | umask-dependent | `CONF_DIR` | created by the first `--local install` with `mkdir -p` |
+| `~/.config/procServ.d/<ioc>.conf` | `<user>:<user>` | `0600` | - | staged with `mktemp` and renamed into place |
+| `~/.config/systemd/user/epics-@.service` | `<user>:<user>` | `0600` | - | staged with `mktemp` and renamed into place by `deploy_local_template` |
+| `~/.config/systemd/user/epics-@.service.bak.*` | `<user>:<user>` | the replaced template's mode | - | the previous template, kept when an update replaces it; the three newest are kept |
+| `~/.config/ioc-runner/` | `<user>:<user>` | `0700` | - | local logrotate config dir (M19/#103), created by `deploy_local_logrotate` |
+| `~/.config/ioc-runner/logrotate.conf` | `<user>:<user>` | `0600` | - | mktemp-staged; deployed when absent; when it differs from the shipped content, `--local install` asks on a terminal, keeps it without one, and replaces it with `-f` |
+| `~/.config/systemd/user/epics-logrotate.service`, `.timer` | `<user>:<user>` | `0600` | - | oneshot rotation service + hourly timer; timer enabled, service never |
+| `/run/user/<uid>/ioc-runner-logrotate.state` | `<user>:<user>` | logrotate-managed | - | rotation state, host-local via the `%t` specifier |
 
 When `HOME` is unset (bare sudo, some cron/systemd contexts) the runner
-falls back to the passwd database and, failing that, to `/tmp` — and a
+falls back to the passwd database and, failing that, to `/tmp` - and a
 `/tmp`-fallback HOME is treated as untrusted: `${HOME}/.local/bin` is then
 excluded from the `con`/`procServ` executable search, so a world-writable
 fallback home can never supply the executables the runner runs.
 
-## Access Boundary: sudoers Policy + File Mode
+## Access boundary: sudoers policy and file mode
 
 The sudoers policy at `/etc/sudoers.d/10-epics-ioc` gates the
 privileged state-changing systemctl verbs that `ioc-runner` issues
@@ -100,18 +100,9 @@ in system mode. `setup-system-infra.bash` emits one of two forms
 based on the local sudo version (decided by
 `sudo_supports_regex_args`, OS-agnostic):
 
-- sudo >= 1.9.10: anchored regex per verb, parity with
-  `validate_ioc_name` in `bin/ioc-runner`:
-
-  ```
-  %ioc ALL=(root) NOPASSWD: /usr/bin/systemctl ^start epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^stop epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^restart epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^status epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^enable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^disable epics-@[A-Za-z0-9_][A-Za-z0-9_-]{0,63}\.service$, \
-                            /usr/bin/systemctl ^daemon-reload$
-  ```
+- sudo >= 1.9.10: an anchored regular expression per verb that accepts the
+  same IOC names as `validate_ioc_name` in `bin/ioc-runner`, and
+  `daemon-reload`. [INSTALL.md](INSTALL.md) shows the exact policy text.
 
 - sudo < 1.9.10: glob fallback (`epics-@*.service`), broader than
   the runner IOC-name model. See the residual-risk subsection below.
@@ -123,7 +114,7 @@ Effective scope:
   `daemon-reload` operations on `epics-@<name>.service` instances.
   For non-`ioc` users, the `sudo systemctl ...` call inside
   `ioc-runner` fails at the sudo gate.
-- `ioc-runner` execution itself is not restricted — any user can
+- `ioc-runner` execution itself is not restricted - any user can
   invoke the script. The gate is the privileged systemctl
   invocation it makes internally.
 - Read-only paths (`ioc-runner status`, `is-active`, `cat`, `show`)
@@ -136,13 +127,13 @@ the file system layer: who can read log files, who can write, and
 who can create files in the log directory.
 
 Conf-file integrity follows the same containment principle: the runner
-accepts any readable `.conf` regardless of its file mode — a group-writable
+accepts any readable `.conf` regardless of its file mode - a group-writable
 conf is the designed norm (any `ioc` engineer manages any IOC), and a
-world-writable conf is neither detected nor rejected — so the integrity
+world-writable conf is neither detected nor rejected - so the integrity
 boundary is directory containment (`/etc/procServ.d` at `2770 root:ioc` in
 system mode; the user's home in local mode), not a per-file mode check. Do
 not store secrets in a `.conf`: every key is exported into the procServ
-process environment and inherited by the IOC process (see FAQ Q2).
+process environment and inherited by the IOC process (see [IOC configuration metadata](FAQ.md#can-ioc-configuration-files-include-metadata)).
 
 ### Residual risk on sudo < 1.9.10 hosts
 
@@ -181,17 +172,17 @@ supervisor and the socket directory is created by the runner rather than by
 | Path | Owner:Group | Mode | Variable | Notes |
 | --- | --- | --- | --- | --- |
 | `/run/s6-procserv/` | `root:root` | `0755` | `SCAN_DIR` (`IOC_RUNNER_SCAN_DIR`) | scan directory; the container entrypoint creates it before `s6-svscan` (setup's build-time copy is a convenience) |
-| `/run/s6-procserv/<ioc>/` | `root:root` | `0755` | — | service directory rendered by `install`; deleted by `remove` |
-| `/run/s6-procserv/<ioc>/run` | `root:root` | `0755` | — | POSIX sh script: `exec s6-setuidgid ioc-srv procServ ... --logfile=-` |
-| `/run/s6-procserv/<ioc>/down`, `timeout-kill` | `root:root` | `0644` | — | `down` present while disabled; `timeout-kill` holds the SIGKILL grace period (ms) |
-| `/run/s6-procserv/<ioc>/supervise/`, `event/` | `root:root` | s6-managed | — | created and owned by `s6-supervise` |
+| `/run/s6-procserv/<ioc>/` | `root:root` | `0755` | - | service directory rendered by `install`; deleted by `remove` |
+| `/run/s6-procserv/<ioc>/run` | `root:root` | `0755` | - | POSIX sh script: `exec s6-setuidgid ioc-srv procServ ... --logfile=-` |
+| `/run/s6-procserv/<ioc>/down`, `timeout-kill` | `root:root` | umask-dependent, `0644` under `umask 022` | - | `down` present while disabled; `timeout-kill` holds the SIGKILL grace period (ms) |
+| `/run/s6-procserv/<ioc>/supervise/`, `event/` | `root:root` | s6-managed | - | created and owned by `s6-supervise` |
 | `/run/procserv/<ioc>/` | `ioc-srv:ioc` | `0770` | `RUN_DIR` | created by `start` in place of `RuntimeDirectory`; removed by `remove` |
-| `/run/procserv/<ioc>/control` | `ioc-srv:ioc` | `0660` | — | procServ-created UNIX socket (`IOC_PORT`) |
+| `/run/procserv/<ioc>/control` | `ioc-srv:ioc` | `0660` | - | procServ-created UNIX socket (`IOC_PORT`) |
 
-## Three-Principal Model (system mode)
+## Three-principal model (system mode)
 
 The system-wide mode has three distinct principals against the log
-directory and log files. A fourth class — any user outside `ioc` —
+directory and log files. A fourth class - any user outside `ioc` -
 has read-only access via the directory's `o+rx` bits and the file's
 `o+r` bit.
 
@@ -199,7 +190,7 @@ has read-only access via the directory's `o+rx` bits and the file's
 | --- | --- | --- |
 | `root` | install | create directories; verify ownership and mode at install time |
 | `ioc-srv` | operate | write log records during procServ execution |
-| engineer ∈ `ioc` group | manage | read logs (status, crash detection); engineer-created files in the dir get group `ioc` write |
+| engineer in `ioc` group | manage | read logs (status, crash detection); engineer-created files in the dir get group `ioc` write |
 | any user (other) | observe | read logs and list the directory at the file-mode layer |
 
 The `--local` mode is single-principal by construction (one
@@ -213,7 +204,7 @@ remains only the owning group of the socket directory and the
 configuration files, so a future non-root reader can be granted
 access without changing the layout.
 
-## End-State Targets
+## Required ownership and permissions
 
 ### System mode log directory and files
 
@@ -247,7 +238,7 @@ Local mode keeps `UMask=0027` in the user-mode unit. The engineer
 is the only principal; `0640` ensures their primary group has read
 but other users on the same host cannot read the user's logs.
 
-## Console Socket Permissions
+## Console socket permissions
 
 The console UNIX domain socket involves two objects with two distinct modes;
 they must not be conflated:
@@ -261,14 +252,14 @@ they must not be conflated:
 across a systemd-driven auto-restart, so the socket path stays stable and a
 console can re-attach at the same path once procServ is revived; a client
 attached at the moment procServ dies still sees EOF. Console continuity
-across IOC child restarts needs no systemd directive — procServ holds the
+across IOC child restarts needs no systemd directive - procServ holds the
 socket open while only the child dies. The `0770` directory is not
 traversable outside the owning group: for non-`ioc` users `ioc-runner list`
 shows no sockets and prints a permission hint (#94). In the attach path the
 conf-directory gate (`/etc/procServ.d` `2770`) is reached first; the socket
 boundary sits behind it.
 
-## Permission Lifecycle
+## Permissions through the IOC lifecycle
 
 The lifecycle of every log object covers three operational phases:
 Create, Manage, and Track (read).
@@ -279,14 +270,14 @@ Create, Manage, and Track (read).
 | --- | --- | --- | --- | --- | --- |
 | Create | install log directory | `root` (via sudo) | `${SYSTEM_LOG_DIR}/` | `setup-system-infra.bash`: `install -d -o root -g ioc -m 2775` + `setfacl -d` | `root:ioc 2775` + default ACL `g:ioc:rw, o::r--, m::rw` |
 | Create | open log file | `ioc-srv` | `${SYSTEM_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` at IOC start; system unit umask `0022` | `ioc-srv:ioc 0644` |
-| Create | adhoc file (probe, manual archive) | engineer ∈ `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | `<engineer>:ioc 0664` |
-| Manage | preflight log-path probe for `start` / `restart` | engineer ∈ `ioc` | effective `--logfile` directory | `ioc-runner` create-write-sync-delete transaction before systemd | shared-filesystem capacity and group-write availability; failure blocks the transition |
+| Create | adhoc file (probe, manual archive) | engineer in `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | `<engineer>:ioc 0664` |
+| Manage | preflight log-path probe for `start` / `restart` | engineer in `ioc` | effective `--logfile` directory | `ioc-runner` create-write-sync-delete transaction before systemd | shared-filesystem capacity and group-write availability; failure blocks the transition |
 | Manage | append log records | `ioc-srv` | `<ioc>.log` | procServ `write(logFileFD, ...)` during IOC runtime | owner `w` bit |
-| Manage | start / stop / restart IOC | engineer ∈ `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` → `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ...` against `epics-@<name>.service` (regex form on sudo >= 1.9.10, glob fallback otherwise) |
-| Manage | rotate (system mode, deployed) | `root` (cron) | `<ioc>.log` | `logrotate -f /etc/logrotate.d/procserv` with `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
-| Track | crash detection scan | engineer ∈ `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
-| Track | manual read | engineer ∈ `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |
-| Track | read-only inspection | engineer ∉ `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |
+| Manage | start / stop / restart IOC | engineer in `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` -> `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ...` against `epics-@<name>.service` (regex form on sudo >= 1.9.10, glob fallback otherwise) |
+| Manage | rotate (system mode, deployed) | `root` (the distribution's logrotate schedule) | `<ioc>.log` | `logrotate` with `/etc/logrotate.d/procserv` and `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
+| Track | crash detection scan | engineer in `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
+| Track | manual read | engineer in `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |
+| Track | read-only inspection | engineer outside `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |
 | Track | `inspect` log-path and executable identity | `root`; probe changes to effective unit `User=` and `Group=` | effective log directory, `MainPID`, UDS, procServ executable | fixed `/usr/sbin/runuser -u <User> -g <Group>` probe plus read-only `/proc` and systemd queries | warnings only; no service-state change or nested sudoers rule |
 | Track | directory listing | any user | `${SYSTEM_LOG_DIR}/` | `ls` | dir `o+rx` |
 | Track | `ioc-runner status` / `is-active` | any user | service state | systemd query (no sudo) | systemd query ACL (permissive) |
@@ -317,26 +308,25 @@ Create, Manage, and Track (read).
 | Track | `status` / `list` | `root` | s6 state | `s6-svstat`, `/proc` | read-only |
 | Track | `inspect` executable identity | `root` | supervised PID, UDS, procServ executable | `s6-svstat -o pid` plus read-only `/proc`; needs `CAP_SYS_PTRACE` in the container | warnings only |
 
-## Why Default ACLs Are Still Set
+## Why the log directory carries default ACLs
 
-Even though procServ's hardcoded `open(0644)` mode_arg restricts the
-access ACL mask to `r--` (no group write) for procServ-created files,
-default ACLs still serve two purposes:
+procServ's fixed `open(0644)` mode restricts the access ACL mask of the files
+it creates to `r--` (no group write). The default ACLs serve two other
+purposes:
 
 1. **Engineer-created files in the log directory** (manual probe
    files, rotated archive copies created by an engineer) inherit
    group `ioc` with `rw` access. Without the default ACL, an
-   engineer-created file under default `umask 0022` would land at
-   `<engineer>:<engineer-primary-group> 0644` and the `ioc-srv`
-   service account could not read or write it under the group bit.
-   With the default ACL, such files become `<engineer>:ioc 0664`,
-   preserving the ioc-srv-can-write invariant for the rare case.
+   engineer-created file under `umask 0022` would be `<engineer>:ioc 0644`:
+   setgid gives it the `ioc` group, and `ioc-srv` could read it but not
+   write it. With the default ACL, such files become `<engineer>:ioc 0664`,
+   so `ioc-srv` can write them.
 2. **Cross-creator consistency** of group membership. setgid on the
    directory enforces the `ioc` group on every newly created entry
    regardless of the creator's primary group; the default ACL
    reinforces the same with explicit mask handling.
 
-## How the Model Is Set Up
+## How the model is set up
 
 System mode setup is performed once at install time by
 `setup-system-infra.bash`, running as `root` via `sudo`:
@@ -351,7 +341,7 @@ setfacl -d -m m::rw "${SYSTEM_LOG_DIR}"
 The system unit (`/etc/systemd/system/epics-@.service`) does NOT
 set `UMask=`. systemd's default for system units is `0022`, which
 preserves procServ's `0644` mode_arg through to the resulting file.
-`LogsDirectory=procserv` is intentionally NOT used in the unit —
+`LogsDirectory=procserv` is intentionally NOT used in the unit -
 the directive would chown the log directory to the unit's `User=`
 / `Group=` (`ioc-srv:ioc`) on every activation, overriding the
 `root:ioc` ownership this model requires.
@@ -415,7 +405,8 @@ can run the `ioc-runner` binary itself and can `cat` the log
 directly, but any IOC state change attempted through `ioc-runner`
 fails at the sudo gate inside the script.
 
-Local mode (after `ioc-runner --local install <conf>` + IOC start):
+Local mode, with `XDG_STATE_HOME` and the log directory overrides unset
+(after `ioc-runner --local install <conf>` and IOC start):
 
 ```bash
 stat -c '%U:%G %a' ~/.local/state/procserv
@@ -425,45 +416,27 @@ stat -c '%U:%G %a' ~/.local/state/procserv/<ioc>.log
 # expected: <user>:<user> 640
 ```
 
-## Why This Matters (Crash Detection Context)
+## Log access for crash detection
 
-The 1.0.x release chain detected IOC startup crashes by scanning
-`journalctl -u epics-@<name>.service` after `sudo systemctl start`.
-That required engineers to be in the `systemd-journal` group, which
-was fragile across Debian 13 and Rocky 8 due to distribution-specific
-journal layouts and group memberships.
-
-1.1.0 decouples crash detection from journal access by writing
-procServ output to a dedicated log file under `${SYSTEM_LOG_DIR}`
-and scanning that file inline in `do_start_restart`. The scan runs
-in the same `ioc-runner` process that the engineer invoked — it
-executes under the engineer's UID, not via `sudo`. The permission
-model above is the precondition: engineers in the `ioc` group can
-`stat`, `tail`, `grep` the log file directly, without `sudo` and
-without `systemd-journal` group membership.
+`start` and `restart` scan the IOC log file in the same `ioc-runner` process
+that the operator invoked, under the operator's UID and without `sudo`. The
+permission model above is the precondition: members of the `ioc` group can
+`stat`, `tail`, and `grep` the log file directly, without `sudo` and without
+membership in the `systemd-journal` group.
 
 ### No journal-group re-grant
 
-The `systemd-journal` group reads the entire host journal — sshd
-authentication, kernel events, sudo usage, and every unrelated service —
-not only IOC logs. Granting it to IOC operators over-exposes them far
-beyond their role; in a multi-tenant lab this is the least-privilege
-violation that 1.1.0 removes by taking operators out of the group.
-
-Removal is therefore not paired with a rollback or re-grant procedure:
-re-adding the group would reopen the same broad exposure. Crash
+The `systemd-journal` group reads the entire host journal - sshd
+authentication, kernel events, sudo usage, and every unrelated service -
+not only IOC logs. Granting it to IOC operators exposes far more than their
+role needs, so operators are not members of that group, and no procedure
+adds them: the membership would reopen the same broad exposure. Crash
 detection reads the dedicated log file as the single source of truth,
 with no journal dependency to restore, so the supported recovery is to
-fix the log-file path — not to widen operator privilege.
+fix the log-file path - not to widen operator privilege.
 
-## Cross-References
+## Related permission documentation
 
 - Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - CLI surface: [`CLI_REFERENCE.md`](CLI_REFERENCE.md)
-- Release 1.1.0 history: git tag `1.1.0` (merge commit `b6cc0a6`). The
-  release milestone register and the 1.1.0 test plan are preserved in that
-  tagged revision (`git show 1.1.0:docs/MILESTONE-1.1.0.md`,
-  `git show 1.1.0:docs/TEST_PLAN-1.1.0.md`).
-- Active master register: [`milestone-1.4.1.md`](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/milestone-1.4.1.md)
-- Tracking epic: [#7](https://github.com/jeonghanlee/epics-ioc-runner/issues/7)
-- Milestone: [1.1.0](https://github.com/jeonghanlee/epics-ioc-runner/milestone/3)
+- Log paths and rotation: [`LOG_LAYOUT.md`](LOG_LAYOUT.md)

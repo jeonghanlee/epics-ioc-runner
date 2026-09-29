@@ -1,39 +1,75 @@
-# Technical Note: Exit Signal Handling for procServ and systemd
+# Exit and signal handling
 
-## 1. Objective
-This document defines the signaling behavior between `systemd` and `procServ` to ensure that intentional service terminations are correctly interpreted as successful operations rather than process failures.
+systemd decides from procServ's exit how to record an IOC service: as a clean
+stop, or as a failure that the restart policy acts on. This page describes
+how a stop reaches procServ and the IOC, what procServ returns, and why the
+unit templates list the exit statuses and restart settings they do. The
+system and local unit templates carry the same settings; container mode uses
+s6, which has none of them.
 
-## 2. Theoretical Background
+## Stop sequence from systemd to the IOC
 
-### 2.1. systemd Termination Process
-When a stop command is issued via `systemctl`, `systemd` sends `SIGTERM` (Signal 15) to the main process defined in the unit file. By default, `systemd` expects the process to return an exit code of `0` to mark the service as `inactive (dead)`. Any other exit code or termination by a signal results in a `failed` state.
-
-### 2.2. procServ Wrapper Architecture
-`procServ` acts as a wrapper that manages a child process (the EPICS IOC) within a Pseudo Terminal (PTY). Because of this intermediate layer, the exit status of the main `procServ` process often reflects the state of its child or the signal it received, rather than a simple success/fail status.
-
----
-
-## 3. Signal Propagation and Exit Codes
-The interaction between these two systems during a shutdown sequence typically follows this path:
-
-1. **Signal Delivery**: `systemd` sends `SIGTERM` to `procServ`.
-2. **Signal Forwarding**: `procServ` receives the signal and propagates it to the child IOC process.
-3. **Child Exit**: The IOC process terminates. Under POSIX conventions, a process terminated by a signal returns an exit status of `128 + Signal Number`. For `SIGTERM`, this value is `143`.
-4. **Parent Exit**: `procServ` terminates and returns either the child's exit status (`143`) or the status of the signal it received itself (`15`).
-
----
-
-## 4. SuccessExitStatus Configuration
-To bridge the gap between `systemd`'s strict requirements and `procServ`'s signaling reality, the `SuccessExitStatus` directive is used to whitelist expected non-zero exit codes.
+The templates set these directives:
 
 ```ini
-# Defined in both system-wide and local templates
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
+Restart=always
+RestartSec=2
+KillMode=mixed
 ```
 
-### 4.1. Code Definitions
-* **0**: Standard graceful exit.
-* **1, 2**: Occasional statuses returned during specific PTY or socket interrupt sequences.
-* **15 / SIGTERM**: Confirmation that the process terminated in direct response to the standard stop request.
-* **143**: Specific POSIX status (128 + 15) confirming the child IOC was successfully terminated by `SIGTERM`.
-* **SIGKILL**: Ensures that if a process does not respond to `SIGTERM` and is subsequently killed by `SIGKILL` (after `TimeoutStopSec`), it is still recorded as a successful administrative stop.
+They set no `TimeoutStopSec=`, so systemd's default of 90 seconds applies, and
+procServ runs without `--killsig`, so its kill signal is the default
+`SIGKILL`.
+
+When `ioc-runner stop` or `systemctl stop` stops an IOC:
+
+1. With `KillMode=mixed`, systemd sends `SIGTERM` to the main process,
+   procServ, and not to the other processes in the unit.
+2. procServ handles `SIGTERM`: it sends its kill signal, `SIGKILL`, to the
+   IOC, closes its connections, and exits.
+3. procServ's exit code is the IOC's most recent normal exit status, or 0 when
+   the IOC has only ever ended by a signal. A stop by `SIGKILL` therefore
+   usually ends procServ with exit code 0.
+4. When procServ has not exited when the stop timeout expires, systemd sends
+   `SIGKILL` to every process that remains in the unit.
+
+## Exit statuses counted as success
+
+systemd counts exit code 0 and the signals `SIGHUP`, `SIGINT`, `SIGTERM`, and
+`SIGPIPE` as a clean exit by default. `SuccessExitStatus` adds the exit codes
+1, 2, 15, and 143 and the signals `SIGTERM` and `SIGKILL`, so none of these
+ends marks the service `failed`. The list is deliberately wide: a stop or a
+killed procServ is recorded as a clean exit rather than a failure.
+
+Counting `SIGKILL` as success has one consequence for the restart policy. A
+procServ killed by `SIGKILL`, for example by the kernel's out-of-memory
+killer, is a success to systemd, so `Restart=on-failure` would leave the IOC
+down. The templates therefore use `Restart=always`, which restarts procServ
+after any exit that is not a stop request, 2 seconds later
+(`RestartSec=2`). A stop through `ioc-runner stop` or `systemctl stop` does
+not trigger a restart.
+
+## Why the unit uses KillMode=mixed
+
+procServ starts the IOC with `SIGTERM` blocked, so the IOC does not end on
+`SIGTERM`. With the default `KillMode=control-group`, systemd would send
+`SIGTERM` to every process in the unit and then wait the full stop timeout
+for the IOC before it sends `SIGKILL`. `KillMode=mixed` sends `SIGTERM` only
+to procServ, which ends the IOC itself with `SIGKILL`, and sends `SIGKILL` to
+the processes that remain after procServ exits. When procServ itself dies,
+the unit is therefore restarted in about 2 seconds instead of after the stop
+timeout.
+
+## Restart loops and the failed state
+
+The templates set `StartLimitIntervalSec=0`, which turns off systemd's start
+rate limit, so a procServ that dies repeatedly stays in
+`activating (auto-restart)` and never reaches `failed`. `systemctl --failed`
+therefore does not show a crash-looping IOC. `ioc-runner start` and `restart`
+detect a crash loop from the IOC log instead; the
+[CLI reference](CLI_REFERENCE.md#the-start-and-restart-commands) lists their
+outcomes.
+
+[ADR 0001](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0001-restart-supervision-c1h.md)
+records the decision behind these settings.

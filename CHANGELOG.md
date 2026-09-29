@@ -573,9 +573,20 @@ setup script). Existing deployed units keep running; to pick up the
 
 ### Migration
 
-Install the 1.1.0 runner, re-run `setup-system-infra.bash --full`, reload systemd
-and restart IOCs, verify the log file mode, and remove the now-unnecessary
-`systemd-journal` group from operator accounts. Step-by-step instructions
-are in the "Upgrading from 1.0.x" section of [`docs/README.md`](docs/README.md);
-the path, permission, and rotation reference is in
+Site administrators upgrading from 1.0.x:
+
+1. Install the 1.1.0 `ioc-runner` binary.
+2. Re-run `sudo ./bin/setup-system-infra.bash --full` to deploy the updated
+   system systemd template and the logrotate config.
+3. Run `sudo systemctl daemon-reload`, then restart each IOC; `procServ` begins
+   writing to `/var/log/procserv/<name>.log`.
+4. Verify the log file: `stat -c '%U:%G %a' /var/log/procserv/<name>.log`
+   returns `ioc-srv:ioc 644`.
+5. Remove the now-unnecessary `systemd-journal` group from IOC operator
+   accounts: `sudo gpasswd -d <operator> systemd-journal`, then confirm with
+   `id <operator>`.
+
+Verify the deployment: `systemctl cat epics-@<name>.service` shows
+`--logfile=`, and `logrotate -d /etc/logrotate.d/procserv` reports no errors.
+The path, permission, and rotation reference is in
 [`docs/LOG_LAYOUT.md`](docs/LOG_LAYOUT.md).

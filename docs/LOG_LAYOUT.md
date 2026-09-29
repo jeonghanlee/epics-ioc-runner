@@ -1,150 +1,167 @@
-# Log Layout
+# Log layout
 
-Starting with 1.1.0, `procServ` writes each IOC's child output to a
-dedicated log file instead of the systemd journal. Crash detection reads
-that file directly. This document describes the log paths, ownership and
-permissions, rotation policy, and access model for both system-wide and
-`--local` modes. An operator can follow it without reading the source.
+procServ writes each IOC's console output to a dedicated log file, and the
+runner's crash detection reads that file directly. This page gives the log
+paths, how the runner finds them, and the rotation policy in system and local
+mode. The owners and modes of these paths are in
+[PERMISSION_MODEL.md](PERMISSION_MODEL.md), and container mode, which writes
+IOC output to the container's standard output, has no log file.
 
-## 1. Data Flow
+## Data flow from the IOC to the log file
+
+The IOC's output passes through procServ into the log file, which the runner
+scans:
 
 ```text
 IOC process (st.cmd)
-   │  stdout + stderr
-   ▼
-procServ --foreground --logfile=<LOG_DIR>/<name>.log --name=<name> ...
-   │  writes child output to the log file
-   ▼
-<LOG_DIR>/<name>.log
-   ▲
-   │  byte-offset scan (no journal, no sudo)
-ioc-runner crash detection on start/restart
+   |  stdout + stderr
+   v
+procServ --foreground --logfile=<log_dir>/<name>.log --name=<name> ...
+   |  writes child output to the log file
+   v
+<log_dir>/<name>.log
+   ^
+   |  byte-offset scan (no journal, no sudo)
+ioc-runner crash detection on start and restart
 ```
 
-`procServ` runs in the foreground under systemd and is told where to write
-with `--logfile`. The systemd journal still receives `procServ`'s own
-stdout and stderr for service-manager diagnostics, but the IOC console
-output and the crash-detection critical path live entirely in the log file.
+procServ runs in the foreground under systemd, and `--logfile` names the file.
+The systemd journal also receives procServ's own standard output and standard
+error for service-manager diagnostics; the IOC console output and the crash
+detection use only the log file.
 
-## 2. System-mode Layout
+`log`, `start`, `restart`, and `inspect` read the path from the `--logfile`
+argument of the installed unit, so they follow the file procServ writes even
+when the environment of the current shell differs.
 
-The system log path is `/var/log/procserv` — set from `SYSTEM_LOG_DIR`
-(overridable with `IOC_RUNNER_SYSTEM_LOG_DIR`) and baked into the systemd
-template's `--logfile=` when the unit is deployed. `IOC_RUNNER_LOG_DIR`
-does NOT change this path in system mode; it only moves where the runner
-*scans* for crash patterns. If it differs from `SYSTEM_LOG_DIR` the runner
-prints a foot-gun warning, because `procServ` still writes to
-`SYSTEM_LOG_DIR` per the template.
+## System-mode log paths
 
-| Path | Owner:Group | Mode | Created by |
-| --- | --- | --- | --- |
-| `/var/log/procserv/` | `root:ioc` | `2775` setgid + default ACL (`g:ioc:rw`, `o::r--`, `m::rw`) | `setup-system-infra.bash` |
-| `/var/log/procserv/<name>.log` | `ioc-srv:ioc` | `0644` | `procServ` at IOC start |
-| `/var/log/procserv/<name>.log.N.gz` | `ioc-srv:ioc` | `0644` | `logrotate` |
+The system setup writes the log directory into the `--logfile` argument of
+the system unit template. The directory is `/var/log/procserv`, or the value
+of `IOC_RUNNER_SYSTEM_LOG_DIR` in the environment of `setup-system-infra.bash`
+when it deploys the template. The runner's own `IOC_RUNNER_LOG_DIR` and
+`IOC_RUNNER_SYSTEM_LOG_DIR` do not change system-mode logging.
 
-The file mode is `0644` because `procServ` creates it with a hardcoded
-`open(O_CREAT, 0644)` and the system unit sets no `UMask=`, so the default
-`0022` is preserved. The unit intentionally does NOT use
-`LogsDirectory=`, which would chown the directory to `ioc-srv` on every
-activation and break the `root:ioc` ownership the three-principal model
-requires.
+| Path | Created by |
+| --- | --- |
+| `/var/log/procserv/` | `setup-system-infra.bash` |
+| `/var/log/procserv/<name>.log` | procServ at IOC start |
+| `/var/log/procserv/<name>.log.N.gz` | `logrotate` |
 
-## 3. Local-mode Layout
+## Local-mode log paths
 
-The local log path is the resolved local `LOG_DIR`. By default it is
-`$XDG_STATE_HOME/procserv`, falling back to
-`$HOME/.local/state/procserv`; `IOC_RUNNER_LOCAL_LOG_DIR` changes that
-local default, and `IOC_RUNNER_LOG_DIR` overrides the final value. The
-resolved path is created by `ioc-runner --local install` and written
-into the generated user unit's `--logfile=`.
+The local log directory is `$XDG_STATE_HOME/procserv`, or
+`~/.local/state/procserv` when `XDG_STATE_HOME` is unset.
+`IOC_RUNNER_LOCAL_LOG_DIR` changes that default, and `IOC_RUNNER_LOG_DIR`
+overrides the result. `ioc-runner --local install` creates the directory and
+writes it into the `--logfile` argument of the user unit template.
 
-| Path | Owner:Group | Mode | Created by |
-| --- | --- | --- | --- |
-| `<LOG_DIR>/` | `<user>:<user>` | `0750` | `ioc-runner --local install` |
-| `<LOG_DIR>/<name>.log` | `<user>:<user>` | `0640` | `procServ` at IOC start |
+| Path | Created by |
+| --- | --- |
+| `<log_dir>/` | `ioc-runner --local install` |
+| `<log_dir>/<name>.log` | procServ at IOC start |
+| `<log_dir>/<name>.log.N.gz` | `logrotate` from the user timer |
 
-The user-mode unit sets `UMask=0027`, which tightens `procServ`'s `0644`
-mode_arg to `0640`. The single user is the only principal, so group/other
-read is not required.
+## Who can read the logs
 
-## 4. Access and Group Membership
+`ioc-runner [--local] log <name>` prints the tail of the effective log file,
+so an operator does not build the path by hand. In system mode every user can
+read the log files, and changing a service requires the `ioc` group; the
+three-principal model in [PERMISSION_MODEL.md](PERMISSION_MODEL.md) gives each
+principal's access. Reading a log does not require membership in the
+`systemd-journal` group.
 
-`ioc-runner [--local] log <name> [-f] [-n <count>]` resolves the effective log file from the
-deployed unit and prints its tail (or follows it), so readers do not
-hand-build the paths below.
-
-| Principal | Log read | IOC management |
-| --- | --- | --- |
-| `ioc-srv` (daemon) | owner — writes the log | runs `procServ` |
-| engineer in `ioc` | yes (group `r--`) | yes — `systemctl` via `%ioc` sudoers gate |
-| user outside `ioc` (system mode) | yes — file mode `0644` grants `o+r` | no — sudoers gate denies state-changing `systemctl` |
-| local-mode user | yes — owner of a `0640` file | yes — `systemctl --user` |
-
-Reading a log never requires `systemd-journal` membership. In system mode,
-wide read sits at the file-mode layer only; the access boundary for
-state-changing operations is the `%ioc` sudoers gate, not the file mode.
-
-## 5. Log Rotation
+## System-mode log rotation
 
 `setup-system-infra.bash` deploys `/etc/logrotate.d/procserv`:
 
-- **Schedule:** weekly
-- **Retention:** 8 rotations (8 weeks)
-- **Method:** `copytruncate` — the file is copied then truncated in place,
-  so `procServ` keeps writing to the same path and the UDS socket is never
-  invalidated. No IOC restart is needed.
-- **Archives:** `<name>.log.1.gz`, `<name>.log.2.gz`, ... (compressed)
+- **Schedule:** weekly.
+- **Retention:** 8 rotations.
+- **Method:** `copytruncate`: logrotate copies the file and truncates it in
+  place, so procServ keeps writing to the same path, the console socket is
+  unaffected, and the IOC needs no restart.
+- **Archives:** `<name>.log.1.gz`, `<name>.log.2.gz`, and onward, compressed.
 
-Validate the policy with `logrotate -d /etc/logrotate.d/procserv` (dry
-run) and force a rotation with `logrotate -f /etc/logrotate.d/procserv`.
+To check the policy without rotating, and to force a rotation:
 
-### Local (`--user`) mode
+```bash
+sudo logrotate -d /etc/logrotate.d/procserv
+sudo logrotate -f /etc/logrotate.d/procserv
+```
 
-`ioc-runner --local install` deploys per-user rotation without root or
-`/etc/logrotate.d`: a logrotate config at `~/.config/ioc-runner/logrotate.conf`
-plus a user systemd timer that runs it.
+## Local-mode log rotation
+
+`ioc-runner --local install` deploys per-user rotation without `root` or
+`/etc/logrotate.d`: a logrotate configuration at
+`~/.config/ioc-runner/logrotate.conf` by default and a user systemd timer that runs it.
+One timer rotates every `*.log` in the local log directory.
+
+The configuration path is `${CONF_DIR%/*}/ioc-runner/logrotate.conf`, using
+the resolved local configuration directory. The expression removes the last
+slash and everything after it, then appends `/ioc-runner/logrotate.conf`.
+For example, `/tmp/sandbox/conf` produces
+`/tmp/sandbox/ioc-runner/logrotate.conf`. A trailing slash changes the result:
+`/tmp/sandbox/conf/` produces `/tmp/sandbox/conf/ioc-runner/logrotate.conf`.
+Use directory overrides without a trailing slash for a sibling configuration
+directory. The rotation units live in the resolved `SYSTEMD_DIR`, which defaults
+to `~/.config/systemd/user`; the [local guide](USER_GUIDE_LOCAL.md#override-the-runner-directories-and-tools)
+lists the overrides and path restrictions.
+
+At deployment, the runner selects the logrotate executable in this order:
+
+1. `IOC_RUNNER_LOGROTATE_TOOL`, if nonempty and executable.
+2. `/usr/sbin/logrotate`, `/sbin/logrotate`, then `/usr/bin/logrotate`, taking
+   the first executable path.
+3. The result of looking up `logrotate` in the invoking shell's `PATH`.
+
+An unset, empty, or nonexecutable override falls through to the search.
+Use an absolute executable path for the override: the runner embeds the
+selected value in the rotation service's `ExecStart` at install time.
+If no executable is found, it warns and skips rotation deployment while
+allowing the IOC installation to continue. System setup uses its own
+`logrotate` lookup through `PATH` and does not read this override.
 
 - **Units:** `epics-logrotate.service` (`Type=oneshot`) and
-  `epics-logrotate.timer`, under `systemctl --user`. Inspect with
-  `systemctl --user status epics-logrotate.timer`.
-- **Schedule:** `OnCalendar=hourly`, `Persistent=true`. The hourly fire is what
-  makes the size cap effective; `weekly` still drives time-based retention.
-- **Policy:** `weekly` + `maxsize 50M` + `rotate 8` + `copytruncate` +
-  `compress` + `missingok` + `notifempty` + `nodateext`. `maxsize` rotates a log
-  early if it exceeds 50M before the weekly mark, bounding a crash-loop between
-  weekly rotations. `su` is not used (the directory is a single-user `0750`).
-- **State:** the logrotate state file is host-local at
-  `$XDG_RUNTIME_DIR/ioc-runner-logrotate.state` (the unit's `%t` specifier), so
-  per-host timers on a shared NFS `$HOME` do not race on one state file.
-- **Method:** `copytruncate`, same as system mode. The console UDS socket lives
-  under `RuntimeDirectory` (`/run/user/<uid>`), not `LOG_DIR`, so rotation never
-  touches it.
-- **Linger:** the timer fires only while the user manager runs; enable headless
-  operation with `loginctl enable-linger <user>` (the same requirement the IOC
-  units have).
-- **logrotate absent:** if `logrotate` is not installed the deploy is skipped
-  with a warning and the IOC install still succeeds; install logrotate and
-  re-run `ioc-runner --local install`.
-- **Removal (manual):** removal is operator-managed — per-IOC `remove` leaves
-  the shared timer in place. To remove rotation entirely: `systemctl --user
-  disable --now epics-logrotate.timer`, delete
-  `~/.config/ioc-runner/logrotate.conf` and
-  `~/.config/systemd/user/epics-logrotate.service` /
-  `epics-logrotate.timer`, then `systemctl --user daemon-reload`.
+  `epics-logrotate.timer`, under `systemctl --user`; `install` enables the
+  timer. Inspect it with `systemctl --user status epics-logrotate.timer`.
+- **Schedule:** `OnCalendar=hourly`, `Persistent=true`,
+  `RandomizedDelaySec=5m`. The hourly run makes the size limit effective;
+  `weekly` drives time-based rotation.
+- **Policy:** `weekly`, `maxsize 50M`, `rotate 8`, `copytruncate`,
+  `compress`, `missingok`, `notifempty`, and `nodateext`. `maxsize` rotates a
+  log that exceeds 50 MB before the week ends, which bounds a crash loop.
+- **State:** the logrotate state file is `%t/ioc-runner-logrotate.state`, in
+  the host-local `$XDG_RUNTIME_DIR`, so timers on several hosts that share an
+  NFS home do not race on one state file.
+- **Console socket:** the socket lives under `/run/user/<uid>`, not in the log
+  directory, so rotation never touches it.
+- **Linger:** the timer runs only while your user instance of systemd runs;
+  on a headless host, enable lingering with `loginctl enable-linger <user>`.
+- **Best effort:** a missing `logrotate`, a configuration that fails
+  `logrotate -d`, or an unreachable user bus prints a warning and skips
+  rotation; the IOC install succeeds. Fix the cause, stop the IOC, and run
+  `ioc-runner --local install` again; `install` refuses an IOC that is
+  running.
+- **Generated files:** do not edit `logrotate.conf` or the `epics-logrotate.*`
+  units by hand. When one of them differs from the shipped content,
+  `ioc-runner --local install` asks `Update it now? [y/N]` on a terminal,
+  keeps it without a terminal, and replaces it with `-f`; an update discards
+  the edits. Site rotation policy belongs in a separate logrotate
+  configuration.
+- **Monitoring:** `ioc-runner --local list` warns when the timer is installed
+  but inactive.
+- **Removal:** `remove` deletes one IOC and leaves the shared timer. To remove
+  rotation, run `systemctl --user disable --now epics-logrotate.timer`, delete
+  `~/.config/ioc-runner/logrotate.conf`,
+  `~/.config/systemd/user/epics-logrotate.service`, and
+  `~/.config/systemd/user/epics-logrotate.timer`, and then run
+  `systemctl --user daemon-reload`.
 
-## 6. Troubleshooting
+The removal paths above assume default directories. With overrides, use the
+configuration path calculated above and the two unit files under the
+`SYSTEMD_DIR` used at installation. Changing an environment variable does not
+relocate an installed file; inspect the installed rotation service to identify
+its executable and configuration path.
 
-| Symptom | Cause | Action |
-| --- | --- | --- |
-| `startup log could not be read` warning | log file missing or unreadable at start | `stat <LOG_DIR>/<name>.log`; check the directory exists with the modes in section 2/3 |
-| `journalctl -u epics-@<name>.service` returns empty | IOC output goes to the log file, not the journal | read `<LOG_DIR>/<name>.log` with `tail`/`grep` instead |
-| log looks truncated right after rotation | `copytruncate` truncated the live file | inspect `<name>.log.1.gz` for the rotated content |
-| local-mode log not found | wrong `XDG_STATE_HOME`, or linger not enabled | `ls "${XDG_STATE_HOME:-$HOME/.local/state}/procserv"` |
-| local rotation not happening | timer not enabled, linger off, or `logrotate` absent | `systemctl --user list-timers \| grep epics-logrotate`; `loginctl enable-linger "$USER"`; confirm `logrotate` is installed |
-| engineer-created file in the dir lands at `0664` | shell `umask 0022` + directory default ACL `g:ioc:rw` | expected; `procServ`-created files stay `0644` |
-
-## Cross-References
-
-- Permission model: [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md)
-- Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
-- System setup: [`INSTALL.md`](INSTALL.md)
+Log symptoms, such as an unreadable startup log or an empty journal, are
+answered in [FAQ.md](FAQ.md).
