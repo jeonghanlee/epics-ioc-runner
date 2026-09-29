@@ -191,6 +191,14 @@ Resolution order (highest wins): `IOC_RUNNER_<VAR>` > `IOC_RUNNER_{LOCAL,SYSTEM}
 
 ### Configuration and log path requirements
 
+Container mode does not use `SYSTEMD_DIR`: it renders s6 services under its
+scan directory. A systemd-directory override has no effect on that backend.
+
+An explicit `IOC_RUNNER_CON_TOOL` or `IOC_RUNNER_PROCSERV_TOOL` must name an
+executable regular file. An invalid override exits 1 instead of falling back
+to a search. If procServ cannot be found in the default search paths, the
+runner exits 1; install it there or set a valid override.
+
 The resolved configuration directory must be absolute and contain no
 whitespace, including spaces and tabs. The runner checks this in every mode
 after the backend preflight and exits 1 on failure, before dispatching the

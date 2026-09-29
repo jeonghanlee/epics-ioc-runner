@@ -148,6 +148,16 @@ allowing the IOC installation to continue. System setup uses its own
   keeps it without a terminal, and replaces it with `-f`; an update discards
   the edits. Site rotation policy belongs in a separate logrotate
   configuration.
+
+Rotation directory creation and configuration or unit staging failures each
+print a warning and skip rotation deployment without failing IOC installation.
+The staging files are created beside their intended destinations.
+Validation uses a temporary `.logrotate-validate-state.XXXXXX` under the rotation
+configuration directory, falling back to the system temporary directory and
+then `/dev/null` if needed. The temporary state file is removed after either
+successful or failed validation; it is separate from the timer's persistent
+state. Refusing an update or closing input at the update prompt retains the
+installed rotation files and continues installation.
 - **Monitoring:** `ioc-runner --local list` warns when the timer is installed
   but inactive.
 - **Removal:** `remove` deletes one IOC and leaves the shared timer. To remove

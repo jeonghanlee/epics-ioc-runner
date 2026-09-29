@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. The latest incremental T4 update accounts for all 352 entries: 286 covered, 39 partially covered, and 27 missing; resolve the remaining 66 coverage entries before recording T4 as passing. T1 and T2 passed after the UNINSTALL reference corrections on 2026-09-29. Continue T3 through T6; the installation/removal command verification needs an identified disposable test consumer and its access details. The owner requested the outstanding documentation corrections and verification on 2026-09-29; no consumer has been selected for this run. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; issue #163 is recorded; its implementation plan remains a draft to be written and accepted. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. The incremental T4 updates account for all 352 entries as covered, with no partial or missing entry. T1, T2, and T4 passed on 2026-09-29 after the diagnostic and lifecycle additions. Continue full T3, T5, and T6; the Debian container lifecycle suite passed 64 assertions and thirteen targeted local CLI calls matched their documented errors, but these do not verify every book command. Both existing test consumers have a running IOC; owner selection of a disposable consumer for installation/removal and subsequent setup remains pending. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; issue #163 is recorded; its implementation plan remains a draft to be written and accepted. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -1632,52 +1632,87 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-09-29T09:37:24Z | Control host; Pages mdBook image | PASS | Actual mdBook build exited 0 without warnings after the reference corrections; `work/m8-followup-build.log`; input hashes in `work/m8-followup-sources.sha256` |
-| T2 | 2026-09-29T09:37:24Z | Control host; T1 HTML and supplemental mdBook rendering | PASS | `bash work/m8-check-links.bash`: 22 Markdown source pages plus setup script, 143 local references, 0 failures; 8 external URLs excluded; `work/m8-followup-links.log` |
-| T3 | Not run | — | Pending | none |
-| T4 | 2026-09-29T09:38:07Z | Control host; incremental inventory update and 13 published pages | FAIL | 286 covered, 39 partial, 27 missing after 30 coverage updates; unchanged classifications retain the original assessment. `work/m8-followup-coverage.md` and its SHA-256 manifest identify the evidence. Fresh ASCII, history-word and address checks pass; `work/m8-followup-static.log` |
-| T5 | Not run | — | Pending | none |
-| T6 | Not run | — | Pending | none |
+| T1 | 2026-09-29T15:48:21Z | Control host; Pages mdBook image | PASS | Actual mdBook build exited 0 without warnings after both review corrections; `work/m8-review-fixes-build.log`; input hashes in `work/m8-review-fixes-sources.sha256` |
+| T2 | 2026-09-29T15:48:21Z | Control host; T1 HTML and supplemental mdBook rendering | PASS | `bash work/m8-check-links.bash`: 22 Markdown source pages plus setup script, 147 local references, 0 failures; 8 external URLs excluded; `work/m8-review-fixes-links.log` |
+| T3 | 2026-09-29 | Control host and Debian container; system/local consumer selection pending | Pending | Actual container suite: 64 PASS, no failures or skips. Thirteen targeted local CLI calls match documented errors. Full book command execution remains pending; details below. |
+| T4 | 2026-09-29T15:35:16Z | Control host; incremental inventory update and 13 published pages | PASS | 352 covered, 0 partial, 0 missing after the final 66 updates; `work/m8-coverage-completion.md` and `work/m8-coverage-completion.sha256`. ASCII, history-word, address, and diff checks pass; `work/m8-coverage-static.log`. Coverage is static evidence. |
+| T5 | Not completed | Control host | Pending | Scoped reading does not complete the whole-book pass or execution comparison. |
+| T6 | Not completed | Control host | Pending | Plan-by-plan review remains open. |
 
-T1 and T2 observed the working tree based on `c7dfdd6`, including the
-UNINSTALL reference corrections. The build image ID was
+T1 and T2 observed the working tree based on `c4304b0`, including the
+six pages that cover the remaining diagnostics and infrastructure lifecycles,
+plus the accepted local-cleanup ordering and diagnostic-scope corrections.
+The build image ID was
 `sha256:2b53e59ebf0edf2913e0636ff2e31351f0f0c4c7593fb51d1f22b4b629173015`.
-T2 reads links from the rendered article content so mdBook handles Markdown
-syntax, and checks published target anchors against the T1 HTML. For pages
-outside the published book, it renders the repository Markdown with the same
-image and checks those generated IDs. It also checks the repository-relative
-documentation paths in `bin/setup-system-infra.bash`. Supplemental evidence
-is under `work/m8-links.UjChg8/`. The original build and link logs remain in
-`work/m8-t1-build.log` and `work/m8-t2-links.log`; the original T1 input hashes
-are preserved in `work/m8-t1-sources-062115.sha256`. The current checker input
-manifest is `work/m8-t1-sources.sha256`. These results do not complete T3-T6.
+T2 reads links from rendered article content and checks published target
+anchors against T1 HTML. For pages outside the book, it renders repository
+Markdown with the same image and checks the generated IDs. It also checks
+repository-relative documentation paths in `bin/setup-system-infra.bash`.
+Supplemental evidence is under `work/m8-links.kNcjdK/`. The pre-review build
+and link evidence remains in `work/m8-coverage-build.log`,
+`work/m8-coverage-links.log`, and `work/m8-coverage-sources.sha256`.
+The original logs and hashes remain in `work/m8-t1-build.log`,
+`work/m8-t2-links.log`, and `work/m8-t1-sources-062115.sha256`.
+The subsequent reference-correction results remain in
+`work/m8-followup-build.log`, `work/m8-followup-links.log`, and
+`work/m8-followup-sources.sha256`. The current checker input manifest is
+`work/m8-t1-sources.sha256`. These results do not complete T3, T5, or T6.
 
-T3 preparation: `work/m8-t3-code-blocks.md` is the earlier extraction of 100
-code blocks and must be refreshed against the selected test candidate before
-execution. Block classification, inline-command inventory, and full command
-execution remain pending. No test-consumer deployment or installation/removal
-command has run for T3. The owner requested the outstanding corrections and
-verification on 2026-09-29; the disposable consumer and access details have
-been requested. On the control host, seven real runner invocations confirmed
-system/local configuration-path rejection and the help/version/no-command
-bypass; `work/m8-followup-runner.log`. This targeted check is not full T3.
+T3 preparation: `work/m8-current-command-candidates.md` records the snapshot
+before the two review corrections: 100 fenced blocks and 180 inline command
+candidates. Refresh it against the selected execution candidate before use.
+Configuration, output, symbolic syntax, and command
+fragments need classification before execution. The earlier
+`work/m8-t3-code-blocks.md` remains historical evidence. Full execution and
+comparison remain pending. No system/local test-consumer installation or
+removal has run for T3.
+Both existing consumers are reachable and have an active `sioc1`; owner
+selection of a disposable consumer remains pending.
 
-T4 coverage is 286 covered, 39 partially covered, and 27 missing entries.
-`work/m8-followup-coverage.md` records 30 updates for the setup, completion,
-and local-path additions. It explicitly inherits the other classifications
-from the original full inventory assessment; it is not an independent full
-audit. Counts describe inventory entries, not independent defects. All 11
-original mismatch entries have corrected text by static comparison; their
-runtime verification remains part of T3. No entry was waived or removed.
-Resolve the remaining 66 entries before recording T4 as passing.
+Seven real runner calls confirmed system/local configuration-path rejection
+and help/version/no-command bypass (`work/m8-followup-runner.log`).
+At 2026-09-29T15:35:16Z, thirteen additional real local runner calls confirmed
+missing-target errors for twelve commands and invalid-directory rejection
+for `generate`; each exited 1 (`work/m8-coverage-runner.log`).
 
-A scoped second-person review on 2026-09-29 covered the three corrected
-UNINSTALL references, the recent local configuration/log-path requirements,
-and local logrotate path and executable-selection prose. No additional
-wording correction was identified in that scope. The path guards were checked
-with real runner invocations; rotation deployment and cleanup remain subject
-to test-consumer execution. This scoped pass does not complete the whole-book
-T5 or the plan-by-plan T6 review.
+The shipped `tests/run-container-tests.bash` ran with
+`jeonghanlee/debian13-epics:latest` against the source runner and actual s6
+services: 64 PASS, 0 FAIL, 0 SKIP, 0 not applicable, and 0 script errors.
+The log is `work/m8-coverage-container/jeonghanlee_debian13-epics_latest.log`.
+Its image ID is
+`sha256:8e55df14fec16dacfe70095540b2fd110172a62e9cdd1360aaa70e8996d03889`.
+This is partial T3 evidence, not verification of every book command.
+
+T4 coverage is 352 covered, 0 partially covered, and 0 missing entries.
+`work/m8-followup-coverage.md` records the first 30 updates;
+`work/m8-coverage-completion.md` maps the final 66 entries to source and
+current documentation. Unchanged classifications retain the original full
+inventory assessment; this is not an independent full audit. Counts describe
+inventory entries, not independent defects. All 11 original mismatch entries
+have corrected text by static comparison; their runtime verification remains
+part of T3. No entry was waived or removed. The fresh static scan has no
+non-ASCII hit, and the address guard passes for twelve per-file distinct
+addresses. Every history-word hit describes current behavior, procedure
+state, or literal command/output; none compares documentation or runner
+releases.
+
+The earlier scoped second-person review covered three UNINSTALL references,
+local configuration/log-path requirements, and local logrotate path and tool
+selection. This turn's first-person reading covers the six pages' 66-entry
+additions, including partial installation state and retained shared resources.
+Neither scoped reading completes the whole-book T5 or plan-by-plan T6.
+Full reviews must compare the text against the remaining actual command runs.
+
+The scoped third-person review found two documentation defects: the local
+cleanup sequence called the CLI after deleting it, and the missing-config
+paragraph applied the stale-directory hint to commands that do not emit it.
+Both corrections were accepted and applied on 2026-09-29. Local IOC removal
+is a prerequisite to system uninstall, with a check before CLI deletion;
+the diagnostic paragraph lists the applicable commands and modes. The
+current T1/T2 results above verify the corrected text's build and links.
+The review also recalculated 352 covered entries with 96 unique incremental
+updates and reran the real Debian container suite: 64 PASS, no failures or
+skips. These scoped checks do not close T3, T5, or T6.
 
 Item 1 inventory, 2026-09-28, from the source at `222ab3c`: 352 surfaces
 (36 command rows, 48 options, 53 paths, 215 printed messages), of which 148

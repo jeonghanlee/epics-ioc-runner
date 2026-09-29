@@ -58,6 +58,18 @@ transitions the sudoers policy allows. Container mode runs as root. See
 [PERMISSION_MODEL.md](PERMISSION_MODEL.md) for the owners and modes of these
 paths.
 
+System and local commands require executable `/usr/bin/systemctl`; a missing
+or nonexecutable file produces an error and exit 1 before command dispatch.
+Help, version, and usage without a command exit before this backend check.
+
+`attach`, `monitor`, `inspect`, `log`, `view`, `remove`, `start`, `restart`,
+`stop`, `status`, `enable`, and `disable` require an IOC name. Omitting it
+prints a target-required error and exits 1. When a command requires an
+installed configuration, a missing configuration aborts the command.
+For `log`, `remove`, `stop`, `enable`, and `disable` in all modes, and for
+container `start` and `restart`, this error also reports an existing runtime
+directory and advises manual removal only after confirming that it is orphaned.
+
 ## The `generate` command
 
 `ioc-runner [--local|--container] [-f] generate <dir>` writes `<dir>/<name>.conf`,
@@ -66,6 +78,13 @@ script in `<dir>`. When there are several, it asks which one to use. The
 configuration is staged in `<dir>` and renamed into place, so the directory must
 be writable by the invoking user; system and container mode write mode `0660`,
 local mode `0600`.
+
+A missing or invalid target directory, or no executable `*.cmd` candidate,
+produces an error and exit 1. With several candidates, an invalid selection
+prints the allowed numeric range and asks again; closed input aborts with
+exit 1. If `diff` is unavailable, an overwrite still asks for confirmation
+after warning that it cannot display changes. A successful write prints
+`Configuration successfully generated and validated at: <path>`.
 
 After writing the configuration, `generate` attempts to create
 `<dir>/.iocsh_history` if it is absent. It also attempts to set that file's mode
@@ -99,18 +118,25 @@ configuration into the configuration directory of the mode. `<target>` is a
 `.conf` file, or a directory that holds `<name>.conf` where `<name>` is the
 directory's basename; the IOC name is the file name without `.conf`.
 
-The runner checks, in order, and exits 1 at the first failure:
+The runner checks these stages in order and exits 1 when a stage fails.
+Configuration validation collects field errors and prints
+`Validation failed with <count> error(s). Installation aborted.`; it does not
+stop at the first invalid field.
 
 1. The IOC name matches the name rule, and the configuration sets `IOC_USER`,
    `IOC_GROUP`, `IOC_CHDIR`, and `IOC_CMD` with no illegal characters.
    `IOC_USER` and `IOC_GROUP` must be `ioc-srv` and `ioc` in system and
    container mode, and the invoking user and primary group in local mode; a
-   configuration generated for another mode fails with `Configuration mode
-   mismatch` and the `generate` command that fixes it.
+   configuration generated for another mode fails validation. The aggregate
+   `Configuration mode mismatch` report requires both identity fields to be
+   present, valid, and different from the required pair, and `IOC_CHDIR` to
+   be an absolute, existing, traversable, writable directory. It prints
+   Config, Found, Required, and Regenerate lines. Other identity failures
+   produce individual field errors.
 2. System and container mode: `IOC_CHDIR` has no `..` component. When
    `IOC_CHDIR` is not writable by the service account through a `2775` tree
    group-owned by `ioc`, the runner prints a warning and asks `Proceed anyway?
-   [y/N]`; `-f` answers yes, and a closed standard input aborts.
+   [y/N]`; `-f` answers yes. Refusal or closed input aborts with exit 1.
 3. System mode: the template `/etc/systemd/system/epics-@.service` exists.
 4. The service is not `active`, `activating`, or `deactivating`; stop it first.
 5. `IOC_PORT`, when set, is the standard socket
@@ -122,10 +148,18 @@ The runner checks, in order, and exits 1 at the first failure:
 7. `site.env` in the configuration directory, when present, passes the same
    grammar check as a configuration.
 8. An existing `<name>.conf` is overwritten only after `Do you want to
-   overwrite it? [y/N]`; `-f` answers yes.
+   overwrite it? [y/N]`; `-f` answers yes. Refusal or closed input aborts
+   with exit 1 before replacing the configuration or shared local assets.
+
+An invalid or missing `IOC_CHDIR` is a validation error. `IOC_CMD` must be
+one executable name or path without whitespace: systemd expands it as one
+argument. Put required arguments in an executable launcher script that uses
+`exec`, and name that script in `IOC_CMD`.
 
 The installed file is written through a temporary file and a rename, mode
-`0660` in system and container mode and `0600` in local mode. Then:
+`0660` in system and container mode and `0600` in local mode. The invoking
+installer owns the replacement file; its group follows directory inheritance.
+Container installation runs as root. Then:
 
 - System mode runs `systemctl daemon-reload`.
 - Local mode creates the log directory with mode `0750` and deploys the user
@@ -137,6 +171,23 @@ The installed file is written through a temporary file and a rename, mode
 
 On success the runner prints `IOC <name> installed in <mode> mode. Use 'start'
 command to run it.` and exits 0. `install` does not start the IOC.
+
+### Failures after configuration installation
+
+The installed configuration is not rolled back if later template or service
+deployment fails. Correct the reported filesystem or tool condition and rerun
+`install` before starting the IOC.
+
+| Condition | Result |
+| --- | --- |
+| Local template cannot be staged | Exit 1; the diagnostic names the template directory and suggests checking read-only storage, free space, and file creation permissions. |
+| Backup of a differing local template cannot be created | Exit 1; the installed template is retained. Correct the backup-path condition and rerun local `install`. |
+| A shared local asset differs | Before an interactive decision, the runner lists active IOC services that share the unit. Refusal or EOF keeps the asset and continues installation; `-f` updates without asking. |
+| Container service lacks `IOC_CHDIR`, `IOC_PORT`, or `IOC_CMD` | Exit 1; the s6 service cannot be rendered. |
+| Container `run` script cannot be staged in its service directory | Exit 1 with the directory in the error. The configuration can already be installed. |
+
+Local rotation deployment failures are best effort; see
+[local-mode log rotation](LOG_LAYOUT.md#local-mode-log-rotation).
 
 ## The `remove` command
 
@@ -151,11 +202,19 @@ configuration for `<name>` exists in the mode.
   continues.
 - Container mode stops the s6 service, deletes its service directory, and
   rescans; a service that does not stop aborts the removal the same way.
+  Its diagnostic includes captured `s6-svc` output and asks you to inspect
+  the service directory with `s6-svstat` before retrying.
 
 The runner then deletes `<name>.conf` and `<run_dir>/<name>`, reloads the
 service manager in system and local mode, prints `IOC <name> removed.`, and
 exits 0. The IOC's own directory, such as `/opt/epics-iocs/<name>`, is not
 touched.
+
+If deleting the configuration fails and the file or a dangling symlink
+remains, removal exits 1 with `The IOC is still installed`. Stop/disable
+actions, or container service-directory removal, can already have happened.
+Correct the configuration-directory permissions and inspect the service state
+before retrying; the success message is not printed for this failure.
 
 ## The `start` and `restart` commands
 
@@ -202,6 +261,13 @@ started.` when the socket appears, a warning when the service is up without the 
 error with exit 1 when the service goes down; procServ output is in the
 container's standard output.
 
+For an active container service, `restart` uses `s6-svc -r -wr`; otherwise
+it uses `-u -wu`, as `start` does. A failed s6 transition prints
+`Error: IOC '<name>' <action> was blocked: <reason>` and exits 1.
+Before either transition, a missing executable `run` script exits 1 and
+directs you to rerun container `install`. A missing `IOC_PORT` or a value
+whose socket component is not an absolute path also exits 1.
+
 ## The `stop`, `enable`, and `disable` commands
 
 `ioc-runner [--local|--container] stop|enable|disable <name>` exits 1 when no
@@ -233,6 +299,10 @@ installed `<name>.conf`, and then the unit as systemd resolves it
 (`systemctl cat epics-@<name>.service`) or, in container mode, the rendered s6
 `run` script. A missing configuration exits 1.
 
+If a container configuration exists but its service has no rendered `run`
+file, the second section prints `(not rendered; run 'ioc-runner --container
+install' first)`. The configuration section is still printed.
+
 ## The `log` command
 
 `ioc-runner [--local] [-f] [-n <count>] log <name>` prints the last lines of the
@@ -247,6 +317,9 @@ container's standard output, and exits 1.
 ## The `list` command
 
 The `list` command provides a real-time dashboard of all active EPICS IOCs managed by `epics-ioc-runner`. It supports three verbosity levels, each adding progressively deeper system and kernel-level diagnostic data.
+
+When its scan finds no active IOC sockets, it prints
+`No active IOC sockets found in <run_dir>`.
 
 ### Invocation forms for `list`
 
@@ -345,6 +418,14 @@ Each phase streams its output through a `while read` loop that populates O(1) as
 
 The `epics-ioc-runner` provides two distinct methods for interacting with an active IOC console via its UNIX Domain Socket. These commands differ fundamentally in their data flow architecture and input handling to prevent operational conflicts.
 
+### Console connection preconditions
+
+`attach`, `monitor`, and `inspect` resolve the socket from the installed
+configuration. A non-active service produces a warning that its socket might
+be stale and that a connection can fail or hang; the warning does not abort
+the connection attempt. A missing `IOC_PORT`, an empty socket component, or
+a path that is not a UNIX socket exits 1.
+
 ### Comparison of `attach` and `monitor`
 
 | Feature | `attach` | `monitor` |
@@ -394,6 +475,28 @@ sudo ioc-runner inspect <ioc_name>
 ioc-runner --local inspect <ioc_name>
 ioc-runner --container inspect <ioc_name>   # root inside the container
 ```
+
+### Inspection errors and incomplete results
+
+`inspect` requires `lsof`, `awk`, and `ss` in `PATH`, and an executable `ps`
+resolved from `PATH`. A missing dependency names the tool and exits 1.
+Failure of `ss -x -a -p` also exits 1 because client connections cannot be
+traced. For process context, `ps` exit 1 is tolerated when a process has
+disappeared; other nonzero statuses are reported and propagated.
+
+| Observation | Report and effect |
+| --- | --- |
+| No socket rows returned by `lsof` | `No active UNIX sockets detected for this path.` The report continues; this is not proof that no process exists when visibility is restricted. |
+| No discovered server PIDs | `No server processes found. The socket might be orphaned.` |
+| No discovered client PIDs | `No external client connections detected.` |
+| Effective launch command cannot be resolved | A warning includes the reason. The log-path probe is skipped and inspection continues without a configured executable comparison. |
+| Effective system service identity cannot be read, or either User/Group is empty or contains whitespace | The identity resolver fails; `inspect` warns that the log-path probe was skipped and continues. |
+| Only one identity value supplied to a log-path probe | The probe rejects it: both service user and group are required. |
+| Stable supervisor PID does not appear among the owners of the target socket | A warning states that executable identity was not attributed to that PID. |
+
+Warnings and empty result sections do not themselves fail inspection. An
+independent fatal error, such as a missing dependency, can still end the
+command with a nonzero status.
 
 ### Output sections of `inspect`
 

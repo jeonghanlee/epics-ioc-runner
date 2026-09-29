@@ -5,7 +5,9 @@
 This guide removes the system-wide `epics-ioc-runner` infrastructure deployed
 by `bin/setup-system-infra.bash --full`. It preserves retained logs, backups,
 and any account, group, or log directory that is not confirmed as dedicated to
-this installation.
+this installation. The final cleanup sections describe the separate local
+and container lifecycles; do not apply the system account-deletion procedure
+to those modes.
 
 **Out of scope:** removing a single IOC while keeping the infrastructure. Use
 `ioc-runner remove <ioc-name>` for that operation.
@@ -19,6 +21,13 @@ this installation.
 - The deployed `/etc/systemd/system/epics-@.service` is still present.
 - Site records or operator knowledge that distinguish installation-dedicated
   resources from pre-existing or shared resources.
+
+If you also plan to remove local IOCs, each owning user must first run
+`ioc-runner --local remove <ioc_name>` from their own login session for each
+IOC selected for removal. Replace `<ioc_name>` with that IOC's name.
+Complete these removals before starting the system uninstall; keep the CLI
+installed until they finish. Shared local files can be cleaned up afterwards
+as described in [Optional per-user local-mode cleanup](#optional-per-user-local-mode-cleanup).
 
 Use one privileged Bash session for the procedure. Before either identity is
 deleted, a closed session can restart at [Resolve the deployed identity and log path](#resolve-the-deployed-identity-and-log-path) so the identity and log
@@ -293,6 +302,9 @@ systemctl daemon-reload
 
 ### Bash completion and CLI wrapper
 
+Confirm that any local IOC removals selected in
+[Prerequisites](#prerequisites) are complete before deleting the CLI.
+
 The setup creates the `/usr/bin/ioc-runner` symlink on the RHEL family; the
 last command deletes it only when it points to the installed runner. `rm -f`
 is a no-op when a path is absent.
@@ -430,6 +442,51 @@ exit
 Each local-mode user then removes rotation as
 [LOG_LAYOUT.md](LOG_LAYOUT.md#local-mode-log-rotation) describes under
 Removal.
+
+### Retained local-mode files
+
+Removing an IOC leaves shared local infrastructure and its payload and log
+files intact. A complete local cleanup must account for the following paths,
+using the overrides that were active at installation:
+
+| Retained resource | Default path | Cleanup condition |
+| --- | --- | --- |
+| IOC template and backups | `~/.config/systemd/user/epics-@.service` and `epics-@.service.bak.*` | Remove only after removing every local IOC that uses the template. |
+| Configuration directory and shared environment | `~/.config/procServ.d/` and `site.env` | Preserve needed configuration; remove the shared environment only when no IOC needs it, then remove the empty directory. |
+| Rotation configuration, service, and timer | Paths in [local log rotation](LOG_LAYOUT.md#local-mode-log-rotation) | Disable the timer and follow the removal sequence there before removing the files. |
+| IOC logs | `${XDG_STATE_HOME:-${HOME}/.local/state}/procserv` | Retain by default; remove only when their history is no longer needed and no IOC writes there. |
+| IOC payload and history | The IOC's `IOC_CHDIR` | Retain by default; the runner does not own the payload lifecycle. |
+
+Run the remaining local cleanup as the owning user, after the IOC removals
+completed before system uninstall. After removing unused shared unit files, reload the user manager
+with `systemctl --user daemon-reload`. Verify that no removed IOC instance or
+rotation timer remains enabled, and that any files selected for removal are
+absent. Do not delete a shared template, directory, or log tree while another
+local IOC uses it.
+
+## Container infrastructure lifecycle
+
+The runner has no container-wide uninstall command. Container `remove`
+handles one IOC, not the account, group, CLI, scan root, or container image.
+For a disposable container deployment:
+
+1. Record the container's bind mounts and persistent volumes, and preserve
+   needed IOC configurations, payloads, and container stdout logs.
+2. While s6 is running, remove each installed IOC with `ioc-runner --container
+   remove`, supplying its name. This stops the service and removes its service
+   directory, configuration, and runtime socket directory.
+3. Use the deployment's container manager to stop and remove the container.
+   Recreate it from an image without runner setup if the deployment remains
+   in service. Changes to a running container do not remove setup from its
+   source image.
+4. Verify through the container manager that the removed container is absent
+   and cannot be restarted by its deployment configuration. Check persistent
+   storage separately: container removal does not establish that mounted
+   configurations or payloads were deleted.
+
+Do not apply this guide's host account or systemd deletion commands inside
+a container. Retain shared mounts and volumes unless their owner has approved
+their deletion; other containers can use the same storage.
 
 ## Recovery and failure conditions
 

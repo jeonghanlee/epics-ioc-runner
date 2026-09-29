@@ -94,6 +94,13 @@ fallback home can never supply the executables the runner runs.
 
 ## Access boundary: sudoers policy and file mode
 
+An installed system configuration is owned by the operator who ran `install`,
+because the runner creates a temporary file and renames it into place.
+In the default setgid configuration directory, its group is `ioc`.
+Container installation uses the same replacement operation as root.
+The local template has `WantedBy=default.target`, so enabling an IOC links
+its instance to the user's default target.
+
 The sudoers policy at `/etc/sudoers.d/10-epics-ioc` gates the
 privileged state-changing systemctl verbs that `ioc-runner` issues
 in system mode. `setup-system-infra.bash` emits one of two forms

@@ -251,7 +251,21 @@ Setup does not roll back artifacts already deployed when a later stage
 fails. Correct the reported condition and rerun setup; inspect the final
 verification result before treating the installation as complete.
 
+## Setup backup and temporary files
+
+Setup names each backup `<basename>.<YYYYmmdd_HHMMSS>.bak` under the configured
+backup directory and keeps the three newest files by modification time for
+each basename. Content-identical replacements do not consume a backup slot.
+The timestamp uses the setup process's local time.
+
+Sudoers and logrotate policies are staged using the system temporary directory
+(`TMPDIR`, or `/tmp` by default). The systemd template, runner, and completion
+are staged beside their destinations. Setup's exit handler removes unconsumed
+staging files, including on validation failure; successfully renamed files
+remain installed. Backups are retained independently of staging cleanup.
+
 ## Manual setup reference
+
 If you prefer to configure the system manually or need to audit the security changes made by the automated script, follow these steps.
 
 ### Account and group setup
