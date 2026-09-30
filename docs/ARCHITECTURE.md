@@ -33,7 +33,8 @@ This architecture defines a robust, dependency-free environment for managing EPI
 * **`ioc` group**: The management group for trained engineers. Its members can write IOC configurations in `/etc/procServ.d/`, which users outside the group cannot read or modify; [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md) gives the owners and modes.
 
 ### Restricted sudoers configuration
-Instead of relying on fragmented Polkit rules or overly broad wildcards, service control is delegated explicitly and strictly via `/etc/sudoers.d/10-epics-ioc`.
+Service control is delegated through `/etc/sudoers.d/10-epics-ioc`.
+Its argument restrictions depend on the installed sudo version.
 
 *Note: The absolute path to `systemctl` may vary depending on the Linux distribution (e.g., `/usr/bin/systemctl`). The deployment script resolves this automatically.*
 
@@ -50,7 +51,11 @@ Instead of relying on fragmented Polkit rules or overly broad wildcards, service
                           /usr/bin/systemctl ^daemon-reload$
 ```
 
-On hosts with sudo < 1.9.10, the deployment script falls back to a glob form (`epics-@*.service`) with a generation-time `WARN` line and a residual-risk comment in the deployed file. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
+On hosts with sudo < 1.9.10, the deployment script falls back to a glob form
+(`epics-@*.service`). That form can match additional unit arguments and
+authorize control of unrelated services. The
+[permission model](PERMISSION_MODEL.md#residual-risk-on-sudo--1910-hosts)
+describes this broader delegation.
 
 ---
 

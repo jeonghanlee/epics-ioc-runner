@@ -296,7 +296,10 @@ chmod 2770 /etc/procServ.d/
 ```
 
 ### Restricted sudoers configuration
-Allow members of the `ioc` group to manage only specific `epics-@<name>.service` systemd instances securely.
+Configure service-control delegation for members of the `ioc` group.
+On sudo >= 1.9.10, the anchored regex policy restricts service operations to
+`epics-@<name>.service` instances. Older sudo uses the broader glob policy
+described below.
 
 Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file. `setup-system-infra.bash` emits one of two forms based on the local sudo version (OS-agnostic). The canonical regex form (sudo >= 1.9.10) achieves parity with `validate_ioc_name` in `bin/ioc-runner`:
 ```bash
@@ -320,7 +323,14 @@ chmod 0440 /etc/sudoers.d/10-epics-ioc
 /usr/sbin/matchpathcon -V /etc/sudoers.d/10-epics-ioc
 ```
 
-On hosts with sudo < 1.9.10, replace each `^<verb> ... $` form with the glob form (`<verb> epics-@*.service`); the deployment script handles this automatically and emits a `WARN` line plus a residual-risk header comment. The boundary is the `%ioc` sudoers gate, not the argument pattern; see [`PERMISSION_MODEL.md`](PERMISSION_MODEL.md).
+On hosts with sudo < 1.9.10, the deployment script emits the glob form
+(`<verb> epics-@*.service`) and a warning. This fallback can authorize
+additional, unrelated unit arguments and does not provide IOC-only delegation.
+Before deploying it, assess the
+[glob-policy risk](PERMISSION_MODEL.md#residual-risk-on-sudo--1910-hosts).
+If your site accepts that broader delegation, replace each service-operation
+regex in the manual policy with `<verb> epics-@*.service`.
+Keep `daemon-reload` as an exact argument without regex anchors.
 
 > **Note (regex form):** the regex form requires sudo >= 1.9.10 (regex
 > command-argument matching); below that version the setup script deploys the
@@ -500,7 +510,9 @@ sudo setfacl -d -m o::rx /opt/epics-iocs
 ```
 
 ### NFS mount for centralized storage
-For environments using a central storage server, ensure the NFS export is configured with the `ioc` GID and `2775` permissions.
+For central storage, configure the NFS export to satisfy the
+[shared payload permission model](PERMISSION_MODEL.md#site-provisioned-paths),
+including consistent group identity between the server and clients.
 
 Mount the directory persistently via `/etc/fstab`:
 ```text

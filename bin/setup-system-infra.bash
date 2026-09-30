@@ -563,19 +563,17 @@ if [[ ${FULL_SETUP_MODE} -eq 1 || ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
                                       ${SYSTEMCTL_BIN} ^daemon-reload\$
 EOF
     else
-        # Glob-fallback form. fnmatch '*' is broader than the runner
-        # IOC-name model, but systemd unit-name escaping plus the
-        # template-only resolution rule prevents it from becoming an
-        # escalation path. See docs/PERMISSION_MODEL.md residual-risk
-        # subsection.
-        _log "WARN" "sudo < 1.9.10 detected; emitting glob-form sudoers policy (broader than the runner IOC-name model; not an escalation path; see docs/PERMISSION_MODEL.md)."
+        # Glob matching spans the complete command-argument string.
+        # '*' can match additional unit arguments, authorizing control
+        # of unrelated services. See docs/PERMISSION_MODEL.md.
+        _log "WARN" "Glob-form sudoers policy can authorize unrelated services; see docs/PERMISSION_MODEL.md."
         cat <<EOF > "${tmp_sudoers}"
 # /etc/sudoers.d/10-epics-ioc
 # Glob-fallback form: this host's sudo does not support regex command
-# arguments (introduced in sudo 1.9.10). Scope is broader than the
-# runner IOC-name model [A-Za-z0-9_][A-Za-z0-9_-]{0,63}, but systemd
-# unit-name escaping plus template-only resolution keep this off any
-# escalation path. See docs/PERMISSION_MODEL.md.
+# arguments (introduced in sudo 1.9.10). '*' can match whitespace and
+# additional unit arguments, authorizing control of unrelated services.
+# This policy does not restrict delegation to IOC instances.
+# See docs/PERMISSION_MODEL.md.
 %${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} stop epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} restart epics-@*.service, \\
