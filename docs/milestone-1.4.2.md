@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. The incremental T4 updates account for all 352 entries as covered, with no partial or missing entry. T1, T2, and T4 passed on 2026-09-29 after the diagnostic and lifecycle additions. Continue full T3, T5, and T6; the Debian container lifecycle suite passed 64 assertions and thirteen targeted local CLI calls matched their documented errors, but these do not verify every book command. Dedicated Debian 13 and Rocky 8 VMs completed local and system IOC lifecycles, infrastructure removal, and subsequent full setup against `c558513`; this is partial T3 evidence. Continue the remaining book-command execution and whole-book reviews; preserve the dedicated VMs and their logs. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; issue #163 is recorded; its implementation plan remains a draft to be written and accepted. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. The incremental T4 updates account for all 352 entries as covered, with no partial or missing entry. T1, T2, and T4 passed on 2026-09-29 after the diagnostic and lifecycle additions. Continue full T3, T5, and T6; the Debian container lifecycle suite passed 64 assertions and thirteen targeted local CLI calls matched their documented errors, but these do not verify every book command. Dedicated Debian 13 and Rocky 8 VMs completed local and system IOC lifecycles, infrastructure removal, and subsequent full setup against `c558513`; this is partial T3 evidence. Subsequent checks covered real PTY consoles, manual infrastructure and CLI deployment, completion, NFS checkout staging, a temporary NFS IOC payload mount, and configuration/environment examples. Whole-book second-person reading and the accepted INSTALL corrections are recorded; subsequent INSTALL reviews found no additional actionable finding. Continue the unexecuted command comparisons and the plan-by-plan T6 review; T3 and T5 remain Pending, and T6 remains Pending. Preserve the dedicated VMs and their evidence. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; issue #163 is recorded; its implementation plan remains a draft to be written and accepted. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -1636,8 +1636,8 @@ Superseded Plan Artifacts: none
 | T2 | 2026-09-29T15:48:21Z | Control host; T1 HTML and supplemental mdBook rendering | PASS | `bash work/m8-check-links.bash`: 22 Markdown source pages plus setup script, 147 local references, 0 failures; 8 external URLs excluded; `work/m8-review-fixes-links.log` |
 | T3 | 2026-09-29 through 2026-09-30 UTC | Control host, Debian container, dedicated Debian 13 and Rocky 8 VMs | Pending | Actual container suite: 64 PASS; thirteen targeted local CLI errors agree. Both VMs passed selected local/system lifecycles, document-derived infrastructure removal, and full setup afterwards against `c558513`. Every book command has not been executed; details below. |
 | T4 | 2026-09-29T15:35:16Z | Control host; incremental inventory update and 13 published pages | PASS | 352 covered, 0 partial, 0 missing after the final 66 updates; `work/m8-coverage-completion.md` and `work/m8-coverage-completion.sha256`. ASCII, history-word, address, and diff checks pass; `work/m8-coverage-static.log`. Coverage is static evidence. |
-| T5 | Not completed | Control host | Pending | Scoped reading does not complete the whole-book pass or execution comparison. |
-| T6 | Not completed | Control host | Pending | Plan-by-plan review remains open. |
+| T5 | 2026-09-30 | Control host; published book and subsequent INSTALL corrections | Pending | Whole-book second-person reading completed; three accepted INSTALL findings were corrected. Subsequent INSTALL second-person passes found no additional actionable finding. Comparison with unexecuted commands remains open; details below. |
+| T6 | 2026-09-30 | Control host; INSTALL and dedicated Debian 13 and Rocky 8 VMs | Pending | INSTALL third-person review confirmed the corrected sudo, execution-account, and time-sync descriptions; no additional finding. This scoped review does not complete the plan-by-plan book review. |
 
 T1 and T2 observed the working tree based on `c4304b0`, including the
 six pages that cover the remaining diagnostics and infrastructure lifecycles,
@@ -1719,9 +1719,84 @@ Evidence is under `work/m8-doccheck-vms/`: `result.txt`,
 `system-reinstall-lifecycle.log` record the root-operated cycles and rotation;
 Rocky's `setup-approved.log` and `system-reinstall-vmadmin-lifecycle.log`
 record the accepted setup and second operator cycle. The source hash manifest
-matches the documents, runner, and setup scripts. These are selected command
+pins the historical documents, runner, and setup scripts used for that run. These are selected command
 results, not completion of every book command or the full Release Gate.
 T3 stays Pending, T5 and T6 stay Pending, and M8 stays In progress.
+
+Additional T3 observations on 2026-09-30 used the same dedicated VMs and
+runner candidate `c558513`. Evidence is under `work/m8-doccheck-vms/`:
+
+- Both VMs completed Makefile setup/install, CLI-only setup, the manual CLI
+  deployment block, and installed Bash completion checks. Installed runner
+  ownership/mode was `root:root 0755`; completion was `root:root 0644` and
+  matched source. See per-OS `installation-probes.log` and
+  `completion-probes.log`.
+- The additional lifecycle probes completed on both VMs, including direct
+  service commands, log permissions, group-created files, and local aliases.
+  Follow commands intentionally ended with timeout status 124. See per-OS
+  `remaining-probes.log` and `manual-lifecycle.log`.
+- Actual PTY console checks completed eight local and twelve system/container
+  connections: attach with default/custom detach keys, monitor, and direct
+  con. Services, sockets, and procServ PIDs survived detach. Monitor produced
+  no output from Enter; this is the observed input check, not exhaustive
+  keyboard verification. See `console-terminal-results.json` and
+  `system-container-console-results.json`. Container setup passed 6/6;
+  its runner stamp was unknown, with source content compared excluding the
+  three version assignments. This does not establish candidate provenance.
+- Manual infrastructure deployment and subsequent real IOC probes completed
+  on both VMs. Existing accounts/groups were retained, so their creation
+  commands were not exercised. Debian omitted explicitly SELinux-conditional
+  commands; Rocky used the documented old-sudo glob policy. See
+  `debian13/manual-infrastructure.log`,
+  `rocky8/manual-infrastructure-retry.log`, and per-OS `manual-lifecycle.log`.
+- The existing ansible-provision `nfs_sim` role configured only the two
+  dedicated VMs. Real NFS checkout access reproduced root_squash: owner
+  access succeeded while root access failed. The full launcher, make setup,
+  and make install then succeeded from that checkout. See
+  `nfs-provision.log` and per-OS `nfs-install.log`.
+- A separate temporary NFS payload mount at `/opt/epics-iocs` completed real
+  IOC generate/install/start/status/view/log/restart/stop/remove on both VMs.
+  A separate service-account write probe was `ioc-srv:ioc 0664`; it was not
+  generated by the IOC. After unmount, original local directory names and
+  parent metadata matched the pre-mount observations; old payload contents
+  were not hash-compared. See per-OS `nfs-payload-mount.log`,
+  `nfs-payload-lifecycle.log`, and `nfs-payload-unmount.log`.
+- Hand-written system/local configuration examples produced the documented
+  metadata, decoded crash pattern, shared site.env values, and per-IOC
+  overrides in the real softIoc child environment. Sandbox generate/install
+  and removal also completed; sandbox startup was not tested. Interrupted
+  scripts remain recorded as failures, with subsequent successful checks
+  recorded separately. See per-OS `config-examples*.log` and
+  `sandbox-example.log`.
+
+Remaining T3 coverage includes account/group creation, the persistent
+`/opt/epics-iocs` fstab mount, the password-authentication sudo alternative,
+multi-homed interface binding, optional resource deletion, and additional
+claim-level checks. Network interface changes were not selected. None of
+these checks was waived. Both VMs, the stopped console container, retained
+payloads/logs/backups, and NFS resources remain available; cleanup is separate.
+
+The latest successful book build and link scan are recorded in
+`work/m8-current-build.log` and `work/m8-current-links.log`: 22 pages,
+147 local links, zero failures, and eight external links excluded.
+`work/m8-current-sources.sha256` matched the published inputs when rechecked
+on 2026-09-30. These supplement the historical T1/T2 rows above.
+
+T5 whole-book reading on 2026-09-30 covered all thirteen published pages,
+SUMMARY, and the CHANGELOG 1.1.0 Migration section. Three INSTALL findings
+were accepted and corrected: NOPASSWD versus cached sudo access, explicit
+root execution for manual setup, and the distinction between time-sync.target
+ordering and actual clock synchronization. The subsequent INSTALL review
+sequence was second-person, third-person, and second-person; no additional
+actionable finding was reported. These chat reviews are recorded here;
+there is no independent-reviewer artifact. T5 remains Pending because the
+remaining actable claims have not all been compared with real command output.
+
+The scoped third-person pass directly observed `sudo -n true` exit 0 on both
+VMs, time-sync.target active with `NTPSynchronized=no`, and the installed unit
+as `root:root 0644`. On Debian, actual root launcher and non-root direct setup
+calls both rejected invocation with exit 1. T6 still requires a separate
+item-by-item review of plan items 2 through 8, D13, and D14 across the book.
 
 T4 coverage is 352 covered, 0 partially covered, and 0 missing entries.
 `work/m8-followup-coverage.md` records the first 30 updates;

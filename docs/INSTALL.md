@@ -21,11 +21,15 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
 ## Automated infrastructure setup
 We provide a hardened, idempotent setup path that automatically configures isolated service accounts, strict directory permissions, and validated sudoers policies.
 
-From the repository root, cache sudo credentials and run the staging launcher as the checkout owner for the initial complete setup:
+From the repository root, check sudo access and run the staging launcher as the checkout owner for the initial complete setup:
 ```bash
-sudo -v
+sudo -n true || sudo -v
 ./bin/run-setup-system-infra.bash --full
 ```
+
+The sudo check uses NOPASSWD access or cached credentials when available.
+Otherwise, it prompts for authentication. Unattended setup requires
+`sudo -n true` to succeed without a prompt.
 
 The privileged setup verifies every artefact it deploys and **exits 1 if any
 verification check fails** - automated provisioning (ansible, CI) can trust
@@ -50,10 +54,10 @@ The [setup environment reference](#setup-environment-and-launcher-forwarding)
 lists the variables the launcher forwards and the paths it sets itself.
 
 ### Makefile front end
-A `configure/` Makefile wraps the staging launcher. Cache sudo credentials, then run the targets as the checkout owner:
+A `configure/` Makefile wraps the staging launcher. Check sudo access, then run the targets as the checkout owner:
 
 ```bash
-sudo -v
+sudo -n true || sudo -v
 make setup     # full system infrastructure
 make install   # CLI update only
 ```
@@ -147,7 +151,8 @@ check or the service-manager preflight.
 The root check precedes option parsing. Direct setup execution as a non-root
 user therefore exits 1 even for help. Through the launcher, help also requires
 the source-file checks, executable dependencies, checkout-owner invocation,
-and cached sudo credentials described below.
+and noninteractive sudo access described below. NOPASSWD access or cached
+credentials can satisfy the sudo check.
 
 ### Setup environment and launcher forwarding
 
@@ -201,8 +206,9 @@ source produces `required setup source is not a regular file` and exit 1.
 
 The launcher also requires executable `/usr/bin/sudo`, `/usr/bin/tar`, and
 `/bin/bash`. A failed executable check names the command and exits 1.
-It rejects root invocation and missing cached sudo credentials with exit 1;
-the latter message asks the checkout owner to cache credentials and retry.
+It rejects root invocation or a failed `sudo -n true` check with exit 1.
+NOPASSWD access or cached credentials can satisfy that check. When it fails,
+the diagnostic asks the checkout owner to run `sudo -v` and retry.
 
 The privileged stage extracts the three sources into
 `/tmp/ioc-runner-system-setup.XXXXXX` and repeats the regular-file and
@@ -268,6 +274,9 @@ remain installed. Backups are retained independently of staging cleanup.
 
 If you prefer to configure the system manually or need to audit the security changes made by the automated script, follow these steps.
 
+Run the commands in this manual setup section as root in a privileged Bash
+session. The automated staging launcher runs as the checkout owner instead.
+
 ### Account and group setup
 Create an isolated service account and a management group.
 ```bash
@@ -325,7 +334,10 @@ On hosts with sudo < 1.9.10, replace each `^<verb> ... $` form with the glob for
 ### systemd template unit deployment
 Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide. Resolve the `procServ` path dynamically to accommodate different installation targets (e.g., `/usr/bin` vs `/usr/local/bin`).
 
-**Note on Time Synchronization:** The template explicitly requires `time-sync.target` to ensure that NTP/PTP time synchronization is fully established before the IOC daemon starts. This is critical for maintaining accurate timestamps for the Archiver Appliance and MRF timing systems.
+The template requests `time-sync.target` with `Wants=` and orders startup
+after it with `After=`. These dependencies do not guarantee that the host
+clock is synchronized. Configure and verify the site's NTP or PTP service
+separately when IOC timestamps require a synchronized clock.
 
 The `StartLimit*` rows must stay in `[Unit]` - a `[Service]` placement is silently rejected on systemd 239 (see ADR 0001, Evidence).
 
