@@ -78,6 +78,14 @@ The linked pages give configuration values, command syntax, and procedures.
   configurations and services; its default name is `ioc`.
 - **sudoers policy:** Rules that authorize commands through `sudo`. The
   installed policy permits the operator group to manage IOC units.
+- **NOPASSWD:** A sudoers tag that permits a matching command without
+  password authentication. The [FAQ](FAQ.md#do-i-need-a-root-password-to-restart-an-ioc)
+  explains how other matching rules can affect password requirements.
+- **SSSD (System Security Services Daemon):** A service that connects Linux
+  systems to identity and authentication providers. It can also supply sudo
+  rules from a directory service.
+- **LDAP (Lightweight Directory Access Protocol):** A protocol for accessing
+  directory entries, including accounts, groups, and site sudo rules.
 - **ACL (Access Control List):** File permissions that specify access for
   named users or groups in addition to the owner, group, and other bits.
 - **Default ACL:** Directory permissions inherited by files and directories
@@ -130,6 +138,10 @@ The linked pages give configuration values, command syntax, and procedures.
 
 ## Logs and network terms
 
+- **NFS (Network File System):** A protocol that lets a client mount a
+  directory exported by a storage server. The
+  [installation guide](INSTALL.md#nfs-root_squash) describes how `root_squash`
+  affects access to a checkout on NFS.
 - **IOC log:** The file where procServ records IOC console output in system
   and local mode. See [log layout](LOG_LAYOUT.md).
 - **Journal:** systemd's collection of service messages, including

@@ -105,7 +105,8 @@ ioc-runner start myioc
 ioc-runner enable myioc
 ```
 
-While the service is stopped, the `.conf` file remains in `/etc/procServ.d/` and the systemd template is unchanged. Only the runtime state is affected.
+This procedure changes the IOC's runtime state and boot-time auto-start setting.
+The `.conf` file remains in `/etc/procServ.d/`, and the systemd template is unchanged.
 
 **History-file note:** iocsh saves `.iocsh_history` as `0600`, owned by whichever principal ran the IOC last. A plain manual run leaves an operator-owned file the next service run (as `ioc-srv`) cannot read, and in the reverse direction a service-owned file prints a benign `ERROR Permission denied ... loading '.iocsh_history'` on the manual console. Setting `EPICS_IOCSH_HISTFILE` to an empty string disables the history file for the manual run, so no cross-owned file is left behind; setting it to `~/.iocsh_history` keeps a history that follows the operator instead (see [Why does IOC shell history report permission denied?](#why-does-ioc-shell-history-report-permission-denied)). `IOCSH_HISTSIZE` only bounds the in-memory history list, and an `epicsEnvSet` inside `st.cmd` runs after history setup; neither prevents the file. EPICS documents the empty-string disable in the EPICS Base 7.0 release notes (https://docs.epics-controls.org/projects/base/en/r7.0.9/RELEASE_NOTES.html).
 

@@ -55,7 +55,7 @@ the `ioc` group, so the shared payload permissions listed above let it create
 runtime artifacts such as `.iocsh_history`, autosave files, and
 save/restore state directly. This is the directory group-write bit
 acting on the directory itself. It is distinct from the default ACL on
-the log directory (see "Why Default ACLs Are Still Set"), which governs
+the log directory (see [Why the log directory carries default ACLs](#why-the-log-directory-carries-default-acls)), which governs
 the ACL permissions and mask inherited by newly created entries, not
 write access to the parent directory. `IOC_CHDIR` needs the group-write
 model, not a default ACL.
