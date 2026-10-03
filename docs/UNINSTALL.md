@@ -335,20 +335,19 @@ rmdir /etc/procServ.d
 
 ## Verification
 
-The deployed infrastructure must be absent.
+The deployed infrastructure must be absent. A pre-existing file or a symlink
+to another installation at `/usr/bin/ioc-runner` is retained; only the symlink
+to `/usr/local/bin/ioc-runner` must be absent. Another installation can remain
+on `PATH`, so command discovery alone does not verify removal of this installation.
 
 ```bash
 test ! -e /etc/systemd/system/epics-@.service
 test ! -e /etc/bash_completion.d/ioc-runner
 test ! -e /usr/local/bin/ioc-runner
-test ! -e /usr/bin/ioc-runner
+test "$(readlink /usr/bin/ioc-runner 2>/dev/null || true)" != "/usr/local/bin/ioc-runner"
 test ! -e /etc/sudoers.d/10-epics-ioc
 test ! -e /etc/logrotate.d/procserv
 test ! -e /etc/procServ.d
-if command -v ioc-runner >/dev/null; then
-    printf "%s\n" "ERROR: ioc-runner remains on PATH" >&2
-    exit 1
-fi
 ```
 
 For every account or group selected for deletion, run the applicable check. A

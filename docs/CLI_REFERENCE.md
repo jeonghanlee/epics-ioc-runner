@@ -29,7 +29,10 @@ usage and exits 1.
 | `-V` | `--version` | none | Prints the version, git hash, commit date, and install date, then exits 0 |
 | `-h` | `--help` | none | Prints the usage, then exits 0 |
 
-The runner enforces these combinations before it does anything else:
+The following restrictions apply when the runner proceeds to command dispatch.
+`-h`/`--help` and `-V`/`--version` exit as soon as the parser reads them, so
+later arguments are not checked. An invalid argument encountered before
+them can still exit 1.
 
 - `--local` and `--container` are mutually exclusive.
 - `-v` and `-vv` are accepted only with `list`, and `--detach-key` only with
@@ -37,8 +40,11 @@ The runner enforces these combinations before it does anything else:
 - Other commands accept `-f` and `-n` and ignore them.
 
 An IOC name is 1 to 64 characters from `A-Z`, `a-z`, `0-9`, `_`, and `-`, and
-does not start with `-`. Every command that takes an IOC name checks it and
-exits 1 with the rule when it does not match. `generate` and `install` take a
+does not start with `-`. For commands that take an IOC name, the runner uses
+the target's basename and removes a trailing `.conf` before checking this
+rule. If the resulting name does not match, the command exits 1 and prints
+the rule. For example, `--local status bad/name.conf` addresses `name`; it
+does not read that configuration file. `generate` and `install` take a
 directory or a file and check the name derived from it.
 
 ## Execution modes and paths
@@ -105,8 +111,9 @@ actions during `generate`; iocsh's history-save behavior is described in the
   CI/CD use: it selects the first of several startup scripts in name order and
   rewrites or overwrites an existing configuration.
 - **Ownership**: every rewrite replaces the file, so the invoking user becomes
-  its owner, and the file takes its group from the directory. In the documented
-  shared payload tree (`root:ioc`, mode `2775`, see
+  its owner. In a setgid directory, the replacement file inherits that
+  directory's group. In the documented shared payload tree (`root:ioc`, mode
+  `2775`, see
   [INSTALL.md](INSTALL.md#shared-deployment-directory-setup-optepics-iocs))
   the group stays `ioc`, so any `ioc` group member can regenerate an IOC another
   member created, including one whose creator's account no longer exists.
@@ -289,7 +296,7 @@ start or stop a running IOC.
 returns the exit status of the underlying command. System mode runs
 `systemctl status epics-@<name>.service` without `sudo`, local mode runs
 `systemctl --user status`, and container mode prints `<name>: ` followed by
-the `s6-svstat` line, for example `myioc: up (pid 123) 42 seconds`. `status`
+the `s6-svstat` line, for example `myioc: up (pid 123 pgid 123) 42 seconds, normally down`. `status`
 does not require the configuration file.
 
 ## The `view` command
@@ -401,7 +408,7 @@ For a healthy running IOC, the expected state is `LISTEN`. Other states are tran
 
 ### How `list` collects its data
 
-All data is collected in a single pass per source with zero per-IOC subprocess overhead:
+In system and local modes, data is collected once per source:
 
 1. `find -printf`: socket paths, timestamps, permissions
 2. `systemctl list-units`: service active states
@@ -409,10 +416,15 @@ All data is collected in a single pass per source with zero per-IOC subprocess o
 4. `/proc/net/unix`: ref count, kernel state, inode (only if `-vv`)
 5. `systemctl show`: PID, CPU, memory (only if `-v` or `-vv`)
 
+Container mode queries each IOC's s6 service for its state. With `-v` or
+`-vv`, it also queries the supervised PID and collects CPU and memory over
+procServ and its descendants from `/proc`.
+
 At `-vv`, `ss` (iproute2) is required: a missing or failing `ss` is a
 named exit-1 error. Plain and `-v` list do not use `ss` at all.
 
-Each phase streams its output through a `while read` loop that populates O(1) associative arrays (hash maps). The final output loop performs hash map lookups only.
+In system and local modes, the bulk results populate associative arrays.
+All modes format the final rows from stored values.
 
 ## Console access with `attach` and `monitor`
 

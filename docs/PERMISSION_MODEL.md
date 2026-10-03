@@ -74,17 +74,19 @@ shows.
 Paths created by `ioc-runner --local install` under the invoking
 user's account. The log directory and files have their own
 [permission table](#local-mode-log-directory-and-files).
+Here `<user>` is the invoking account and `<primary-group>` is its primary
+group, returned by `id -un` and `id -gn`, respectively; the names can differ.
 
 | Path | Owner:Group | Mode | Variable | Notes |
 | --- | --- | --- | --- | --- |
-| `~/.config/procServ.d/` | `<user>:<user>` | umask-dependent | `CONF_DIR` | created by the first `--local install` with `mkdir -p` |
-| `~/.config/procServ.d/<ioc>.conf` | `<user>:<user>` | `0600` | - | staged with `mktemp` and renamed into place |
-| `~/.config/systemd/user/epics-@.service` | `<user>:<user>` | `0600` | - | staged with `mktemp` and renamed into place by `deploy_local_template` |
-| `~/.config/systemd/user/epics-@.service.bak.*` | `<user>:<user>` | the replaced template's mode | - | the previous template, kept when an update replaces it; the three newest are kept |
-| `~/.config/ioc-runner/` | `<user>:<user>` | `0700` | - | local logrotate config dir (M19/#103), created by `deploy_local_logrotate` |
-| `~/.config/ioc-runner/logrotate.conf` | `<user>:<user>` | `0600` | - | mktemp-staged; deployed when absent; when it differs from the shipped content, `--local install` asks on a terminal, keeps it without one, and replaces it with `-f` |
-| `~/.config/systemd/user/epics-logrotate.service`, `.timer` | `<user>:<user>` | `0600` | - | oneshot rotation service + hourly timer; timer enabled, service never |
-| `/run/user/<uid>/ioc-runner-logrotate.state` | `<user>:<user>` | logrotate-managed | - | rotation state, host-local via the `%t` specifier |
+| `~/.config/procServ.d/` | `<user>:<primary-group>` | umask-dependent | `CONF_DIR` | created by the first `--local install` with `mkdir -p` |
+| `~/.config/procServ.d/<ioc>.conf` | `<user>:<primary-group>` | `0600` | - | staged with `mktemp` and renamed into place |
+| `~/.config/systemd/user/epics-@.service` | `<user>:<primary-group>` | `0600` | - | staged with `mktemp` and renamed into place by `deploy_local_template` |
+| `~/.config/systemd/user/epics-@.service.bak.*` | `<user>:<primary-group>` | the replaced template's mode | - | the previous template, kept when an update replaces it; the three newest are kept |
+| `~/.config/ioc-runner/` | `<user>:<primary-group>` | `0700` | - | local logrotate config dir (M19/#103), created by `deploy_local_logrotate` |
+| `~/.config/ioc-runner/logrotate.conf` | `<user>:<primary-group>` | `0600` | - | mktemp-staged; deployed when absent; when it differs from the shipped content, `--local install` asks on a terminal, keeps it without one, and replaces it with `-f` |
+| `~/.config/systemd/user/epics-logrotate.service`, `.timer` | `<user>:<primary-group>` | `0600` | - | oneshot rotation service + hourly timer; timer enabled, service never |
+| `/run/user/<uid>/ioc-runner-logrotate.state` | `<user>:<primary-group>` | logrotate-managed | - | rotation state, host-local via the `%t` specifier |
 
 When `HOME` is unset (bare sudo, some cron/systemd contexts) the runner
 falls back to the passwd database and, failing that, to `/tmp` - and a
@@ -238,8 +240,8 @@ see [Log path configuration](LOG_LAYOUT.md).
 
 | Object | Owner:Group | Mode | Creator |
 | --- | --- | --- | --- |
-| `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `<user>:<user>` | `0750` | `bin/ioc-runner` `do_install` local branch |
-| `${LOG_DIR}/<ioc>.log` | `<user>:<user>` | `0640` | procServ at IOC start, with user-mode unit `UMask=0027` |
+| `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `<user>:<primary-group>` | `0750` | `bin/ioc-runner` `do_install` local branch |
+| `${LOG_DIR}/<ioc>.log` | `<user>:<primary-group>` | `0640` | procServ at IOC start, with user-mode unit `UMask=0027` |
 
 Local mode keeps `UMask=0027` in the user-mode unit. The engineer
 is the only principal. The file permissions listed above give their primary
@@ -252,8 +254,8 @@ they must not be conflated:
 
 | Object | System and container modes | Local mode | Mode | Created by |
 | --- | --- | --- | --- | --- |
-| Socket directory `${RUN_DIR}/<ioc>/` | `/run/procserv/<ioc>/`, `ioc-srv:ioc` | `/run/user/<uid>/procserv/<ioc>/`, `<user>:<user>` | `0770` | systemd runtime directory; container mode uses runner `start` |
-| Socket file `control` | `ioc-srv:ioc` | `<user>:<user>` | `0660` | procServ, per the `IOC_PORT` spec `unix:<user>:<group>:0660:<path>` emitted by `process_ioc_port` |
+| Socket directory `${RUN_DIR}/<ioc>/` | `/run/procserv/<ioc>/`, `ioc-srv:ioc` | `/run/user/<uid>/procserv/<ioc>/`, `<user>:<primary-group>` | `0770` | systemd runtime directory; container mode uses runner `start` |
+| Socket file `control` | `ioc-srv:ioc` | `<user>:<primary-group>` | `0660` | procServ, per the `IOC_PORT` spec `unix:<user>:<group>:0660:<path>` emitted by `process_ioc_port` |
 
 `RuntimeDirectoryPreserve=restart` keeps the socket directory in place
 across a systemd-driven auto-restart, so the socket path stays stable and a
@@ -417,10 +419,10 @@ Local mode, with `XDG_STATE_HOME` and the log directory overrides unset
 
 ```bash
 stat -c '%U:%G %a' ~/.local/state/procserv
-# expected: <user>:<user> 750
+# expected: <user>:<primary-group> 750
 
 stat -c '%U:%G %a' ~/.local/state/procserv/<ioc>.log
-# expected: <user>:<user> 640
+# expected: <user>:<primary-group> 640
 ```
 
 ## Log access for crash detection
