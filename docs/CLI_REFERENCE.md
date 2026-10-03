@@ -366,11 +366,11 @@ The sentinel value `18446744073709551615` (UINT64_MAX) and `[not set]` from syst
 
 #### Columns added by `-vv`
 
-Adds seven columns from `ss -lx` and `/proc/net/unix`:
+Adds six diagnostic columns and keeps `UDS PATH` last:
 
 | Column | Source | Description |
 |--------|--------|-------------|
-| RQ | `ss -lx` Recv-Q | Receive queue depth (same value as CON for listening sockets) |
+| RQ | `ss -lx` Recv-Q | Receive queue depth for listening sockets |
 | SQ | `ss -lx` Send-Q | Send queue depth (backlog limit for listening sockets) |
 | REF | `/proc/net/unix` RefCount | Kernel reference count on the socket (hex-to-decimal converted) |
 | K-STATE | `/proc/net/unix` St + Flags | Kernel socket state (see state mapping below) |
@@ -412,7 +412,7 @@ In system and local modes, data is collected once per source:
 
 1. `find -printf`: socket paths, timestamps, permissions
 2. `systemctl list-units`: service active states
-3. `ss -lx`: queue depths, connection counts (only if `-vv`)
+3. `ss -lx`: queue depths (only if `-vv`)
 4. `/proc/net/unix`: ref count, kernel state, inode (only if `-vv`)
 5. `systemctl show`: PID, CPU, memory (only if `-v` or `-vv`)
 
