@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. The incremental T4 updates account for all 352 entries as covered, with no partial or missing entry. Historical T1, T2, and T4 passes are recorded for 2026-09-29 after the diagnostic and lifecycle additions; same-run evidence linkage for the historical T1/T2 rows is unconfirmed. The available 2026-10-01 build/link evidence is preserved in its own run directory. The revised remaining-verification plan is accepted and separately authorized on 2026-10-01; execute its five steps before closing T3, T5, and T6; the Debian container lifecycle suite passed 64 assertions and thirteen targeted local CLI calls matched their documented errors, but these do not verify every book command. Dedicated Debian 13 and Rocky 8 VMs completed local and system IOC lifecycles, infrastructure removal, and subsequent full setup against `c558513`; this is partial T3 evidence. Subsequent checks covered real PTY consoles, manual infrastructure and CLI deployment, completion, NFS checkout staging, a temporary NFS IOC payload mount, and configuration/environment examples. Whole-book second-person reading and the accepted INSTALL corrections are recorded; subsequent INSTALL reviews found no additional actionable finding. The plan-by-plan whole-book review found two accepted corrections, committed as `ecde536`: sudo glob authorization warnings and consolidated permission references. The corrected five-file set passed a subsequent second-person review, build, and link scan. Subsequent whole-book reviews found an obsolete heading reference, four missing glossary terms, and an inaccurate FAQ statement about runtime-only changes. These findings were committed in `87aa67c`. The fifth whole-book review found a removal-verification conflict and an incorrect local primary-group assumption. Both corrections are applied, and the two-file set passed its first second-person review. Dedicated Debian 13 and Rocky 8 VMs then passed actual local primary-group checks and document-derived removal/preservation checks, followed by successful system setup restoration. The accepted CLI target-name clarification is also applied. Selected manual account/group creation and fstab mount-by-target verification are complete within their recorded boundaries. The latest 2026-10-01 source refresh matches all 2163 inline spans and 108 fenced blocks to native HTML; statement classification and evidence comparisons remain pending. The five-step plan in the M8 detail was accepted and separately authorized on 2026-10-01. The selected minimal CLI option-restriction correction is applied; eight real source CLI cases match it in `work/m8-verification-runs/20261001T213618Z-87aa67c-cli-order-corrected-source-check/`. Installed-runner and full-claim comparisons remain Pending. The three option-restriction bullets have six scoped semantic rows in `work/m8-verification-runs/20261001T215805Z-87aa67c-option-restriction-comparisons/claims.jsonl`: 524 installed-runner cases match on both dedicated hosts, while successful target paths and five container comparisons remain pending. The subsequent 48 successful-target status/view calls on both hosts and 133 root/live-s6 container restriction cases are recorded in `work/m8-verification-runs/20261001T233721Z-87aa67c-target-option-comparisons/`: four restriction rows are Verified and force/count behavior remains Partial for other successful targets. The original incorrect system fixture selection is retained with recovery evidence. The next 240 installed host command-option cases and 72 installed container cases passed, with a 64-assertion shipped container fixture suite, in `work/m8-verification-runs/20261001T235704Z-87aa67c-command-option-comparisons/`. All twelve other commands now have selected normal-path force/count comparisons across the five mode/OS environments; broad R05/R06 remain Partial for unselected failure and fallback paths. The stdout-wrapper failure and all original evidence are preserved, and readable container copies have matching hashes. The next host console batch passed 96 frozen calls through real socat and unavailable-client paths on Debian 13/Rocky 8 in local/system mode; its 16 scoped comparisons are recorded in `work/m8-verification-runs/20261002T001723Z-87aa67c-console-paths-comparisons/`. Actual client arguments/exits, terminal settings, native supervisor/child/socket continuity, fixture/client fingerprints, inactive states, and original log prefixes were checked. Container fallback and unselected failure cases remain pending; broad R05/R06 remain Partial. The subsequent container batch passed all 24 frozen socat/no-client calls without added capabilities, using Docker read-only client masks and the original shipped-suite fixture; its four scoped comparisons are in `work/m8-verification-runs/20261002T015411Z-87aa67c-container-console-comparisons/`. Combined with the preceding 96 host cases, both selected console paths are verified in all five mode/OS domains. Original failed preflight/state-read evidence is retained; container absence, original file bytes, native client exits, terminal restoration, and supervisor/child/socket continuity were checked. Other failure paths and whole-book comparisons remain incomplete; broad R05/R06 remain Partial. The next missing-configuration batch verified 35 calls for seven commands in the five mode/OS domains, with complete output/exit comparisons and unchanged native state, in work/m8-verification-runs/20261002T022108Z-87aa67c-missing-config-comparisons/. Source statement counts and broader command coverage remain unchanged. Current semantic progress is in work/m8-verification-runs/20261002T023624Z-87aa67c-cli-semantics-evidence/: CLI lines 1-77 cover 44 original candidates split into 171 predicates, with 62 Verified, 24 Partial, and 85 Pending rows after independently rereading 615 unique original native case entries. Outside that prefix, 1474 original Pending candidates still require semantic decomposition. The three actual list traces in work/m8-verification-runs/20261002T025035Z-87aa67c-list-trace-comparison/ establish a Mismatch in the unqualified zero-per-IOC-subprocess explanation. Option 1 was accepted on 2026-10-01 and applied. The restored candidate in work/m8-verification-runs/20261002T034039Z-87aa67c-source-refresh/ builds without warnings and matches 2165 inline spans and 108 fences; its refreshed baseline is 293 structural/1513 Pending candidates. Its sibling CLI-prefix evidence rebind retains 62 Verified, 24 Partial, and 85 Pending predicates after native evidence rechecks. The three fresh installed calls in work/m8-verification-runs/20261002T034053Z-87aa67c-list-correction-comparison/ verify the selected container state/PID correction; its sixteen scoped rows are two Verified, five Partial, and nine Pending. The generate section at CLI lines 79-118 is independently decomposed into 52 predicates, with current comparisons in work/m8-verification-runs/20261002T040530Z-87aa67c-generate-native-comparison/: six Verified (including four non-executable source comparisons), 25 Partial, 20 Pending, and one Mismatch. Thirteen selected container-root calls, five preparatory calls, and one additional non-setgid group case ran through the installed CLI with the original shipped fixture. The unqualified directory-group sentence fails: a root:ioc 0755 directory yields a root-group configuration when root generates it. Option 1 was accepted on 2026-10-01 and applied exactly, qualifying directory-group inheritance with setgid. The refreshed snapshot in work/m8-verification-runs/20261002T043018Z-87aa67c-source-refresh/ builds without warnings and matches 2165 inline spans and 108 fences. Its baseline has 293 structural and 1514 Pending candidates. CLI-prefix evidence remains 62 Verified, 24 Partial, and 85 Pending after original-native rechecks. Two fresh installed generate calls confirm group ioc in root:ioc 2775 and group root in root:ioc 0755; the latter is outside the conditional promise. The current source-bound generate comparison in work/m8-verification-runs/20261002T043228Z-87aa67c-generate-ownership-2775-comparison/ has six Verified, 26 Partial, 20 Pending, and zero Mismatch rows. The shifted list overlay is rebound to lines 409-427 after native evidence checks with no new list execution. The next install batch in work/m8-verification-runs/20261002T050445Z-87aa67c-install-native/ runs twenty selected root/container calls: five successes and fifteen expected aborts, with output, installed attributes, native inactive s6 services and restoration comparisons. The corrected install worksheet covers 53 source candidates and 74 predicates; its source-bound comparison has eight Verified (five non-executable), 35 Partial, and 31 Pending rows. Host/local-asset paths and unselected failures remain incomplete. The remove section at CLI lines 199-224 has 31 source-bound predicates: five Verified, twelve Partial and fourteen Pending. Six selected container calls match their expected exits; a separate active supplement verifies real softIOC child, procServ and supervisor removal after readiness. Current mode/OS cases are fourteen Verified, two Partial and 97 Pending. The initial Partial active execution and two aborted readiness runs remain immutable. The start/restart section at CLI lines 226-276 has 51 predicates: 29 Verified (three non-executable), three Partial and 19 Pending. Its 260 mode/OS/action cases are 106 Verified, two Partial and 152 Pending. The 60-call failure supplement and seven additional installed parse-error calls match their expected outputs and exits. The additional seven calls verify the fatal clause with native parser messages absent from the startup commands. The original seven echo-only observations retain Partial in their immutable comparison. Original incomplete runs and failed supplement preconditions remain preserved with their recorded restoration limits. The stop/enable/disable section at CLI lines 278-291 has 11 predicates: nine Verified (two non-executable) and two Partial. Its 90 mode/OS/action cases are 72 Verified and 18 Partial. Forty installed host calls and twelve fresh container calls match all expected outputs, exits and states. Actual reboot/startup and host stop/disable nonzero paths remain incomplete. The accepted status example correction is applied and verified by one fresh installed container query plus rechecks of the original 27 status calls. The status section at CLI lines 293-300 has 11 Verified predicates (one non-executable), and all 29 mode/OS comparisons are Verified within their selected-state limits. The original Mismatch remains historical. Both host system observers outside ioc query without sudo. The current source snapshot is work/m8-verification-runs/20261002T231334Z-87aa67c-source-refresh/, with unchanged 2165 inline spans and 108 fences matching native HTML. Current source bindings for prefix, generate, install, remove, start/restart, controls, list overlay and status are in work/m8-verification-runs/20261002T232051Z-87aa67c-status-example-comparison/; unchanged predicates retain their earlier verdicts and native provenance. The view section at CLI lines 302-311 has eleven Verified predicates (one non-executable) and 28 Verified mode/OS comparisons within the selected states. Its 20 fresh installed queries match complete configuration and native unit/run bytes, section order, exits and preserved state/PIDs; five missing-configuration exits of 1 are expected. Current view comparisons are in work/m8-verification-runs/20261002T235032Z-87aa67c-view-comparison/. The log section at CLI lines 313-322 has thirteen Verified predicates (one non-executable) and forty Verified mode/OS comparisons within the selected cases. All 47 fresh installed queries match expected output, exits and native state; fifteen error exits of 1 and four Ctrl-C exits of 130 are expected. Current log comparisons are in work/m8-verification-runs/20261003T011939Z-ebd2b7a-log-comparison-v3/. The selected list branch checks are recorded: 38 installed empty/live/terminated calls, ten lsof NODE observations and eighteen whole-CLI traces match actual native outputs and state. The list section has 68 rows: 59 Verified, four Partial and five Pending. Remaining list cases are multi-IOC coverage, a native host inactive output row, UINT64_MAX and unflagged/transient socket states. Current list comparisons are in work/m8-verification-runs/20261003T071057Z-ebd2b7a-list-branches-container-comparison-v5/. The read-only configuration/runtime and parser batch matches all 139 installed CLI calls across the five mode/OS domains. Its scoped overlay has 25 Verified predicates and four Pending installation-effect predicates, with 97 Verified and eight Pending mode/OS comparisons, in work/m8-verification-runs/20261003T184119Z-66254d1-env-paths-comparison/. These overlapping predicates do not replace the earlier prefix or section counts, or recalculate the 1311 provisional outside-section candidates. The two recreated consumers were prepared under owner authorization. Sixteen installed local CONF_DIR/RUN_DIR generate/install/start/remove calls passed on Debian 13 and Rocky 8; six scoped predicates and twelve mode/OS comparisons are Verified in work/m8-verification-runs/20261004T070347Z-66254d1-local-paths-comparison/. Native removal and fresh retention checks confirm original fingerprints, absent owned IOC state/PIDs, and retained payloads/logs. These results cover the selected namespaced/unified local storage and installed IOC_PORT/socket paths within their explicit prerequisites; broader/default-path and system installation-effect cases remain Pending. Freeze the next bounded system configuration/runtime storage batch before execution. Continue SYSTEMD_DIR/LOG_DIR/tool overrides and unresolved list/generate/install/remove/start/restart/control branches. There are 1311 provisional Pending candidates outside the classified prefix, generate, install, remove, start/restart, control, status, view, log and list sections. Current source-bound section files are in work/m8-verification-runs/20261003T072321Z-ebd2b7a-list-branches-final-check/. Preserve all original/superseded records. The original worksheet remains the immutable 293 structural/1511 Pending historical baseline. Reconcile the 2110 lexical source-surface candidates before step 2 evidence comparison and final candidate checks; T3, T5, and T6 remain Pending. Preserve the dedicated VMs and their evidence. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; issue #163 is recorded; its implementation plan remains a draft to be written and accepted. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
+Next session entry point: In docs/milestone-1.4.2.md / M8, continue the accepted remaining-verification plan for the fifteen unresolved tool/setup families at work/m8-verification-runs/20261006T185909Z-9c491c3-container-procserv-override-corrected-comparison/remaining-tool-families.json. The corrected procServ override batch is complete within its selected conditions: 17 real installed CLI calls match, including three planned exit-1 rejections; all five CLI removals, protected-state equality and owned scanner/container cleanup are Verified. The current overlapping tool overlay has 26 scoped Verified comparisons. Freeze and review the next finite batch before its execution. Preserve the original Failed attempt, all sealed evidence, product bytes and original VMs. M8 stays In progress; remaining T3, final T1/T2/T4 and whole-book T5/T6 stay Pending. Commit and push remain separate owner actions.  M1 through M7 and M9 are Complete, and #157 through #162 are closed. M8, the documentation revision under D12 and D13, lands in 1.4.2; its plan was accepted and implementation authorized on 2026-09-28, and the work is in progress. Its glossary, book groups, and heading changes are implemented. The incremental T4 updates account for all 352 entries as covered, with no partial or missing entry. Historical T1, T2, and T4 passes are recorded for 2026-09-29 after the diagnostic and lifecycle additions; same-run evidence linkage for the historical T1/T2 rows is unconfirmed. The available 2026-10-01 build/link evidence is preserved in its own run directory. The revised remaining-verification plan is accepted and separately authorized on 2026-10-01; execute its five steps before closing T3, T5, and T6; the Debian container lifecycle suite passed 64 assertions and thirteen targeted local CLI calls matched their documented errors, but these do not verify every book command. Dedicated Debian 13 and Rocky 8 VMs completed local and system IOC lifecycles, infrastructure removal, and subsequent full setup against `c558513`; this is partial T3 evidence. Subsequent checks covered real PTY consoles, manual infrastructure and CLI deployment, completion, NFS checkout staging, a temporary NFS IOC payload mount, and configuration/environment examples. Whole-book second-person reading and the accepted INSTALL corrections are recorded; subsequent INSTALL reviews found no additional actionable finding. The plan-by-plan whole-book review found two accepted corrections, committed as `ecde536`: sudo glob authorization warnings and consolidated permission references. The corrected five-file set passed a subsequent second-person review, build, and link scan. Subsequent whole-book reviews found an obsolete heading reference, four missing glossary terms, and an inaccurate FAQ statement about runtime-only changes. These findings were committed in `87aa67c`. The fifth whole-book review found a removal-verification conflict and an incorrect local primary-group assumption. Both corrections are applied, and the two-file set passed its first second-person review. Dedicated Debian 13 and Rocky 8 VMs then passed actual local primary-group checks and document-derived removal/preservation checks, followed by successful system setup restoration. The accepted CLI target-name clarification is also applied. Selected manual account/group creation and fstab mount-by-target verification are complete within their recorded boundaries. The latest 2026-10-01 source refresh matches all 2163 inline spans and 108 fenced blocks to native HTML; statement classification and evidence comparisons remain pending. The five-step plan in the M8 detail was accepted and separately authorized on 2026-10-01. The selected minimal CLI option-restriction correction is applied; eight real source CLI cases match it in `work/m8-verification-runs/20261001T213618Z-87aa67c-cli-order-corrected-source-check/`. Installed-runner and full-claim comparisons remain Pending. The three option-restriction bullets have six scoped semantic rows in `work/m8-verification-runs/20261001T215805Z-87aa67c-option-restriction-comparisons/claims.jsonl`: 524 installed-runner cases match on both dedicated hosts, while successful target paths and five container comparisons remain pending. The subsequent 48 successful-target status/view calls on both hosts and 133 root/live-s6 container restriction cases are recorded in `work/m8-verification-runs/20261001T233721Z-87aa67c-target-option-comparisons/`: four restriction rows are Verified and force/count behavior remains Partial for other successful targets. The original incorrect system fixture selection is retained with recovery evidence. The next 240 installed host command-option cases and 72 installed container cases passed, with a 64-assertion shipped container fixture suite, in `work/m8-verification-runs/20261001T235704Z-87aa67c-command-option-comparisons/`. All twelve other commands now have selected normal-path force/count comparisons across the five mode/OS environments; broad R05/R06 remain Partial for unselected failure and fallback paths. The stdout-wrapper failure and all original evidence are preserved, and readable container copies have matching hashes. The next host console batch passed 96 frozen calls through real socat and unavailable-client paths on Debian 13/Rocky 8 in local/system mode; its 16 scoped comparisons are recorded in `work/m8-verification-runs/20261002T001723Z-87aa67c-console-paths-comparisons/`. Actual client arguments/exits, terminal settings, native supervisor/child/socket continuity, fixture/client fingerprints, inactive states, and original log prefixes were checked. Container fallback and unselected failure cases remain pending; broad R05/R06 remain Partial. The subsequent container batch passed all 24 frozen socat/no-client calls without added capabilities, using Docker read-only client masks and the original shipped-suite fixture; its four scoped comparisons are in `work/m8-verification-runs/20261002T015411Z-87aa67c-container-console-comparisons/`. Combined with the preceding 96 host cases, both selected console paths are verified in all five mode/OS domains. Original failed preflight/state-read evidence is retained; container absence, original file bytes, native client exits, terminal restoration, and supervisor/child/socket continuity were checked. Other failure paths and whole-book comparisons remain incomplete; broad R05/R06 remain Partial. The next missing-configuration batch verified 35 calls for seven commands in the five mode/OS domains, with complete output/exit comparisons and unchanged native state, in work/m8-verification-runs/20261002T022108Z-87aa67c-missing-config-comparisons/. Source statement counts and broader command coverage remain unchanged. Current semantic progress is in work/m8-verification-runs/20261002T023624Z-87aa67c-cli-semantics-evidence/: CLI lines 1-77 cover 44 original candidates split into 171 predicates, with 62 Verified, 24 Partial, and 85 Pending rows after independently rereading 615 unique original native case entries. Outside that prefix, 1474 original Pending candidates still require semantic decomposition. The three actual list traces in work/m8-verification-runs/20261002T025035Z-87aa67c-list-trace-comparison/ establish a Mismatch in the unqualified zero-per-IOC-subprocess explanation. Option 1 was accepted on 2026-10-01 and applied. The restored candidate in work/m8-verification-runs/20261002T034039Z-87aa67c-source-refresh/ builds without warnings and matches 2165 inline spans and 108 fences; its refreshed baseline is 293 structural/1513 Pending candidates. Its sibling CLI-prefix evidence rebind retains 62 Verified, 24 Partial, and 85 Pending predicates after native evidence rechecks. The three fresh installed calls in work/m8-verification-runs/20261002T034053Z-87aa67c-list-correction-comparison/ verify the selected container state/PID correction; its sixteen scoped rows are two Verified, five Partial, and nine Pending. The generate section at CLI lines 79-118 is independently decomposed into 52 predicates, with current comparisons in work/m8-verification-runs/20261002T040530Z-87aa67c-generate-native-comparison/: six Verified (including four non-executable source comparisons), 25 Partial, 20 Pending, and one Mismatch. Thirteen selected container-root calls, five preparatory calls, and one additional non-setgid group case ran through the installed CLI with the original shipped fixture. The unqualified directory-group sentence fails: a root:ioc 0755 directory yields a root-group configuration when root generates it. Option 1 was accepted on 2026-10-01 and applied exactly, qualifying directory-group inheritance with setgid. The refreshed snapshot in work/m8-verification-runs/20261002T043018Z-87aa67c-source-refresh/ builds without warnings and matches 2165 inline spans and 108 fences. Its baseline has 293 structural and 1514 Pending candidates. CLI-prefix evidence remains 62 Verified, 24 Partial, and 85 Pending after original-native rechecks. Two fresh installed generate calls confirm group ioc in root:ioc 2775 and group root in root:ioc 0755; the latter is outside the conditional promise. The current source-bound generate comparison in work/m8-verification-runs/20261002T043228Z-87aa67c-generate-ownership-2775-comparison/ has six Verified, 26 Partial, 20 Pending, and zero Mismatch rows. The shifted list overlay is rebound to lines 409-427 after native evidence checks with no new list execution. The next install batch in work/m8-verification-runs/20261002T050445Z-87aa67c-install-native/ runs twenty selected root/container calls: five successes and fifteen expected aborts, with output, installed attributes, native inactive s6 services and restoration comparisons. The corrected install worksheet covers 53 source candidates and 74 predicates; its source-bound comparison has eight Verified (five non-executable), 35 Partial, and 31 Pending rows. Host/local-asset paths and unselected failures remain incomplete. The remove section at CLI lines 199-224 has 31 source-bound predicates: five Verified, twelve Partial and fourteen Pending. Six selected container calls match their expected exits; a separate active supplement verifies real softIOC child, procServ and supervisor removal after readiness. Current mode/OS cases are fourteen Verified, two Partial and 97 Pending. The initial Partial active execution and two aborted readiness runs remain immutable. The start/restart section at CLI lines 226-276 has 51 predicates: 29 Verified (three non-executable), three Partial and 19 Pending. Its 260 mode/OS/action cases are 106 Verified, two Partial and 152 Pending. The 60-call failure supplement and seven additional installed parse-error calls match their expected outputs and exits. The additional seven calls verify the fatal clause with native parser messages absent from the startup commands. The original seven echo-only observations retain Partial in their immutable comparison. Original incomplete runs and failed supplement preconditions remain preserved with their recorded restoration limits. The stop/enable/disable section at CLI lines 278-291 has 11 predicates: nine Verified (two non-executable) and two Partial. Its 90 mode/OS/action cases are 72 Verified and 18 Partial. Forty installed host calls and twelve fresh container calls match all expected outputs, exits and states. Actual reboot/startup and host stop/disable nonzero paths remain incomplete. The accepted status example correction is applied and verified by one fresh installed container query plus rechecks of the original 27 status calls. The status section at CLI lines 293-300 has 11 Verified predicates (one non-executable), and all 29 mode/OS comparisons are Verified within their selected-state limits. The original Mismatch remains historical. Both host system observers outside ioc query without sudo. The current source snapshot is work/m8-verification-runs/20261002T231334Z-87aa67c-source-refresh/, with unchanged 2165 inline spans and 108 fences matching native HTML. Current source bindings for prefix, generate, install, remove, start/restart, controls, list overlay and status are in work/m8-verification-runs/20261002T232051Z-87aa67c-status-example-comparison/; unchanged predicates retain their earlier verdicts and native provenance. The view section at CLI lines 302-311 has eleven Verified predicates (one non-executable) and 28 Verified mode/OS comparisons within the selected states. Its 20 fresh installed queries match complete configuration and native unit/run bytes, section order, exits and preserved state/PIDs; five missing-configuration exits of 1 are expected. Current view comparisons are in work/m8-verification-runs/20261002T235032Z-87aa67c-view-comparison/. The log section at CLI lines 313-322 has thirteen Verified predicates (one non-executable) and forty Verified mode/OS comparisons within the selected cases. All 47 fresh installed queries match expected output, exits and native state; fifteen error exits of 1 and four Ctrl-C exits of 130 are expected. Current log comparisons are in work/m8-verification-runs/20261003T011939Z-ebd2b7a-log-comparison-v3/. The selected list branch checks are recorded: 38 installed empty/live/terminated calls, ten lsof NODE observations and eighteen whole-CLI traces match actual native outputs and state. The list section has 68 rows: 59 Verified, four Partial and five Pending. Remaining list cases are multi-IOC coverage, a native host inactive output row, UINT64_MAX and unflagged/transient socket states. Current list comparisons are in work/m8-verification-runs/20261003T071057Z-ebd2b7a-list-branches-container-comparison-v5/. The read-only configuration/runtime and parser batch matches all 139 installed CLI calls across the five mode/OS domains. Its scoped overlay has 25 Verified predicates and four Pending installation-effect predicates, with 97 Verified and eight Pending mode/OS comparisons, in work/m8-verification-runs/20261003T184119Z-66254d1-env-paths-comparison/. These overlapping predicates do not replace the earlier prefix or section counts, or recalculate the 1311 provisional outside-section candidates. The two recreated consumers were prepared under owner authorization. Sixteen installed local CONF_DIR/RUN_DIR generate/install/start/remove calls passed on Debian 13 and Rocky 8; six scoped predicates and twelve mode/OS comparisons are Verified in work/m8-verification-runs/20261004T070347Z-66254d1-local-paths-comparison/. Native removal and fresh retention checks confirm original fingerprints, absent owned IOC state/PIDs, and retained payloads/logs. These local results cover the selected namespaced/unified storage and installed IOC_PORT/socket paths within their explicit prerequisites; broader/default-path cases remain Pending. Twenty installed system generate/install/remove and default-path start calls passed on Debian 13 and Rocky 8 after owner-authorized current full setup, with exact configuration/attributes and actual native procServ/softIoc/socket observations in work/m8-verification-runs/20261004T184709Z-9c491c3-system-paths/. Temporary home traversal ACLs were restored; fresh queries confirm the owned IOCs, configurations, runtime leaves and four observed PIDs are absent, with six payloads and two live logs retained. The owner-approved SYSTEMD_DIR batch completed twenty installed calls on Debian 13 and Rocky 8: sixteen expected exit-0 successes and four expected missing-template exit-1 rejections. The 448-check comparison and fresh native restoration queries passed in work/m8-verification-runs/20261005T032153Z-9c491c3-systemd/. Original numeric ACLs and protected fingerprints match; four owned IOCs and eight observed PID identities are absent, with four payload/configuration pairs and four logs retained. The original comparison with two incorrect enabled expectations remains preserved; its corrected comparison used the same native records without a CLI retry. The accepted system LOG_DIR twenty-call list ran on 2026-10-05: all calls exited 0 with empty stderr, all 846 comparison checks passed, and fresh native observations confirmed exact ACL restoration and removed IOC/process/runtime state; evidence is in work/m8-verification-runs/20261005T075640Z-9c491c3-system-log/. The accepted local LOG_DIR thirty-call batch is Verified within its selected paths and prerequisites, including shared template/rotation preservation and native restoration; the two helper failures remain preserved separately. Combined evidence is in work/m8-verification-runs/20261005T182211Z-9c491c3-local-log-comparison/. Broader/default directory behavior remains Pending. Continue the accepted remaining-verification plan for tool overrides and unresolved list/generate/install/remove/start/restart/control cases; freeze each batch before execution. Unselected directory behavior remains Pending. There are 1311 provisional Pending candidates outside the classified prefix, generate, install, remove, start/restart, control, status, view, log and list sections. Current source-bound section files are in work/m8-verification-runs/20261003T072321Z-ebd2b7a-list-branches-final-check/. Preserve all original/superseded records. The original worksheet remains the immutable 293 structural/1511 Pending historical baseline. Reconcile the 2110 lexical source-surface candidates before step 2 evidence comparison and final candidate checks; T3, T5, and T6 remain Pending. Preserve the dedicated VMs and their evidence. M10, the help, completion, and message corrections that the M8 inventory found, lands in 1.4.2; issue #163 is recorded; its implementation plan remains a draft to be written and accepted. M11 records startup exit/continued-error diagnostics and M12 records the local logout/linger guide and enable advisory; both are Not started with draft plans and Pending native checks. Continue M8 before implementing these two items. Then open the 1.4.2 release through release-cycle once G2, an iocrunner production bake carrying `opc` requested from cloud-provision, is Complete: run the release Gate on fresh consumers from that bake against one unchanged candidate, and carry the D8 upgrade actions into the 1.4.2 release notes and CHANGELOG. The two reused test consumers hold payload directories from the M9 runs, to be cleared before their next scenario-driver run, and cloud-provision is to be told when they are no longer needed. Preserve the committed version, console behavior, and production-validation documentation.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -38,6 +38,8 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | In progress | No | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Not started | Yes | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
+| Startup | M11 | Report IOC startup exits and respect continued IOC shell errors | Milestone | Not started | Yes | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
+| Local mode | M12 | Explain local IOC lifetime and advise lingering on enable | Milestone | Not started | Yes | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 
@@ -1713,6 +1715,143 @@ Migration content in `CHANGELOG.md`. Runner behavior remains outside M8.
    invalidates affected results and requires the relevant pass again.
    Completion: final T1 through T6 satisfy their own criteria with matching
    source hashes, and all findings are resolved or explicitly ruled on.
+
+###### Accepted generate remainder finite execution plan
+
+Decision Date: 2026-10-06
+Plan Status: accepted
+Plan Acceptance: 2026-10-06; owner accepted the sealed 120-call plan
+Implementation Authorization: 2026-10-06; owner authorized that plan's execution, new fixture ownership/modes and original-state checks
+Accepted Plan: work/m8-verification-runs/20261006T073701Z-9c491c3-generate-remainder-plan/plan.md and plan.json
+Plan SHA256: c110aa014ee44f5efe7389e97ca882ef3f4741c5335ef4881bfa21515870e69a
+Manifest SHA256: 4475375215635cb8c4adde026957c92ecc7ee5a6698753bedb17c139ef1382ea
+Bound Authority: work/m8-verification-runs/20261006T150444Z-9c491c3-generate-remainder-authorization/authority.json
+
+1. Recheck both consumers against the pinned original state and require the
+   two declared new roots to be absent before native fixture preparation.
+2. Run the sealed execute.py controller with the bound authority and a new
+   execution directory. Execute 88 selected whole installed CLI calls and
+   32 real initializers, 120 total, across Debian 13/Rocky 8 local/system.
+   Expected exits: 72 of 0 and 48 planned refusals/errors of 1. Eight real
+   filesystem controls remain separate. Only finite new files/directories
+   receive the approved owner/mode preparation.
+3. Stop on unexpected output, exit, state, event or setup failure. Retain
+   all new payloads and full partial evidence. Confirm original-state
+   preservation and bind native records to both archives before updating T3.
+   Existing identities, groups, ACLs, binaries, tools, assets and service
+   settings stay unchanged. Native execution remains Pending at acceptance.
+
+The sealed preparation bytes retain their draft fields as historical input;
+this canonical acceptance and the bound authority govern the exact frozen
+plan. Product changes, deletion, commit, push and whole-book closure are
+outside this finite approval. The accepted master plan remains in force.
+
+###### Container generate remainder finite plan
+
+Decision Date: 2026-10-06
+Plan Status: accepted
+Plan Acceptance: 2026-10-06; owner accepted the sealed 25-call plan
+Implementation Authorization: 2026-10-06; owner authorized the exact plan, setup, three filesystem controls and owned-container cleanup
+Plan: work/m8-verification-runs/20261006T160019Z-9c491c3-container-generate-remainder-plan/plan.md and plan.json
+Plan SHA256: d4225f4e7e584ac8688e654f745215a6de86e98c4d16e4a57fd9b160235203a3
+Manifest SHA256: 8372ef9b8fae21e0f58066f84d2a6630976d40c1b367ebf9d6142d4312010797
+Bound Authority: work/m8-verification-runs/20261006T164552Z-9c491c3-container-generate-remainder-authority/authority.json
+
+1. Use the exact cached first default container image with real shipped setup,
+   the whole installed CLI, a real s6 scanner and genuine exported inputs.
+2. Execute 17 selected calls and eight actual initializers, 25 total: expected
+   exits are sixteen of 0 and nine planned errors/refusals of 1. Sixteen
+   clauses have 38 planned case/clause bindings. Three actual read-only
+   filesystem controls observe directory/history failures without replacing
+   a native tool or any internal CLI span. All native results remain Pending.
+3. Record full outputs, numeric metadata, actual staging/move events and
+   post-setup protected-state equality. Stop/wait the owned scanner and
+   remove only the new disposable container after retaining payload archives
+   and partial evidence. Require container absence and unchanged inputs.
+
+The separate bound authority and canonical acceptance govern the sealed plan.
+Preparation files retain their historical draft fields. Native outcomes
+remain Pending until actual execution and restoration finish. The existing master
+and completed host-plan approvals remain unchanged. No host/VM identity,
+group, ACL, linger, service, product file or old resource change is included.
+
+###### Container procServ override finite plan
+
+Decision Date: 2026-10-06
+Plan Status: accepted
+Plan Acceptance: 2026-10-06; owner accepted the sealed 17-call plan
+Implementation Authorization: 2026-10-06; owner authorized the exact plan, setup and owned-container cleanup
+Plan: work/m8-verification-runs/20261006T173300Z-9c491c3-container-procserv-override-plan/plan.md and plan.json
+Plan SHA256: 2355dcd211cb29dc647eb6bac435db8a24c76fb32cf937402fb6702a6e6ff3c3
+Sealed inputs and helpers: work/m8-verification-runs/20261006T173300Z-9c491c3-container-procserv-override-plan/artifacts.sha256
+Manifest SHA256: 22819d123ed52e134492ec085b6de5c954148c0afed6d1936701625f6f0cc353
+Bound Authority: work/m8-verification-runs/20261006T181145Z-9c491c3-container-procserv-override-authority/authority.json
+
+1. Use the pinned first default Debian container image with real shipped
+   setup, whole installed CLI, genuine exported startup/history inputs,
+   actual procServ ELF copies and one owned real s6 scanner.
+2. Run five selected valid, empty, missing, nonexecutable and directory
+   override groups: 17 actual CLI calls including five real generate
+   initializers, twelve selected calls. Expected exits: fourteen of 0
+   and three planned rejections of 1. No native result is established.
+3. Compare complete output, exit, generated/installed configuration, actual
+   run bytes, native inactive supervision and rejected-install partial
+   state. Remove five new IOC names through the real CLI, archive all new
+   payload/tool files, confirm protected post-setup state equality,
+   stop/wait the owned scanner and verify the disposable container absent.
+
+The owner accepted this frozen list and separately authorized its execution
+and owned-container cleanup on 2026-10-06. The bound authority and canonical
+acceptance govern the sealed preparation bytes, whose draft fields remain
+historical input. Native outcomes remain Pending until execution and cleanup
+finish. The master and completed finite-plan approvals remain unchanged.
+No original VM, identity, group, ACL, linger, service, public file or old
+resource change is included. IOC/procServ runtime and other tool search,
+setup and logrotate conditions stay outside this selected result.
+
+###### Container procServ override corrected finite plan
+
+Decision Date: 2026-10-06
+Plan Status: accepted
+Plan Acceptance: 2026-10-06; owner accepted the sealed corrected 17-call plan
+Implementation Authorization: 2026-10-06; owner authorized execution and owned-resource cleanup
+Plan: work/m8-verification-runs/20261006T182547Z-9c491c3-container-procserv-override-corrected-plan/plan.md and plan.json
+Plan SHA256: 512a982e204ba0e540ea9650e9d0bf28f660c1d4a0c7d025f6b01c81e0f9ca7b
+Sealed inputs and helpers: work/m8-verification-runs/20261006T182547Z-9c491c3-container-procserv-override-corrected-plan/artifacts.sha256
+Manifest SHA256: eb548c94c6f1eb9d9c01df12122876eea904c168da9d9359c32ffc498800d76f
+Bound Authority: work/m8-verification-runs/20261006T185700Z-9c491c3-container-procserv-override-corrected-authority/authority.json
+Native Results: Verified; observed 2026-10-06T18:58:46.190556+00:00
+
+1. Use the same pinned default Debian image, real shipped setup and whole
+   installed CLI, genuine exported startup/history inputs and native procServ
+   ELF copies. The owned container is m8-procserv-native-20261006t182547z;
+   the new target root is /tmp/m8-procserv-20261006t182547z.
+2. Run the same five valid, empty, missing, nonexecutable and directory
+   groups: 17 actual CLI calls including five real generate initializers
+   and twelve selected calls. Expected exits: fourteen of 0 and three planned
+   rejections of 1. All seventeen native outcomes match within the selected conditions.
+3. Compare full output, exit, installed configuration/run bytes, real native
+   down state, rejected-install partial conf and complete view output. The
+   s6-svstat up,pid expectation is false -1; the helper changes exactly two
+   comparisons from false 0. The host controller and product stay unchanged.
+4. Remove the five new IOC names through the real CLI, archive payload/tool
+   bytes and numeric ownership/modes, require protected post-setup state
+   equality, stop/wait the owned scanner and verify its PID absent, and
+   verify only the new disposable container is absent after cleanup.
+
+The original approved attempt retains Failed status, its two matching
+exit-0 calls and fifteen unexecuted calls. This new namespace repeats valid
+generate/install to prepare the real IOC required for view/remove; no earlier
+configuration or service is reconstructed. Original sealed plan, authority,
+execution and comparison artifacts remain unchanged. The original approval
+does not accept or authorize this corrected plan. The owner separately
+accepted this sealed correction and authorized its exact execution and
+owned-resource cleanup on 2026-10-06 through the bound authority above.
+The sealed preparation draft fields remain historical input. Native
+outcomes are Verified with execution and owned cleanup recorded below. Existing
+master and completed finite-plan approvals stay unchanged.
+IOC/procServ runtime, unselected tool/setup paths, original VM resources and
+product changes remain outside this plan. Commit and push stay separate.
 
 ##### Test Plan
 
@@ -3968,6 +4107,1548 @@ document corrections:
   M8 stays In progress; T3/T5/T6 and final candidate acceptance remain Pending,
   and Closure Evidence remains None. Preserve both consumers for remaining work.
 
+- System configuration storage and fixed runtime verification, observed 2026-10-04T18:52:51.675343+00:00:
+  Candidate: `9c491c346da68fe92078b47a93d41fc0133b67d6`.
+  Decision Date: 2026-10-04. Option 1 was selected for current full system
+  setup, temporary ioc-srv home traversal and twenty bounded installed CLI calls.
+  The shipped staging launcher ran as vmadmin with --full once per consumer.
+  Native setup completed with all nine Debian and twelve Rocky checks passing.
+  Actual setup deltas are the system template and installed runner stamps on
+  both consumers, plus the Rocky sudoers policy. The current template uses
+  --ignore=^D^C; the original golden template used --ignore=^D^C^].
+  The Rocky setup prints its documented glob-policy warning and verifies both
+  policy SELinux contexts; this is not a selected CLI failure.
+  Original system-file bytes, attributes, symlink target, numeric home ACL,
+  accounts/membership and existing-resource fingerprints are retained.
+  Backups use the isolated owned directory; existing backups remain unchanged.
+  The post-setup configuration remains installed for subsequent verification.
+  Twenty frozen installed system CLI calls ran, ten per OS: namespaced and
+  unified CONF_DIR generate/install/remove, plus default-path
+  generate/install/start/remove. All exit 0, match exact argv, principal and
+  cleared environment, and have empty stderr. Generate/install/remove match
+  the declared success token with complete stdout retained. Each start matches
+  its exact complete successful-start line and native readiness predicates.
+  Generated and installed configuration bytes match the frozen expectations;
+  both have mode 0660, vmadmin UID 1000 and inherited ioc GID 1001.
+  Namespaced configuration storage and unified precedence match their selected
+  destinations; the unselected sentinel and alternate entries in the default
+  configuration directory remain absent. Those alternate configurations were
+  not started, copied into the default directory or given instance overrides.
+  Each default-path start uses the actual deployed system template, with its
+  effective unit matching the installed bytes. Native procServ argv/PID,
+  service UID/GID, the actual golden softIoc child, original startup bytes,
+  IOC initialization and a unique kernel Unix listener agree with the
+  installed IOC_PORT. The actual socket is mode 0660, owned by ioc-srv:ioc,
+  under the native systemd-created runtime leaf, mode 0770.
+  The fixture's echo lines are retained input, not proof of IOC diagnostics;
+  initialization is observed from the real softIoc completion line.
+  Temporary u:ioc-srv:--x access on /home/vmadmin was restored to the exact
+  original numeric ACL; existing m8operator access remains intact.
+  Native removal and two fresh read-only queries confirm six owned units
+  inactive/disabled, all selected installed configurations/runtime leaves
+  absent, and all four observed procServ/IOC PID identities gone.
+  Initially absent /run/procserv parents were removed only after scoped
+  cleanup and an empty-directory check. Six original-byte payloads and their
+  generated configurations, two live logs, staged sources and isolated setup
+  backups remain retained. Protected post-setup fingerprints match after
+  lifecycle cleanup and again in the fresh queries.
+  All twenty public source hashes remain unchanged. Installed runner
+  implementation bytes match source after excluding only the three stamps.
+  Execution: `work/m8-verification-runs/20261004T184709Z-9c491c3-system-paths/`.
+  Input manifest: `60430ecb82eefc3ec073b67c7d4ef78b4c5fda53ffd594cb1774d653b5ba1894`.
+  Debian native manifest: `55ac215fec5c379ef75d92334d847bc989634821e54cc216ebc5233717cb2c62`.
+  Rocky native manifest: `5e10a4b5fe5aa3e333fd6efd9a638b7c5d3b87e36586a2e3dfcdc4abef962f60`.
+  Comparison: `comparison/comparison.json`, 224 checks, zero failures.
+  Comparison manifest: `3463dceb356ca42992532d2acdc1c0ebb05cb8431d3c076f1bbb9b4864ea608e`.
+  Fresh restoration/retention: `final-check/final-check.json`, 36 checks,
+  zero failures; both comparison paths are relative to the execution directory.
+  Retention manifest: `dfdf47e7f9c110be9133dda3ba72311da9292682e09b5956ade233dd113b4eb8`.
+  This evidence covers selected system storage and default native socket paths.
+  It does not establish automatic alternate CONF_DIR propagation into the
+  system template, alternate SYSTEMD_DIR/LOG_DIR or tool behavior, or all
+  directory-table cases. Prior comparisons and the 1311 provisional
+  outside-section candidates are unchanged. M8 stays In progress; T3/T5/T6
+  and final candidate acceptance remain Pending; Closure Evidence remains None.
+  Preserve both consumers for the remaining verification.
+
+- SYSTEMD_DIR verification plan preparation, observed 2026-10-05T02:59:45.227522+00:00:
+  Prepared a bounded draft for twenty installed system CLI calls on the two
+  existing consumers. Sixteen calls expect exit 0; four missing-template
+  installs expect exit 1. Each namespaced/unified group generates once,
+  rejects the selected absent template, installs with the selected template
+  present, starts with the native default systemd template, and removes.
+  The unified absent/present cases select a contrary namespaced fallback
+  to compare precedence. Proposed alternate templates are original-byte
+  copies of the current installed template; no systemd search link, instance
+  override, drop-in or default-template replacement is proposed.
+  Fresh read-only preflight confirms candidate 9c491c3 installed implementation,
+  current template bytes, original startup, existing home ACL and identity,
+  absent selected filesystem paths, and inactive/disabled selected IOC names.
+  Preparation executed zero selected CLI calls and made no guest filesystem
+  or ACL mutation. Decision Date: 2026-10-04 (Pacific time). The owner accepted
+  this exact prepared plan and explicitly authorized its temporary traversal
+  ACL, copied templates/payloads and twenty selected native CLI calls.
+  Plan Status: accepted. Plan Acceptance: the prepared manifest below.
+  Implementation Authorization: explicit plan and execution approval.
+  The sealed draft remains the immutable preparation snapshot; this canonical
+  record owns its subsequent acceptance and execution authority.
+  Draft and exact cases: `work/m8-verification-runs/20261005T025944Z-9c491c3-systemd-plan/plan.md`
+  and `plan.json` in the same directory. Original startup, twenty fresh public
+  source copies, query argv/stdout/stderr/exits/times and native template bytes
+  are sealed with the draft. Artifact manifest:
+  `c0c2f2d555ec60ce85cb98506b9ea3318ec8b84eae1444907a8e8907a7455499`.
+  LOG_DIR/tool overrides, full setup, product edits and whole-book acceptance
+  are outside this prepared batch. Previous results and provisional counts
+  are unchanged; M8 stays In progress and T3/T5/T6 remain Pending.
+
+- SYSTEMD_DIR native verification, executed 2026-10-05T03:22:31.168570628Z
+  through 2026-10-05T03:23:59.454324589Z; fresh final observation
+  2026-10-05T03:24:19.259562+00:00:
+  Executed exactly the twenty owner-approved installed system CLI calls,
+  serially on Debian 13 and Rocky 8.10, as vmadmin with the frozen clean
+  environment. Sixteen calls returned the expected exit 0. Four installs
+  selected a missing template and returned the expected exit 1 with exact
+  frozen stderr, no installation success line and no deployed conf,
+  active unit, runtime leaf or log. No unexpected CLI exit occurred.
+  Namespaced lookup and unified precedence agree with the frozen selected
+  directories, including a present namespaced fallback when the selected
+  unified directory is absent and an absent fallback when it is present.
+  Generated and installed configuration bytes and mode 0660, UID 1000,
+  GID 1001 match all four groups. The alternate templates are root-owned
+  0644 copies of the actual installed template, with identical hashes.
+  Successful installs and starts use the unmodified default native
+  /etc/systemd/system/epics-@.service, confirmed by FragmentPath and complete
+  effective-unit bytes. No systemd search link, instance override or drop-in
+  was created. Actual procServ arguments, PID, service identity, golden
+  softIoc child and executable hash, payload cwd, real initialization,
+  unique kernel listener and socket metadata match the selected IOC.
+  The live socket is mode 0660, owned by ioc-srv:ioc; its runtime leaf is
+  mode 0770. The original st.cmd bytes were copied without modification;
+  its echo lines remain input and do not establish IOC diagnostic semantics.
+  Native remove and fresh read-only queries confirm four units
+  inactive/disabled, installed configurations and runtime leaves absent,
+  all eight observed procServ/IOC PID identities gone and no owned-cwd
+  process remaining. The temporary u:ioc-srv:--x ACL was restored exactly
+  to the original numeric ACL on both consumers, preserving m8operator
+  access. Initially absent runtime parents were removed only after the
+  owned leaves were absent and the parents empty. Four payload/generated
+  configuration pairs, four logs, copied templates, staging and evidence
+  remain retained. Protected fingerprints match the frozen pre-execution
+  state and the subsequent native final queries. All twenty public input
+  hashes remain unchanged; no full setup or product-source edit ran.
+  Execution: `work/m8-verification-runs/20261005T032153Z-9c491c3-systemd/`.
+  Input manifest: `ede388ae70ce2dcc7e76ef102658a6249b610dd7f1a08ebdd4d3d47d16db454b`.
+  Debian native manifest: `cb9054b0af64672d745c2e2be69350f0e68b6715cefc6d187953ecc993642fd5`.
+  Rocky native manifest: `f64fba35f8592573b0fb43cf32eafa1bfbc30897da5743bd21753cfcc2aa963c`.
+  Final comparison: `comparison-v2/comparison.json`, 448 checks, zero failures.
+  Comparison manifest: `1d8edebb6bc8a38fa3520f95c12c08edefc02972109c44d6f9f72dcba64188fd`.
+  Fresh final queries: `fresh-final/`; manifest
+  `48012dcde0e5f96c9e7b72f85f5464f484ac748a681c6d59d5b840510cc3be9b`.
+  Exact observed cases: `record-check/cases.jsonl`; these paths are relative
+  to the execution directory. The initial Debian comparison is retained in
+  `comparison-debian13/`: two assertions incorrectly expected enabled after
+  start. The shipped start at bin/ioc-runner:3388 does not enable a unit;
+  the approved list contains no enable action. `audit-v2/` corrects only
+  that comparator expectation to the preserved disabled state, without
+  changing any approved CLI expectation or rerunning a native CLI call.
+  This verifies the selected template lookup and actual default native-unit
+  behavior. It does not verify alternate-directory discovery by systemd,
+  LOG_DIR/tool overrides, every directory-table case or the whole book.
+  Prior records, overlapping section counts and the 1311 provisional
+  outside-section candidates are unchanged. M8 remains In progress,
+  T3/T5/T6 remain Pending and Closure Evidence remains None.
+  Preserve both consumers for the remaining verification.
+
+
+- System LOG_DIR verification preparation, observed 2026-10-05T03:43:25.733920+00:00:
+  The source-bound draft contains twenty installed system CLI calls on the
+  existing Debian 13 and Rocky 8.10 consumers. Each OS has namespaced and
+  unified runtime log variants, with generate, install, start, log and remove
+  in that order. Every selected call expects exit 0 and empty stderr.
+  Namespaced sets IOC_RUNNER_SYSTEM_LOG_DIR; unified sets both log variables
+  to different absent directories. The unchanged installed system template
+  owns the effective logfile. The draft binds FragmentPath, full unit bytes,
+  actual procServ/softIoc identities, original startup bytes, initialization,
+  native listener/socket metadata and generated/installed configuration.
+  Each -n 5 log result is compared with the real effective logfile, retaining
+  raw before/after bytes and requiring an unchanged read window.
+  Read-only preflight confirms the installed 9c491c3 implementation, unchanged
+  native template, original startup and golden executable on both consumers.
+  Selected paths are absent and selected units are inactive/disabled with
+  MainPID=0. Original numeric home ACLs retain m8operator access.
+  Preparation executed zero selected CLI calls and changed no guest ACL or
+  filesystem. Proposed execution creates four owned root:ioc 2775 payloads,
+  copies the archived startup bytes and temporarily adds only u:ioc-srv:--x
+  home traversal. Native removal and fresh queries must confirm absent
+  installed IOC state and observed PID identities before exact ACL and
+  protected-fingerprint restoration. Retain four payload/configuration
+  pairs, four effective logs and the complete evidence.
+  Decision Date: 2026-10-04 (Pacific time). The direction authorizes this
+  draft and read-only preparation; the exact temporary changes and native
+  calls await acceptance and implementation authorization.
+  Plan Status: draft. Plan Acceptance: none.
+  Implementation Authorization: none.
+  Draft: `work/m8-verification-runs/20261005T034325Z-9c491c3-system-log-plan/plan.md`.
+  The same directory contains exact cases/environment/output/configuration
+  expectations in `plan.json`, frozen source copies, original startup,
+  native query source, template bytes and query argv/output/exits/times.
+  Artifact manifest:
+  `8d1844112e230efaea78316ed9d12f6258c256429f870dfcc342f8b8a656b0bd`.
+  These prerequisites and the draft are preparation evidence, not selected
+  behavior results. Local LOG_DIR effects remain Pending because local
+  install replaces shared user template/rotation assets and manages their
+  historical backups; that batch needs a separate restoration plan.
+  Setup-time system LOG_DIR rendering, tool overrides, container mode,
+  M11/M12 implementation, product edits and whole-book acceptance are outside
+  this batch. Prior results, overlapping section counts and the 1311
+  provisional outside-section candidates are unchanged. M8 remains
+  In progress, T3/T5/T6 remain Pending and Closure Evidence remains None.
+  Preserve both consumers for the remaining verification.
+
+- System LOG_DIR driver preparation, latest native read observed
+  2026-10-05T07:37:08.958399+00:00:
+  Prepared the bounded root driver, native observer and comparator for the
+  unchanged twenty-call list in the preceding draft. Bash syntax, warning
+  ShellCheck and full ShellCheck pass; all five Python sources compile.
+  The three root safety checks inspect static safety, execution hardening
+  and failure/restoration boundaries. They are author checks, not evidence
+  that the root driver or its cleanup ran.
+  Fresh read-only prerequisites on both consumers match the original
+  installed runner, template, golden executable, startup fixture, accounts,
+  numeric home ACL, selected-path absence and inactive/disabled unit state.
+  Separate fresh protected-fingerprint reads provide pre-execution baselines.
+  Complete query argv/output/exits/times and twenty current public source
+  copies are retained. No selected native CLI call, guest ACL change,
+  owned payload/staging creation, full setup or product edit ran.
+  The prepared log-read branch compares raw unchanged log windows with
+  actual native tail bytes; the process observer hashes the actual
+  /proc/PID/exe. The comparator requires real ten-call records per OS,
+  configuration bytes/attributes, native identities/listeners and restored
+  state. These branches and the comparator remain Pending until real
+  execution. Failure recovery is limited to residual owned IOC removal,
+  recorded separately with every original failed call preserved.
+  Package: `work/m8-verification-runs/20261005T073147Z-9c491c3-system-log-ready/`.
+  `README.md` states the exact actions, temporary changes and restoration;
+  `selected-cases.json` and `ready.json` preserve the original case list.
+  Input manifest:
+  `f64940923da6e69d3a492c499ac80769fd44973d1973a1d30d49f7b08a4e4130`.
+  The initial SC2318 finding, original driver and failed ShellCheck are
+  preserved in `initial/`; the corrected current source and checks are
+  frozen separately in this package.
+  Decision Date: 2026-10-05. The owner accepted this exact twenty-call
+  plan and frozen package and explicitly authorized execution, temporary
+  traversal ACL application, owned payload/staging creation and exact
+  restoration.
+  Plan Status: accepted.
+  Plan Acceptance: original twenty-call plan and the frozen input manifest
+  above, explicitly accepted on 2026-10-05.
+  Implementation Authorization: explicit owner execution approval on
+  2026-10-05, including temporary ACL and exact restoration.
+  The sealed draft and ready.json remain immutable preparation snapshots;
+  this canonical record owns their subsequent acceptance and authority.
+  Runtime restoration and all selected behavior checks remain Pending
+  until the real approved path runs.
+  M8 remains In progress; T3/T5/T6, prior overlapping counts, the 1311
+  provisional outside-section candidates and M11/M12 states are unchanged.
+  Preserve both consumers and all prior evidence.
+
+- System LOG_DIR native execution, observed
+  2026-10-05T07:57:31.121310763Z through
+  2026-10-05T07:58:54.440177593Z; final native reads observed
+  Debian 13 at 2026-10-05T07:59:56.656423+00:00 and
+  Rocky 8.10 at 2026-10-05T07:59:56.952633+00:00:
+  Executed the accepted twenty-call list against candidate
+  `9c491c346da68fe92078b47a93d41fc0133b67d6`, Debian first and Rocky
+  second. On each OS, the namespaced and unified variants each ran
+  generate, install, start, log (-n 5) and remove through the actual
+  installed /usr/local/bin/ioc-runner as vmadmin with the frozen clean
+  environment and original startup bytes. All twenty native calls
+  returned their expected exit 0 with empty stderr. Both root drivers
+  and transports returned 0; no recovery call or selected-call retry ran.
+  Native unit, procServ argv, executable hashes, golden IOC identity,
+  initialization, listener and control-socket records agree with the
+  frozen expectations. Both LOG_DIR variants leave the installed default
+  system template and its effective /var/log/procserv/<name>.log unchanged;
+  the override directories remain absent. Complete log stdout matches
+  native tail -n 5 bytes from the unchanged before/after effective log.
+  The actual comparator returned 0 with 846 checks and zero failures.
+  Temporary home traversal ACL entries for ioc-srv were applied only for
+  this execution and restored to the exact original numeric ACL on each
+  OS, preserving the existing m8operator entry. Native restoration reports
+  RESTORATION_ERRORS 0 on both hosts. Final native and fresh observations
+  agree: four owned IOC units are inactive/disabled, installed
+  configurations and runtime leaves are absent, all eight observed
+  PID/starttime identities are gone, and no owned-cwd process remains.
+  The initially absent runtime parent is absent again. Protected
+  fingerprints equal the frozen pre-execution baselines and fresh final
+  queries; installed runner/template, accounts, existing local assets,
+  linger and prior evidence are unchanged. Four payload/generated-config
+  pairs, four logs, staging and native evidence remain as planned.
+  Evidence: `work/m8-verification-runs/20261005T075640Z-9c491c3-system-log/`.
+  The frozen driver, selected case list and observer define the real method;
+  compare.py rechecks the sealed inputs and preserved native/final records.
+  Inputs manifest:
+  `3a5305f0b53ca2bb31559c674d19aa309677af8cc11cf626ddf1e5b57de37e44`.
+  Debian native manifest:
+  `2784cf8387724aab62c6470e79fa259b312245a3a594b89107ce7ed62db1cede`.
+  Rocky native manifest:
+  `9d9f5fe59ea5cd04c0b0e8e2e13534c8eb2c306206023a4812a6fde54c110480`.
+  Fresh final manifest:
+  `ec8a3bc95f08a0dd178c0ff511f8b93e4db8c2b0f20627b106bab8eda57b4007`.
+  Comparison manifest:
+  `37e38eefb3577e761e8e6426dabf1eb9b8b0febf96fc92831d8dbad4d8fc414c`.
+  All twenty current public input hashes still match the frozen source
+  copies. Product code, public guides and full setup are unchanged.
+  This verifies the selected system runtime/effective-path behavior.
+  Local LOG_DIR, setup-time rendering, tool overrides and remaining
+  whole-book coverage remain Pending. The original healthy fixture's
+  printed report lines do not establish M11 startup-error semantics.
+  M8 remains In progress; T3/T5/T6, prior overlapping counts, the 1311
+  provisional outside-section candidates and M11/M12 states are unchanged.
+  Closure Evidence remains None. Preserve both consumers for remaining
+  verification.
+
+- Local LOG_DIR verification preparation, native prerequisites observed
+  Debian 13 at 2026-10-05T16:29:14.798085+00:00 and
+  Rocky 8.10 at 2026-10-05T16:29:15.123857+00:00:
+  Prepared a source-bound thirty-call draft at candidate
+  `9c491c346da68fe92078b47a93d41fc0133b67d6`. Each OS has three local
+  groups: namespaced log selection, unified precedence and the
+  XDG_STATE_HOME/procserv fallback. Each group proposes generate, install
+  (--force), start, log (-n 5) and remove as the existing m8operator.
+  Start and log deliberately supply a different runtime LOG_DIR; the
+  installed unit must retain its install-time effective logfile.
+  All calls predict exit 0. Each install predicts the exact two Info
+  stderr lines for forced shared template/configuration updates; the
+  other twenty-four calls predict empty stderr. These are frozen
+  expectations, not observed CLI results.
+  Read-only native queries confirm UID 1007, primary group m8group
+  (GID 1008), an active existing user manager/bus, linger yes, no active
+  local IOC and absent selected paths. Both shared rotation timers are
+  enabled/active and waiting; their services are inactive. Four shared
+  files per host have mode 0600 and owner 1007:1008; the template backup
+  namespace is empty at observation. Existing timer symlinks, persistent
+  stamps, host-local rotation state and the mode 0755 runtime parents
+  are present and must be preserved. Rocky xattrs include SELinux.
+  Installed runner bytes match the frozen current source after excluding
+  only the three installation stamps. The original startup and golden
+  executable hashes agree. Existing vmadmin traversal ACLs already allow
+  this local principal; the proposed batch requires no ACL mutation.
+  The draft names the exact argv/environments, expected full config/unit
+  bytes, original asset snapshots and thirteen source-clause bindings.
+  Proposed execution captures a fresh lossless archive of shared files,
+  all existing backups and timer/state metadata before mutation; stops
+  the timer while retaining enable state; runs one IOC at a time; then
+  restores original bytes, UID/GID, modes, ACL/xattrs/SELinux, symlinks
+  and mtime_ns before restarting the original timer. A calendar-window
+  guard, finite selected-call budget and separate restoration checks
+  protect against scheduled rotation. Existing runtime parents remain.
+  Manager counters/deadlines, inode and ctime are explicitly outside the
+  bit-for-bit restoration claim. Six new payload/configuration pairs,
+  six logs and complete original/generated evidence remain retained.
+  Preparation checks: 109 source/prerequisite checks, zero failures;
+  four Python sources compile. Final source/metadata/finite-list checks
+  agree with the exact native records. Zero selected CLI calls, timer
+  changes, guest filesystem/ACL mutations or restoration ran.
+  Draft: `work/m8-verification-runs/20261005T162914Z-9c491c3-local-log-plan/revision-2/plan.md`.
+  The same package contains plan.json, selected-cases.json, source bindings,
+  expected assets, original startup, twenty public source copies and native
+  query argv/output/exits/times. Manifest:
+  `4b9fd655ae4e359e7e7cbee135ba7e24cd2510ccab8cc3892a137c2c150c65eb`.
+  The initial draft remains in the parent directory with manifest
+  `6b402415c5b4e9a906b56a312fb7dfb766e5e34d26cb2b2cd83693c31f827e16`;
+  revision-2 records the actual golden query path separately from its hash.
+  Plan Status: draft. Plan Acceptance: none.
+  Implementation Authorization: none.
+  A bounded execution driver, native observer and comparator remain to
+  be prepared against this exact list. All thirty behavior results and
+  runtime restoration remain Pending. Product code and public guides
+  are unchanged. Prior observations, overlapping counts, the 1311
+  provisional outside-section candidates and M11/M12 states are unchanged.
+  M8 remains In progress, T3/T5/T6 remain Pending and Closure Evidence
+  remains None. Preserve both consumers for remaining verification.
+
+- Local LOG_DIR execution package preparation, native prerequisites observed
+  Debian 13 at 2026-10-05T17:26:11.024526+00:00 and
+  Rocky 8.10 at 2026-10-05T17:26:11.716122+00:00:
+  Prepared the bounded root driver, native observer, lossless preservation
+  helper, serial transport and sealed-record comparator for the unchanged
+  thirty-call revision-2 draft. The fifteen calls per OS keep the actual
+  installed CLI, user systemd, procServ and original golden startup path.
+  No selected call, timer pause, shared-file write, ACL change or native
+  archive/restoration ran. The execution entry requires separate acceptance
+  and implementation authority bound to this exact plan and package.
+  An actual invocation with authority.template.json exited 1 at the draft
+  plan-status guard before upload; its execution output directory was absent.
+  Source/prerequisite checks: 138 checks, zero failures in the final attempt.
+  Bash syntax, warning-level and full unfiltered ShellCheck passed.
+  Ten Python sources compile locally and through both native interpreters
+  (Debian 3.13.5, Rocky 3.9.25); native Bash syntax checks passed.
+  Earlier check attempts, including the corrected ShellCheck warning, remain
+  immutable with their original source/output snapshots.
+  Fresh read-only queries preserve the installed/fixture/golden identities,
+  UID/GID, group, manager/bus/linger, home ACL, stable shared assets and
+  protected trees. Selected task/evidence/staging paths are absent, original
+  runtime parents remain and the rotation timers are enabled/active while
+  their services are inactive. Scheduled stamp/state observations are
+  time-bound; execution captures a fresh baseline and native calendar.
+  Three distinct author source inspections cover baseline static safety,
+  root execution hardening and failure/race/persistence. They do not claim
+  an independent reviewer or executed failure/recovery verification.
+  The driver requires a private archive reproduction proof and control-host
+  durable export acknowledgement before timer pause; exact backup provenance
+  comes from actual install stdout and inventory changes. Restoration checks
+  cover original namespace, bytes, UID/GID, mode, ACL/xattrs/SELinux, links
+  and mtime_ns, with PID/starttime and owned-cwd absence before shared writes.
+  Directory size is filesystem-managed when retained task entries are added;
+  its namespace and declared attributes remain protected. Inode, ctime and
+  manager scheduling counters/deadlines remain outside the restoration claim.
+  Execution notes and frozen files:
+  `work/m8-verification-runs/20261005T170001Z-9c491c3-local-log-ready/execution.md`.
+  Preparation input manifest (164 files):
+  `70b79814446fd57eb23262d2bf72044ff451800a57506b853db257079d6605ad`.
+  Root bundle manifest:
+  `2049a33007132bd043dc73df766f55fd0ee7e9e2e996e0c4932c964d32cdb8d9`.
+  Latest source/prerequisite check snapshot: preparation-20261005T172610611968Z.
+  Plan Status: draft. Plan Acceptance: none.
+  Implementation Authorization: none. All thirty native cases and native
+  archive/recovery/restoration remain Pending. Twenty public source hashes,
+  all prior evidence, the 1311 provisional outside-section candidates and
+  M11/M12 plans remain unchanged. M8 stays In progress; T3/T5/T6 stay Pending.
+  Closure Evidence remains None. Preserve both consumers for remaining work.
+
+- Local LOG_DIR concrete plan acceptance and execution authorization,
+  Decision Date: 2026-10-05. Recorded at 2026-10-05T17:59:49.851683+00:00:
+  Plan Status: accepted.
+  Plan Acceptance: 2026-10-05; owner accepted the unchanged thirty-call
+  revision-2 draft and its prepared execution package.
+  Implementation Authorization: 2026-10-05; owner explicitly authorized
+  execution of that exact plan, including original archive/export, temporary
+  timer pause, serial native cases, shared-asset restoration and timer restart.
+  The owner's original wording is preserved in the separate authority.json.
+  Accepted draft: work/m8-verification-runs/20261005T162914Z-9c491c3-local-log-plan/revision-2/.
+  Plan manifest: 4b9fd655ae4e359e7e7cbee135ba7e24cd2510ccab8cc3892a137c2c150c65eb.
+  plan.json: b77d82ee53ec455de745747d3323ecbc61837cba4b1a1e65ad20d195cb640732.
+  Accepted package: work/m8-verification-runs/20261005T170001Z-9c491c3-local-log-ready/.
+  Preparation inputs: 70b79814446fd57eb23262d2bf72044ff451800a57506b853db257079d6605ad.
+  Root bundle: 2049a33007132bd043dc73df766f55fd0ee7e9e2e996e0c4932c964d32cdb8d9.
+  Authority record: work/m8-verification-runs/20261005T175949Z-9c491c3-local-log-authority/authority.json.
+  Native execution target: work/m8-verification-runs/20261005T175949Z-9c491c3-local-log-execution/.
+  Historical draft/preparation files remain unchanged. Acceptance and
+  execution authority are separate fields; no automated approval is used.
+  The original thirty native cases remain Pending until their actual path
+  and restoration checks run. Product/ACL/account/linger changes, forced
+  rotation, M11/M12 implementation, commit/push and VM destruction are
+  outside this authority. M8 stays In progress; T3/T5/T6 stay Pending.
+  Closure Evidence remains None. Preserve both consumers for remaining work.
+
+- Local LOG_DIR Debian execution and bounded continuation, recorded at 2026-10-05T18:14:19.487383+00:00:
+  Native Debian calls ran from 2026-10-05T18:05:52.452865+00:00 through
+  2026-10-05T18:06:04.541362+00:00. All fifteen selected calls exited 0;
+  original restoration failed with OSError 18, Invalid cross-device link,
+  while moving a proven generated template backup from home to tmp evidence.
+  This was a verification-helper failure, not an expected CLI error.
+  Original outcome remains failed with restoration Pending, unmodified.
+  Rocky was not started. Six observed Debian PID/starttime identities and
+  all selected config/runtime leaves were already absent before restoration.
+  Failed execution: work/m8-verification-runs/20261005T175949Z-9c491c3-local-log-execution/.
+  Failed execution manifest: 925fc46cf75afd8e1d2c2878eaa46d08bd6733c73c20fa9e1f0ed56ab6d7daea.
+  Separate native Debian recovery finished at 2026-10-05T18:10:15.859165+00:00.
+  Each of the three proven backups was copied losslessly, fsynced and
+  compared for bytes, numeric owner/group, mode, ACL/xattrs and mtime
+  before its exact original path was unlinked. Original shared assets,
+  backup namespace and affected directory metadata were then restored.
+  Native daemon-reload/effective units, enabled/active timer, inactive
+  rotation, original stamp/state and complete protected fingerprints agree.
+  No selected CLI was repeated. The separate real-record comparison checks
+  all fifteen native cases and recovery identity: 460 checks, zero failures.
+  Recovery: work/m8-verification-runs/20261005T180824Z-9c491c3-local-log-recovery/.
+  Recovery manifest: 610a1619e2c3b32a4d96458ec3e08f7ba3d889beba244f498d85e009adae369e.
+  The necessary helper correction preserves the accepted plan's exact CLI
+  list, fixtures, expected results and restoration contract. Rocky's
+  preservation helper uses durable verified copy before exact source unlink
+  across filesystems. The original package and failure remain immutable.
+  Serial transport now selects only the fifteen remaining Rocky calls;
+  source/controller/observer/fixture predictions are otherwise unchanged.
+  This bounded implementation correction uses the owner's existing
+  2026-10-05 plan acceptance and execution authorization; no new automated
+  approval or expanded scope is asserted. The thirty-call plan is unchanged.
+  Fresh prerequisites at Debian 2026-10-05T18:13:23.092839+00:00 and
+  Rocky 2026-10-05T18:13:23.571376+00:00 confirm Debian restored, both timers
+  active/enabled and rotation inactive, and Rocky selected paths absent.
+  Python compile checks on both hosts, Bash syntax and full ShellCheck pass.
+  Three author source inspections do not claim independent reviewer or
+  already executed Rocky restoration.
+  Continuation: work/m8-verification-runs/20261005T181229Z-9c491c3-local-log-continuation/revision.md.
+  Continuation inputs: cd4fd3e83f37a0155cc1825708110722e71bd933ef092db2fde03d22075e91b6.
+  Continuation root bundle: a1a67ac782f8a4433c64b93eeedd8b7c534513ad83688df490d580ece2b768dd.
+  Bound authority: work/m8-verification-runs/20261005T181229Z-9c491c3-local-log-continuation-authority/authority.json.
+  Execution target: work/m8-verification-runs/20261005T181229Z-9c491c3-local-log-rocky/.
+  Fifteen Rocky native cases and runtime restoration remain Pending.
+  M8 remains In progress; T3/T5/T6 remain Pending; Closure Evidence is None.
+  Product code, public pages, ACL/accounts/linger and M11/M12 are unchanged.
+
+- Local LOG_DIR Rocky archive-proof failure and compatible continuation,
+  recorded at 2026-10-05T18:18:45.559171+00:00:
+  The first Rocky transport ran from 2026-10-05T18:14:19.788775+00:00
+  through 2026-10-05T18:14:20.249043+00:00 and exited 1.
+  Its actual archive reproduction failed with NotImplementedError,
+  chmod: follow_symlinks unavailable on this platform, in native Python 3.9.
+  Zero selected CLI calls and no timer pause ran; archive export was not
+  acknowledged. The actual failed stdout/stderr, argv and native inputs
+  remain unchanged in work/m8-verification-runs/20261005T181229Z-9c491c3-local-log-rocky/.
+  Failed manifest: 76d0e4ec6e070b7c27085aed2b6779ec4968038f3e7c3459c40dc9b9a4b56587.
+  Actual post-failure checks confirm all original assets/protected
+  fingerprints unchanged, timer enabled/active, rotation inactive and all
+  selected IOC resources absent. Exclusive failed evidence and staging
+  remain on Rocky with suffix -failed-prearchive-1; no old evidence is
+  overwritten or deleted. Exact guarded relocation records are in the
+  continuation-2 checks/relocation files.
+  The necessary preservation-helper correction applies regular/directory
+  attributes through validated no-follow file descriptors; symlinks retain
+  supported native no-follow operations. Its EXDEV-safe durable backup
+  transfer remains. Native Python compile/capability observations on both
+  hosts, Bash syntax and full ShellCheck pass. Archive reproduction and
+  Rocky selected paths are still Pending until their actual execution.
+  Prerequisites observed Debian at 2026-10-05T18:17:50.132376+00:00 and
+  Rocky at 2026-10-05T18:17:50.601624+00:00.
+  Continuation-2: work/m8-verification-runs/20261005T181613Z-9c491c3-local-log-continuation-2/revision.md.
+  Inputs: 7fa8399d8d37d69f8d5c5307da5659e4d023fbdd377b2b0c0391f61210daa40e.
+  Root bundle: 89dde1d7be437f74cc928dfb18065932b78052734cacda8f75034a0414b226e9.
+  Bound authority: work/m8-verification-runs/20261005T181613Z-9c491c3-local-log-continuation-2-authority/authority.json.
+  Execution target: work/m8-verification-runs/20261005T181613Z-9c491c3-local-log-rocky-2/.
+  The accepted thirty-call plan and owner execution scope are unchanged.
+  No native selected call is repeated; no product, fixture, ACL, account
+  or linger change is made. Original failure records remain failed.
+  M8 is In progress; T3/T5/T6 stay Pending; Closure Evidence is None.
+
+- Local LOG_DIR selected native verification completed, recorded at 2026-10-05T18:23:11.818614+00:00:
+  Candidate: 9c491c346da68fe92078b47a93d41fc0133b67d6.
+  Debian fifteen calls: 2026-10-05T18:05:52.452865+00:00
+  through 2026-10-05T18:06:04.541362+00:00.
+  Rocky fifteen calls: 2026-10-05T18:18:46.378667+00:00
+  through 2026-10-05T18:18:58.454467+00:00.
+  All thirty frozen generate/install/start/log/remove calls exited 0 and
+  matched their actual argv, clean environment, stdin and output expectations.
+  The six forced installs produced the exact two expected Info stderr lines;
+  the other twenty-four calls had empty stderr. No selected CLI was repeated.
+  Native comparisons verify namespaced local LOG_DIR selection, unified
+  precedence, XDG_STATE_HOME/procserv fallback and the install-time effective
+  logfile despite a different LOG_DIR supplied to start/log. Full installed
+  configuration, shared template/rotation bytes and effective user units
+  match the frozen source predictions. Unused override/fallback paths stay
+  absent. Each live IOC used native user systemd, procServ and the original
+  golden startup/softIoc with recorded executable hashes, PID/starttime,
+  UID/GID, initialized log, actual socket/listener and required modes.
+  All six log calls match complete native tail bytes in an unchanged window.
+  Six procServ/softIoc pairs were observed; all twelve PID/starttime identities,
+  owned cwd processes, installed configurations and runtime leaves are absent.
+  Six payload/generated-configuration/history sets and six logs remain.
+  Original shared files, empty original backup namespace, timer enable link,
+  persistent stamp/state and affected directory metadata are restored, including
+  bytes, numeric owner/group, modes, ACL, all xattrs/SELinux and mtime_ns.
+  Existing mode 0755 runtime parents, identities/groups, linger, home traversal
+  ACL, user manager and protected home/system fingerprints match. Both timers
+  are enabled/active; both rotation services are inactive.
+  Debian original execution remains failed on the cross-filesystem backup
+  move; its separate native recovery is Verified with zero CLI repetitions.
+  The first Rocky attempt remains failed during archive reproduction on
+  unsupported Python chmod no-follow; no selected call or timer pause ran.
+  These are two observed helper failures, not planned IOC errors. The bounded
+  lossless-copy and file-descriptor corrections preserve the accepted plan
+  and product behavior; Rocky continuation-2 ran its real archive reproduction,
+  export acknowledgement, timer pause, all fifteen calls and full restoration.
+  Native checks: Debian 460, Rocky 458; fresh two-host checks: 112.
+  Combined checks: 1030, zero failures. Results are Verified only for these
+  thirty selected paths and their recorded prerequisites; historical source
+  bindings and broad/unselected section claims are not promoted wholesale.
+  Fresh observations: Debian 2026-10-05T18:18:59.251980+00:00;
+  Rocky 2026-10-05T18:18:59.527383+00:00.
+  Combined comparison, all thirty individual records and input bindings:
+  work/m8-verification-runs/20261005T182211Z-9c491c3-local-log-comparison/.
+  Combined manifest: 767104e7a66cecfed2ac7935bfd6bd83690ebac5a3c9626d4c814b04db6a0d98.
+  Rocky successful execution: work/m8-verification-runs/20261005T181613Z-9c491c3-local-log-rocky-2/.
+  Execution manifest: d676606c1ad6df5e79920a7cff224bf7cc4b86ba0c3768028aff9fa2d2192ce6.
+  Rocky native manifest: 257a4d5d95fbf4e90a47faef5e14627337f23b4f5955fa83f4fbd070e544bf8a.
+  The original failed runs, sealed packages, separate Debian recovery and
+  exact guarded Rocky evidence relocation remain linked above and unchanged.
+  Product code and all twenty public source hashes remain unchanged. Existing
+  evidence, overlapping section counts, the 1311 provisional outside-section
+  candidates and M11/M12 plans/states are unchanged. No ACL/account/linger
+  mutation, forced rotation, commit/push or VM destruction ran.
+  M8 stays In progress; T3/T5/T6 and final candidate T1/T2/T4 remain Pending.
+  Closure Evidence remains None. Preserve both consumers for remaining work.
+
+- Local executable override verification plan prepared, recorded at 2026-10-05T19:50:47.463491+00:00:
+  Candidate: 9c491c346da68fe92078b47a93d41fc0133b67d6.
+  Selected batch Plan Status: draft.
+  Selected batch Plan Acceptance: none.
+  Selected batch Implementation Authorization: none.
+  Owner direction to prepare this plan: "Proceed", 2026-10-05 Pacific.
+  This does not change the accepted M8 remaining-verification master plan.
+  Scope: local procServ/logrotate custom native ELF copies, explicit empty
+  values, missing files and nonexecutable files; procServ directory rejection.
+  Debian 13 and Rocky 8.10 each have seven ordered conditions. The frozen
+  draft list has 58 real runner generate/install/start/log/remove calls and
+  eight installed logrotate user-systemd oneshots: 66 calls, 60 expected exit 0
+  and six expected procServ install exit 1. All selected calls are Pending.
+  Source inspection confirms that a rejected procServ override is checked
+  after the owned configuration copy and local log-directory creation;
+  the plan observes that partial state and removes it through the real CLI.
+  Invalid/empty logrotate values fall through to native default search.
+  The source-bound expectations include full configurations, shared assets,
+  exact outputs or bounded full stdout, native PID/executable identity,
+  oneshot invocation/exit/state and native log comparison. Predictions are
+  not native execution evidence; broader search/container/setup cases remain Pending.
+  Read-only native prerequisites observed: Debian 2026-10-05T19:38:16.040818+00:00;
+  Rocky 2026-10-05T19:38:16.036835+00:00. Both have no active IOC, absent selected
+  paths, active/enabled original timers and inactive rotation services.
+  Installed source bytes agree after excluding only three installation stamps;
+  real tool, original golden fixture and softIoc hashes are pinned per OS.
+  Native strace is absent; the plan uses actual oneshot systemd observations
+  without package installation. No selected call, timer pause, ACL/account/
+  linger mutation, forced rotation, product edit, commit/push or VM destruction ran.
+  The restoration contract preserves shared file/backup/link/stamp/state bytes
+  and supported metadata, uses fresh execution-time calendar/state baselines,
+  retains original and new task evidence, and requires native archive reproduction
+  and acknowledged export before shared mutations. Lossless cross-filesystem
+  backup preservation and Rocky-compatible no-follow attributes are specified.
+  Fresh source copies cover twenty public files; fourteen exact source bindings
+  are preserved. Read-only input/source checks: 75, zero failures. Plan/spec
+  consistency checks: 131, zero failures. Prior evidence integrity: fourteen
+  manifests and 743 files match; earlier runtime cases were not repeated.
+  A local JSON-key lookup failure is retained separately in the plan artifacts;
+  the corrected evidence check changes no native runtime verdict.
+  Plan, exact case list, baseline, original fixture, raw query captures,
+  source bindings and checks: work/m8-verification-runs/20261005T193756Z-9c491c3-local-tools-plan/.
+  Plan manifest: a3a2eb76fea6e030d5a3ddf077e9b8e8426be508a14768264ef8b5517e00b63a.
+  The execution/recovery package and separate owner acceptance/authorization
+  remain required before this selected native batch. Product/public sources,
+  prior records/counts and M11/M12 remain unchanged. M8 stays In progress;
+  T3/T5/T6 and final candidate T1/T2/T4 remain Pending; Closure Evidence is None.
+
+
+- Local executable override execution/recovery package prepared, recorded at 2026-10-05T20:26:13.165687+00:00:
+  Candidate: 9c491c346da68fe92078b47a93d41fc0133b67d6.
+  Selected batch Plan Status: draft.
+  Selected batch Plan Acceptance: none.
+  Selected batch Implementation Authorization: none.
+  Owner direction 2026-10-05 Pacific: continue the next preparation step.
+  This preparation does not accept or authorize the selected native batch
+  and does not alter the accepted M8 remaining-verification master plan.
+  The unchanged finite list has 66 calls: 58 installed-runner calls and
+  eight installed user-systemd logrotate oneshots, Debian followed by Rocky.
+  All 66 calls, new native archive reproduction and actual restoration
+  remain Pending; no selected call or guest mutation ran during preparation.
+  The source-bound package provides real-path execution, raw observations,
+  full comparison, automatic bounded restoration and a separate recovery
+  entry that preserves the original failed outcome and replays zero cases.
+  Shared snapshots and native archive reproduction/export acknowledgement
+  precede shared mutations. Runtime state changes are allowed only for the
+  four selected native oneshots per OS, with fresh execution-time restoration.
+  Backup recovery accepts only same-call emitted paths matching the observed
+  prior template and preserves them before exact unlink. Unknown resources
+  stop restoration as Pending. The selected budget is 360 seconds per host;
+  the timer pause bound is 600 seconds with a 120-second restoration margin.
+  Final syntax/source/native-input checks: 136, zero failures. Bash -n,
+  warning-level ShellCheck and the complete ShellCheck inventory pass.
+  Three distinct static security inspections are recorded against code hashes;
+  they are not native execution or recovery evidence. Three actual local
+  incomplete-authority calls exit 1 with no output directory; two real-entry
+  process audits observe zero external processes before refusal. The recovery
+  refusal is a direct real CLI call. No SSH boundary was substituted.
+  Final artifact/source and prior-evidence integrity checks: 931, zero failures.
+  Fourteen old manifests and 743 files match without repeating old runtime
+  cases. An intermediate local report-key lookup error is retained separately;
+  the corrected integrity check changes no native runtime verdict.
+  Final read-only prerequisites: Debian 2026-10-05T20:22:41.164358+00:00;
+  Rocky 2026-10-05T20:22:41.155354+00:00. Both retain absent task/stage/config/
+  runtime paths, no active IOC, active/enabled original timers and inactive
+  rotation services. Current original fixture/tool hashes match; installed
+  source bytes agree after excluding only three installation stamp assignments.
+  Scripts, plan, raw prerequisites, refusal records and checks:
+  work/m8-verification-runs/20261005T200139Z-9c491c3-local-tools-ready/.
+  Prepared artifacts manifest (106 files): 2035cd242209fd379429dd6564f3676be76208b1e082974e45a0b330cf843b31.
+  Root bundle manifest (11 files): cd4bd775d776f7f899719d660fe94acb151885412ed5bd14797ecb0076066e5f.
+  Local inputs manifest: 9daf624ef16cc7ef54f5bbfa4f40aa79ff7d2e806e3ab960988acbdd1d1f503d.
+  Original plan manifest: a3a2eb76fea6e030d5a3ddf077e9b8e8426be508a14768264ef8b5517e00b63a.
+  The unapproved authority template contains draft/none/none; the real entry
+  requires separate exact owner plan acceptance and implementation authorization.
+  All twenty public sources, prior records/counts and M11/M12 remain unchanged.
+  No timer pause, ACL/account/linger mutation, forced rotation, product edit,
+  commit/push or VM destruction ran. Preserve both consumers for remaining work.
+  M8 stays In progress; T3/T5/T6 and final candidate T1/T2/T4 remain Pending;
+  Closure Evidence remains None.
+
+
+- Local executable override selected plan accepted and execution authorized, recorded at 2026-10-05T20:40:14.236833+00:00:
+  Current selected batch Plan Status: accepted.
+  Current selected batch Plan Acceptance: 2026-10-05 Pacific, for the unchanged
+  finite plan and prepared execution/recovery package presented above.
+  Current selected batch Implementation Authorization: 2026-10-05 Pacific,
+  owner instruction to proceed with the next step after the concrete plan and
+  package presentation and the direction to finish verification before commit.
+  Scope: the frozen 66 selected calls, Debian then Rocky, their observations,
+  exact shared-state restoration and bounded separate recovery when required.
+  Owner acceptance and execution authority are recorded in separate fields
+  in work/m8-verification-runs/20261005T203850Z-9c491c3-local-tools-authority/authority.json.
+  Owner words are preserved exactly there. Permission is owner direction,
+  not an automatic runtime approval. No commit or push authority is added.
+  Plan manifest: a3a2eb76fea6e030d5a3ddf077e9b8e8426be508a14768264ef8b5517e00b63a.
+  Plan SHA256: 3280d1cdd67aed468acf41dc1a80040000399ddb2ae63df84f2cb097777ff356.
+  Prepared artifacts manifest: 2035cd242209fd379429dd6564f3676be76208b1e082974e45a0b330cf843b31.
+  Root bundle manifest: cd4bd775d776f7f899719d660fe94acb151885412ed5bd14797ecb0076066e5f.
+  All frozen plan/package files remain unchanged; the separate authority binds
+  the accepted inputs to this canonical state. Earlier draft records are historical.
+  Fresh read-only prerequisites: Debian 2026-10-05T20:38:50.460656+00:00;
+  Rocky 2026-10-05T20:38:50.497326+00:00. Selected task/stage/config/runtime
+  paths are absent, no local IOC is active, timers are active/enabled and
+  rotation services inactive; installed/fixture/tool hashes match.
+  All 66 selected calls and actual archive reproduction/restoration remain
+  Pending until the real path and final comparisons run. Master M8 plan,
+  prior evidence/counts, public sources and M11/M12 remain unchanged.
+  M8 stays In progress; T3/T5/T6 and final candidate T1/T2/T4 stay Pending;
+  Closure Evidence remains None. Preserve both verification consumers.
+
+
+
+- Local executable override first-call stdout mismatch and restoration verified, recorded at 2026-10-05T20:53:57.473189+00:00:
+  Candidate: 9c491c346da68fe92078b47a93d41fc0133b67d6.
+  The unchanged accepted 66-call plan/package ran on Debian first under the
+  separate owner acceptance and implementation authorization recorded above.
+  Actual selected call: debian13-custom-generate, observed from
+  2026-10-05T20:40:36.334841+00:00 to 2026-10-05T20:40:36.350295+00:00.
+  The installed runner exited 0 with empty stderr. Its full stdout starts
+  with the two validate_conf lines naming the final generated configuration
+  and reporting successful validation. The frozen expected stdout omitted
+  those two lines; every remaining actual stdout byte matches its suffix.
+  The comparison helper exited 1, stopped new selected calls and restored
+  shared state. This is an unplanned prediction mismatch, distinct from the
+  six planned procServ rejection exits. The original failure is preserved;
+  no selected case is marked Verified and no selected call was replayed.
+  One selected call ran; 32 Debian and all 33 Rocky calls remain unexecuted.
+  No selected install, IOC start, oneshot, log or remove call ran in this batch.
+  No Rocky native execution stage or task path was created.
+  The controller's first after-state and final tools-after files are absent
+  because comparison stopped first. Later independent read-only observations
+  confirm retained generated configuration/history/startup bytes and numeric
+  metadata; they are not substituted for a same-run after-state capture.
+  Native archive reproduction covers all seven original shared assets and
+  its acknowledged export preceded the timer pause. Exact shared files,
+  backup namespace, symlink/stamp/runtime state and eight affected directories
+  match the actual restoration records. The pause lasted 0.3800819629977923
+  seconds; restoration retained 1163.4514513015747 seconds to the calendar
+  deadline and passed the 120-second margin.
+  Fresh native observations: Debian 2026-10-05T20:47:46.006386+00:00;
+  Rocky 2026-10-05T20:47:46.005402+00:00. Both timers are active/enabled,
+  rotation services inactive and active/owned IOC processes absent. All seven
+  selected installed configurations/runtime leaves are absent on both hosts.
+  The original assets, protected home/system state, accounts, home ACL,
+  manager/linger, original executables/fixture and restored effective units
+  agree within the recorded exact-byte/metadata comparisons. Debian task,
+  native tool copies, first payload/configuration/history, stage and root
+  evidence remain preserved; Rocky task/stage paths remain absent.
+  Restoration/preservation/failure-diagnosis comparisons: 708, zero failures.
+  Additional real argv/environment/umask, closed-stdin, effective-unit and
+  full installed-source comparisons: 13, zero failures. Installed source
+  comparison excludes only the three installation stamp assignments.
+  These 721 checks do not count as selected runner calls or batch completion.
+  Source-only inspection confirms fourteen generate and fourteen install
+  predictions omit validation stdout from their actual validate_conf call
+  paths. Only the first generate has a native result in this batch; the
+  other 27 outputs and remaining selected runtime behavior stay Pending.
+  Two local read-only comparison inspection errors (absent tools-after and
+  absent symlink ACL field) remain preserved with scripts/raw tracebacks.
+  A separate comparison uses actual available records and fresh observations;
+  neither inspection repeated a selected call or changed guest state.
+  Original failed execution: work/m8-verification-runs/20261005T204045Z-9c491c3-local-tools-execution/.
+  Execution manifest: fb442db3bdcd3be91bb145ff0e0131d6694b9f18453b92c59c6bd11d1369718a.
+  Fresh observations, comparisons and source diagnosis:
+  work/m8-verification-runs/20261005T204729Z-9c491c3-local-tools-failure-check/.
+  Fresh evidence manifest (28 files): da2c637320ab0bc055f0afc05eb95e4bb927ec15e4709e68e9de4c0f88e2db63.
+  Input integrity: four pinned manifests and 250 files match.
+  All original plan/package/authority/execution files remain unchanged.
+  Owner direction is required before preparing a replacement remaining-case
+  plan/package; its fresh complete call-graph predictions and separate review,
+  plan acceptance and implementation authorization precede further native
+  mutation. Replacement Plan Acceptance: none.
+  Replacement Implementation Authorization: none.
+  The accepted M8 master plan, public/product sources, earlier records/counts
+  and M11/M12 remain unchanged. No ACL/account/linger change, forced rotation,
+  product edit, commit/push or VM destruction ran. Preserve both consumers.
+  M8 stays In progress; T3/T5/T6 and final candidate T1/T2/T4 remain Pending;
+  Closure Evidence remains None.
+
+- Local executable override 65-call continuation plan prepared, recorded at 2026-10-05T22:18:29.088863+00:00:
+  Decision Date: 2026-10-05. Owner selected prediction correction and preparation
+  of the 65 unexecuted calls. This direction authorizes preparation only.
+  Candidate: 9c491c346da68fe92078b47a93d41fc0133b67d6.
+  Replacement Plan Status: draft. Replacement Plan Acceptance: none.
+  Replacement Implementation Authorization: none.
+  The finite scope is 32 Debian 13 and 33 Rocky 8.10 calls: 57 installed-runner
+  calls and eight actual user-systemd oneshots; expected exits are 59 zero
+  and six planned procServ rejection exits of one. All 65 runtime verdicts
+  remain Pending. No selected call ran during this preparation.
+  Debian begins with custom install against the retained first configuration;
+  Rocky begins with custom generate. The original debian13-custom-generate
+  remains excluded with its frozen Mismatch and zero selected replays.
+  Full outputs, templates/configurations, resolver order, partial installs,
+  process/socket/log metadata and restoration requirements were derived from
+  twenty unchanged public/product sources and 39 whole-source bindings.
+  The original scope/argv/environment constrain the remainder; prior filled
+  expected-output bodies were not derivation inputs. All thirteen remaining
+  generate and fourteen install predictions include complete validation stdout.
+  Dynamic log output uses actual native tail under a stable full-file observation;
+  successful cases require the actual golden child, native ELF and oneshot path.
+  Comparison of the fresh complete first-generate source prediction with its
+  sealed real stdout agrees. This diagnostic neither replays the call nor
+  changes its original frozen verdict or assigns a new runtime pass.
+  Debian's existing task/tools/first payload/configuration/history must be
+  preserved, natively archived and exported before startup. Preserve the
+  continuation's actual IOC history separately, then restore original history
+  bytes and supported attributes after owned processes are absent. No existing
+  configuration, startup or tool is recopied, regenerated or chmodded.
+  Rocky's still-absent task is created exclusively from real native inputs.
+  Separate task ID: 20261005T193756Z. Replacement batch ID: 20261005T215524Z.
+  New exclusive stage: /home/vmadmin/m8-local-tools-continuation-stage-20261005T215524Z.
+  New exclusive root evidence: /tmp/m8-local-tools-continuation-20261005T215524Z.
+  Original stage/root evidence and sealed plan/package/authority/failure records
+  remain unchanged. The original 66-call entry is incompatible with this
+  continuation; replacement execution/recovery package preparation is Pending.
+  Read-only native observations: Debian 2026-10-05T21:55:45.514172+00:00;
+  Rocky 2026-10-05T21:55:45.528910+00:00. Original timers are active/enabled,
+  rotation services idle, and active/owned IOC processes absent. All selected
+  installed configuration/runtime leaves and both new stage/root paths are absent.
+  Retained Debian inputs agree with the earlier real restoration observations;
+  Rocky task remains absent. Both observations lacked the required 900-second
+  calendar window. Future execution requires fresh native window, shared-file,
+  hourly stamp/state and parent-metadata baselines, archive reproduction/export,
+  a 360-second selected budget, 600-second pause bound and 120-second margin.
+  Final local source/finite-list/read-only-input validation ran at
+  2026-10-05T22:09:40.630304+00:00: 379 checks, zero failures.
+  These checks do not count as native selected calls. New native preservation,
+  archive reproduction, restoration and all 65 runtime results remain Pending.
+  The original local 377-check report with one Rocky SELinux identity comparison
+  error remains preserved. The final comparison checks exact numeric identity
+  and the complete unchanged context separately. Three source range-end fields
+  were corrected against actual source positions; draft bindings are retained
+  and source/prediction text was unchanged by those range corrections.
+  Prepared plan, final native inputs, source bindings and actual validation:
+  work/m8-verification-runs/20261005T215524Z-9c491c3-local-tools-continuation-plan/.
+  Plan JSON SHA256: 0aa0beb419d6ee23a2d83144e343186d421228b5635bea46d976e906554bb789.
+  Sealed preparation manifest (61 files): bb00328ed622eb231e0cc074346dd8004814f73da290168bccf01d9f83325c1c.
+  Prior evidence integrity: five manifests and 275 files agree.
+  The next preparation step is the replacement execution/recovery package and
+  its review. Separate owner plan acceptance and implementation authorization
+  are required before further native continuation.
+  M8 master acceptance, work statuses/counts, public/product sources, original
+  failures and M11/M12 remain unchanged. No timer pause, IOC command, account,
+  ACL, linger, package, forced rotation, commit/push or VM destruction ran.
+  M8 remains In progress; remaining T3, T5/T6 and final candidate T1/T2/T4
+  remain Pending; Closure Evidence remains None.
+
+- Local executable override 65-call execution/recovery package prepared, recorded at 2026-10-05T23:16:49.080707+00:00:
+  Decision Date: 2026-10-05. Owner directed package preparation and review.
+  This direction does not accept the replacement plan or authorize native execution.
+  Candidate: 9c491c346da68fe92078b47a93d41fc0133b67d6.
+  Replacement Plan Status: draft. Replacement Plan Acceptance: none.
+  Replacement Implementation Authorization: none.
+  Prepared package and actual evidence:
+  work/m8-verification-runs/20261005T225040Z-9c491c3-local-tools-continuation-ready/.
+  Sealed package manifest (210 files): df0dc4f222328ec86ca77290934cc62be52b976c3fa89482fe61136291296794.
+  Verified root bundle (12 files): 084873b0c00ede9cdee998d985bfd9849e472ca9544ce0109ce3c63bfa2f8354.
+  Local execution-input manifest (19 files): 354405045cde86a932bcabad9900fa75918f40a24556114d8fe373d414403b60.
+  Source plan remains unchanged in
+  work/m8-verification-runs/20261005T215524Z-9c491c3-local-tools-continuation-plan/.
+  Source plan manifest: bb00328ed622eb231e0cc074346dd8004814f73da290168bccf01d9f83325c1c.
+  Plan JSON SHA256: 0aa0beb419d6ee23a2d83144e343186d421228b5635bea46d976e906554bb789.
+  The package implements exactly 32 Debian and 33 Rocky calls, preserves the
+  retained Debian first task without regenerate/recopy/chmod, and creates only
+  Rocky's absent inputs exclusively. The original first generate remains
+  excluded with its Mismatch unchanged and zero selected replays.
+  Root code uses pinned no-follow inputs, isolated Python and privileged Bash,
+  fixed environment, exclusive new stage/root locations and separate task/batch
+  IDs. The entry checks distinct actual owner acceptance and implementation
+  authority, restoration scope, current canonical/source and all manifest pins
+  before SSH, output creation or native writes. The template stays draft.
+  Preservation/restoration includes native proof and locally fsync-confirmed
+  baseline export before timer pause, durable dispatch before every selected
+  call, attributed cross-filesystem backups, separate actual history export,
+  original history and supported metadata restoration, bounded owned cleanup,
+  native timer/unit checks and independent fresh comparisons. These positive
+  native paths remain Pending. Failed outcomes stay failed; recovery replays
+  zero selected calls and writes separate evidence without original overwrite.
+  Final actual local preparation checks at 2026-10-05T23:09:04.677541+00:00:
+  99 checks, zero failures. Bash syntax and full/warning ShellCheck pass.
+  Six missing/legacy-authority inputs and three altered outer filesystem inputs
+  ran the unchanged executor and produced their expected refusals before SSH
+  or output creation. Actual privileged Bash ignores the BASH_ENV sentinel.
+  No internal runner/helper path was replaced to establish a native pass.
+  Exact final eleven helper sources compiled on each actual installed Python:
+  Debian 3.13.5 and Rocky 3.9.25. Received source hashes match the final package.
+  Fresh native read-only observations: Debian 2026-10-05T23:10:26.891905+00:00;
+  Rocky 2026-10-05T23:10:26.949048+00:00. Current identity, installed/source/fixture
+  and native ELF hashes, ACL/manager/linger, retained inputs/protected state,
+  active/enabled timer, idle rotation, absent owned IOC and absent new stage/root
+  comparisons: 82 checks, zero failures. Actual installed/source comparison
+  excludes only the three installation stamp assignments. Both syntax and
+  read-only checks changed no guest files and executed zero selected calls.
+  These observations are not the future execution-time mutation baseline;
+  fresh archive/window/state preflight after actual authority remains required.
+  Final source/plan/input/prior-evidence integrity: 405 comparisons, zero failures.
+  Earlier preparation attempts, all altered local test copies, original failed
+  runs and source plan/record remain unchanged and sealed. Standalone author
+  first-person, third-person and complete RUNBOOK second-person passes found
+  no blocking preparation finding. Three root-script security passes were
+  performed by the same author; no independent reviewer or native success is claimed.
+  Actual native archive reproduction, all 65 selected results, preservation,
+  restoration and separate recovery remain Pending. No timer pause, IOC call,
+  guest file/account/ACL/linger/package change, forced rotation, product edit,
+  commit/push or VM destruction ran in this package preparation.
+  Separate owner acceptance and native authorization including restoration
+  are next. Preserve both consumers for remaining individual and whole-book checks.
+  M8 master acceptance, work rows/status counts, product/public sources,
+  historical results and M11/M12 remain unchanged. M8 stays In progress;
+  remaining T3, T5/T6 and final candidate T1/T2/T4 remain Pending;
+  Closure Evidence remains None.
+
+
+- Local executable override 65-call continuation accepted and authorized, recorded at 2026-10-05T23:29:20.028047+00:00:
+  Decision Date: 2026-10-05. The owner accepted the prepared 65-call plan and
+  explicitly authorized actual execution and original-state restoration.
+  Current replacement Plan Status: accepted.
+  Current replacement Plan Acceptance: 2026-10-05; accepted source plan and
+  prepared execution/recovery package named below.
+  Current replacement Implementation Authorization: 2026-10-05; actual
+  Debian 32 then Rocky 33 calls, preservation and bounded restoration/recovery
+  within the accepted exact finite scope. Account/ACL/linger/package changes,
+  forced rotation, product edits, commit/push and VM destruction stay excluded.
+  Approved package:
+  work/m8-verification-runs/20261005T225040Z-9c491c3-local-tools-continuation-ready/.
+  Package manifest (210 files): df0dc4f222328ec86ca77290934cc62be52b976c3fa89482fe61136291296794.
+  Root bundle: 084873b0c00ede9cdee998d985bfd9849e472ca9544ce0109ce3c63bfa2f8354.
+  Local inputs: 354405045cde86a932bcabad9900fa75918f40a24556114d8fe373d414403b60.
+  Approved source plan:
+  work/m8-verification-runs/20261005T215524Z-9c491c3-local-tools-continuation-plan/.
+  Plan manifest: bb00328ed622eb231e0cc074346dd8004814f73da290168bccf01d9f83325c1c.
+  Plan JSON: 0aa0beb419d6ee23a2d83144e343186d421228b5635bea46d976e906554bb789.
+  Separate authority artifact, actual owner words and canonical approval snapshot:
+  work/m8-verification-runs/20261005T232841Z-9c491c3-local-tools-continuation-authority/.
+  The sealed source plan and prepared template remain unchanged historical
+  draft artifacts; current acceptance/implementation authority is recorded here
+  and in the separate authority artifact. Master M8 approval remains unchanged.
+  Fresh read-only observations: Debian 2026-10-05T23:28:41.552577+00:00;
+  Rocky 2026-10-05T23:28:41.586281+00:00. Original timers active/enabled,
+  rotation idle, owned processes absent and new stage/root paths absent.
+  The real package must perform its full preflight after stage upload, native
+  baseline proof/export before shared mutation and restored-state comparisons
+  before the other host. No selected execution occurred in these observations.
+  The original first generate remains excluded and all failures preserved.
+  All 65 new native results, preservation and restoration remain Pending.
+  M8 stays In progress; remaining T3, T5/T6 and final candidate T1/T2/T4
+  remain Pending; Closure Evidence remains None.
+
+
+- Local executable override 65-call continuation executed and restored, recorded at 2026-10-05T23:32:45.203266+00:00:
+  Current replacement Plan Status: accepted. Plan Acceptance: 2026-10-05.
+  Implementation Authorization: 2026-10-05; actual execution and restoration
+  within the exact approved finite scope. The accepted canonical snapshot and
+  original owner words remain sealed in the separate authority artifact.
+  Actual control invocation: /usr/bin/python3 -I, the unchanged prepared
+  execute.py, actual accepted authority.json and one exclusive output.
+  Observed batch: 2026-10-05T23:29:36.598671+00:00 through
+  2026-10-05T23:30:21.027500+00:00; executor exit 0, empty stderr.
+  Debian 13 executed all 32 remaining calls. Rocky 8.10 executed all 33 calls
+  after Debian native restoration and fresh independent comparison passed.
+  All 65 results match full source-predicted output, exit and observed native
+  state: 57 installed-runner calls and eight ordinary user-systemd oneshots.
+  Fifty-nine observed exit-0 calls and six observed procServ install exit-1
+  rejections agree with the plan. Each rejection observes its partial installed
+  configuration and real remove. No unexpected failure or selected replay.
+  The original first Debian generate remains excluded and its Mismatch remains
+  unchanged. This new result does not rewrite any original failed attempt.
+  Success groups exercise actual private/native or standard procServ/logrotate,
+  the real golden softIoc fixture/ELF, PID/starttime/PPID/cwd/argv/principal,
+  native UDS listener, configured log metadata and actual native log tail under
+  stable whole-file bytes/metadata. Eight real user-manager oneshots record
+  effective executable, native execution PID/start/end/code/status and the
+  actual rotation-state log entry. No internal path or fixture was substituted.
+  Debian runtime: 2026-10-05T23:29:37.505094+00:00 through
+  2026-10-05T23:29:58.173445+00:00. Original timer paused
+  20.668103887001052 seconds; restoration retained 1801.8698101043701
+  seconds before the native calendar boundary. Rocky runtime:
+  2026-10-05T23:29:59.738340+00:00 through
+  2026-10-05T23:30:20.128179+00:00. Timer paused 20.387880099995527
+  seconds; restoration retained 1779.927608013153 seconds. Both 600-second
+  pause and 120-second restoration margins passed; initial margins exceeded 900.
+  Real archive reproduction and fsync-confirmed baseline export precede each
+  timer pause. Original shared assets, backup namespace, timer link/stamp/state,
+  supported metadata/ACL/xattrs and affected parents are restored. Attributed
+  generated backups are preserved with durable cross-filesystem copy and
+  source inode/hash checks. Native effective units agree after restoration.
+  Debian's twelve original task entries agree after restoration; its actual
+  IOC-written history is separately archived with supported metadata, then the
+  original bytes/attributes restored. Existing configuration/startup/tool inputs
+  are retained without recopy/regenerate/chmod. Rocky creates only absent
+  native inputs exclusively. New payload/log/history records remain retained.
+  Original stage/root evidence, prior failures, protected home/system state,
+  accounts, ACL/manager/linger, installed runner and native executable identities
+  remain preserved. Fresh native observations: Debian
+  2026-10-05T23:29:58.712218+00:00; Rocky
+  2026-10-05T23:30:20.849141+00:00. Both original timers active/enabled,
+  rotation idle, all selected installed configuration/runtime leaves and
+  active/owned IOC processes absent. Separate recovery was not invoked because
+  both successful attempts completed their own real restoration.
+  Full real native/source/output/state/restoration comparisons: Debian 1300,
+  Rocky 1339, total 2639, zero failures. Independent post-run actual sealed
+  file, dispatch/output/exit, archive/window/restoration and current/prior source
+  comparisons: 1726, zero failures. Comparison counts are not CLI call counts.
+  Actual sealed execution evidence:
+  work/m8-verification-runs/20261005T232936Z-9c491c3-local-tools-continuation-execution/.
+  Execution manifest (785 files): 553604d6b60f2559a8568acbb88e4d197642aa9e00c7cc7ba73f3d30a43599db.
+  Debian native manifest (356 files): e669cc713673dd57e81f3e01739c85dc18c4f3fda55dd5405934be67ea7ed55f.
+  Rocky native manifest (391 files): ec4a1d3f7232d1fb66ac60d8793c8023ae08a6080e1a0ab26e43c5e5c41dcc2d.
+  Actual finite comparison and 65 case verdicts:
+  work/m8-verification-runs/20261005T233155Z-9c491c3-local-tools-continuation-comparison/.
+  Comparison manifest (4 files): f3f38b133707cce0ed66da71376d9d07ad39d753d131a35cba3bf692aa000500.
+  Current product/public source hashes and original frozen plan/package/authority
+  and failed-run records remain unchanged. Scoped Verified outcomes cover only
+  these selected executable overrides and their real prerequisites; wider
+  resolver/unavailable branches and unselected environments remain unverified.
+  Remaining individual T3 cases require current claim-level reconciliation.
+  M8 master approval, work rows/status counts, previous results and M11/M12
+  remain unchanged. M8 stays In progress; remaining T3, final candidate
+  T1/T2/T4 and whole-book T5/T6 remain Pending; Closure Evidence remains None.
+  No product edit, account/ACL/linger/package change, forced rotation,
+  commit/push or VM destruction ran. Preserve both verification consumers.
+
+
+
+- Current-source reconciliation of the completed local tool batch, recorded at 2026-10-06T00:34:06.956687+00:00:
+  No new native execution or consumer mutation occurred. The 65 actual calls
+  from the completed continuation remain unchanged and bind to eleven fresh,
+  limited document predicates (LT01-LT11), with 22 Verified local mode/OS
+  comparisons on Debian 13 and Rocky 8. These counts describe independent
+  scoped predicates and overlap existing section records; they are not added
+  to whole-book statement or execution totals.
+  Actual valid/empty/missing/nonexecutable/directory procServ or logrotate
+  choices bind to current source ranges/hashes, complete implementation
+  functions, actual native record hashes/times, installed runner provenance,
+  original fixture/ELF, principal, clean environment and real dispatch argv.
+  Eight ordinary user-manager oneshots and preserved shared rotation assets
+  after per-IOC remove support their stated limited clauses. Later tool search
+  paths, complete absence, system setup/container rendering, best-effort failure
+  paths, interactive shared updates and automatic/forced rotation remain open.
+  E26-E29, formerly Pending in the immutable environment worksheet, bind to
+  later real local/system path results: selected configuration storage and
+  actual IOC_PORT/kernel sockets are Verified in eight mode/OS comparisons.
+  The old four Pending rows remain unchanged; no broad default-path claim is
+  promoted. The selected manual account/group creation and fstab mount-by-target
+  cases already have actual native evidence, matching source/log hashes and
+  restoration. Account deletion, reboot and separate-host NFS remain separate.
+  Ten current-source section verdict sets are audited without rewriting them.
+  Twelve derived remaining families distinguish host generate selection and
+  overwrite; owner/history failures; tool/setup resolution; install/remove
+  branches; start/restart/direct controls; boot/nonzero controls; native list
+  states; password sudo; multi-interface CA/PVA; optional resource deletion;
+  outside-section semantic comparisons; and final candidate/whole-book checks.
+  Existing normal-path evidence must be compared before more runtime calls.
+  The original 1311 provisional outside-section candidates remain unchanged;
+  they are not an executable-call total or a recomputed whole-book remainder.
+  Next preparation: fourteen current generate predicates, GEN003, GEN014-GEN016,
+  GEN028-GEN029, GEN036-GEN041, GEN043 and GEN044. Their recorded host mode/OS
+  comparisons remain Pending. Prepare actual multiple startup candidates,
+  selection retry/EOF, identical own configuration and different-content
+  y/n/EOF/force cases through installed local/system runners on both consumers.
+  Freeze the concrete finite list, source binding and restoration contract
+  before requesting approval or changing a consumer; this record grants no
+  new native execution authority and does not change the accepted M8 master plan.
+  Corrected local file/source/actual-record comparison: 4322 checks, zero failures.
+  Separate original-input/provenance/context comparison: 485 checks, zero failures.
+  All 275 original prior inputs still match, including the excluded first
+  generate Mismatch and preserved failures. A local audit initially assumed
+  the wrong native manifest filename and stopped without output or VM calls;
+  its original script/failure is retained, followed by the successful correction.
+  Working evidence: work/m8-verification-runs/20261006T002639Z-9c491c3-local-tools-claim-reconciliation/.
+  Reconciliation manifest (20 files): 09dd3f742be39cf122c606691178afa123b539077fe708dcb016eca91bfeba77.
+  M8 work row, acceptance/authorization, previous results/counts, M11/M12 and
+  Closure Evidence remain unchanged. M8 stays In progress; remaining T3,
+  final candidate T1/T2/T4 and whole-book T5/T6 remain Pending.
+  No product/published-page edit, new native call, commit/push or VM destruction.
+  Preserve both verification consumers and retained payload/log/backup evidence.
+
+- Host generate selection/overwrite preparation, recorded at 2026-10-06T00:55:40.875176+00:00:
+  Frozen working package: work/m8-verification-runs/20261006T004736Z-9c491c3-generate-selection-overwrite-plan/.
+  Plan Status: draft; Plan Acceptance: none; Implementation Authorization: none.
+  The accepted M8 master plan remains unchanged. This package describes 36
+  installed-runner generate calls: nine variants in local/system mode on
+  Debian 13 and Rocky 8. Expected exits are 24 successes and 12 planned
+  refusal/EOF aborts. Fourteen existing predicates (GEN003, GEN014-GEN016,
+  GEN028-GEN029, GEN036-GEN041, GEN043 and GEN044) retain 56 Pending host
+  mode/OS comparisons. Calls and overlapping clause comparisons are distinct;
+  they are not whole-book execution or remaining-statement totals.
+  Cases cover two-candidate selection, invalid range/nondigit retry, selection
+  EOF/force, identical own mode-0444 rewrite, and differing own y/n/EOF/force.
+  Current source hashes/ranges, actual fixture/ELF/installed runner identity,
+  invoking principal, absolute argv, exact stdin, complete ANSI output and
+  configuration/history bytes/modes, replacement inode and preserved metadata
+  expectations are pinned. vmadmin invokes both modes in writable owned
+  directories; system generation uses ioc-srv:ioc fields without deployment.
+  Original fixture copies are byte-exact; startup scripts are not executed.
+  Fresh retained task paths avoid account/group/ACL/service/timer/linger and
+  shared-template changes. Each host finishes protected-state comparison and
+  evidence archiving before the next host; failure stops without replay.
+  Protected hashes/metadata, original fixture/ELF, principal, home ACLs, tools,
+  linger and system IOC-unit list form the scoped post-state contract. New
+  retained directories can change parent timestamps; login/sudo accounting
+  and unrelated volatile activity are outside that equality claim.
+  Actual read-only native observations confirm current installed/source
+  normalization, original fixture/ELF and principal. Native Python 3.13.5
+  on Debian and 3.9.25 on Rocky compiled all six working helper sources.
+  Actual native diff reference processes matched the chosen comment-only
+  hunk, and task roots were absent with writable parents. These observations
+  do not execute or verify any selected generate case.
+  Preparation structure/input comparison: 348 checks, zero failures.
+  Three author self-review passes found no blocking preparation finding;
+  no independent review or final T5/T6 result is claimed.
+  Package manifest (55 files): 4045fec1ef08f62597a15197f63be2ec841cb0cb16ca5b61e096ce211b2b91e3.
+  No selected native generate call or consumer write occurred. Commit/push,
+  product/published-page edits and VM destruction remain outside this record.
+  Existing verdicts/counts, work table, master acceptance/authorization,
+  M11/M12 and Closure Evidence remain unchanged. M8 stays In progress;
+  remaining T3, final candidate T1/T2/T4 and whole-book T5/T6 remain Pending.
+
+
+- Host generate selection/overwrite acceptance and execution authorization, recorded at 2026-10-06T03:02:04.959837+00:00:
+  Decision Date: 2026-10-05.
+  Plan Status: accepted. Plan Acceptance: 2026-10-05; displayed frozen 36-call package.
+  Implementation Authorization: 2026-10-05; owner directed execution of the
+  displayed package and its scoped post-state verification. Authority is
+  separate from the unchanged draft/evidence files and the M8 master plan.
+  Authority: work/m8-verification-runs/20261006T030204Z-9c491c3-generate-selection-overwrite-authority/authority.json.
+  Package manifest: 4045fec1ef08f62597a15197f63be2ec841cb0cb16ca5b61e096ce211b2b91e3.
+  Selected scope stays 36 actual generate calls in four host/mode domains,
+  24 expected successes and 12 planned aborts. Execution is serial by host,
+  with actual source/installed/fixture/principal preflight, captured output
+  and metadata, protected-state comparison and retained native archives.
+  Account/group/ACL/service/timer/linger changes, product/public-page edits,
+  commit/push and VM destruction remain outside this authorization.
+  Selected native comparisons remain Pending; acceptance is not verification.
+
+
+- Actual host generate selection/overwrite verification, recorded at 2026-10-06T03:12:30.462373+00:00:
+  The accepted 36-call list ran through the installed /usr/local/bin/ioc-runner
+  as vmadmin UID/GID 1000 on Debian 13 and Rocky 8, in local/system mode.
+  Each OS completed 18 actual dispatches: 12 exit 0 and six planned exit 1.
+  All 24 successes and 12 refusal/EOF aborts matched full output and state;
+  there was no unexpected selected native result, timeout or native replay.
+  Debian calls: 2026-10-06T03:05:59.831691+00:00 through 03:06:00.327183+00:00.
+  Debian scoped post-state query finished at 03:06:00.482296+00:00 before Rocky.
+  Rocky calls: 2026-10-06T03:06:00.954774+00:00 through 03:06:01.453621+00:00.
+  Rocky scoped post-state query finished at 03:06:01.669235+00:00.
+  Nine variants in each domain exercise script selection, invalid range and
+  nondigit retry, selection EOF/force, identical own mode-0444 rewrite, and
+  different own y/n/EOF/force. Success checks full configuration bytes, owner,
+  group, restored mode, replacement inode, empty history and its permissions.
+  Planned aborts preserve exact original metadata/content or leave the config
+  absent, with no history. No staged file remains; startup copies are intact.
+  Fourteen current source-bound predicates (GEN003, GEN014-GEN016,
+  GEN028-GEN029, GEN036-GEN041, GEN043 and GEN044) bind to 56 scoped Verified
+  comparisons. These overlap immutable section records and are not added to
+  whole-book execution totals; broader branch/ownership claims remain separate.
+  Actual native archive/output comparison: 638 checks, zero failures.
+  Actual archive attributes, raw provenance and clause binding: 655 checks,
+  zero failures. Both sets compare real shipped CLI results and fixtures.
+  Fifteen scoped protected keys agree before/after on each OS: original
+  accounts/groups/password and deployment-file hashes, principal/groups,
+  runner bytes/exact metadata, fixture/ELF, tools, ACLs, linger and IOC units.
+  No account/group/ACL/service/timer/linger or shared setting was changed.
+  New payload/evidence remains under /home/vmadmin/m8-generate-20261006T004736Z.
+  Parent timestamps and login/sudo accounting are outside the equality claim.
+  Two controller preflights exited 1 before any selected native dispatch.
+  The historical access known_hosts file has additional host keys and does
+  not match its original full-file hash; reuse of that changed file under
+  the old hash is unconfirmed. Its two original ED25519 rows match the handoff.
+  Runtime transport uses a separate exact copy of those original pins, strict
+  checking, ED25519 selection and UpdateHostKeys=no, without changing the
+  historical file or global SSH settings. Raw original observation JSON
+  preserves exact integer timestamps; derived snapshots had rounded values.
+  The transport reads the raw original values and compares every protected
+  key exactly. The original package, native CLI helper, cases, predictions,
+  authority and stopped preflight records are retained; no native input was
+  fabricated, no internal CLI span was replaced, and no case was replayed.
+  Execution: work/m8-verification-runs/20261006T030547Z-9c491c3-generate-selection-overwrite-execution/.
+  Execution manifest (363 files): 8cb48c49908cb82ad4346c3061e86d9019c021c2c958fef4b2159b3d2f867e2a.
+  Debian native manifest (163 files): ba8d1738273d76ec18778ec4aa5bebebe7921fd343cf923db32be438dec31fc4.
+  Rocky native manifest (163 files): 8857c779e15a4727edd01fdb2ca2adf56223ffda6e42406c54962a4efd5c4ef6.
+  Working transport provenance: work/m8-verification-runs/20261006T030547Z-9c491c3-generate-transport-v2/transport.json.
+  Authority: work/m8-verification-runs/20261006T030204Z-9c491c3-generate-selection-overwrite-authority/authority.json.
+  Next compare existing real results before unavailable-diff, other-owner,
+  history-error/existing-history and shared/setgid cases; freeze any remaining
+  list separately. No whole-book remainder or historical count is recomputed.
+  Work table, master plan/approval, old results, M11/M12 and Closure Evidence
+  remain unchanged. M8 stays In progress; remaining T3, final candidate
+  T1/T2/T4 and whole-book T5/T6 remain Pending. No commit/push or VM destruction.
+
+
+
+- Current generate claim/evidence reconciliation, observed at 2026-10-06T07:08:38.535830+00:00:
+  All 52 current source identities were checked against exact document and
+  implementation bytes. The existing 36 installed host calls were reread
+  without native replay: 24 successes and 12 planned refusal/EOF aborts.
+  Eleven additional source clauses (GEN001, GEN002, GEN005, GEN007,
+  GEN009, GEN019-GEN021, GEN023, GEN027 and GEN045) bind to 36 narrow
+  selected-condition observations. Together with the previous 14/56,
+  there are 25 clauses and 92 scoped comparisons; these overlap earlier
+  evidence and do not replace immutable section or whole-book counts.
+  Positive startup metadata does not verify exclusion; inode replacement
+  does not identify native staging/rename; own-file ownership does not
+  verify transfer; absent-history modes do not verify existing history.
+  Those broader clauses remain Partial, with precise limits per row.
+  Source/native/archive/evidence comparisons: 2541 checks, zero failures.
+  The comparison checks real recorded output, exit, filesystem bytes and
+  native metadata, rather than a substituted CLI span or fabricated input.
+  Earlier S15 outputs on both OSes show the original owner name, takeover
+  question, EOF exit 1 retaining the owner and force exit 0 producing
+  opb:ioc mode 0660. owner-named=0 is the successful grep exit status.
+  The committed generate body and landed S15 driver match current source
+  bytes, but exact historical installed bytes, per-call time and full
+  refusal content/inode/mode preservation are unconfirmed here. These
+  observations remain historical corroboration, without a new current
+  Verified comparison. The preserved container existing-history result
+  changed mode 0600 to 0664 and does not establish either host mode.
+  Twelve unresolved families have exact required observations in
+  remaining.json. Bind any further original evidence before freezing the
+  next finite native list, including unavailable diff, existing/failed
+  history, other-owner name/UID and shared/setgid branches.
+  Evidence: work/m8-verification-runs/20261006T070333Z-9c491c3-generate-claim-reconciliation/.
+  Manifest (12 files): 61eef89290fb87016666cc79ded4fc0a85a133c82c1504fc2d785820af00666d.
+  Product/public sources and old records are unchanged; no VM command ran.
+  Work table, master plan/approval, M11/M12 and Closure Evidence remain
+  unchanged. M8 stays In progress. Remaining T3, final candidate
+  T1/T2/T4 and whole-book T5/T6 remain Pending. No commit/push occurred.
+
+- Generate remainder plan preparation, observed at 2026-10-06T08:23:04.187254+00:00:
+  The next finite draft covers 88 selected installed CLI calls and 32 real
+  generate initializers on Debian 13 and Rocky 8 in local/system mode.
+  Total: 120 calls; expected outcomes are 72 exits of 0 and 48 planned
+  exits of 1. Eight separate real filesystem controls check history
+  permission denials. Twenty-six source clauses have 94 applicable planned
+  comparisons. All selected native outcomes remain Pending; zero selected
+  generate or initializer calls ran during preparation.
+  Actual readonly observations confirm existing opa in ioc on both hosts,
+  unresolved UID 420001 and the required native tool/interpreter identities.
+  opa cannot traverse the existing private home and can run without
+  effective capabilities from the shared base; its system initializer uses
+  that working directory. No identity, group, ACL, linger or service changed.
+  The source/plan validator completed 1280 consistency checks with no failure
+  and compiled the final native/root helpers using both actual host Pythons.
+  The fresh self-review checker completed 298 checks with no failure,
+  including actual readonly opa observations and a plan-only mdBook render.
+  These are preparation checks, not final whole-book T1 or native T3 passes.
+  Three self-review stances covered the current plan and helpers; review.md
+  maps the scope and evidence. Native operations and their restoration are
+  still unexecuted. Root fixture changes are limited to new finite paths,
+  while original assets and all old records must remain unchanged. New
+  payloads and evidence are retained after execution; parent metadata and
+  SSH/sudo accounting may change. No account deletion is planned.
+  The initial m8operator membership premise failed before a native call;
+  its sealed 20261006T073327Z record is preserved. A validator import error
+  stopped before SSH and is preserved with its source snapshot. Corrected
+  preparation records are separate and do not erase either failure.
+  Finite batch Plan Status: draft; Plan Acceptance: none;
+  Implementation Authorization: none. Owner acceptance and execution
+  authority must bind the sealed hashes before any selected VM change.
+  Evidence: work/m8-verification-runs/20261006T073701Z-9c491c3-generate-remainder-plan/.
+  Plan SHA256: c110aa014ee44f5efe7389e97ca882ef3f4741c5335ef4881bfa21515870e69a.
+  Manifest (105 files): 4475375215635cb8c4adde026957c92ecc7ee5a6698753bedb17c139ef1382ea.
+  Product/public inputs, work table, master approval, M11/M12 and Closure
+  Evidence are unchanged. M8 stays In progress. Remaining T3, final
+  candidate T1/T2/T4 and whole-book T5/T6 remain Pending. No commit/push ran.
+
+- Generate remainder native execution, observed at 2026-10-06T15:06:07.884588+00:00:
+
+  The owner-accepted and authorized finite plan ran on the existing Debian 13
+  and Rocky 8 consumers using the exact installed whole CLI and native fixtures.
+  All 120 calls completed: 88 selected calls and 32 real initializers.
+  Observed exits: 72 of 0 and 48 planned refusals/errors of 1, with no
+  unexpected native failure. Eight real filesystem controls observed EACCES
+  for open-create and EPERM for chmod, with unchanged control state.
+  Both hosts returned complete native reports with empty stderr. The 88
+  selected records completed 972 output/state/event checks with no failure.
+  Four retained archives completed 1172 comparison checks. Each host passed
+  all 25 original-state comparisons, including the fifteen original keys,
+  existing account/group and tool identities, history fixture and shared-base
+  identity/ACL. Original identities, groups, ACLs, binaries, fixtures, assets,
+  linger and service state were preserved. Declared new payloads are retained.
+  Twenty-six source clauses have 94 new scoped Verified comparisons, each
+  bound to actual selected-call output and native records. These observations
+  cover only the accepted finite fixture paths. Container modes, runtime
+  history saves, actual account deletion and broader paths remain outside
+  this evidence. The unresolved UID confirms numeric owner lookup fallback;
+  no account was deleted. Inotify confirms selected creation/move events;
+  no universal filesystem atomicity is asserted. History controls observe
+  actual outer filesystem errno; suppressed CLI errno is not inferred.
+  Preparation inputs retain their historical Pending predictions and draft
+  fields. The separate canonical acceptance and authority govern this run.
+  Original worksheets, prior overlays, failed runs and all old records are
+  preserved. Twenty product/public source hashes match the approved inputs.
+  Execution: work/m8-verification-runs/20261006T150444Z-9c491c3-generate-remainder-execution/.
+  Execution manifest (41 files): 9c7d437b9b197189c84187068ef78b352efac4f19c6bd7e9b186d34142bbe92c.
+  Plan SHA256: c110aa014ee44f5efe7389e97ca882ef3f4741c5335ef4881bfa21515870e69a.
+  Authority: work/m8-verification-runs/20261006T150444Z-9c491c3-generate-remainder-authorization/authority.json.
+  Scoped comparisons and retained-evidence checks:
+  work/m8-verification-runs/20261006T150643Z-9c491c3-generate-remainder-record/.
+  M8 remains In progress. Remaining T3, final candidate T1/T2/T4 and whole-book
+  T5/T6 remain Pending. No product change, deletion, commit or push occurred.
+
+- Current host generate consolidation, observed at 2026-10-06T15:39:50.122210+00:00:
+  All 52 source identities match the current document/implementation bytes.
+  Forty-six behavioral host clauses have 170 scoped Verified comparisons:
+  76 retained comparisons and 94 newly applied results. The 94 resolve
+  the prior sixteen Partial and seventy-eight Pending host pairs within
+  the selected real conditions; overlapping rows are counted once.
+  Retained native evidence contains 156 actual calls, 36 prior selected
+  calls plus 120 remainder calls: 96 exit 0 and 60 planned exit 1.
+  Source, manifests, raw output, real archives, installed bytes and
+  clause bindings completed 1629 checks with no failure. No IOC-runner
+  call was repeated or newly executed during this consolidation.
+  Verification applies to the finite native fixtures and selected paths.
+  Actual account deletion, runtime history, universal filesystem behavior,
+  container completion and whole-book completion are not inferred.
+  Historical container coverage remains 26 Verified, fourteen Pending
+  and two Partial comparisons until its current-source review completes.
+  Four new readonly ephemeral probes on the exact default image observed
+  UID/GID 0, existing nobody UID/GID 65534 and /usr/bin/python3, with
+  ioc-srv and ioc absent before shipped setup. All four owned probe
+  containers are absent afterwards. These observations are preparation
+  evidence, with zero native IOC-runner calls and no setup execution.
+  Two controller schema errors are preserved: older clause descriptors
+  omitted case_id, and image Config omitted User/Entrypoint. Actual bound
+  record IDs and explicit field absence resolved these preparation errors;
+  neither failure caused a native retry or replaced a path under test.
+  Evidence: work/m8-verification-runs/20261006T153509Z-9c491c3-generate-host-consolidation/
+  Master approval, work table, original worksheets, old records and M9
+  onwards are unchanged. Original VM resources remain retained. M8 stays
+  In progress; remaining T3, final candidate T1/T2/T4 and whole-book
+  T5/T6 remain Pending. No product change, commit or push occurred.
+
+- Container generate remainder preparation, observed at 2026-10-06T16:12:19.007018+00:00:
+  Current document and installed-body comparisons retain 26 scoped Verified
+  container results and sixteen unresolved rows (fourteen Pending, two
+  Partial). Three original sealed manifests, real ledger/output/state and
+  current sources completed 1573 checks with no failure; no native replay.
+  The new draft covers 17 selected whole CLI calls and eight actual generate
+  initializers, 25 calls, expecting sixteen exit 0 and nine planned exit 1.
+  Sixteen source clauses have 38 planned case/clause bindings. Three real
+  read-only filesystem controls and owned-container restoration are included.
+  A new isolated readonly probe observed root, Python 3.13.5, nobody 65534,
+  unresolved UID 420001, eighteen actual native tools and the genuine startup
+  interpreter. Its 26 readiness/compilation checks passed, and its container
+  is absent. The final native helper additionally binds observed tool bytes.
+  These are preparation observations; zero setup or native generate calls
+  ran. All selected native results remain Pending. Owner acceptance and
+  execution authorization are none for this new finite plan.
+  Evidence: work/m8-verification-runs/20261006T160019Z-9c491c3-container-generate-remainder-plan/
+  Plan SHA256: d4225f4e7e584ac8688e654f745215a6de86e98c4d16e4a57fd9b160235203a3
+  Master approval, prior accepted host plan, work table, historical records
+  and M9 onward are unchanged. M8 stays In progress; remaining T3, final
+  candidate T1/T2/T4 and whole-book T5/T6 remain Pending. Product sources
+  are unchanged. No account deletion, VM mutation, commit or push occurred.
+
+- Container generate remainder native execution and retained-evidence comparison, observed at 2026-10-06T16:50:57.358157+00:00:
+  The exact owner-accepted and authorized 25-call plan ran once through the
+  real shipped container setup and whole installed CLI on the pinned first
+  default Debian image. Seventeen selected calls and eight actual generate
+  initializers completed: sixteen exit 0 and nine planned errors/refusals
+  of exit 1, with no unexpected native failure. Native checks: 326, all pass.
+  The complete native output/state/event comparison passed 409 checks;
+  all 51 archived config/history/startup paths match actual bytes and
+  numeric tar ownership/modes or observed absence/symlink state. Three real
+  filesystem controls observed kernel EROFS with unchanged control state.
+  Selected inotify creation/move events have matching move cookies. No
+  universal filesystem atomicity or suppressed CLI errno is inferred.
+  Protected post-setup state matches; the owned s6 scanner was stopped and
+  waited, and the new native container is absent. Payloads, full streams,
+  exact integer metadata and installed runner bytes remain retained.
+  The host controller exited 1 after native container exit 0 because the
+  current host user could not read root-owned mode-0600 summary.json. Its
+  Failed status and actual tool traceback are preserved separately. A new
+  readonly root reader compared original evidence and the real archive,
+  with zero setup or IOC-runner calls, no native retry and no chmod/chown.
+  A subsequent readonly observation passed 1530 equality checks across all
+  153 original native files: content, owner/group, mode, size, device, inode,
+  mtime_ns and ctime_ns. Access times are outside that equality claim.
+  Both readonly reader containers are absent. Native failure status is not
+  inferred from the host comparison permission error or erased by recovery.
+  Sixteen clauses have 38 new actual case/clause bindings. Together with
+  the 26 retained results, the current overlay contains 42 unique scoped
+  Verified container comparisons within their selected real conditions.
+  This overlay does not replace immutable worksheets or whole-book counts;
+  account deletion, IOC runtime history and broader paths remain unverified.
+  Plan SHA256: d4225f4e7e584ac8688e654f745215a6de86e98c4d16e4a57fd9b160235203a3.
+  Authority: work/m8-verification-runs/20261006T164552Z-9c491c3-container-generate-remainder-authority/authority.json.
+  Execution: work/m8-verification-runs/20261006T164552Z-9c491c3-container-generate-remainder-execution/.
+  Native manifest (153 files): ea7e8afcd81bc615aceb4455815bbabbc705acc1e899a0c88b796d812bb7672f.
+  Execution manifest (163 files): 3e703becd1b0a9159e7c0aaf606126f4b796410919fb7dfc21e0ea8f74a332a3.
+  Current comparisons and exact retained summary:
+  work/m8-verification-runs/20261006T164816Z-9c491c3-container-generate-remainder-comparison/.
+  All twenty product/public source hashes and the sealed plan, authority
+  and host-consolidation manifests match. Original VM resources remain
+  retained. Work table, master approval, historical records, M9 onward
+  and Closure Evidence remain unchanged. M8 stays In progress; remaining
+  T3, final candidate T1/T2/T4 and whole-book T5/T6 remain Pending.
+  No product change, original-resource deletion, commit or push occurred.
+
+- Current tool-path claim/evidence reconciliation, observed at 2026-10-06T17:23:29.404821+00:00:
+  Current document and implementation bytes agree with the retained local
+  tool evidence. All 65 actual original call records and full raw streams
+  were reread: 59 exit 0 and six planned exit 1. Eleven existing local
+  predicates retain their 22 scoped mode/OS comparisons without native replay.
+  Both original host installed bodies and the retained container installed
+  body match current source after excluding exactly three installation stamps.
+  Four original whole installed container calls, their actual s6 run bytes,
+  native cat/view outputs, environment and real payload archive support one
+  additional scoped Verified comparison for the selected unset/default
+  /usr/local/bin/procServ path. Explicit custom container override rendering
+  remains Partial; default-path output cannot verify that override.
+  The current tool overlay has 23 scoped Verified rows and one Partial row.
+  These overlap prior evidence and do not replace any immutable worksheet
+  or recalculate source-section or whole-book totals. The container search
+  order, trusted-home and later-location branches remain outside that result.
+  Eighteen current-source remaining families identify exact native conditions:
+  container valid/invalid/empty procServ overrides; other search and absence
+  paths; logrotate unset/later/PATH/absence; system setup path separation and
+  fail-early behavior; real validation/bus/staging and shared-update paths.
+  Source, actual record/stream, native state and sealed-manifest checks:
+  1769, zero failures. No IOC-runner or VM call ran in this reconciliation.
+  Evidence: work/m8-verification-runs/20261006T171804Z-9c491c3-tool-remaining-reconciliation/.
+  Next prepare a finite container procServ explicit-override list from the
+  remaining rows, with genuine executable inputs, full output/state and
+  owned-container cleanup. Its native cases remain Pending until the frozen
+  plan is accepted and separately authorized. M8 master approval, work table,
+  old records, M9 onward and Closure Evidence remain unchanged. Original VM
+  resources are retained. M8 stays In progress; remaining T3, final candidate
+  T1/T2/T4 and whole-book T5/T6 remain Pending. Product/public bytes match.
+  No product change, original-resource deletion, commit or push occurred.
+
+- Container procServ override finite-plan preparation, observed at 2026-10-06T17:46:44.259643+00:00:
+  Five conditions and 17 whole installed CLI calls are frozen with exact
+  argv, environment, closed stdin, source clauses and expected stream/state
+  bytes. Expected exits are fourteen of 0 and three planned rejections of 1.
+  This is a draft, with no plan acceptance or implementation authorization;
+  all seventeen native outcomes remain Pending. Two readonly image probes
+  observed the actual procServ ELF and native tools. Final helper compilation
+  matches current helper bytes. Both preparation containers are absent.
+  Three actual host-controller negative probes reject draft, unauthorized
+  and optimized execution before creating an output directory. These planned
+  exit-1 failures are separate from the seventeen unexecuted native calls.
+  The temporary preflight manifest and invalid probe inputs are retained;
+  they are not accepted owner authority. Complete source and genuine input
+  fingerprints match. No setup or IOC-runner call ran during preparation.
+  Evidence: work/m8-verification-runs/20261006T173300Z-9c491c3-container-procserv-override-plan/.
+  The plan includes real new-IOC removal, archive checks, protected-state
+  equality, owned scanner stop/wait and disposable-container absence.
+  Original inputs, VM resources, earlier approvals and evidence remain
+  preserved. No product change, original-resource deletion, commit or push
+  occurred. M8 stays In progress; remaining T3, final candidate T1/T2/T4
+  and whole-book T5/T6 remain Pending. Existing tool evidence stays at
+  23 scoped Verified comparisons and one Partial comparison.
+
+- Container procServ override partial execution and observer failure, observed at 2026-10-06T18:20:39.892040+00:00:
+  The accepted seventeen-call plan stopped after actual valid-generate and
+  valid-install, both exit 0 with complete output/exit/state matches. Fifteen
+  planned calls remain unexecuted. Native execution and host controller retain
+  Failed status. Forty-three native checks passed; valid:native-down failed
+  because the private helper expected s6-svstat up,pid output false 0.
+  All 378 actual observations exited 0 with false -1 and empty stderr.
+  The s6-svstat reference states that a down service's pid field is -1;
+  reference: https://skarnet.org/software/s6/s6-svstat.html (read 2026-10-06).
+  This is a verifier expectation error; no IOC-runner call returned an error.
+  Actual installed run bytes select the genuine procServ ELF copy outside
+  standard search locations. That selected rendering clause is Verified;
+  the current overlapping tool overlay has 24 scoped Verified rows and no
+  Partial row. Seventeen other tool/setup families and fifteen planned calls
+  stay Pending. No section or whole-book total is recalculated.
+  The real payload/tool archive matches actual captured bytes and numeric
+  ownership/modes. Twenty original native evidence files are retained.
+  Protected post-setup files match exactly. The failed container still held
+  one owned conf/service before exit; CLI view/remove and complete pre-exit
+  state restoration did not run. The scanner was stopped, waited and observed
+  absent. Docker removed the owned disposable container; fresh absence matches.
+  No native retry, original evidence chmod/chown, product or original VM change
+  occurred. M8 remains In progress; remaining T3, final T1/T2/T4 and whole-book
+  T5/T6 remain Pending. A corrected helper/finite plan needs new acceptance and
+  execution authority before any fresh native attempt.
+  Execution: work/m8-verification-runs/20261006T181145Z-9c491c3-container-procserv-override-execution/.
+  Comparison: work/m8-verification-runs/20261006T181737Z-9c491c3-container-procserv-override-comparison/.
+
+- Corrected container procServ finite-plan preparation, observed at 2026-10-06T18:26:44.152488+00:00:
+  A fresh draft freezes the same five conditions and 17 whole installed CLI
+  calls, including five real generate initializers. Expected exits are
+  fourteen of 0 and three planned rejections of 1. The private down-state
+  expectation is false -1, matching the original 378 native observations;
+  exactly two native-helper comparisons changed. The unchanged controller
+  still requires a separate accepted authority bound to plan and manifest.
+  The new native container/root are distinct from the failed attempt.
+  One readonly image probe exited 0, observed native tools and the genuine
+  procServ ELF, and compiled all three helpers with matching current hashes.
+  Its container is absent; zero setup and zero IOC-runner calls ran.
+  Preparation review passed 661 checks, including real retained observations,
+  exact source/input/helper identity, sealed prior artifacts and unchanged
+  numeric metadata for all twenty original native evidence files.
+  Evidence: work/m8-verification-runs/20261006T182547Z-9c491c3-container-procserv-override-corrected-plan/.
+  Plan SHA256: 512a982e204ba0e540ea9650e9d0bf28f660c1d4a0c7d025f6b01c81e0f9ca7b.
+  The original execution and host Failed statuses, two actual matching calls
+  and fifteen unexecuted calls remain preserved. Its real CLI view/remove
+  and complete pre-exit state restoration remain unexecuted. This preparation
+  establishes none of the seventeen new expected native outcomes. New plan
+  acceptance and separate implementation authority remain none.
+  The current tool overlay stays at 24 scoped Verified comparisons; seventeen
+  other tool/setup families remain Pending. No whole-book count is changed.
+  Work table, master approval, previous finite-plan approvals and evidence,
+  M9 onward, original VM resources and Closure Evidence remain unchanged.
+  M8 stays In progress; remaining T3, final T1/T2/T4 and whole-book T5/T6
+  stay Pending. No product change, original-resource deletion, commit or
+  push occurred.
+
+- Corrected container procServ override execution, observed at 2026-10-06T19:03:28.595968+00:00:
+  The owner-accepted corrected 17-call plan ran once through actual shipped
+  setup, the whole installed CLI, genuine startup/history inputs, native ELF
+  copies and real s6 supervision. All seventeen full output/exit comparisons
+  match: fourteen exit 0 and three planned invalid-override rejections of 1.
+  Missing, nonexecutable and directory overrides reject after the actual conf
+  copy, without a service or runtime leaf. An explicit empty override selects
+  the available default binary. The valid custom ELF is rendered outside
+  standard locations. Both real views match complete installed config/run
+  bytes and preserve exact before/after state. Native down output is false -1.
+  Native checks: 120, all pass. Fresh comparison checks: 440, zero
+  failures. Nineteen controller archive checks also pass. The actual archive
+  retains all five payload/config/history/startup sets and native tool inputs
+  with matching bytes and numeric ownership/modes. All five real CLI removals
+  leave installed configuration, service and runtime leaves absent. Protected
+  post-setup files and nonowned entries match exactly. The owned scanner exited
+  0, was waited and observed absent; Docker removed the disposable container
+  and a fresh name query confirms absence. No IOC/procServ runtime is claimed.
+  Execution: work/m8-verification-runs/20261006T185700Z-9c491c3-container-procserv-override-corrected-execution/.
+  Comparison: work/m8-verification-runs/20261006T185909Z-9c491c3-container-procserv-override-corrected-comparison/.
+  Plan SHA256: 512a982e204ba0e540ea9650e9d0bf28f660c1d4a0c7d025f6b01c81e0f9ca7b.
+  Bound Authority: work/m8-verification-runs/20261006T185700Z-9c491c3-container-procserv-override-corrected-authority/authority.json.
+  Native manifest (66 files): 7c945900509b556dc1b5e3191af0d1ff4afc6c9f1ead3def1a2f970b3a0e5062.
+  Execution manifest (73 files): 50581d20a633f600778cce0b3eb1a74777d684d1c2a260a173307ff5e6cdfc86.
+  Two selected remaining tool families are now Verified: invalid container
+  overrides and explicit empty override. The overlapping current tool overlay
+  has 26 scoped Verified comparisons and no Partial row. Fifteen other tool/
+  setup families remain Pending. These rows do not change source-section or
+  whole-book totals. The original Failed attempt, its two actual matching
+  calls and fifteen unexecuted calls remain unchanged in their original run.
+  All twenty original native evidence files retain bytes and exact numeric
+  metadata; access times are outside this equality claim. Product hashes,
+  original VM resources, master approval, earlier plans and evidence, work
+  table, M9 onward and Closure Evidence remain unchanged. M8 stays In progress;
+  remaining T3, final T1/T2/T4 and whole-book T5/T6 stay Pending. No product
+  change, original-resource deletion, commit or push occurred.
+
 ##### Closure Evidence
 
 None.
@@ -4295,6 +5976,208 @@ To be written.
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
 | T1 | Not run | — | Pending | none |
+
+##### Closure Evidence
+
+None.
+
+#### M11 - Report IOC startup exits and respect continued IOC shell errors
+
+Origin: 1.4.2 / M11
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+The startup check reports readiness, fatal-pattern matches and procServ
+death banners, but does not report the IOC child's normal exit code.
+The 2026-10-04 OFFICE-tools measurement relayed by LAB-EPICS-env reports
+generated IOCs that exit 2 when iocsh startup fails under `on error break`,
+and exit 0 for continued command errors under `on error continue`.
+That generated executable and runtime observation have not been reverified
+here. The two requirements are to respect continued commands and to show
+the observed nonzero child exit plainly, even while procServ stays active.
+
+##### Scope
+
+- `bin/ioc-runner`: system/local `start` and `restart` startup diagnostics,
+  using actual procServ child status and the real IOC shell behavior.
+- Real generated IOC fixtures: failure in st.cmd and in a loaded iocsh
+  file, with per-file `on error break` and `on error continue` behavior.
+- `docs/CLI_REFERENCE.md` and `docs/FAQ.md`: the resulting startup outcomes
+  and distinction between active procServ and a terminated IOC child.
+- Native regression coverage for the affected startup paths.
+
+Out of scope: changing IOC generators or EPICS Base, systemd/procServ restart
+policy, container diagnostics, local lingering, general pattern cleanup,
+and completion of the whole-book M8 verification.
+
+##### Completion Criteria
+
+- A real continued IOC shell error with successful IOC startup does not
+  become an IOC failure solely because an error message was printed.
+- A failed startup that ends the IOC child with a nonzero normal exit
+  reports that code plainly and returns failure, even if the unit is active.
+- The check distinguishes normal exit codes from signal termination and
+  does not classify commanded restart teardown or historical log content
+  as a fresh startup failure.
+- Per-file IOC shell behavior is verified with actual loaded scripts;
+  generated-main exit mapping is identified before choosing the fixture.
+- Existing real healthy, fatal, crash-loop and log-rotation regressions
+  pass; the affected operator documentation matches observed behavior.
+
+##### Dependencies And Decisions
+
+- Decision Date: 2026-10-04. Record this peer suggestion as work in 1.4.2
+  and continue the current M8 verification before implementing it.
+- No M/G dependency is asserted. M8 must refresh affected source bindings
+  and final-candidate checks after these product/document changes land.
+- M10 retains its existing help/completion/message scope; this item owns
+  startup behavior. M12 owns the local linger advisory.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Pin the actual generated IOC source, executable, Base and procServ
+   versions; reproduce the reported break/continue cases through the
+   shipped runner, native supervisor and original generated fixtures.
+2. Design the bounded normal-exit observation and continued-command
+   classification from those logs. Preserve signal, restart-teardown,
+   unreadable-log, rotation and existing readiness behavior.
+3. Apply the accepted diagnostic change and exercise the native regressions.
+4. Update only the affected CLI reference and FAQ clauses, then refresh
+   their M8 source bindings and run the changed documentation checks.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | native startup | Real generated IOC with a failing command in st.cmd and a loaded iocsh file under continued-error handling; run shipped start/restart and inspect native process/log state | Debian 13 and Rocky 8.10, system/local; exact fixture and restoration plan to be frozen | Successful continued startup has exit 0 and no false IOC failure from printed command errors |
+| T2 | native failure | The same real generated startup with break handling; bind failed command, child normal-exit status and actual runner output | Same pinned consumers and native fixtures | Nonzero child exit is reported plainly and the runner exits 1 while procServ can remain active |
+| T3 | regression | Shipped native healthy/fatal/crash-loop fixtures, active restart teardown, historical log and rotation cases | Applicable native system/local environments | Existing legitimate outcomes remain correct; no internal function substitution |
+| T4 | documentation | Build/link checks and second-person reading of the affected CLI/FAQ clauses against the observed native results | Control host | Changed clauses and links agree with the accepted behavior |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Native generated IOC | Pending | Peer report only; no runtime re-verification |
+| T2 | Not run | Native generated IOC | Pending | Generated-main fixture and exact installed procServ status format must be pinned |
+| T3 | Not run | Native system/local consumers | Pending | Existing fixtures retained; no changed runner executed |
+| T4 | Not run | Control host | Pending | No public documentation edit applied |
+
+Source inspection, observed 2026-10-05T03:37:21Z at 9c491c3, confirms
+`bin/ioc-runner:1372-1408` returns marker/banner/pattern fields without an
+exit code, and `3422-3564` chooses startup outcomes from those fields.
+The locally available procServ source formats normal exit status separately
+from signal termination; its installed-version output remains to be checked.
+The local tools template and EPICS-env commonIocsh example have different
+main exit mappings and do not verify the reported updated OFFICE-tools
+generated executable. Intake, source copies and these limits are preserved
+in `work/m8-verification-runs/20261005T033721Z-9c491c3-peer-intake/intake.json`;
+input manifest `849bf8b9a239aa256ca5edf7b4fa6e8a0032606a84869d74c6ad95e574060a3f`.
+
+##### Closure Evidence
+
+None.
+
+#### M12 - Explain local IOC lifetime and advise lingering on enable
+
+Origin: 1.4.2 / M12
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+The local guide explains boot startup with lingering but omits the lifetime
+of an already-started IOC after the last login session ends.
+Local install prints a linger advisory; local enable has no corresponding
+advice. LAB-apcpdu reported successful enable with Linger=no and IOC shutdown
+after logout, relayed by LAB-EPICS-env on 2026-10-04. The code/document gaps
+are confirmed by source reading; that runtime case has not been repeated here.
+
+##### Scope
+
+- `docs/USER_GUIDE_LOCAL.md`, beside the boot/linger paragraph: explain
+  that local IOCs run under the user manager and end when that manager
+  stops after the last login session, under the target's effective policy.
+- `bin/ioc-runner`: reuse the local install linger advice for local enable,
+  preserving successful enable and non-fatal advice.
+- Focused local-mode lifetime and advisory verification.
+
+Out of scope: enabling linger automatically, changing login/session policy,
+IOC startup diagnostics, system/container advisories, broad CLI cleanup,
+and the unrelated M10 help/completion corrections.
+
+##### Completion Criteria
+
+- The guide covers logout lifetime and boot startup without promising
+  immediate termination or ignoring UserStopDelaySec/target policy.
+- Local enable with Linger=no succeeds and prints the same non-fatal
+  advice as install; Linger=yes does not print the off advisory.
+- Existing enable/disable behavior and installed IOC state are preserved;
+  the runner does not change lingering.
+- Real login/logout observations on isolated approved test identities
+  confirm the published policy-specific lifetime statement.
+
+##### Dependencies And Decisions
+
+- Decision Date: 2026-10-04. Record this peer suggestion as work in 1.4.2
+  and continue the current M8 verification before implementing it.
+- No M/G dependency is asserted. M8 must refresh the changed local-guide
+  clause and any affected CLI output comparison after this work lands.
+- M10 retains its existing scope; this item owns the additional linger
+  advisory and its matching local-guide text. M11 owns startup outcomes.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Pin the target systemd version, effective session/manager-stop policy
+   and real login path. Freeze a disposable-identity test and restoration
+   plan before changing linger or closing any test session.
+2. Factor the existing linger check into a shared local advisory and call
+   it after successful local enable; preserve the operation's exit status.
+3. Add the bounded logout-lifetime explanation beside the local boot
+   paragraph, with target-policy qualifications derived from the real test.
+4. Run native advisory/lifetime checks, changed guide build/link checks
+   and second-person reading; refresh the affected M8 evidence bindings.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | native CLI | Shipped local install and enable with Linger=no and yes; capture actual output/exit and enabled/runtime state | Debian 13 and Rocky 8.10, approved isolated identities | Off advice is non-fatal and consistent; enable succeeds; lingering is unchanged |
+| T2 | session lifetime | Real PAM/login session and last-session logout while a real local IOC runs; observe user manager, procServ and IOC child before/after the effective stop delay; repeat with linger | Same approved identities; saved policy and restoration | Native process lifetime agrees with the qualified guide statement; existing users/services are preserved |
+| T3 | documentation | Build/link check and second-person reading of the local-guide change against T1/T2 observations | Control host | Guide states both boot and logout behavior without an unconditional immediate-stop claim |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Native local CLI | Pending | Peer enable result not reexecuted here |
+| T2 | Not run | Real login/logout path | Pending | No existing account/session or linger state changed |
+| T3 | Not run | Control host | Pending | No public guide edit applied |
+
+Source inspection, observed 2026-10-05T03:37:21Z at 9c491c3, confirms the
+guide gap at `docs/USER_GUIDE_LOCAL.md:92-106`, the install-time note at
+`bin/ioc-runner:1115-1122` and its absence from enable at `3599-3624`.
+The upstream [loginctl manual source](https://raw.githubusercontent.com/systemd/systemd/main/man/loginctl.xml)
+describes retaining the user manager after logout with linger.
+The [logind.conf manual source](https://raw.githubusercontent.com/systemd/systemd/main/man/logind.conf.xml)
+documents delayed shutdown and the infinity exception under UserStopDelaySec;
+these references do not verify either VM's effective policy or an IOC run.
+Intake and source copies are in the same peer-intake directory recorded for
+M11; input manifest `849bf8b9a239aa256ca5edf7b4fa6e8a0032606a84869d74c6ad95e574060a3f`.
 
 ##### Closure Evidence
 
