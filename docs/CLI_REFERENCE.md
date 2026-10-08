@@ -290,6 +290,10 @@ status of the underlying command:
 `enable` and `disable` decide only whether the IOC starts at boot; they do not
 start or stop a running IOC.
 
+In container mode, the generated `run` script prepares the socket parent
+when s6 starts the service. Preparation failure exits 1 before procServ;
+the error appears in the container log. `enable` itself only removes `down`.
+
 ## The `status` command
 
 `ioc-runner [--local|--container] status <name>` prints the service state and

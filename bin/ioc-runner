@@ -615,16 +615,25 @@ function render_s6_service {
     local conf_file="$2"
     local svc_dir=""
     local tmp_run=""
-    local ioc_user="" ioc_chdir="" ioc_port="" ioc_cmd=""
+    local ioc_user="" ioc_group="" ioc_chdir="" ioc_port="" ioc_cmd=""
+    local sock_path="" sock_dir=""
     local new_service=0
 
     resolve_procserv_tool
     ioc_user=$(read_conf_var "${conf_file}" "IOC_USER") || ioc_user="${TARGET_SYSTEM_USER}"
+    ioc_group=$(read_conf_var "${conf_file}" "IOC_GROUP") || ioc_group="${TARGET_SYSTEM_GROUP}"
     ioc_chdir=$(read_conf_var "${conf_file}" "IOC_CHDIR") || ioc_chdir=""
     ioc_port=$(read_conf_var "${conf_file}" "IOC_PORT") || ioc_port=""
     ioc_cmd=$(read_conf_var "${conf_file}" "IOC_CMD") || ioc_cmd=""
     if [[ -z "${ioc_chdir}" || -z "${ioc_port}" || -z "${ioc_cmd}" ]]; then
         printf "Error: %s lacks IOC_CHDIR, IOC_PORT, or IOC_CMD; cannot render the s6 service.\n" "${conf_file}" >&2
+        exit 1
+    fi
+
+    sock_path="${ioc_port##*:}"
+    sock_dir="${sock_path%/*}"
+    if [[ "${sock_path}" != /* || "${sock_dir}" == "${sock_path}" || -z "${sock_dir}" ]]; then
+        printf "Error: IOC_PORT in %s does not name an absolute socket path.\n" "${conf_file}" >&2
         exit 1
     fi
 
@@ -641,6 +650,11 @@ function render_s6_service {
     {
         printf "#!/bin/sh\n"
         printf "# Rendered by ioc-runner --container for IOC %s from %s; re-run install to change it.\n" "${ioc_name}" "${conf_file}"
+        printf "# Constrain directory preparation lookup while preserving the IOC environment.\n"
+        printf "if ! PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin install -d -m 0770 -o %s -g %s -- %s; then\n" \
+            "$(sh_quote "${ioc_user}")" "$(sh_quote "${ioc_group}")" "$(sh_quote "${sock_dir}")"
+        printf '%s\n' "    printf '%s\n' $(sh_quote "Error: IOC '${ioc_name}' cannot prepare socket directory '${sock_dir}'.") >&2"
+        printf "    exit 1\nfi\n"
         printf "exec s6-setuidgid %s %s --foreground --logfile=- --name=%s --ignore=%s --autorestartcmd=%s --chdir=%s --port=%s %s\n" \
             "$(sh_quote "${ioc_user}")" "$(sh_quote "${PROCSERV_TOOL_PATH}")" "$(sh_quote "${ioc_name}")" \
             "$(sh_quote '^D^C')" "''" "$(sh_quote "${ioc_chdir}")" "$(sh_quote "${ioc_port}")" "$(sh_quote "${ioc_cmd}")"

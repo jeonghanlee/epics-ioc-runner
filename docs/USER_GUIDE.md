@@ -315,6 +315,9 @@ ioc-runner --container remove <ioc_name>
 and the `s6-svstat` line, for example `myioc: up (pid 123) 42 seconds`.
 `enable` deletes the service's s6 `down` file so the IOC starts when the
 container starts, and `disable` creates it; neither touches the running IOC.
+At startup, the generated `run` script prepares the configured socket parent
+before launching procServ. Existing services need their script regenerated
+after a runner update; see [container setup](INSTALL.md#container-images---container).
 
 IOC output goes to the container's standard output (`docker logs
 <container>`); there is no log file, no log rotation, and no journal. The

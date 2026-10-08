@@ -222,6 +222,25 @@ bash tests/run-container-tests.bash
 bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
 ```
 
+The separate boot regression uses native `s6-svscan` as PID 1 and restarts
+the actual container. It checks absent and existing socket parents, disabled
+services, service identity and permissions, and failure before procServ when
+a regular file blocks directory creation. It also compares the IOC and
+supervisor `PATH`, resolves `caget` through the native IOC console, and
+checks that directory preparation ignores an `install` placed earlier in
+the inherited `PATH`:
+
+```bash
+bash tests/test-container-boot.bash <image>
+```
+
+Replace `<image>` with a locally available EPICS image or its immutable image
+ID. The boot test requires `socat`, `timeout`, `setpriv`, and native `softIoc`
+and `caget` binaries in that image. The test uses the installed runner, adds no capabilities, disables
+network access, and removes its own container on exit. Reports remain under
+`/tmp/ioc-runner-boot.*`. Set `IOC_RUNNER_BOOT_SOURCE_ROOT` to a separate
+checkout to run the same regression against an earlier implementation.
+
 The container harness needs `docker` on the host and images that already ship
 s6 (2.13 or later), procServ, con or socat, and an EPICS base providing
 `softIoc`. For each image it starts `s6-svscan` on the scan directory so the

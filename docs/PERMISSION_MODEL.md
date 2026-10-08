@@ -173,7 +173,8 @@ Paths used by `ioc-runner --container` inside a systemd-less container image.
 The configuration directory follows the [setup-managed path](#setup-managed-paths).
 Container installation replaces each conf as root using the file mode
 described in the [install reference](CLI_REFERENCE.md#the-install-command).
-s6 replaces systemd as the supervisor. The runner creates the socket
+s6 replaces systemd as the supervisor. The generated `run` script and CLI
+`start`/`restart` create the socket
 directory, whose ownership and mode follow
 [Console socket permissions](#console-socket-permissions).
 
@@ -181,7 +182,7 @@ directory, whose ownership and mode follow
 | --- | --- | --- | --- | --- |
 | `/run/s6-procserv/` | `root:root` | `0755` | `SCAN_DIR` (`IOC_RUNNER_SCAN_DIR`) | scan directory; the container entrypoint creates it before `s6-svscan` (setup's build-time copy is a convenience) |
 | `/run/s6-procserv/<ioc>/` | `root:root` | `0755` | - | service directory rendered by `install`; deleted by `remove` |
-| `/run/s6-procserv/<ioc>/run` | `root:root` | `0755` | - | POSIX sh script: `exec s6-setuidgid ioc-srv procServ ... --logfile=-` |
+| `/run/s6-procserv/<ioc>/run` | `root:root` | `0755` | - | POSIX sh script: prepares the socket parent as root, then `exec s6-setuidgid ioc-srv procServ ... --logfile=-`; preparation failure exits 1 |
 | `/run/s6-procserv/<ioc>/down`, `timeout-kill` | `root:root` | umask-dependent, `0644` under `umask 022` | - | `down` present while disabled; `timeout-kill` holds the SIGKILL grace period (ms) |
 | `/run/s6-procserv/<ioc>/supervise/`, `event/` | `root:root` | s6-managed | - | created and owned by `s6-supervise` |
 
@@ -254,7 +255,7 @@ they must not be conflated:
 
 | Object | System and container modes | Local mode | Mode | Created by |
 | --- | --- | --- | --- | --- |
-| Socket directory `${RUN_DIR}/<ioc>/` | `/run/procserv/<ioc>/`, `ioc-srv:ioc` | `/run/user/<uid>/procserv/<ioc>/`, `<user>:<primary-group>` | `0770` | systemd runtime directory; container mode uses runner `start` |
+| Socket directory `${RUN_DIR}/<ioc>/` | `/run/procserv/<ioc>/`, `ioc-srv:ioc` | `/run/user/<uid>/procserv/<ioc>/`, `<user>:<primary-group>` | `0770` | systemd runtime directory; container mode uses the generated `run` script and CLI `start`/`restart` |
 | Socket file `control` | `ioc-srv:ioc` | `<user>:<primary-group>` | `0660` | procServ, per the `IOC_PORT` spec `unix:<user>:<group>:0660:<path>` emitted by `process_ioc_port` |
 
 `RuntimeDirectoryPreserve=restart` keeps the socket directory in place
@@ -308,7 +309,7 @@ Create, Manage, and Track (read).
 | --- | --- | --- | --- | --- | --- |
 | Create | scan directory | `root` (entrypoint) | `/run/s6-procserv/` | `mkdir` before `s6-svscan` starts as PID 1 | [Container paths](#container-mode-paths) |
 | Create | service directory | `root` | `/run/s6-procserv/<ioc>/` | `ioc-runner --container install` renders `run`, `timeout-kill`, `down`, then `s6-svscanctl -a` | [Container paths](#container-mode-paths) |
-| Create | socket directory | `root` | `/run/procserv/<ioc>/` | `ioc-runner --container start`: `install -d -m 0770 -o ioc-srv -g ioc` | [Console socket permissions](#console-socket-permissions) |
+| Create | socket directory | `root` | `/run/procserv/<ioc>/` | generated `run` script and CLI `start`/`restart`: `install -d -m 0770 -o ioc-srv -g ioc` | [Console socket permissions](#console-socket-permissions) |
 | Create | control socket | `ioc-srv` | `/run/procserv/<ioc>/control` | procServ `--port=unix:ioc-srv:ioc:0660:...` | [Console socket permissions](#console-socket-permissions) |
 | Manage | start / stop / restart | `root` | s6 service | `s6-svc -u -wu` / `-d -wd` / `-r -wr` with a bounded wait; readiness is the socket appearing | no sudoers gate; root-only |
 | Manage | enable / disable | `root` | `down` file | remove / create `down` | starts or stays down at `s6-svscan` boot; the running IOC is untouched |

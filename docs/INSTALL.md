@@ -131,6 +131,31 @@ through `s6-svscan`. Deep `inspect` additionally needs the `CAP_SYS_PTRACE`
 capability. See the [s6 service directory](ARCHITECTURE.md#s6-service-directory---container-mode) for the
 service directory layout.
 
+An enabled service's generated `run` script creates its configured socket
+parent before starting procServ, with the service user and group and mode
+`0770`. Directory preparation failure prints an error and exits 1 before
+procServ runs. No earlier CLI `start` is required for automatic startup.
+Only directory preparation uses a fixed command search path; procServ and
+the IOC inherit the supervisor's `PATH`, including EPICS tool directories.
+The installed service definitions and enable/disable state must be present
+in the scan directory at boot. If `/run` is recreated, the entrypoint must
+restore those definitions and state; creating an empty scan directory alone
+does not restore installed IOCs.
+
+After updating the runner, regenerate each existing container service's
+`run` script. As root inside the container, stop the IOC, then install its
+configuration with `--force`:
+
+```bash
+ioc-runner --container stop <ioc_name>
+ioc-runner --container --force install /etc/procServ.d/<ioc_name>.conf
+```
+
+Replace `<ioc_name>` with the installed IOC name. Installation preserves
+the existing service's enable/disable state and leaves the IOC stopped.
+Use `ioc-runner --container view <ioc_name>` to verify that its `run` script
+contains directory preparation before `exec s6-setuidgid`.
+
 ### Setup options and exit behavior
 
 The launcher passes its arguments unchanged to `setup-system-infra.bash`.
