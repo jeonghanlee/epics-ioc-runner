@@ -49,8 +49,9 @@ user configuration directory, and start it.
    ```
 
    The first local install creates `~/.config/procServ.d`, the log directory,
-   the user unit template `~/.config/systemd/user/epics-@.service`, and the
-   log rotation units. `-f` answers every question with yes, for
+   the user unit template `~/.config/systemd/user/epics-@.service`, and attempts to install the
+   log rotation units. If `logrotate` is unavailable, installation continues
+   with a warning and no rotation units. `-f` answers every question with yes, for
    configuration management and CI/CD use.
 
 4. Start the IOC:
@@ -236,7 +237,7 @@ export IOC_RUNNER_LOCAL_SYSTEMD_DIR="/tmp/sandbox/systemd"
 
 **Caveat: the system-mode runtime directory is fixed**
 
-The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). In system mode, moving the runtime directory off `/run/procserv` via `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` would split the `IOC_PORT` socket path from where the kernel creates the UDS, so the runner rejects it with an error. Use these overrides only in `--local` mode or for test scaffolding.
+The deployed systemd template hardcodes `RuntimeDirectory=procserv/%i` (resolving to `/run/procserv/%i`). System mode requires the runtime directory to remain `/run/procserv`, matching the deployed template; the runner rejects `IOC_RUNNER_RUN_DIR` or `IOC_RUNNER_SYSTEM_RUN_DIR` when the resolved directory is elsewhere. Use these overrides only in `--local` mode or for test scaffolding.
 
 **Install-time paths are read from the effective unit**
 
@@ -247,7 +248,7 @@ current environment:
 - `start`, `restart`, and `inspect` resolve `--logfile` from effective
   `ExecStart`; startup readiness scans therefore follow the same path procServ
   uses.
-- If the installed `IOC_PORT` socket path no longer matches the current `RUN_DIR` resolution, it prints `Warning: the installed IOC_PORT socket (...) does not match the current RUN_DIR resolution (...).` Then `attach` and `list` look in the wrong place; re-run `install` after changing `IOC_RUNNER_LOCAL_RUN_DIR` / `IOC_RUNNER_RUN_DIR`.
+- If the installed `IOC_PORT` socket path no longer matches the current `RUN_DIR` resolution, `start` prints `Warning: the installed IOC_PORT socket (...) does not match the current RUN_DIR resolution (...).` The following warning line says that `attach/list` will look in the wrong place. In the current implementation, `list` searches the current `RUN_DIR`, while `attach` uses the socket path from the installed configuration. Re-run `install` after changing `IOC_RUNNER_LOCAL_RUN_DIR` / `IOC_RUNNER_RUN_DIR` to align the installed socket path with directory-based discovery.
 
 After changing any install-time override, re-run `ioc-runner --local install`
 so the unit, configuration, socket lookup, and log path remain aligned.
@@ -256,8 +257,10 @@ so the unit, configuration, socket lookup, and log path remain aligned.
 
 `ioc-runner --local install` also deploys per-user log rotation, because a
 crash-looping IOC under `Restart=always` would otherwise grow its log without
-limit. One user timer, `epics-logrotate.timer`, rotates every log in the local
-log directory weekly, or as soon as a log exceeds 50 MB. The timer runs only
+limit. One user timer, `epics-logrotate.timer`, checks the local logs hourly,
+with a randomized delay of up to five minutes. At each check, logrotate
+applies the weekly rotation policy or rotates a log that exceeds 50 MiB
+(`maxsize 50M`). The timer runs only
 while your user instance of systemd runs, so enable lingering on a headless
 host, and `remove` leaves it in place. [LOG_LAYOUT.md](LOG_LAYOUT.md#local-mode-log-rotation)
 gives the files, the policy, and how to remove rotation.

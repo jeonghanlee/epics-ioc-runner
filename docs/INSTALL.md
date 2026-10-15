@@ -131,6 +131,10 @@ through `s6-svscan`. Deep `inspect` additionally needs the `CAP_SYS_PTRACE`
 capability. See the [s6 service directory](ARCHITECTURE.md#s6-service-directory---container-mode) for the
 service directory layout.
 
+The scan directory must be on a filesystem that permits execution. For a
+Docker tmpfs mounted at `/run`, include `exec` in its mount options; `noexec`
+prevents s6 from executing the generated `run` scripts.
+
 An enabled service's generated `run` script creates its configured socket
 parent before starting procServ, with the service user and group and mode
 `0770`. Directory preparation failure prints an error and exits 1 before
@@ -173,8 +177,11 @@ exit 1. After parsing, it rejects a combination of `--full` and
 `--container` with exit 1. Help exits during parsing, before that combination
 check or the service-manager preflight.
 
-The root check precedes option parsing. Direct setup execution as a non-root
-user therefore exits 1 even for help. Through the launcher, help also requires
+Direct setup parses options before checking root privileges. A non-root user
+can read help with `/bin/bash -p bin/setup-system-infra.bash --help` from the
+repository root. Deployment requires root; unknown arguments and conflicting
+modes can report their parser error before the root check.
+Through the launcher, help requires
 the source-file checks, executable dependencies, checkout-owner invocation,
 and noninteractive sudo access described below. NOPASSWD access or cached
 credentials can satisfy the sudo check.
@@ -239,8 +246,8 @@ The privileged stage extracts the three sources into
 `/tmp/ioc-runner-system-setup.XXXXXX` and repeats the regular-file and
 non-symlink checks before setup. A failed check exits 1 and names the source.
 Exit and interruption handlers remove the stage while preserving the setup
-exit status on normal exit. Cleanup refuses a nonempty path outside the
-expected `/tmp/ioc-runner-system-setup.*` pattern and exits 1.
+exit status on normal exit. The internal staging-path check is described in
+[Setup launcher](ARCHITECTURE.md#setup-launcher).
 
 ### Setup diagnostics and partial deployment
 
@@ -251,7 +258,6 @@ A missing backend tool exits 1 before infrastructure changes.
 Full setup resolves procServ before changing accounts or configuration.
 When no candidate is executable, it lists the searched paths, recommends
 installing procServ or setting `IOC_RUNNER_PROCSERV_PATH`, and exits 1.
-The template deployment also aborts if the resolved executable value is empty.
 
 During deployment, `STEP` banners identify the account, configuration,
 supervisor, logging, and CLI stages that apply to the selected mode.
@@ -272,8 +278,8 @@ These conditions have distinct outcomes:
   it prints the offending lines and asks you to move includedir to the end
   with `visudo`.
 - If the generated system logrotate policy fails validation, setup exits 1
-  before replacing that policy. The message says `Skipping deployment`, but
-  the setup run stops; it does not continue to CLI deployment.
+  before replacing that policy and prints
+  `Setup aborted; logrotate policy not deployed.` CLI deployment does not run.
 - If the runner source is missing, direct setup exits 1 and names the path.
   If only the completion source is missing, direct setup prints a skip
   notice and continues. The launcher rejects either missing source earlier.
@@ -364,7 +370,7 @@ Keep `daemon-reload` as an exact argument without regex anchors.
 > between the verb and the pattern, since sudo matches the regex against the
 > literal argument string.
 
-> **Important:** The `@includedir /etc/sudoers.d` (or legacy `#includedir`) directive in `/etc/sudoers` must be the final active line. Any user-specific rules placed after it (e.g., `alice ALL=(ALL) ALL`) will be evaluated *after* the drop-in policies and silently override the NOPASSWD rule installed above. Verify with `sudo -l` on a group member account: the `(root) NOPASSWD: /usr/bin/systemctl ...` entry must appear last.
+> **Important:** The `@includedir /etc/sudoers.d` (or legacy `#includedir`) directive in `/etc/sudoers` must be the final active line. User-specific rules placed after it are evaluated after the drop-in policies. A later rule that also matches the invoking user and command can override the NOPASSWD setting (for example, `alice ALL=(ALL) ALL` for commands run by `alice`). Verify with `sudo -l` on a group member account: the `(root) NOPASSWD: /usr/bin/systemctl ...` entry must appear last.
 
 ### systemd template unit deployment
 Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide. Resolve the `procServ` path dynamically to accommodate different installation targets (e.g., `/usr/bin` vs `/usr/local/bin`).
@@ -374,7 +380,9 @@ after it with `After=`. These dependencies do not guarantee that the host
 clock is synchronized. Configure and verify the site's NTP or PTP service
 separately when IOC timestamps require a synchronized clock.
 
-The `StartLimit*` rows must stay in `[Unit]` - a `[Service]` placement is silently rejected on systemd 239 (see ADR 0001, Evidence).
+Keep the three `StartLimit*` rows shown below in `[Unit]`. On systemd 239,
+`systemd-analyze verify` reports `Unknown lvalue` for `StartLimitIntervalSec`
+in `[Service]`, even when the command exits successfully.
 
 
 ```bash
@@ -490,17 +498,17 @@ filtered by the prefix you have typed:
 
 | Kind | Suggestions |
 | --- | --- |
-| Commands | `generate`, `install`, `remove`, `start`, `stop`, `restart`, `status`, `enable`, `disable`, `view`, `list`, `attach`, `monitor`, `inspect` |
-| Options | `--local`, `--user`, `--container`, `-f`, `--force`, `-v`, `-vv`, `--detach-key`, `-V`, `--version`, `-h`, `--help` |
+| Commands | `generate`, `install`, `remove`, `start`, `stop`, `restart`, `status`, `enable`, `disable`, `view`, `log`, `list`, `attach`, `monitor`, `inspect` |
+| Options | `--local`, `--user`, `--container`, `-f`, `--force`, `-n`, `--lines`, `-v`, `-vv`, `--detach-key`, `-V`, `--version`, `-h`, `--help` |
+| Value immediately after `-n` or `--lines` | No suggestions; enter the positive integer yourself |
 | Value immediately after `--detach-key` | `ctrl-a`, `ctrl-b`, `ctrl-]` |
 
-Completion omits `log`, `-n`, and `--lines`; type those names explicitly.
 The three suggested detach keys are a subset of the accepted values in the
 [command reference](CLI_REFERENCE.md#attach-readwrite-mode).
 Completion suggests options without checking whether the selected command
 accepts them; the runner validates their use when you execute it.
 
-For service, console, `view`, `remove`, and `inspect` commands, completion
+For service, console, `view`, `log`, `remove`, and `inspect` commands, completion
 finds names by listing existing `*.conf` entries and removing the `.conf`
 suffix. It does not query service state or validate the configuration content.
 The configuration directory is selected as follows:
@@ -517,6 +525,12 @@ For `list`, it suggests `-v` and `-vv`; a word beginning with `-` uses the
 general option list instead. Immediately after `--detach-key`, the key
 suggestions take precedence over command, option, and IOC-name suggestions.
 
+Immediately after `-n` or `--lines`, completion returns no suggestions,
+including when the current value starts with a dash. After a number and a
+space, command suggestions resume if no command is present; otherwise the
+selected command's target completion resumes. The runner validates the number
+when you execute it.
+
 ## Shared deployment directory setup (`/opt/epics-iocs`)
 Before engineers can deploy IOCs, a shared payload directory must be established. This directory must be accessible and writable by the `ioc` group.
 
@@ -528,8 +542,8 @@ sudo mkdir -p /opt/epics-iocs
 sudo chown root:ioc /opt/epics-iocs
 sudo chmod 2775 /opt/epics-iocs
 
-# Force default ACLs: All newly created files/directories inside will inherit the 'ioc' group
-# Directories will be 2775 (rwxrwsr-x), Files will be 0664 (rw-rw-r--)
+# setgid preserves group ownership; default ACLs set inherited access permissions.
+# Git checkout: directories 2775, non-executable files 0664, executable files 0775.
 sudo setfacl -d -m g:ioc:rwx /opt/epics-iocs
 sudo setfacl -d -m o::rx /opt/epics-iocs
 ```

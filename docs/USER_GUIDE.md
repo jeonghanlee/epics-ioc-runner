@@ -37,7 +37,8 @@ configuration, install the configuration, and start the service.
    ioc-runner generate .
    ```
 
-   The runner writes `<ioc_boot_dir>.conf` with the absolute paths and the
+   The runner writes `<ioc_boot_dir>.conf` with an absolute `IOC_CHDIR`,
+   a relative startup command such as `IOC_CMD="./st.cmd"`, and the
    `ioc-srv` identity. The startup script named in `IOC_CMD` must be
    executable, or `install` rejects the configuration.
 
@@ -78,11 +79,9 @@ so that `IOC_CHDIR` is writable by `ioc-srv`. The setgid bit of the
 `root:ioc 2775` parent alone is not enough: it passes the `ioc` group to a
 directory that `git clone` creates, but the mode bits follow the creating
 user's `umask`, so a clone made under `umask 022` is `2755` and `ioc-srv`
-cannot write to it. The default ACL gives the group `rwx` on new entries
+cannot write to it. The default ACL gives the group `rwx` on new directories
 regardless of `umask`. Without it, clone under `umask 002`, or correct the
-clone with `chmod -R g+w /opt/epics-iocs/<clone>`. Home directories and NFS
-mounts without `ioc` group access are not writable by `ioc-srv` and cause
-runtime failures under procServ.
+clone with `chmod -R g+w /opt/epics-iocs/<clone>`. For deployments in home directories or on NFS, check that `ioc-srv` can traverse the path and write to `IOC_CHDIR`. Missing permissions can prevent startup or runtime file creation under procServ.
 
 During `install`, the runner checks that `IOC_CHDIR` is group-owned by `ioc`
 with setgid and group write and execute, and that `ioc-srv` can traverse it.
@@ -168,8 +167,8 @@ Press Enter to show the `epics>` prompt when the screen is blank.
   detaches at it. With the default key, `Ctrl-A` cannot move the cursor to the
   beginning of the input line.
 - **Ignored keys**: The runner starts procServ with `--ignore=^D^C`, which
-  discards `Ctrl-C` and `Ctrl-D` before they reach the IOC; every other byte,
-  including `Ctrl-]`, is forwarded. When `Ctrl-C` or `Ctrl-D` is the detach
+  discards `Ctrl-C` and `Ctrl-D` before they reach the IOC. procServ also
+  handles its own control keys; for example, `Ctrl-X` kills the IOC child. When `Ctrl-C` or `Ctrl-D` is the detach
   key, the client handles it and detaches first.
 - **Supported clients**: `attach` and `monitor` use only `con` or `socat`.
   When neither is available, the command fails with an installation hint.
@@ -272,7 +271,7 @@ ioc-runner --local list
 ioc-runner list -v
 ```
 
-In system mode, a user outside the `ioc` group sees no sockets.
+With the default socket-directory permissions, an unprivileged user outside the `ioc` group cannot traverse the IOC socket directories, so `list` shows no sockets.
 
 ## Connect to the console directly with con
 

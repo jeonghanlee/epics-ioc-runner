@@ -65,10 +65,10 @@ writes it into the `--logfile` argument of the user unit template.
 ## Who can read the logs
 
 `ioc-runner [--local] log <name>` prints the tail of the effective log file,
-so an operator does not build the path by hand. In system mode every user can
-read the log files, and changing a service requires the `ioc` group; the
-three-principal model in [PERMISSION_MODEL.md](PERMISSION_MODEL.md) gives each
-principal's access. Reading a log does not require membership in the
+so an operator does not build the path by hand. In system mode, the default
+setup allows other users to read the logs. Root can manage services directly;
+non-root operators use the [configured sudo policy](PERMISSION_MODEL.md),
+which grants the standard lifecycle commands to the `ioc` group by default. Reading a log does not require membership in the
 `systemd-journal` group.
 
 ## System-mode log rotation
@@ -128,8 +128,9 @@ allowing the IOC installation to continue. System setup uses its own
   `RandomizedDelaySec=5m`. The hourly run makes the size limit effective;
   `weekly` drives time-based rotation.
 - **Policy:** `weekly`, `maxsize 50M`, `rotate 8`, `copytruncate`,
-  `compress`, `missingok`, `notifempty`, and `nodateext`. `maxsize` rotates a
-  log that exceeds 50 MB before the week ends, which bounds a crash loop.
+  `compress`, `missingok`, `notifempty`, and `nodateext`. At the next scheduled
+  check, `maxsize` rotates a log larger than 50 MiB even when the weekly
+  interval has not elapsed. Log growth between checks is not capped.
 - **State:** the logrotate state file is `%t/ioc-runner-logrotate.state`, in
   the host-local `$XDG_RUNTIME_DIR`, so timers on several hosts that share an
   NFS home do not race on one state file.

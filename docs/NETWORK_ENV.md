@@ -114,7 +114,7 @@ R7.0.10; PVA defaults are from the PVXS 1.5.1 references.
 | `EPICS_CA_AUTO_ADDR_LIST` | `YES` | Auto-add every local broadcast address to the search list | `configure/CONFIG_ENV` |
 | `EPICS_CA_NAME_SERVERS` | empty | TCP name-server destinations for CA searches | `configure/CONFIG_ENV` |
 | `EPICS_CA_SERVER_PORT` | `5064` | Destination UDP search port and default TCP server port | `configure/CONFIG_ENV` |
-| `EPICS_CA_CONN_TMO` | `30.0` | Seconds before an unresponsive circuit is declared disconnected | `configure/CONFIG_ENV` |
+| `EPICS_CA_CONN_TMO` | `30.0` | Idle interval before checking circuit responsiveness; declaring a circuit unresponsive also waits for the echo-response timeout | `configure/CONFIG_ENV`, `tcpRecvWatchdog.cpp` |
 
 ### CA server binding and beacons
 
@@ -193,10 +193,7 @@ it also limits where beacons go.
 - **PVA.** The auto-beacon expands the beacon list from the interface list: the
   default wildcard interface adds every local broadcast address, while a
   specific interface adds only that interface's broadcast (`config.cpp`,
-  `Config::expand` and `expandAddrList`). With PVXS 1.5.1 and the wildcard
-  interface, the beacon list holds the loopback broadcast and every interface
-  broadcast; with one interface named, it holds the loopback broadcast and that
-  interface's broadcast only.
+  `Config::expand` and `expandAddrList`). With PVXS 1.5.1, automatic destinations follow the selected interfaces; loopback is not added unconditionally when another interface is selected. Explicit beacon destinations remain independent of this automatic expansion.
 
 The `server.rst` phrasing "supplemented all local broadcast addresses if
 auto-beacon is `YES`" holds only for the default wildcard interface; with a
@@ -247,9 +244,7 @@ Consequences to expect, from the asymmetries above:
 
 - `dev-gateway`'s CA server binds `203.0.113.5`, and its CA beacons narrow to
   that interface's broadcast address (`EPICS_CAS_INTF_ADDR_LIST` narrowing).
-- `dev-gateway`'s PVA server binds `203.0.113.5`, and with auto-beacon `YES` its
-  PVA beacons narrow the same way - to that interface's broadcast, not every
-  local broadcast address.
+- `dev-gateway`'s PVA server binds `203.0.113.5`. The shared `EPICS_PVA_AUTO_ADDR_LIST=NO` disables automatic beacons; adding `EPICS_PVAS_AUTO_BEACON_ADDR_LIST=YES` to its conf adds the device interface's broadcast while retaining the explicit destinations inherited from `EPICS_PVA_ADDR_LIST`.
 - Every other IOC keeps the shared control-network discovery from `site.env` and
   binds its servers to all interfaces (the empty-list default).
 

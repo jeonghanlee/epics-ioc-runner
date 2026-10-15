@@ -9,6 +9,7 @@ declare -gr REPORTING_SUITES_LOADED=1
 declare -gr -a REPORTING_SUPPORTED_SUITES=(
     container-lifecycle
     error-handling
+    list-states
     local-lifecycle
     source-regression
     system-infra

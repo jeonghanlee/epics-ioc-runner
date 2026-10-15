@@ -175,6 +175,15 @@ if [[ "${SC_PATH}" != /* ]]; then
 fi
 SC_TOP="${SC_PATH%/*}"
 REPO_TOP="${SC_TOP}/.."
+declare -g NATIVE_SETUP_CATALOG
+NATIVE_SETUP_CATALOG=$(bash "${SC_TOP}/lib/setup-diagnostic-native.bash" --catalog)
+SOURCE_CHECK_IDS+=("${SUITE_ID}.S27.native-prerequisites")
+while IFS= read -r native_key; do
+    SOURCE_CHECK_IDS+=("${SUITE_ID}.S27.${native_key}")
+done <<< "${NATIVE_SETUP_CATALOG}"
+SOURCE_CHECK_IDS+=("${SUITE_ID}.S27.execution-complete")
+unset native_key NATIVE_SETUP_CATALOG
+
 # shellcheck source=lib/test-reporting.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
@@ -223,7 +232,8 @@ function source_check_metadata {
     local required_direct="false"
 
     if [[ "${check_id}" == "${SUITE_ID}.S22.isolation.prerequisites" ]] ||
-       [[ "${check_id}" == "${SUITE_ID}.S25.transport.fixture-ready" ]]; then
+       [[ "${check_id}" == "${SUITE_ID}.S25.transport.fixture-ready" ]] ||
+       [[ "${check_id}" == "${SUITE_ID}.S27.native-prerequisites" ]]; then
         printf -v "${kind_name}" '%s' PREREQUISITE
         printf -v "${method_name}" '%s' direct-inspection
         return
@@ -264,7 +274,7 @@ function register_reporting_catalog {
     local method=""
     local remainder=""
     local step_id=""
-    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22 S23 S24 S25 S26)
+    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22 S23 S24 S25 S26 S27)
 
     for step_id in "${step_ids[@]}"; do
         report_register_step "${step_id}" "Source regression ${step_id}"
@@ -2193,6 +2203,54 @@ function test_reporting_self_tests {
     esac
 }
 
+function test_setup_native_diagnostics {
+    local step="$1" ready=true tool resolved path check_id
+    local work exit_code=0 tag key state index=0
+    local helper="${SC_TOP}/lib/setup-diagnostic-native.bash"
+    local -a expected=()
+    print_divider
+    _log INFO "STEP ${step}: Native Setup Help and Failure Contract"
+    for tool in unshare mount tar runuser logrotate getfacl setfacl systemctl setsid; do
+        resolved=$(command -v "${tool}" || true)
+        [[ -n "${resolved}" && -x "${resolved}" ]] || ready=false
+    done
+    for path in "${helper}" "${REPO_TOP}/bin/setup-system-infra.bash" "${REPO_TOP}/bin/ioc-runner" "${REPO_TOP}/bin/ioc-runner-completion.bash"; do
+        [[ -f "${path}" && -r "${path}" ]] || ready=false
+    done
+    [[ "$(cat /proc/1/comm)" == systemd ]] || ready=false
+    getent passwd ioc-srv >/dev/null || ready=false
+    getent group ioc >/dev/null || ready=false
+    if [[ "${ready}" == true ]]; then
+        unshare --mount -- true || ready=false
+    fi
+    if [[ "${ready}" != true ]]; then
+        report_record "${SUITE_ID}.S27.native-prerequisites" SKIP "requires a prepared disposable systemd VM and native setup tools"
+        for check_id in "${SOURCE_CHECK_IDS[@]}"; do
+            [[ "${check_id}" == "${SUITE_ID}.S27."* && "${check_id}" != "${SUITE_ID}.S27.native-prerequisites" ]] || continue
+            report_record "${check_id}" SKIP "requires ${SUITE_ID}.S27.native-prerequisites"
+        done
+        return 0
+    fi
+    report_record "${SUITE_ID}.S27.native-prerequisites" PASS
+    for check_id in "${SOURCE_CHECK_IDS[@]}"; do
+        [[ "${check_id}" == "${SUITE_ID}.S27."* ]] || continue
+        [[ "${check_id}" != "${SUITE_ID}.S27.native-prerequisites" && "${check_id}" != "${SUITE_ID}.S27.execution-complete" ]] || continue
+        expected+=("${check_id#"${SUITE_ID}.S27."}")
+    done
+    work=$(mktemp -d /var/tmp/ioc-source-native-report.XXXXXX)
+    /bin/bash -p "${helper}" "${REPO_TOP}/bin/setup-system-infra.bash" "${INVOKING_USER}" \
+        > "${work}/checks.log" 2> "${work}/execution.log" || exit_code=$?
+    cat "${work}/execution.log"
+    while IFS='|' read -r tag key state; do
+        [[ "${tag}" == CHECK && "${key}" == "${expected[index]:-}" && ( "${state}" == PASS || "${state}" == FAIL ) ]] || return 1
+        verify_state PASS "${state}" "${SUITE_ID}.S27.${key}"
+        index=$((index + 1))
+    done < "${work}/checks.log"
+    (( index == ${#expected[@]} )) || exit_code=1
+    verify_state 0 "${exit_code}" "${SUITE_ID}.S27.execution-complete"
+    printf 'Native setup report retained: %s\n' "${work}"
+}
+
 function run_all_tests {
     initialize_reporting
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
@@ -2221,6 +2279,7 @@ function run_all_tests {
     test_staged_setup_launcher "S24"
     test_push_status_comparison "S25"
     test_reporting_self_tests "S26"
+    test_setup_native_diagnostics "S27"
 }
 
 run_all_tests

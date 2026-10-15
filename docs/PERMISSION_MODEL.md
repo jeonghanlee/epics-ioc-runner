@@ -1,8 +1,8 @@
 # Filesystem permission model
 
-This page gives the owner, mode, and ACL of every directory and file that
-the setup script and the runner install, reference, or create, and the
-principals that can create, manage, and read each one.
+This page describes ownership, modes, and ACLs for managed configuration,
+service, socket, log, and backup paths, together with site-provisioned
+dependency requirements and the principals that manage or read them.
 
 Scope:
 
@@ -89,10 +89,11 @@ group, returned by `id -un` and `id -gn`, respectively; the names can differ.
 | `/run/user/<uid>/ioc-runner-logrotate.state` | `<user>:<primary-group>` | logrotate-managed | - | rotation state, host-local via the `%t` specifier |
 
 When `HOME` is unset (bare sudo, some cron/systemd contexts) the runner
-falls back to the passwd database and, failing that, to `/tmp` - and a
-`/tmp`-fallback HOME is treated as untrusted: `${HOME}/.local/bin` is then
-excluded from the `con`/`procServ` executable search, so a world-writable
-fallback home can never supply the executables the runner runs.
+falls back to the passwd database and, failing that, to `/tmp`. A
+`/tmp`-fallback HOME is treated as untrusted: `${HOME}/.local/bin` is
+excluded from the default `con`/`procServ` search paths. Explicit
+`IOC_RUNNER_CON_TOOL` and `IOC_RUNNER_PROCSERV_TOOL` overrides are validated
+separately and are not excluded by this HOME fallback rule.
 
 ## Access boundary: sudoers policy and file mode
 
@@ -118,18 +119,19 @@ based on the local sudo version (decided by
 
 Effective scope:
 
-- Only members of the `ioc` group can have `ioc-runner` succeed in
-  `start` / `stop` / `restart` / `enable` / `disable` /
-  `daemon-reload` operations on `epics-@<name>.service` instances.
-  For non-`ioc` users, the `sudo systemctl ...` call inside
-  `ioc-runner` fails at the sudo gate.
+- For non-root callers, the shipped sudoers policy grants members of the
+  configured operator group (`ioc` by default) the listed privileged
+  systemctl operations. Root invokes systemctl directly. Other administrative
+  grants are controlled by the host's sudo policy. Configuration-directory
+  or log-path permissions may reject a non-root caller before sudo;
+  calls that reach sudo require an applicable grant.
 - `ioc-runner` execution itself is not restricted - any user can
   invoke the script. The gate is the privileged systemctl
   invocation it makes internally.
-- Read-only paths (`ioc-runner status`, `is-active`, `cat`, `show`)
-  do not go through `sudo`. They rely on systemd's own permission
-  for those queries (typically permissive) and on file system
-  permissions for any log file reads.
+- `ioc-runner status` queries systemd without sudo. The runner also makes
+  internal `systemctl is-active`, `is-enabled`, `cat`, and `show` queries
+  without sudo; those names are not public ioc-runner commands. Access to
+  unit state and log files still depends on systemd and filesystem permissions.
 
 File-mode permissions and default ACLs reinforce the boundary at
 the file system layer: who can read log files, who can write, and
@@ -141,9 +143,7 @@ conf is the designed norm (any `ioc` engineer manages any IOC), and a
 world-writable conf is neither detected nor rejected - so the integrity
 boundary is directory containment (the [setup-managed configuration
 directory](#setup-managed-paths) in system mode; the user's home in local
-mode), not a per-file mode check. Do
-not store secrets in a `.conf`: every key is exported into the procServ
-process environment and inherited by the IOC process (see [IOC configuration metadata](FAQ.md#can-ioc-configuration-files-include-metadata)).
+mode), not a per-file mode check. Do not store secrets in a `.conf`. In System and Local modes, every key is exported into the procServ process environment and inherited by the IOC process (see [IOC configuration metadata](FAQ.md#can-ioc-configuration-files-include-metadata)).
 
 ### Residual risk on sudo < 1.9.10 hosts
 
@@ -290,7 +290,7 @@ Create, Manage, and Track (read).
 | Track | read-only inspection | engineer outside `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |
 | Track | `inspect` log-path and executable identity | `root`; probe changes to effective unit `User=` and `Group=` | effective log directory, `MainPID`, UDS, procServ executable | fixed `/usr/sbin/runuser -u <User> -g <Group>` probe plus read-only `/proc` and systemd queries | warnings only; no service-state change or nested sudoers rule |
 | Track | directory listing | any user | `${SYSTEM_LOG_DIR}/` | `ls` | dir `o+rx` |
-| Track | `ioc-runner status` / `is-active` | any user | service state | systemd query (no sudo) | systemd query ACL (permissive) |
+| Track | `ioc-runner status` | any user | service state | systemd query (no sudo) | systemd query ACL (permissive) |
 
 ### Local mode
 
@@ -407,13 +407,11 @@ sudo -u nobody cat /var/log/procserv/<ioc>.log
 # succeeds: dir 2775 grants o+rx traversal; file 0644 grants o+r
 ```
 
-Note that wide read sits at the file-mode layer only. The sudoers
-policy restricts the privileged `systemctl start`/`stop`/`restart`/
-`enable`/`disable`/`daemon-reload` calls that `ioc-runner` makes
-internally in system mode to `%ioc` group members. Non-`ioc` users
-can run the `ioc-runner` binary itself and can `cat` the log
-directly, but any IOC state change attempted through `ioc-runner`
-fails at the sudo gate inside the script.
+Wide log access is a filesystem permission. Privileged systemctl operations
+by non-root callers require an applicable sudo grant; the shipped policy
+grants them to the configured operator group. Root calls systemctl directly.
+Configuration-directory or log-path checks can reject a command before sudo
+is invoked.
 
 Local mode, with `XDG_STATE_HOME` and the log directory overrides unset
 (after `ioc-runner --local install <conf>` and IOC start):

@@ -386,3 +386,65 @@ is kept and whose failed assertions are printed only when a self-test fails.
 ## Verification Method
 
 Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S07. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the original eleven S22 identities and M13 adds eleven more through the shipped full setup in a private mount namespace. M19 adds the four S23 identities through the shipped setup deploying to an absent destination parent. The release gate adds five S24 staged-setup identities and four S25 push-status identities. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+
+## Native Setup Diagnostics
+
+S27 requires a disposable prepared systemd VM, native setup tools and the
+existing `ioc-srv`/`ioc` identity. The `native-prerequisites` check has kind
+`PREREQUISITE`, method `direct-inspection`; an unmet prerequisite skips the
+entire group. The helper copies /etc into a private mount namespace, redirects
+other destinations, rejects symlinks at setup write paths and their parents,
+and invokes the complete shipped setup as real root/non-root with a restricted
+environment. A real full setup creates the private baseline before the invalid
+policy case. PID 1 always reads its original filesystem view; the helper
+reloads that real manager after the namespace exits. All native logs and
+protected-state snapshots are retained in root-owned /var/tmp directories.
+No internal parser, validator, command or system manager is replaced.
+
+The following `source-regression.S27.` suffixes have kind `BEHAVIOR`, method
+`real-path`. `execution-complete` also requires the helper's final exit 0.
+
+- `parser.root.help`
+- `parser.root.short`
+- `parser.root.full-help`
+- `parser.root.container-help`
+- `parser.root.conflict-help`
+- `parser.root.help-unknown`
+- `parser.root.unknown-help`
+- `parser.root.conflict`
+- `parser.root.repeat-full-help`
+- `parser.root.repeat-container-help`
+- `parser.user.help`
+- `parser.user.short`
+- `parser.user.full-help`
+- `parser.user.container-help`
+- `parser.user.conflict-help`
+- `parser.user.help-unknown`
+- `parser.user.unknown-help`
+- `parser.user.conflict`
+- `parser.user.repeat-full-help`
+- `parser.user.repeat-container-help`
+- `parser.user.noargs`
+- `parser.user.full`
+- `parser.user.container`
+- `parser.user.repeat-full`
+- `parser.user.repeat-container`
+- `parser.no-deployment`
+- `baseline.exit-zero`
+- `invalid.exit-one`
+- `invalid.abort-message`
+- `invalid.policy-preserved`
+- `invalid.cli-preserved`
+- `invalid.completion-preserved`
+- `invalid.cli-stage-absent`
+- `invalid.temporaries-clean`
+- `valid.exit-zero`
+- `valid.policy-deployed`
+- `valid.runner-deployed`
+- `valid.completion-deployed`
+- `valid.temporaries-clean`
+- `cli.exit-zero`
+- `repeated-full.exit-zero`
+- `protected-state-restored`
+- `manager-state-restored`
+- `execution-complete`

@@ -264,7 +264,7 @@ Commands:
   view           Print the IOC configuration file and the rendered systemd unit
   log            Print the last lines of the IOC's effective procServ log
                    (-f: follow the log until interrupted)
-                   (-n <count>: number of lines to show; default 40)
+                   (-n <count>, --lines <count>: number of lines to show; default 40)
   list           List all active IOC sockets
                    (default: name, status, start time, path)
                    (-v: adds PID, CPU, memory)
@@ -1775,6 +1775,8 @@ function validate_conf {
         if [[ "${found_user}" != "${required_user}" ]]; then
             if [[ "${required_mode}" == "system" ]]; then
                 printf "Error: System IOCs must run as %s\n" "${required_user}" >&2
+            elif [[ "${required_mode}" == "container" ]]; then
+                printf "Error: Container IOCs must run as %s\n" "${required_user}" >&2
             else
                 printf "Error: Local IOCs must run as %s\n" "${required_user}" >&2
             fi
@@ -1783,6 +1785,8 @@ function validate_conf {
         if [[ "${found_group}" != "${required_group}" ]]; then
             if [[ "${required_mode}" == "system" ]]; then
                 printf "Error: System IOCs must run under group %s\n" "${required_group}" >&2
+            elif [[ "${required_mode}" == "container" ]]; then
+                printf "Error: Container IOCs must run under group %s\n" "${required_group}" >&2
             else
                 printf "Error: Local IOCs must run under group %s\n" "${required_group}" >&2
             fi

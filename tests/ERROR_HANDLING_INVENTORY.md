@@ -31,7 +31,7 @@ are not separate catalog identities.
 ## Dependency Policy
 
 - error-handling.P00.runner-source-readable governs all numbered STEPs.
-- error-handling.S23.completion-script-available governs the eight S23 behavior
+- error-handling.S23.completion-script-available governs all S23 behavior
   checks. If the file is absent, the required check is FAIL and the dependent
   checks are SKIP.
 - Each nonroot-permission-probes-applicable check governs only the permission
@@ -417,3 +417,314 @@ Owner accepted all S34 dispositions on 2026-08-07.
 The mapping is complete only while all 190 current behavior identities map
 once, the eight added conditions map once, no STEP-local key is duplicated,
 and the source pipeline remains S01 through S40.
+
+## Complete Completion Contract
+
+S23 retains its existing checks and calls `lib/completion-contract.bash` against
+the actual source file. The same helper accepts an installed completion file
+for separate deployment verification. It sources the entire file in a fresh
+Bash process, obtains the registered function through `complete -p`, and supplies
+only `COMP_WORDS` and `COMP_CWORD` as external inputs. Expected names come from
+independent command and option lists. No runner or completion function is replaced.
+
+The helper's `--catalog` mode lists the following stable suffixes under
+`error-handling.S23.contract.`. All have kind `BEHAVIOR` and method `real-path`.
+`directory.unreadable` is NA only under real UID 0; the complete non-root run
+executes it. Every probe retains argv, stdout, stderr, exit and expected values
+in its evidence directory. Path comparisons ignore the existing duplicate
+directory suggestions, while the raw stdout retains them.
+
+- `exact-interface`
+- `exact-options`
+- `command-prefix`
+- `command.generate`
+- `command.install`
+- `command.remove`
+- `command.start`
+- `command.stop`
+- `command.restart`
+- `command.status`
+- `command.enable`
+- `command.disable`
+- `command.view`
+- `command.log`
+- `command.list`
+- `command.attach`
+- `command.monitor`
+- `command.inspect`
+- `option.--local`
+- `option.--user`
+- `option.--container`
+- `option.-f`
+- `option.--force`
+- `option.-n`
+- `option.--lines`
+- `option.-v`
+- `option.-vv`
+- `option.--detach-key`
+- `option.-V`
+- `option.--version`
+- `option.-h`
+- `option.--help`
+- `target.system.remove.before`
+- `prefix.system.remove.before`
+- `target.system.remove.after`
+- `prefix.system.remove.after`
+- `target.system.start.before`
+- `prefix.system.start.before`
+- `target.system.start.after`
+- `prefix.system.start.after`
+- `target.system.stop.before`
+- `prefix.system.stop.before`
+- `target.system.stop.after`
+- `prefix.system.stop.after`
+- `target.system.restart.before`
+- `prefix.system.restart.before`
+- `target.system.restart.after`
+- `prefix.system.restart.after`
+- `target.system.status.before`
+- `prefix.system.status.before`
+- `target.system.status.after`
+- `prefix.system.status.after`
+- `target.system.enable.before`
+- `prefix.system.enable.before`
+- `target.system.enable.after`
+- `prefix.system.enable.after`
+- `target.system.disable.before`
+- `prefix.system.disable.before`
+- `target.system.disable.after`
+- `prefix.system.disable.after`
+- `target.system.view.before`
+- `prefix.system.view.before`
+- `target.system.view.after`
+- `prefix.system.view.after`
+- `target.system.log.before`
+- `prefix.system.log.before`
+- `target.system.log.after`
+- `prefix.system.log.after`
+- `target.system.attach.before`
+- `prefix.system.attach.before`
+- `target.system.attach.after`
+- `prefix.system.attach.after`
+- `target.system.monitor.before`
+- `prefix.system.monitor.before`
+- `target.system.monitor.after`
+- `prefix.system.monitor.after`
+- `target.system.inspect.before`
+- `prefix.system.inspect.before`
+- `target.system.inspect.after`
+- `prefix.system.inspect.after`
+- `precedence.system.unified`
+- `precedence.system.empty-unified`
+- `list.system`
+- `list-options.system`
+- `target.local.remove.before`
+- `prefix.local.remove.before`
+- `target.local.remove.after`
+- `prefix.local.remove.after`
+- `target.local.start.before`
+- `prefix.local.start.before`
+- `target.local.start.after`
+- `prefix.local.start.after`
+- `target.local.stop.before`
+- `prefix.local.stop.before`
+- `target.local.stop.after`
+- `prefix.local.stop.after`
+- `target.local.restart.before`
+- `prefix.local.restart.before`
+- `target.local.restart.after`
+- `prefix.local.restart.after`
+- `target.local.status.before`
+- `prefix.local.status.before`
+- `target.local.status.after`
+- `prefix.local.status.after`
+- `target.local.enable.before`
+- `prefix.local.enable.before`
+- `target.local.enable.after`
+- `prefix.local.enable.after`
+- `target.local.disable.before`
+- `prefix.local.disable.before`
+- `target.local.disable.after`
+- `prefix.local.disable.after`
+- `target.local.view.before`
+- `prefix.local.view.before`
+- `target.local.view.after`
+- `prefix.local.view.after`
+- `target.local.log.before`
+- `prefix.local.log.before`
+- `target.local.log.after`
+- `prefix.local.log.after`
+- `target.local.attach.before`
+- `prefix.local.attach.before`
+- `target.local.attach.after`
+- `prefix.local.attach.after`
+- `target.local.monitor.before`
+- `prefix.local.monitor.before`
+- `target.local.monitor.after`
+- `prefix.local.monitor.after`
+- `target.local.inspect.before`
+- `prefix.local.inspect.before`
+- `target.local.inspect.after`
+- `prefix.local.inspect.after`
+- `precedence.local.unified`
+- `precedence.local.empty-unified`
+- `list.local`
+- `list-options.local`
+- `target.user.remove.before`
+- `prefix.user.remove.before`
+- `target.user.remove.after`
+- `prefix.user.remove.after`
+- `target.user.start.before`
+- `prefix.user.start.before`
+- `target.user.start.after`
+- `prefix.user.start.after`
+- `target.user.stop.before`
+- `prefix.user.stop.before`
+- `target.user.stop.after`
+- `prefix.user.stop.after`
+- `target.user.restart.before`
+- `prefix.user.restart.before`
+- `target.user.restart.after`
+- `prefix.user.restart.after`
+- `target.user.status.before`
+- `prefix.user.status.before`
+- `target.user.status.after`
+- `prefix.user.status.after`
+- `target.user.enable.before`
+- `prefix.user.enable.before`
+- `target.user.enable.after`
+- `prefix.user.enable.after`
+- `target.user.disable.before`
+- `prefix.user.disable.before`
+- `target.user.disable.after`
+- `prefix.user.disable.after`
+- `target.user.view.before`
+- `prefix.user.view.before`
+- `target.user.view.after`
+- `prefix.user.view.after`
+- `target.user.log.before`
+- `prefix.user.log.before`
+- `target.user.log.after`
+- `prefix.user.log.after`
+- `target.user.attach.before`
+- `prefix.user.attach.before`
+- `target.user.attach.after`
+- `prefix.user.attach.after`
+- `target.user.monitor.before`
+- `prefix.user.monitor.before`
+- `target.user.monitor.after`
+- `prefix.user.monitor.after`
+- `target.user.inspect.before`
+- `prefix.user.inspect.before`
+- `target.user.inspect.after`
+- `prefix.user.inspect.after`
+- `precedence.user.unified`
+- `precedence.user.empty-unified`
+- `list.user`
+- `list-options.user`
+- `target.container.remove.before`
+- `prefix.container.remove.before`
+- `target.container.remove.after`
+- `prefix.container.remove.after`
+- `target.container.start.before`
+- `prefix.container.start.before`
+- `target.container.start.after`
+- `prefix.container.start.after`
+- `target.container.stop.before`
+- `prefix.container.stop.before`
+- `target.container.stop.after`
+- `prefix.container.stop.after`
+- `target.container.restart.before`
+- `prefix.container.restart.before`
+- `target.container.restart.after`
+- `prefix.container.restart.after`
+- `target.container.status.before`
+- `prefix.container.status.before`
+- `target.container.status.after`
+- `prefix.container.status.after`
+- `target.container.enable.before`
+- `prefix.container.enable.before`
+- `target.container.enable.after`
+- `prefix.container.enable.after`
+- `target.container.disable.before`
+- `prefix.container.disable.before`
+- `target.container.disable.after`
+- `prefix.container.disable.after`
+- `target.container.view.before`
+- `prefix.container.view.before`
+- `target.container.view.after`
+- `prefix.container.view.after`
+- `target.container.log.before`
+- `prefix.container.log.before`
+- `target.container.log.after`
+- `prefix.container.log.after`
+- `target.container.attach.before`
+- `prefix.container.attach.before`
+- `target.container.attach.after`
+- `prefix.container.attach.after`
+- `target.container.monitor.before`
+- `prefix.container.monitor.before`
+- `target.container.monitor.after`
+- `prefix.container.monitor.after`
+- `target.container.inspect.before`
+- `prefix.container.inspect.before`
+- `target.container.inspect.after`
+- `prefix.container.inspect.after`
+- `precedence.container.unified`
+- `precedence.container.empty-unified`
+- `list.container`
+- `list-options.container`
+- `default.local`
+- `default.local.empty`
+- `default.user`
+- `default.user.empty`
+- `default.system`
+- `default.system.empty`
+- `default.container`
+- `directory.empty`
+- `directory.missing`
+- `directory.unreadable`
+- `directory.names`
+- `directory.no-match`
+- `paths.generate`
+- `paths.generate.prefix`
+- `paths.generate.options`
+- `paths.install`
+- `paths.install.prefix`
+- `paths.install.options`
+- `number.n.empty.before`
+- `number.n.empty.after`
+- `number.n.partial.before`
+- `number.n.partial.after`
+- `number.n.dash.before`
+- `number.n.dash.after`
+- `number.n.resume-command`
+- `number.n.resume-target-before`
+- `number.n.resume-target-after`
+- `number.lines.empty.before`
+- `number.lines.empty.after`
+- `number.lines.partial.before`
+- `number.lines.partial.after`
+- `number.lines.dash.before`
+- `number.lines.dash.after`
+- `number.lines.resume-command`
+- `number.lines.resume-target-before`
+- `number.lines.resume-target-after`
+- `detach.keys`
+- `detach.prefix`
+- `detach.dash`
+- `detach.resume`
+- `existing-target`
+
+## Runner Help Contract
+
+Each S02 check below executes the whole runner, compares all command names,
+requires both log count forms and follow semantics, and checks exit 0 with
+empty stderr. Existing parser and S41 checks remain unchanged.
+
+- `error-handling.S02.help-contract.long` | `BEHAVIOR` | `real-path`
+- `error-handling.S02.help-contract.short` | `BEHAVIOR` | `real-path`
+- `error-handling.S02.help-contract.noargs` | `BEHAVIOR` | `real-path`
+- `error-handling.S02.help-contract.local` | `BEHAVIOR` | `real-path`
+- `error-handling.S02.help-contract.user` | `BEHAVIOR` | `real-path`
+- `error-handling.S02.help-contract.container` | `BEHAVIOR` | `real-path`

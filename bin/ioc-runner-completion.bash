@@ -11,8 +11,8 @@ _ioc_runner_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Define available command set and global options
-    commands="generate install remove start stop restart status enable disable view list attach monitor inspect"
-    opts="--local --user --container -f --force -v -vv --detach-key -V --version -h --help"
+    commands="generate install remove start stop restart status enable disable view log list attach monitor inspect"
+    opts="--local --user --container -f --force -n --lines -v -vv --detach-key -V --version -h --help"
 
     # Check for the presence of --local (or its --user alias) to determine the
     # target configuration path; --container shares the system-mode directory.
@@ -29,6 +29,12 @@ _ioc_runner_completions() {
         conf_dir="${IOC_RUNNER_CONF_DIR:-${IOC_RUNNER_LOCAL_CONF_DIR:-${HOME}/.config/procServ.d}}"
     else
         conf_dir="${IOC_RUNNER_CONF_DIR:-${IOC_RUNNER_SYSTEM_CONF_DIR:-/etc/procServ.d}}"
+    fi
+
+    # Numeric option values are entered by the caller, not completed as names.
+    if [[ "${prev}" == "-n" || "${prev}" == "--lines" ]]; then
+        COMPREPLY=()
+        return 0
     fi
 
     # Offer common detach keys before completing commands or IOC names.
@@ -60,7 +66,7 @@ _ioc_runner_completions() {
 
     # Generate context-specific completions based on the identified command
     case "${cmd_found}" in
-        start|stop|restart|status|enable|disable|view|remove|attach|monitor|inspect)
+        start|stop|restart|status|enable|disable|view|log|remove|attach|monitor|inspect)
             # Fetch valid IOC names using zero-fork native Bash globbing for maximum performance
             ioc_names=""
             if [[ -d "${conf_dir}" ]]; then

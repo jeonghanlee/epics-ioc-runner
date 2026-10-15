@@ -171,7 +171,7 @@ function _report_expected_category {
 
     case "${suite}" in
         error-handling) printf '%s' "error-contract" ;;
-        container-lifecycle|local-lifecycle|system-lifecycle) printf '%s' "lifecycle-behavior" ;;
+        container-lifecycle|list-states|local-lifecycle|system-lifecycle) printf '%s' "lifecycle-behavior" ;;
         source-regression) printf '%s' "source-regression" ;;
         system-infra) printf '%s' "installed-conformance" ;;
         *) return 1 ;;
@@ -187,6 +187,8 @@ function _report_suite_dimensions_are_valid {
         container-lifecycle:container:source) return 0 ;;
         container-lifecycle:container:installed) return 0 ;;
         error-handling:none:source) return 0 ;;
+        list-states:local:source|list-states:local:installed) return 0 ;;
+        list-states:system:source|list-states:system:installed) return 0 ;;
         local-lifecycle:local:source) return 0 ;;
         local-lifecycle:local:installed) return 0 ;;
         source-regression:system:source) return 0 ;;

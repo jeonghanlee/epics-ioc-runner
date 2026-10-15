@@ -31,16 +31,16 @@ deploys and runs IOCs on it.
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): the components, the template unit, the
   sudoers delegation, and the s6 service layout of container mode.
-- [PERMISSION_MODEL.md](PERMISSION_MODEL.md): the owner, mode, and ACL of
-  every path the runner installs, references, or creates, and which principal
-  can do what.
+- [PERMISSION_MODEL.md](PERMISSION_MODEL.md): ownership, modes, ACLs, and
+  principal access for managed configuration, service, socket, log, and backup
+  paths, together with site-provisioned dependency requirements.
 - [EXIT_SIGNAL_HANDLING.md](EXIT_SIGNAL_HANDLING.md): how systemd and
   procServ exit codes map to a clean stop.
 
 ## Reference
 
-- [CLI_REFERENCE.md](CLI_REFERENCE.md): every command and option, with its
-  checks, output, and exit status.
+- [CLI_REFERENCE.md](CLI_REFERENCE.md): every command and option, with mode
+  restrictions and the main checks, outputs, and exit statuses.
 - [NETWORK_ENV.md](NETWORK_ENV.md): the Channel Access and PV Access network
   variables an IOC reads, and which belong in the shared `site.env`.
 - [LOG_LAYOUT.md](LOG_LAYOUT.md): log paths and rotation in system and local

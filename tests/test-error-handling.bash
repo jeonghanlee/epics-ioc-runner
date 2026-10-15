@@ -34,6 +34,13 @@ declare -g CURRENT_STEP_ID=""
 declare -g CURRENT_STEP_CHECK_INDEX=0
 declare -g MOCK_CON_BIN=""
 declare -g TEST_TMPDIR=""
+declare -g -a COMPLETION_CONTRACT_ROWS=()
+declare -g COMPLETION_CONTRACT_CATALOG
+COMPLETION_CONTRACT_CATALOG=$(bash "${SC_TOP}/lib/completion-contract.bash" --catalog)
+while IFS= read -r completion_key; do
+    COMPLETION_CONTRACT_ROWS+=("S23|error-handling.S23.contract.${completion_key}|BEHAVIOR|real-path")
+done <<< "${COMPLETION_CONTRACT_CATALOG}"
+unset completion_key COMPLETION_CONTRACT_CATALOG
 declare -g -a ERROR_CATALOG_ROWS=(
     "P00|error-handling.P00.runner-source-readable|REQUIRED|direct-inspection"
     "S02|error-handling.S02.help-exits-0|BEHAVIOR|real-path"
@@ -45,6 +52,12 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S02|error-handling.S02.v-start-exits-1-verbose-restricted-to-list|BEHAVIOR|real-path"
     "S02|error-handling.S02.vv-status-exits-1-verbose-restricted-to-list|BEHAVIOR|real-path"
     "S02|error-handling.S02.local-v-list-exits-0-verbose-valid-for-list|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.long|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.short|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.noargs|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.local|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.user|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.container|BEHAVIOR|real-path"
     "S03|error-handling.S03.start-without-target-exits-1|BEHAVIOR|real-path"
     "S03|error-handling.S03.stop-without-target-exits-1|BEHAVIOR|real-path"
     "S03|error-handling.S03.restart-without-target-exits-1|BEHAVIOR|real-path"
@@ -116,6 +129,7 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S23|error-handling.S23.list-command-suggests-v-and-vv|BEHAVIOR|real-path"
     "S23|error-handling.S23.st-prefix-narrows-to-start-stop-status|BEHAVIOR|real-path"
     "S23|error-handling.S23.missing-conf-dir-yields-empty-compreply|BEHAVIOR|real-path"
+    "${COMPLETION_CONTRACT_ROWS[@]}"
     "S24|error-handling.S24.view-bad-name-whitespace-exits-1-via-name-validation|BEHAVIOR|real-path"
     "S24|error-handling.S24.view-bad-name-special-char-exits-1-via-name-validation|BEHAVIOR|real-path"
     "S24|error-handling.S24.view-bad-name-period-exits-1-via-name-validation|BEHAVIOR|real-path"
@@ -556,6 +570,9 @@ function test_usage {
     print_sub_divider
 
     local exit_code
+    local form help_output commands contract_ok option
+    local expected_commands='generate install remove start stop restart status enable disable view log list attach monitor inspect'
+    local -a help_args=()
 
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --help)
     verify_exit_code "0" "${exit_code}" "--help exits 0"
@@ -590,6 +607,31 @@ function test_usage {
 
     exit_code=$(IOC_RUNNER_LOCAL_RUN_DIR="${TEST_TMPDIR}/empty_run" _run bash "${RUNNER_SCRIPT}" --local -v list)
     verify_exit_code "0" "${exit_code}" "'--local -v list' exits 0 (verbose valid for list)"
+
+    for form in long short noargs local user container; do
+        case "${form}" in
+            long) help_args=(--help) ;;
+            short) help_args=(-h) ;;
+            noargs) help_args=() ;;
+            *) help_args=("--${form}" --help) ;;
+        esac
+        exit_code=0
+        /bin/bash -p "${RUNNER_SCRIPT}" "${help_args[@]}" \
+            > "${TEST_TMPDIR}/help-${form}.stdout" 2> "${TEST_TMPDIR}/help-${form}.stderr" || exit_code=$?
+        help_output=$(< "${TEST_TMPDIR}/help-${form}.stdout")
+        commands=$(awk '/^Commands:/{p=1; next} /^Examples:/{p=0} p && /^  [a-z]+ /{printf "%s%s", sep, $1; sep=" "}' \
+            "${TEST_TMPDIR}/help-${form}.stdout")
+        contract_ok=true
+        [[ ${exit_code} -eq 0 && ! -s "${TEST_TMPDIR}/help-${form}.stderr" &&
+           "${commands}" == "${expected_commands}" &&
+           "${help_output}" == *'-n <count>, --lines <count>'* &&
+           "${help_output}" == *'default 40'* &&
+           "${help_output}" == *'-f: follow the log until interrupted'* ]] || contract_ok=false
+        for option in --local --user --container -f --force -n --lines -v -vv --detach-key -V --version -h --help; do
+            [[ "${help_output}" == *"${option}"* ]] || contract_ok=false
+        done
+        verify_state true "${contract_ok}" "Complete runner help contract: ${form}"
+    done
 }
 
 function test_missing_target {
@@ -1065,6 +1107,8 @@ function test_completion {
     local step="$1"
     local comp_script="${SC_TOP}/../bin/ioc-runner-completion.bash"
     local completion_available="false"
+    local contract_exit=0 tag key state contract_index=0 expected_key
+    local contract_log="${TEST_TMPDIR}/completion-contract.log"
 
     print_divider
     _log "INFO" "STEP ${step}: Bash Completion Smoke Tests"
@@ -1192,6 +1236,27 @@ function test_completion {
         printf "%s" "${#COMPREPLY[@]}"
     )
     verify_state "0" "${got}" "Missing conf_dir yields empty COMPREPLY"
+
+    # Reuse the full public-interface contract for source and deployed copies.
+    bash "${SC_TOP}/lib/completion-contract.bash" "${comp_script}" \
+        "${TEST_TMPDIR}/completion-contract" > "${contract_log}" || contract_exit=$?
+    while IFS='|' read -r tag key state; do
+        expected_key="${COMPLETION_CONTRACT_ROWS[contract_index]:-}"
+        expected_key="${expected_key#S23|error-handling.S23.contract.}"
+        expected_key="${expected_key%%|*}"
+        [[ "${tag}" == CHECK && -n "${key}" && "${key}" == "${expected_key}" ]] || return 1
+        [[ "${state}" == PASS || "${state}" == FAIL || "${state}" == NA ]] || return 1
+        if [[ "${state}" == NA ]]; then
+            record_current_state NA "unreadable-directory boundary requires a non-root caller"
+        else
+            verify_state PASS "${state}" "Completion contract: ${key}"
+        fi
+        contract_index=$((contract_index + 1))
+    done < "${contract_log}"
+    (( contract_index == ${#COMPLETION_CONTRACT_ROWS[@]} )) || return 1
+    if (( contract_exit > 1 )); then
+        return "${contract_exit}"
+    fi
 }
 
 

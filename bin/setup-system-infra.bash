@@ -76,12 +76,6 @@ declare -g CONTAINER_SCAN_DIR="${IOC_RUNNER_SCAN_DIR:-/run/s6-procserv}"
 declare -g -a S6_REQUIRED_BINS=(s6-svscan s6-supervise s6-svc s6-svstat s6-svscanctl s6-setuidgid)
 declare -g PERM_SCAN_DIR="0755"
 
-if [[ $EUID -ne 0 ]]; then
-    printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
-    printf "%s\n" "Usage: sudo /bin/bash -p $(basename "$0")" >&2
-    exit 1
-fi
-
 # --- CLI Argument Parsing ---
 # Three invocation forms: no option updates the CLI wrapper only, --full
 # deploys the systemd-backed infrastructure, --container deploys the
@@ -115,6 +109,12 @@ done
 
 if [[ ${FULL_SETUP_MODE} -eq 1 && ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
     printf "Error: --full and --container are mutually exclusive.\n" >&2
+    exit 1
+fi
+
+if [[ $EUID -ne 0 ]]; then
+    printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
+    printf "%s\n" "Usage: sudo /bin/bash -p $(basename "$0")" >&2
     exit 1
 fi
 
@@ -740,7 +740,7 @@ EOF
         verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" file \
             "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
     else
-        _log "ERROR" "logrotate syntax validation failed. Skipping deployment."
+        _log "ERROR" "logrotate syntax validation failed. Setup aborted; logrotate policy not deployed."
         rm -f "${tmp_logrotate}"
         exit 1
     fi

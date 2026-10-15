@@ -38,14 +38,14 @@ When `ioc-runner stop` or `systemctl stop` stops an IOC:
 
 systemd counts exit code 0 and the signals `SIGHUP`, `SIGINT`, `SIGTERM`, and
 `SIGPIPE` as a clean exit by default. `SuccessExitStatus` adds the exit codes
-1, 2, 15, and 143 and the signals `SIGTERM` and `SIGKILL`, so none of these
-ends marks the service `failed`. The list is deliberately wide: a stop or a
-killed procServ is recorded as a clean exit rather than a failure.
+1, 2, 15, and 143 and the signals `SIGTERM` and `SIGKILL`. These settings classify
+those exit statuses as successful; a separate unit failure, such as a stop
+timeout, can still make the service `failed`. An ordinary stop or direct kill can therefore finish with `Result=success`.
 
-Counting `SIGKILL` as success has one consequence for the restart policy. A
-procServ killed by `SIGKILL`, for example by the kernel's out-of-memory
-killer, is a success to systemd, so `Restart=on-failure` would leave the IOC
-down. The templates therefore use `Restart=always`, which restarts procServ
+Counting `SIGKILL` as success has one consequence for the restart policy. A direct `SIGKILL` of procServ is classified as a successful exit by
+`SuccessExitStatus`; with no separate unit failure, `Restart=on-failure`
+would leave the IOC down. An OOM event can also produce a separate unit
+failure, depending on systemd's OOM policy. The templates therefore use `Restart=always`, which restarts procServ
 after any exit that is not a stop request, 2 seconds later
 (`RestartSec=2`). A stop through `ioc-runner stop` or `systemctl stop` does
 not trigger a restart.
@@ -53,21 +53,22 @@ not trigger a restart.
 ## Why the unit uses KillMode=mixed
 
 procServ starts the IOC with `SIGTERM` blocked, so the IOC does not end on
-`SIGTERM`. With the default `KillMode=control-group`, systemd would send
-`SIGTERM` to every process in the unit and then wait the full stop timeout
-for the IOC before it sends `SIGKILL`. `KillMode=mixed` sends `SIGTERM` only
-to procServ, which ends the IOC itself with `SIGKILL`, and sends `SIGKILL` to
-the processes that remain after procServ exits. When procServ itself dies,
-the unit is therefore restarted in about 2 seconds instead of after the stop
-timeout.
+`SIGTERM`. With `KillMode=control-group`, systemd sends `SIGTERM` to every process in
+the unit. If a child remains after procServ exits, systemd can wait until
+the stop timeout before sending `SIGKILL`. With `KillMode=mixed`, systemd
+sends `SIGTERM` only to procServ and sends `SIGKILL` to remaining unit
+processes after the main process exits; procServ normally kills the IOC
+itself. When procServ itself dies, `KillMode=mixed` ends any remaining child
+processes before the configured 2-second restart delay.
 
 ## Restart loops and the failed state
 
 The templates set `StartLimitIntervalSec=0`, which turns off systemd's start
-rate limit, so a procServ that dies repeatedly stays in
-`activating (auto-restart)` and never reaches `failed`. `systemctl --failed`
-therefore does not show a crash-looping IOC. `ioc-runner start` and `restart`
-detect a crash loop from the IOC log instead; the
+rate limit. Repeated automatic restarts are not stopped by that limit, but
+other failures can still make the unit `failed`. Between automatic restart
+attempts the unit is `activating (auto-restart)`, so `systemctl --failed` does
+not list it in that state. `ioc-runner start` and `restart` detect a crash
+loop from the IOC log; the
 [CLI reference](CLI_REFERENCE.md#the-start-and-restart-commands) lists their
 outcomes.
 

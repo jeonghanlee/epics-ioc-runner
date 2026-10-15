@@ -23,6 +23,111 @@ full [`gate/RUNBOOK.md`](../gate/RUNBOOK.md) and
 binary origin, and path constraints are defined across these documents. Do not
 act from one section, a summary, or memory of an earlier run.
 
+## VM Preparation and Handoff
+
+Declare the exact test before requesting or reusing a VM. A raw OS guest for
+manual installation must retain the accounts and files that the test expects
+to be absent. An installed-conformance or lifecycle test requires its named
+infrastructure. A successful SSH connection or administrative `sudo` check
+does not establish either test's prerequisites.
+
+Each request and handoff records:
+
+| Field | Required Content |
+| --- | --- |
+| Purpose | Selected test, mode, binary origin, and expected evidence |
+| Guest state | OS/image provenance, resources, required present and absent assets |
+| Provider checks | Capacity, guest identity, pinned SSH key, boot completion, access, and agreed observations |
+| Requester prerequisites | Required packages, accounts, permissions, service state, and the person or session responsible for preparation |
+| Observed readiness | Dated checks and their actual results; pending preparation named separately |
+| Restoration and lifetime | Temporary changes to restore, approved corrections to retain, evidence location, and finished notice |
+
+Before each use window, including reuse of a retained VM, the requester checks
+the actual guest against the selected test's prerequisites. Record native tool
+versions, EPICS paths, account access, and the relevant system or user service
+state. Check journald persistence, lingering, timers, or SELinux only where the
+selected test depends on them. Do not infer preparation from another VM or an
+earlier handoff. If a prerequisite fails, stop dependent tests and record that
+failure separately from intentional error cases.
+
+### Lifecycle IOC build prerequisites
+
+The Local and System lifecycle suites clone and build `ServiceTestIOC`.
+`EPICS_BASE` must name a built native EPICS Base installation, and
+`EPICS_HOST_ARCH` must match that build. EPICS Base alone is insufficient.
+The fixture resolves its support modules under `${EPICS_BASE}/../modules`;
+prepare `asyn`, `seq`, `std`, `recsync`, and `autosave` there before running
+the suite. Build `asyn` and `seq` before `std`, using the same EPICS Base.
+The fixture needs the asyn and std libraries and DBD files, the sequencer's
+`snc` compiler and libraries, `recsync/db/reccaster.db`, and
+`autosave/db/save_restoreStatus.db`.
+
+The native build also requires Make, C/C++ compilers, Perl, Python 3, and
+`re2c`. Install the RPC and SNMP development packages: `libtirpc-dev` and
+`libsnmp-dev` on Debian, or `libtirpc-devel` and `net-snmp-devel` on Rocky.
+On Rocky 8, `re2c` is available from the PowerTools repository. The suite
+writes `configure/RELEASE.local` for EPICS Base and builds the IOC; it does
+not build these support modules or install their OS dependencies. Check the
+fixture's build requirements again when its external revision changes.
+
+### Full System Setup Prerequisite
+
+Before testing successful `setup-system-infra.bash --full` execution, inspect
+`/etc/sudoers` as well as administrative access. The required include must
+exist, with no active rule after it, as described in
+[Setup diagnostics and partial deployment](../docs/INSTALL.md#setup-diagnostics-and-partial-deployment).
+Valid syntax and passwordless administrative sudo alone do not prove this
+ordering condition. Tests deliberately exercising a failed condition preserve
+and identify that fixture instead of correcting it before execution.
+
+For VMs managed with `ansible-provision`, the existing correction is the
+common-role task `Ensure includedir is the final active directive in /etc/sudoers`,
+under `roles/common/tasks/main.yml`. Its entry point is
+`playbooks/operators/common.yml`, with the repository's group inventory and
+the provider-generated host inventory. When only ordering needs correction,
+limit execution to that guest and task with `--start-at-task` and `--step`;
+decline every other configuration task. Do not apply the complete common role
+or IOC setup to a raw manual-install fixture. The task requires
+`common_manage_sudo=true`; it leaves a file without the include unchanged,
+so an `unchanged` result cannot replace inspection.
+
+For an authorized ordering correction, use this sequence:
+
+1. Confirm that the required include exists exactly once. As root on the
+   selected guest, retain a backup of `/etc/sudoers` in a root-owned `0700`
+   directory outside `/etc/sudoers.d`, using `cp -a` to preserve metadata.
+   Set `SUDOERS_BACKUP` to that backup's absolute path. Record and compare
+   its bytes, ownership, mode and extended attributes with the original;
+   also record all drop-ins and effective administrative grants. Verify
+   `visudo -c` and retain root access for recovery before applying the task.
+2. Run only the selected Ansible task described above. If it replaces
+   `/etc/sudoers` on a guest with SELinux enabled, immediately run
+   `chcon --reference="$SUDOERS_BACKUP" /etc/sudoers` as root on that guest.
+   The reference is the original backup, not a copy of the replaced file.
+   Compare the complete original context, including its user component;
+   checking only the type does not establish preservation.
+3. Require unchanged rule text apart from the include's position, unchanged
+   drop-ins, original ownership, mode and extended attributes, and no active
+   rule after the include. Require full `visudo -c` success. From a fresh
+   SSH connection, check administrative sudo without cached credentials
+   and compare effective grants with the recorded original grants.
+4. Repeat the same selected task and require an `unchanged` result. Repeat
+   the metadata, syntax, ordering and fresh-access checks. Record the
+   corrected state as the baseline for subsequent tests; distinguish this
+   retained correction from temporary test assets restored afterward.
+
+If the task, context restoration or any validation fails, stop dependent
+tests and restore the original policy through the retained root access.
+First verify the backup against the recorded original bytes and metadata,
+and require `visudo -cf "$SUDOERS_BACKUP"` to succeed. Copy it with `cp -a`
+to a unique root-owned staging file under `/etc`, then atomically rename that
+file over `/etc/sudoers` on the same filesystem. Verify the restored bytes,
+ownership, mode and extended attributes, unchanged drop-ins, full `visudo -c`,
+and administrative access and grants from a fresh connection. A restored
+original can still have the ordering defect; it does not make the VM ready
+for successful full-setup tests. Retain the failed checks and restoration
+evidence before retrying the correction.
+
 ## Test Classification
 
 Every check has three independent classifications. Each axis answers a
@@ -92,6 +197,10 @@ one exclusive dispatcher selection, and error handling remains standalone.
 - The suite starts through `sudo bash`. Setup runs as root with only its outer
   write targets redirected to an isolated temporary directory; source and Git
   operations run as the invoking identity from `SUDO_USER`.
+- Native setup diagnostics (S27) require a disposable prepared systemd VM,
+  the existing `ioc-srv`/`ioc` identity, and native setup tools. The helper uses
+  a private copy of `/etc` and redirected destinations, then verifies original
+  files and manager state. It retains root-owned evidence under `/var/tmp`.
 
 **Standalone source-fixed suite** (not collected by the dispatcher):
 
@@ -99,6 +208,10 @@ one exclusive dispatcher selection, and error handling remains standalone.
   it parses the `ioc-runner` source for contract guards AND executes the
   source-tree binary against dummy inputs for the validation and error
   paths. It needs no EPICS environment or root privileges.
+  Run the complete suite as a dedicated non-root verification-VM account with
+  its own native user manager. Its Local install checks can reload that manager
+  and enable a rotation timer. Record the account's initial state, then stop and
+  disable task-created units and restore its files after the suite.
 
 **Container lifecycle suite** (not collected by the dispatcher):
 
@@ -111,6 +224,7 @@ one exclusive dispatcher selection, and error handling remains standalone.
 | :--- | :--- | :--- | :--- |
 | `test-container-lifecycle.bash` | `lifecycle-behavior` | source or installed | inside a container, via `run-container-tests.bash` |
 | `test-error-handling.bash` | `error-contract` | source only | `bash tests/test-error-handling.bash` |
+| `test-list-states.bash` | `lifecycle-behavior` | source or installed | standalone, root on a prepared verification host |
 | `test-local-lifecycle.bash` | `lifecycle-behavior` | source or installed | via `run-all-tests.bash --local` |
 | `test-source-regression.bash` | `source-regression` | source only | via `run-all-tests.bash --source-regression` |
 | `test-system-infra.bash` | `installed-conformance` | n/a | via `run-all-tests.bash --system` |
@@ -146,7 +260,7 @@ suite order; its own messages and child human output use standard error.
 
 ## Debugging and Workspace Retention
 
-By default, all lifecycle tests create a temporary workspace in shared memory under `/dev/shm/epics-ioc-test.*` and remove it automatically upon successful completion.
+The local and system lifecycle suites create a temporary workspace in shared memory under `/dev/shm/epics-ioc-test.*` and remove it automatically upon successful completion. The standalone list-state suite always retains its evidence under `/tmp/ioc-list-states.*`.
 
 ### Automatic Retention
 If a test fails or the script terminates unexpectedly, the workspace is **automatically retained** for inspection of generated files and logs.
@@ -278,6 +392,50 @@ sudo bash tests/test-system-infra.bash
 IOC_RUNNER_TEST_MODE=source bash tests/test-container-lifecycle.bash
 ```
 
+### Native List-State Supplement
+
+`test-list-states.bash` exercises the full `list -vv` command with native
+systemd, procServ, softIoc, and UNIX sockets. It is an opt-in host suite and
+is not selected by `run-all-tests.bash`. Its detailed case definitions,
+check IDs, and observation limits are in
+[LIST_STATES_INVENTORY.md](LIST_STATES_INVENTORY.md).
+
+Use a prepared verification VM and a trusted, root-readable local checkout.
+The suite requires Python 3.6 or later at `/usr/bin/python3`, systemd tools,
+strace with `delay_enter` support, socat, util-linux (`unshare`, `nsenter`,
+`setpriv`), procps (`pgrep`), and iproute2 (`ss`). `/tmp` must permit IOC
+execution. `EPICS_BASE` must identify an existing native `softIoc` build;
+`EPICS_HOST_ARCH` defaults to `linux-x86_64`. No package or infrastructure
+installation is performed by this suite.
+
+Both modes start as root for network namespace and process control. With
+`--local-user`, IOC commands and user systemd commands run as the named
+existing non-root account, which must already have a running user manager
+and local IOC infrastructure with its rotation timer enabled and active.
+The suite creates no accounts and does not
+change lingering. System mode requires the default `ioc-srv` account, `ioc`
+group, and installed system template.
+
+```bash
+sudo -E bash -p tests/test-list-states.bash --system
+sudo -E bash -p tests/test-list-states.bash --local-user <account>
+sudo -E IOC_RUNNER_TEST_MODE=installed bash -p tests/test-list-states.bash --system
+REPORT_CATALOG_ONLY=1 bash -p tests/test-list-states.bash --system
+```
+
+`IOC_RUNNER_TEST_MODE` selects source (default) or installed for either mode.
+The suite uses a unique IOC, task-specific unit overrides, a private network
+namespace, and read-only socat clients. It temporarily pauses only its own
+procServ and delays its first `listen` syscall to make native states
+observable. Cleanup stops its processes and removes its configuration,
+runtime directory, and unit overrides. Generated fixture files, IOC logs,
+command results, and trace output remain as evidence.
+
+Machine output uses the shared reporting contract. `SKIP` for an unobserved
+numeric sentinel or `DISCONN` does not establish coverage, even if the suite
+exits 0. The suite makes no container-mode claim. Native execution status is
+recorded in the milestone document, separately from catalog validation.
+
 ### 3. System Tests on an NFS Home with `root_squash`
 
 The lifecycle suites run in place from an NFS home, including one exported
@@ -397,6 +555,11 @@ no active unit or installed configuration.
 * **Console Help and Completion**: Checks the attach-only option and Ctrl-A
   default in help, then invokes the shipped completion handler for the option,
   suggested keys, a key prefix, and the IOC target after a supplied key.
+* **Complete Help and Completion**: Compares all 15 command names and 14 option
+  spellings, every IOC-target command across System/Local/user-alias/Container
+  forms, directory precedence and access, path/list suggestions, and numeric
+  value positions. The shared helper loads the complete registration script
+  in fresh Bash processes; installed-copy checks use a separately deployed file.
 * **Console Client Selection**: Runs the shipped attach and monitor commands
   inside a private mount namespace that hides every fixed con search path,
   with a mirrored PATH that omits socat. Both commands must exit 1 with the
@@ -431,6 +594,13 @@ no active unit or installed configuration.
   requires each to exit 0. The reporting self-test derives its catalog and
   suite-dimension expectations from `tests/reporting-counts.csv` and its own
   combination list.
+* **Native Setup Diagnostics**: Executes the whole setup with native tools and
+  real root/non-root callers. It verifies help/parser ordering, deployment
+  denials, a real invalid logrotate policy, preservation of the preceding
+  baseline, valid deployment, and temporary-file cleanup. The helper rejects
+  symlinks at write paths and their parents, clears inherited tool environment,
+  and checks original protected files and manager state after namespace exit.
+  See [the check inventory](SOURCE_REGRESSION_INVENTORY.md#native-setup-diagnostics).
 
 ### 5. Infrastructure State (`test-system-infra.bash`)
 

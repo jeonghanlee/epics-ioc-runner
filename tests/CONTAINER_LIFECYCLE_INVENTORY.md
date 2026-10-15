@@ -120,3 +120,25 @@ selected shipped runner. No row uses `hand-built-reproduction`.
 | S15 | `container-lifecycle.S15.service-directory-removed` | `BEHAVIOR` | `real-path` | The s6 service directory is removed. |
 | S15 | `container-lifecycle.S15.socket-directory-removed` | `BEHAVIOR` | `real-path` | The socket directory is removed. |
 | S15 | `container-lifecycle.S15.no-orphan-supervisor-remains` | `BEHAVIOR` | `real-path` | No orphan supervisor survives the removal. |
+
+## Container Identity and Inspect Diagnostics
+
+S04 copies the original generated fixture configuration and changes only its
+user, group, or both fields. Each whole install must reject the copy, name
+Container in the applicable diagnostic, and leave configuration/service paths
+absent. The original valid configuration then runs the existing install and
+lifecycle controls. S14 invokes whole inspect as the real non-root probe user
+and checks the common backend privilege gate. No internal inspect branch is
+claimed as runtime evidence.
+
+- `container-lifecycle.S04.identity.user.exit-one` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.user.diagnostic` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.user.not-deployed` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.group.exit-one` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.group.diagnostic` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.group.not-deployed` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.combined.exit-one` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.combined.diagnostic` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S04.identity.combined.not-deployed` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S14.non-root-inspect-exits-one` | `BEHAVIOR` | `real-path`
+- `container-lifecycle.S14.non-root-inspect-common-gate` | `BEHAVIOR` | `real-path`

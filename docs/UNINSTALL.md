@@ -186,7 +186,7 @@ check.
 ### Classify resources before changing metadata
 
 The installer creates a missing account, group, or log directory, but reuses
-an existing one. It does not record which case occurred. Treat each decision
+an existing one. The installed files do not record whether each account, group, or log directory was newly created or reused. Treat each decision
 independently and use the conservative result when the origin is unknown.
 
 | Resource | Dedicated result | Conservative result |

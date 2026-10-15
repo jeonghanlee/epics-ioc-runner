@@ -15,6 +15,7 @@ closed catalog with that CSV before environment preflight.
 | Suite | Script | Scope | Runner | Category | Inventory |
 | --- | --- | --- | --- | --- | --- |
 | error-handling | test-error-handling.bash | none | source | error-contract | ERROR_HANDLING_INVENTORY.md |
+| list-states | test-list-states.bash | local or system | source or installed | lifecycle-behavior | [LIST_STATES_INVENTORY.md](LIST_STATES_INVENTORY.md) |
 | local-lifecycle | test-local-lifecycle.bash | local | source or installed | lifecycle-behavior | LOCAL_LIFECYCLE_INVENTORY.md |
 | source-regression | test-source-regression.bash | system | source | source-regression | SOURCE_REGRESSION_INVENTORY.md |
 | system-infra | test-system-infra.bash | system | none | installed-conformance | SYSTEM_INFRA_INVENTORY.md |

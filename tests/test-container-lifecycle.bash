@@ -50,6 +50,15 @@ declare -g -a CONTAINER_CATALOG_ROWS=(
     "S03|container-lifecycle.S03.generate-exits-zero|BEHAVIOR|real-path"
     "S03|container-lifecycle.S03.generated-conf-created|BEHAVIOR|real-path"
     "S03|container-lifecycle.S03.generated-conf-uses-service-identity|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.user.exit-one|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.user.diagnostic|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.user.not-deployed|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.group.exit-one|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.group.diagnostic|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.group.not-deployed|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.combined.exit-one|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.combined.diagnostic|BEHAVIOR|real-path"
+    "S04|container-lifecycle.S04.identity.combined.not-deployed|BEHAVIOR|real-path"
     "S04|container-lifecycle.S04.install-exits-zero|BEHAVIOR|real-path"
     "S04|container-lifecycle.S04.installed-conf-deployed|BEHAVIOR|real-path"
     "S04|container-lifecycle.S04.service-run-script-rendered|BEHAVIOR|real-path"
@@ -93,6 +102,8 @@ declare -g -a CONTAINER_CATALOG_ROWS=(
     "S13|container-lifecycle.S13.enable-removes-down-file|BEHAVIOR|real-path"
     "S13|container-lifecycle.S13.enable-leaves-running-ioc-untouched|BEHAVIOR|real-path"
     "S14|container-lifecycle.S14.non-root-invocation-rejected|BEHAVIOR|real-path"
+    "S14|container-lifecycle.S14.non-root-inspect-exits-one|BEHAVIOR|real-path"
+    "S14|container-lifecycle.S14.non-root-inspect-common-gate|BEHAVIOR|real-path"
     "S14|container-lifecycle.S14.absent-scan-directory-rejected|BEHAVIOR|real-path"
     "S15|container-lifecycle.S15.remove-exits-zero|BEHAVIOR|real-path"
     "S15|container-lifecycle.S15.installed-conf-removed|BEHAVIOR|real-path"
@@ -515,11 +526,48 @@ function test_install {
     local starts_down="false"
     local timeout_kill="false"
     local supervised="false"
+    local identity_case bad_conf output diagnostic expected_message
+    local absent=''
+
 
     print_divider
     _log "INFO" "STEP ${step}: Test Install Command"
     print_sub_divider
 
+    for identity_case in user group combined; do
+        mkdir -p "${WORKSPACE}/identity-${identity_case}"
+        bad_conf="${WORKSPACE}/identity-${identity_case}/${IOC_NAME}.conf"
+        cp -- "${CONF_FILE}" "${bad_conf}"
+        case "${identity_case}" in
+            user)
+                sed -i 's/^IOC_USER=.*/IOC_USER="root"/' "${bad_conf}"
+                expected_message="Error: Container IOCs must run as ${SYSTEM_USER}"
+                ;;
+            group)
+                sed -i 's/^IOC_GROUP=.*/IOC_GROUP="root"/' "${bad_conf}"
+                expected_message="Error: Container IOCs must run under group ${SYSTEM_GROUP}"
+                ;;
+            combined)
+                sed -i -e 's/^IOC_USER=.*/IOC_USER="root"/' -e 's/^IOC_GROUP=.*/IOC_GROUP="root"/' "${bad_conf}"
+                expected_message='Error: Configuration mode mismatch'
+                ;;
+        esac
+        exit_code=0
+        run_runner install "${bad_conf}" > "${bad_conf}.stdout" 2> "${bad_conf}.stderr" || exit_code=$?
+        output=$(< "${bad_conf}.stderr")
+        printf 'Identity %s stderr:\n%s\n' "${identity_case}" "${output}"
+        verify_state 1 "${exit_code}" "Container ${identity_case} mismatch exits 1"
+        diagnostic=false
+        [[ "${output}" == *"${expected_message}"* && "${output}" != *'Error: Local IOCs'* ]] && diagnostic=true
+        if [[ "${identity_case}" == combined ]]; then
+            [[ "${output}" == *'(container mode)'* && "${output}" == *'ioc-runner --container generate'* ]] || diagnostic=false
+        fi
+        verify_state true "${diagnostic}" "Container ${identity_case} mismatch diagnostic"
+        absent=false
+        [[ ! -e "${CONF_DIR}/${IOC_NAME}.conf" && ! -e "${SERVICE_DIR}" ]] && absent=true
+        verify_state true "${absent}" "Container ${identity_case} mismatch performs no deployment"
+    done
+    exit_code=0
     run_runner install "${CONF_FILE}" >/dev/null 2>&1 || exit_code=$?
     verify_state "0" "${exit_code}" "install exits zero"
     [[ -f "${CONF_DIR}/${IOC_NAME}.conf" ]] && conf_deployed="true"
@@ -805,6 +853,7 @@ function test_error_contract {
     local non_root_rejected="false"
     local absent_output=""
     local absent_rejected="false"
+    local inspect_exit=0 inspect_output common_gate=false
 
     print_divider
     _log "INFO" "STEP ${step}: Container Mode Error Contract"
@@ -820,6 +869,14 @@ function test_error_contract {
         non_root_rejected="true"
     fi
     verify_state "true" "${non_root_rejected}" "Container mode rejects a non-root invocation"
+
+    inspect_output=$(setpriv --reuid "$(id -u "${NON_ROOT_USER}")" --regid "$(id -g "${NON_ROOT_USER}")" \
+        --clear-groups /bin/bash -p "${RUNNER_SCRIPT}" --container inspect "${IOC_NAME}" 2>&1) || inspect_exit=$?
+    printf 'Non-root Container inspect:\n%s\n' "${inspect_output}"
+    verify_state 1 "${inspect_exit}" "Non-root Container inspect exits 1"
+    [[ "${inspect_output}" == *'Error: container mode requires root;'* ]] && common_gate=true
+    verify_state true "${common_gate}" "Non-root Container inspect stops at the common backend gate"
+
 
     absent_output=$(IOC_RUNNER_SCAN_DIR="${WORKSPACE}/absent-scan" \
         bash "${RUNNER_SCRIPT}" --container list 2>&1 || true)

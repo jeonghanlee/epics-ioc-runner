@@ -28,7 +28,7 @@ function _test_record_expected_category {
 
     case "${suite}" in
         error-handling) printf '%s' "error-contract" ;;
-        local-lifecycle|system-lifecycle) printf '%s' "lifecycle-behavior" ;;
+        list-states|local-lifecycle|system-lifecycle) printf '%s' "lifecycle-behavior" ;;
         source-regression) printf '%s' "source-regression" ;;
         system-infra) printf '%s' "installed-conformance" ;;
         *) return 1 ;;

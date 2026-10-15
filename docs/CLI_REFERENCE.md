@@ -191,6 +191,7 @@ deployment fails. Correct the reported filesystem or tool condition and rerun
 | Backup of a differing local template cannot be created | Exit 1; the installed template is retained. Correct the backup-path condition and rerun local `install`. |
 | A shared local asset differs | Before an interactive decision, the runner lists active IOC services that share the unit. Refusal or EOF keeps the asset and continues installation; `-f` updates without asking. |
 | Container service lacks `IOC_CHDIR`, `IOC_PORT`, or `IOC_CMD` | Exit 1; the s6 service cannot be rendered. |
+| Container `IOC_PORT` does not name an absolute socket path | Exit 1 before rendering the s6 service. The configuration is already installed; correct the runtime-directory override and rerun `install`. |
 | Container `run` script cannot be staged in its service directory | Exit 1 with the directory in the error. The configuration can already be installed. |
 
 Local rotation deployment failures are best effort; see
@@ -366,7 +367,7 @@ Adds three columns from `systemctl show --property`:
 | CPU | `CPUUsageNSec` | Cumulative CPU time converted to seconds with 1 decimal place |
 | MEM | `MemoryCurrent` | Current memory usage converted to MB with 1 decimal place |
 
-The sentinel value `18446744073709551615` (UINT64_MAX) and `[not set]` from systemd indicate the property is unavailable, displayed as "N/A".
+CPU and memory values reported as `[not set]` are displayed as "N/A". The runner also displays "N/A" for the numeric sentinel `18446744073709551615` (UINT64_MAX) if it is returned.
 
 #### Columns added by `-vv`
 
@@ -384,7 +385,7 @@ Adds six diagnostic columns and keeps `UDS PATH` last:
 
 ### Kernel socket state mapping
 
-The `K-STATE` column is derived from `/proc/net/unix`, which exposes the kernel `socket_state` enum and the `__SO_ACCEPTCON` flag.
+The `K-STATE` column maps the `St` and `Flags` fields in `/proc/net/unix`. Linux derives `St` from internal socket fields using the `socket_state` values below; `__SO_ACCEPTCON` identifies a listener.
 
 **Source: `include/uapi/linux/net.h`**
 ```c
@@ -408,7 +409,7 @@ The listener socket is identified first by checking the `__SO_ACCEPTCON` flag, w
 | St = 03 | `ESTAB` | Established connection (SS_CONNECTED) |
 | St = 04 | `DISCONN` | Disconnection in progress (SS_DISCONNECTING) |
 
-For a healthy running IOC, the expected state is `LISTEN`. Other states are transient and typically appear only during connection setup or teardown.
+When the procServ listener is visible in the caller's network namespace, the runner selects `LISTEN` for its path, including while clients are connected. If no listener row is visible, the runner selects the first matching non-listening row. `ESTAB` can persist while that connection remains open. The table defines the recognized values; it does not imply that every state appears during a normal IOC lifecycle.
 
 ### How `list` collects its data
 
@@ -464,9 +465,9 @@ The `attach` command establishes a standard, bi-directional terminal session wit
 - **Tool Selection**: Uses `con` when available, otherwise `socat`. If neither is installed, the command fails with an installation hint, even if `nc` is available.
 - **Detach**: Press the key shown in the attach banner to detach from the console while leaving the IOC running. The default is `Ctrl-A`. Both `con` and `socat` consume the selected key when it is typed, so it does not reach the IOC shell. Inside pasted text, `con` forwards it to the IOC shell, while `socat` detaches at it. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line. The runner passes the same byte value through `con -x` and `socat`'s `escape` option.
 - **Custom Key**: `--detach-key ctrl-]` selects `Ctrl-]` for that connection only; it does not change the default for later connections or direct `con` invocations. Names are case-insensitive: `ctrl-a` through `ctrl-z`, plus `ctrl-\`, `ctrl-]`, `ctrl-^`, and `ctrl-_`. `ctrl-t` is rejected because `con` reserves it for diagnostics, and `ctrl-[` because it is the Escape byte that arrow and function keys begin with. Quote the backslash form as `'ctrl-\'` in the shell. Missing or invalid values, or using the option with a command other than `attach`, fail before connection.
-- **Ignored Input**: The runner's procServ configuration uses `--ignore=^D^C`, so `Ctrl-C` and `Ctrl-D` are discarded before reaching the IOC. Every other byte, including `Ctrl-]`, is forwarded; procServ converts `^` only before `A` through `Z`, so a `^]` entry would instead drop the printable `^` and `]` characters. If `Ctrl-C` or `Ctrl-D` is selected as the detach key, the client handles it locally and detaches first.
+- **Ignored Input**: The runner's procServ configuration uses `--ignore=^D^C`, so `Ctrl-C` and `Ctrl-D` are discarded before reaching the IOC. procServ handles reserved control bytes such as `Ctrl-X` itself. In `--ignore`, `^A` through `^Z` denote control characters; `^]` instead denotes the printable `^` and `]` characters. If `Ctrl-C` or `Ctrl-D` is selected as the detach key, the client handles it locally and detaches first.
 - **Functional Specification**: Routes both standard input (`stdin`) and standard output (`stdout`) between the user's current TTY and the target UNIX Domain Socket.
-- **Architecture Constraints**: If multiple users `attach` to the same IOC simultaneously, their keystrokes will be interleaved at the kernel level before reaching the IOC shell. This can lead to malformed commands and hardware misoperation.
+- **Architecture Constraints**: If multiple users `attach` to the same IOC simultaneously, procServ forwards input from those clients to the same IOC terminal, so their input can interleave before reaching the IOC shell. This can lead to malformed commands and hardware misoperation.
 
 ### `monitor` (read-only mode)
 
@@ -507,12 +508,14 @@ disappeared; other nonzero statuses are reported and propagated.
 | No discovered client PIDs | `No external client connections detected.` |
 | Effective launch command cannot be resolved | A warning includes the reason. The log-path probe is skipped and inspection continues without a configured executable comparison. |
 | Effective system service identity cannot be read, or either User/Group is empty or contains whitespace | The identity resolver fails; `inspect` warns that the log-path probe was skipped and continues. |
-| Only one identity value supplied to a log-path probe | The probe rejects it: both service user and group are required. |
 | Stable supervisor PID does not appear among the owners of the target socket | A warning states that executable identity was not attributed to that PID. |
 
 Warnings and empty result sections do not themselves fail inspection. An
 independent fatal error, such as a missing dependency, can still end the
 command with a nonzero status.
+
+The internal user/group argument contract is described in
+[Internal log-path probe](ARCHITECTURE.md#internal-log-path-probe).
 
 ### Output sections of `inspect`
 
@@ -530,7 +533,7 @@ Displays the raw file descriptor allocations for the target socket path.
 | DEVICE | Device number |
 | SIZE/OFF | File size or offset |
 | NODE | Kernel inode number (matches the `INODE` column in `list -vv`) |
-| NAME | Socket path and protocol state (`(LISTEN)` or `(CONNECTED)`) |
+| NAME | Socket path; some `lsof` versions also show `(LISTEN)` or `(CONNECTED)` |
 
 **State Definitions:**
 - `(LISTEN)`: Server socket waiting for inbound connections. Typically held by `procServ` and its child IOC processes via FD inheritance.
