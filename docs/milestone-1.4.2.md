@@ -7,20 +7,21 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Prepare the reviewed M10 changes for repository
-landing when commit/push authority is given, then reconcile issue #163.
-Implementation and T1-T14 passed. Third-person implementation review and the
-owner-authorized final second-person check accepted the changes; the two
-CLOSED_DOORS Keep rows have correct table structure and unchanged content.
-M10 remains In progress until landing evidence and linked-issue closure.
+Next session entry point: Review the M11 implementation and test plan for
+IOC startup exit reporting (#166), including its real IOC fixture and native
+procServ evidence requirements, before requesting plan and execution approval.
+M10 is Complete: implementation and T1-T14 were accepted, commit
+`e183437c3df9c972a138877eeb79c2d3b7215ef4` was pushed to `release-1.4.2`,
+and #163 was closed as completed on 2026-10-15. Its Closure Evidence and
+GitHub Projection below record the landing and issue observations.
 Decision Date: 2026-10-15. Q1 keeps the internal inspect text; Q2 keeps direct
 custom scan-directory setup. Both recommendations and proceeding with the
 reviewed M10 were accepted. Execution records: plan20261015_073559 / auth20261015_073559 in
 `work/review_sessions/20261013_083800_m8-partial-completion/plan/`.
 The complete-surface draft received second third-person and first second-person
 acceptance; its final technical review is conv20261015_070440. Implementation
-results are recorded in the M10 Verification Results below. Retain St04 as Partial and M14
-on hold. No commit/push or GitHub mutation is authorized by this direction.
+results are recorded in the M10 Verification Results below. Retain St04 as
+Partial and M14 on hold.
 C00153's staging-path guard and C01455's
 user/group guard are retained as internal design documentation; both rejection
 branches remain unexecuted. Both documentation corrections are complete after
@@ -74,7 +75,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
 | Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | In progress | No | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
-| Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | In progress | No | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
+| Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Complete | — | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
 | Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Not started | Yes | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
 | Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Not started | Yes | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
@@ -12222,7 +12223,7 @@ the landed `458403f` change.
 Origin: 1.4.2 / M10
 Identity History: none
 GitHub Issue: #163 (https://github.com/jeonghanlee/epics-ioc-runner/issues/163)
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -12698,10 +12699,45 @@ check is not described as a book-render result.
 
 ##### Closure Evidence
 
-Implementation, T1-T14 verification and both review lanes are accepted.
-M10 remains In progress pending repository landing evidence and linked-issue
-closure. No commit, push, issue mutation, M8 closure or session closure is
-performed by this implementation or bounded-review authorization.
+Completed on 2026-10-15. Implementation, T1-T14 verification and both review
+lanes are accepted, with their actual results and limits recorded above.
+
+- Implementation landed in commit
+  `e183437c3df9c972a138877eeb79c2d3b7215ef4`
+  (`Align runner CLI contracts and expand native verification`). All fourteen
+  files in `work/m10-verification-20261015T073559Z/review-target.json` match
+  that commit. The accepted Keep-table correction is included.
+- The authorized non-forced push completed. On 2026-10-15 UTC,
+  `git ls-remote origin refs/heads/release-1.4.2` returned that full commit
+  hash, matching local HEAD and `origin/release-1.4.2`.
+- After the separately authorized issue update and close, #163 was observed
+  CLOSED with reason `completed` at `2026-10-15T16:18:59Z`. Its body has all
+  nine acceptance criteria checked and retains the verification boundaries.
+  The [completion comment](https://github.com/jeonghanlee/epics-ioc-runner/issues/163#issuecomment-6196822476)
+  identifies the implementation commit and native verification.
+
+M8 and its final T1-T6 remain open. St04 remains Partial, and M14 remains on
+hold with its historical Mismatch results. M10 completion does not change
+those recorded limits.
+
+##### GitHub Projection
+
+Title: Help, completion, and container-mode messages disagree with runner behavior
+Labels: bug, P3-low, area/install, area/shell
+GitHub Milestone: 1.4.2 (number 19)
+Assignee: jeonghanlee
+Draft Body: `work/issue-163-completed-body.md`
+Observed State: CLOSED
+Observed State Reason: completed
+Observed Labels: bug, P3-low, area/install, area/shell
+Observed Milestone: 1.4.2 (number 19)
+Observed Assignee: jeonghanlee
+Closed At: 2026-10-15T16:18:59Z
+Last Compared: 2026-10-15; issue updated at 2026-10-15T16:18:59Z.
+Readback after closure matched the prepared body and completion comment
+exactly. A fresh read confirmed the closed state, all nine checked acceptance
+criteria, and the metadata above. Recheck with
+`gh api repos/jeonghanlee/epics-ioc-runner/issues/163`.
 
 #### M11 - Report IOC startup exits and respect continued IOC shell errors
 
