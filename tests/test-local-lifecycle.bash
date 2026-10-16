@@ -195,7 +195,12 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S31|local-lifecycle.S31.spaced-does-not-corroborate|BEHAVIOR"
     "S31|local-lifecycle.S31.blank-start-succeeds|BEHAVIOR"
     "S31|local-lifecycle.S31.blank-not-warned|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-exits-zero|BEHAVIOR"
     "S32|local-lifecycle.S32.enable-creates-link|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-linger-advice|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-preserves-linger|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-preserves-runtime|BEHAVIOR"
+    "S32|local-lifecycle.S32.disable-exits-zero|BEHAVIOR"
     "S32|local-lifecycle.S32.disable-removes-link|BEHAVIOR"
     "S33|local-lifecycle.S33.configuration-removed|BEHAVIOR"
     "S33|local-lifecycle.S33.service-inactive|BEHAVIOR"
@@ -1844,17 +1849,46 @@ EOF
 
 function test_persistence {
     local step="$1"
+    local enable_rc=0 disable_rc=0 runtime_before_rc=0 runtime_after_rc=0
+    local linger_before linger_after runtime_before runtime_after advice advice_count
+    local advice_ok="false" linger_ok="false" runtime_ok="false" link_exist="false"
+
     print_divider
     _log "INFO" "STEP ${step}: Test Enable and Disable (Persistence)"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local enable "${IOC_NAME}"
+    linger_before=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
+    runtime_before=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p ActiveState -p MainPID) || runtime_before_rc=$?
+    printf -v advice "Note: user lingering is off; 'loginctl enable-linger %s' to run IOCs and log rotation while logged out." "$(id -un)"
+    bash "${RUNNER_SCRIPT}" --local enable "${IOC_NAME}" > "${WORKSPACE}/persistence-enable.stdout" 2> "${WORKSPACE}/persistence-enable.stderr" || enable_rc=$?
+    linger_after=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
+    runtime_after=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p ActiveState -p MainPID) || runtime_after_rc=$?
+    verify_state "0" "${enable_rc}" "Enable succeeds with non-fatal linger advice"
 
-    local link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
     verify_state "true" "${link_exist}" "Symlink created in default.target.wants (Enable)"
 
-    bash "${RUNNER_SCRIPT}" --local disable "${IOC_NAME}"
+    advice_count=$(grep -Fxc -- "${advice}" "${WORKSPACE}/persistence-enable.stderr" || true)
+    if [[ "${linger_before}" == "no" && "${advice_count}" == "1" ]] ||
+       [[ "${linger_before}" == "yes" && "${advice_count}" == "0" ]]; then
+        advice_ok="true"
+    fi
+    verify_state "true" "${advice_ok}" "Enable advice matches the native linger state"
+
+    if [[ "${linger_before}" == "yes" || "${linger_before}" == "no" ]] &&
+       [[ "${linger_before}" == "${linger_after}" ]]; then
+        linger_ok="true"
+    fi
+    verify_state "true" "${linger_ok}" "Enable preserves the native linger state"
+
+    if (( runtime_before_rc == 0 && runtime_after_rc == 0 )) &&
+       [[ -n "${runtime_before}" && "${runtime_before}" == "${runtime_after}" ]]; then
+        runtime_ok="true"
+    fi
+    verify_state "true" "${runtime_ok}" "Enable preserves service activity and supervisor PID"
+
+    bash "${RUNNER_SCRIPT}" --local disable "${IOC_NAME}" || disable_rc=$?
+    verify_state "0" "${disable_rc}" "Disable succeeds"
 
     link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi

@@ -7,9 +7,14 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Review the draft M12 (#167) plan for local IOC
-lifetime and the non-fatal linger advisory on enable. Its plan acceptance and
-implementation authorization remain none. M11 is Complete: commit
+Next session entry point: Prepare the accepted M12 (#167) changes for commit.
+Both reviewers accepted the recovery-input correction and its 20 actual
+controller comparisons in the authorized additional pass. The original
+T1-T4 results, all six native restorations and fresh readback remain accepted.
+Both consumers are shut off with disks and evidence retained. Repository
+landing and linked-issue reconciliation remain pending. M12 stays In progress.
+Evidence: `work/m12-execution-20261016T033000Z/`.
+M11 is Complete: commit
 `ba787f0507d9ab157ed9241e3f71e904b9edc831` is on `origin/release-1.4.2`;
 all 15 committed paths match the prepared contents, and #166 was closed as
 completed at 2026-10-16T01:44:55Z. Implementation, bounded T1-T6 verification,
@@ -89,7 +94,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Complete | — | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
 | Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Complete | — | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
-| Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Not started | Yes | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
+| Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | In progress | No | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
 | Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Not started | Yes | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
@@ -13209,16 +13214,20 @@ body reconciliation and closure are verified.
 Origin: 1.4.2 / M12
 Identity History: none
 GitHub Issue: [#167](https://github.com/jeonghanlee/epics-ioc-runner/issues/167)
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-The local guide explains boot startup with lingering but omits the lifetime
-of an already-started IOC after the last login session ends.
-Local install prints a linger advisory; local enable has no corresponding
-advice. LAB-apcpdu reported successful enable with Linger=no and IOC shutdown
-after logout, relayed by LAB-EPICS-env on 2026-10-04. The code/document gaps
-are confirmed by source reading; that runtime case has not been repeated here.
+Successful Local enable prints the existing non-fatal linger advice when the
+native lookup does not report yes. The runner preserves enable failure,
+lingering, IOC activity, and the existing install early returns. The Local
+guide explains user-manager shutdown after logout under the host's effective
+policy. Native Debian 13 and Rocky 8.10 verification and task restoration
+passed on 2026-10-16. The remaining recovery-input exception path is corrected
+under the additional authorization; 20 actual controller comparisons confirm
+the changed behavior. Both reviewers accepted the correction without a
+remaining in-scope finding. Repository landing and linked-issue reconciliation
+remain pending; this milestone stays In progress.
 
 ##### Scope
 
@@ -13256,8 +13265,8 @@ and the unrelated M10 help/completion corrections.
   method and verification method, and prepare a separate issue draft. This
   authorizes planning; plan acceptance and implementation remain none.
 
-Current assessment at a07af0895fdf1850e2db19d088855d342f5b37e4, inspected
-2026-10-14; `bin/ioc-runner` has no working-tree changes:
+Historical planning assessment at a07af0895fdf1850e2db19d088855d342f5b37e4,
+inspected 2026-10-14 before this implementation:
 
 | Class | Evidence | Planned treatment |
 | --- | --- | --- |
@@ -13268,10 +13277,24 @@ Current assessment at a07af0895fdf1850e2db19d088855d342f5b37e4, inspected
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-10-16; owner directed execution after both technical reviews; plan20261016_035028.
+Implementation Authorization: 2026-10-16; current owner continuation authorizes P001-P006, T1-T4 and restoration; auth20261016_035028.
 Superseded Plan Artifacts: none
+
+**Plan review, 2026-10-16 UTC.** Both second-person and third-person lanes
+technically accept the corrected draft after their second pass. Three
+distinct plan defects are resolved: caller/host/environment separation,
+the required `M12Linger.conf` basename, and actual SSH-session observation
+separate from a proven manager session. The complete corrected plan has no
+remaining concrete finding within the frozen scope. This was the technical-review cutoff before the subsequent owner acceptance
+and execution authorization recorded above. Product and runtime changes had
+not begun at that cutoff.
+Review result: `conv20261016_030157` under
+`work/review_sessions/20261013_083800_m8-partial-completion/convergence/`;
+final reviewer evidence: `fup20261016_025701` and `fup20261016_025705` under
+that session's `reviews/`. The reviewed execution-sequence SHA-256 is
+`1254cb5d0323c088d20882f55131496fe5cf2dc85ccafcdaa1cc0c17ec100472`.
 
 1. Read `tests/README.md` VM Preparation and Handoff. Pin runner/systemd
    versions, effective manager/logind policy, `UserStopDelaySec` support,
@@ -13313,6 +13336,413 @@ temporary identities' linger/services, remove only task-created resources,
 and verify restoration from the independent observer. No existing user's
 session or host-wide logind policy is changed during issue preparation.
 
+###### Execution scope and command sequence
+
+This is a planning record, not executed commands or authorization. The source
+baseline is `87c3d5db5696b9743e89415849a294411bfd7b4b`, inspected on
+2026-10-16 UTC. The code still prints the note only at the end of
+`deploy_local_logrotate`; `stop|enable|disable` dispatch ends with the actual
+`run_systemctl` result. The local lifecycle S32 checks only the two symlink
+transitions. Preserve these existing checks while adding the advisory checks.
+
+| Plan ID | Files or boundary | Change | Closing checks |
+| --- | --- | --- | --- |
+| P001 | Private VM handoff and task-owned execution records | Recheck retained Debian 13/Rocky 8.10 guests, tool versions, real SSH/PAM sessions, disposable account, exact source/installed inputs, policy and recovery | T1/T2/T4 prerequisite evidence |
+| P002 | `bin/ioc-runner` | Extract the existing lookup/note into a non-fatal helper; retain the install location and add it only after successful Local enable | T1, T4 |
+| P003 | `tests/test-local-lifecycle.bash`, `tests/LOCAL_LIFECYCLE_INVENTORY.md`, `tests/reporting-counts.csv` | Extend S32 through the complete selected CLI; keep normal suite execution unprivileged and observe the caller's existing linger state | T1, T4 |
+| P004 | `docs/USER_GUIDE_LOCAL.md`, `tests/README.md` | Explain policy-specific logout lifetime; describe the separate administrative preparation required for the two linger states and real-session test | T2, T3 |
+| P005 | Task-owned native fixtures and evidence | Execute both linger states, real-session lifetime, failed-enable/lookup boundaries, old/corrected comparison and mode controls | T1, T2, T4 |
+| P006 | `docs/milestone-1.4.2.md` and affected M8 comparison evidence | Record actual results, restoration and both reviews; retain any unexecuted condition explicitly | T1-T4 |
+
+The shared count consumers and Gate expectations must be searched for the
+changed Local catalog size. Update only exact derived count/identity pins
+that the new assertions actually affect. No new suite, selection option,
+automatic privilege escalation, logind policy change or general refactor is
+part of P003. Preserve the unavailable-logrotate and failed-validation early
+returns. Keeping existing shared assets still reaches the existing advisory.
+The helper preserves the failed-lookup advisory and returns success explicitly.
+
+**Execution bindings.** Before VM use, record the real values in a private
+handoff: `M12_VM` (pinned SSH destination), `M12_REPO` (candidate checkout),
+`M12_OLD` (unchanged baseline checkout), `M12_OUT` (retained output directory),
+`M12_USER` (new disposable account), `M12_UID`, `M12_HOME`, `M12_KEY`
+(task-created key), `M12_PUBLIC_KEY` (transferred public key), `M12_CONF`
+(task-owned absolute path ending in `/M12Linger.conf`),
+`M12_BOOT`, `M12_IOC_TREE`, `M12_CA_PORT`, `M12_IMAGE`, `EPICS_BASE`, `EPICS_HOST_ARCH`,
+`IOC_RUNNER_STARTUP_GENERATOR` and `IOC_RUNNER_STARTUP_RELEASE`.
+Bind `M12_LOGIN` to a private SSH alias for that account, key and pinned host
+key. Both SSH shells must disable multiplexing. Reject missing bindings,
+existing account/home, source drift, a reused output directory or a missing
+fixture prerequisite. Commands below run from `M12_REPO` unless a role is
+named. Capture stdout, stderr, UTC/monotonic times and exit code separately.
+
+| Caller and host | Assigned commands |
+| --- | --- |
+| Control host operator | Source/payload preparation and hashing, key generation/transfer, SSH client sessions, static/reporting checks and mdBook build |
+| Non-root VM administrator with non-interactive sudo | Account preparation, linger changes, observer polling, direct source-regression through sudo, System master without outer sudo, account/runtime restoration |
+| Disposable test user's real SSH shell on each VM | IOC build/generate/install, Local CLI cases, Local source/installed/old-runner suites, native lookup/masked-instance cases and post-observation IOC removal |
+| Prepared container host operator with Docker access | Native Container regression using the recorded image digest and task report directory |
+
+At the start of each new SSH shell, assign its absolute path/version bindings
+from the private handoff explicitly; do not assume that controller variables
+cross SSH. Export the EPICS and original-generator inputs in both test-user
+and administrator shells before their suites. The test account must be able
+to traverse/read the candidate, baseline, module and generator paths. Do not
+copy the administrator's HOME or runtime directory into the test environment.
+
+```bash
+export M12_REPO M12_OLD M12_OUT M12_CONF M12_BOOT M12_IOC_TREE M12_CA_PORT
+export EPICS_BASE EPICS_HOST_ARCH IOC_RUNNER_STARTUP_GENERATOR IOC_RUNNER_STARTUP_RELEASE
+test -r "$IOC_RUNNER_STARTUP_RELEASE"
+test -x "$EPICS_BASE/bin/$EPICS_HOST_ARCH/softIoc"
+```
+
+Exporting a name does not assign its value; the private handoff supplies and
+records the assignments first. In the disposable user's shell, verify these
+native bindings before every no/yes suite:
+
+```bash
+test "$(id -u)" = "$M12_UID"
+test "$HOME" = "$M12_HOME"
+test "$XDG_RUNTIME_DIR" = "/run/user/${M12_UID}"
+loginctl show-user "$M12_USER" -p Linger --value
+systemctl --user show-environment
+```
+
+Keep environment output private and export only sanitized evidence. Local
+suites run directly as this user, without sudo. The administrator exports
+the native EPICS/generator inputs separately and remains a different UID.
+
+**P001: readiness and isolation.** Read the complete `tests/README.md`,
+`gate/RUNBOOK.md` and `docs/INSTALL.md` before execution. The independent VM
+administrator runs these native checks before creating the test account:
+
+```bash
+sudo -n true
+systemctl --version
+loginctl --version
+sudo -n /usr/sbin/sshd -T
+sudo -n cat /etc/pam.d/sshd
+sudo -n systemctl cat user@.service
+sudo -n systemctl cat systemd-logind.service
+sudo -n systemd-analyze cat-config systemd/logind.conf
+getent passwd "$M12_USER"
+getent group "$M12_USER"
+test ! -e "$M12_HOME"
+```
+
+The two `getent` lookups must report absence; capture their expected nonzero
+status without aborting preparation. Do not infer a free identity from an
+access error. Inspect included PAM files, logind configuration/drop-ins and
+installed manuals. If `cat-config` is unsupported, read the installed
+version's configuration search paths and files directly. Record the effective
+policy and its provenance, including vendor additions and per-user service
+drop-ins; a commented default alone does not establish effective policy.
+An unsupported `UserStopDelaySec` is not a zero delay. For finite policy,
+record its delay and a timeout covering manager and IOC shutdown; use a
+60-second minimum observation window. An infinite, unknown or larger-than-
+budget retention policy leaves the termination case unverified; do not
+change host policy to manufacture that result.
+
+Record account-file contents and metadata privately, along with existing
+units, lingering and sessions. Confirm the administrator can reconnect with
+non-interactive sudo. After authority is recorded, create only the absent
+test account and its key-based access. Keep the account outside privileged
+groups. On the control host, generate a fresh key and transfer its public part:
+
+```bash
+ssh-keygen -q -t ed25519 -N '' -f "$M12_KEY"
+scp "${M12_KEY}.pub" "${M12_VM}:${M12_PUBLIC_KEY}"
+```
+
+The administrator then runs:
+
+```bash
+sudo -n useradd --create-home --user-group --home-dir "$M12_HOME" --shell /bin/bash "$M12_USER"
+sudo -n usermod --password '*' "$M12_USER"
+M12_UID=$(id -u "$M12_USER")
+sudo -n install -d -m 0700 -o "$M12_USER" -g "$M12_USER" "$M12_HOME/.ssh"
+sudo -n install -m 0600 -o "$M12_USER" -g "$M12_USER" "$M12_PUBLIC_KEY" "$M12_HOME/.ssh/authorized_keys"
+```
+
+The invalid password value permits no password login. Require a successful
+public-key login under unchanged SSH/PAM policy before dependent tests. Record
+SELinux status and restore the new home's standard context with `restorecon`
+where required by that VM's policy. Do not change login policy to make a
+failed prerequisite pass. Keep private addresses, keys and account-file
+contents out of this document and public evidence.
+
+The fixture is the original `ServiceTestIOC` at
+`91d42b2ceadec81a065d4cdf35936dbb8d77e202`, built with the required native
+modules from `tests/README.md`. Record its Git revision, build inputs,
+executable hash and unchanged startup-script hash. Create a configuration
+for `M12Linger` using the shipped Local generate/install path; changing the
+configuration's name and native build paths is allowed, replacing the IOC
+main or its startup script is not. The test user's build/generate commands are:
+
+```bash
+git clone https://github.com/jeonghanlee/ServiceTestIOC.git "$M12_IOC_TREE"
+git -C "$M12_IOC_TREE" checkout --detach 91d42b2ceadec81a065d4cdf35936dbb8d77e202
+printf 'EPICS_BASE=%s\n' "$EPICS_BASE" > "$M12_IOC_TREE/configure/RELEASE.local"
+make -C "$M12_IOC_TREE"
+chmod +x "$M12_BOOT/st.cmd"
+cd "$M12_BOOT"
+bash "$M12_REPO/bin/ioc-runner" --local generate .
+```
+
+Copy the generated configuration to `M12_CONF`, changing only `IOC_NAME` to
+`M12Linger` and adding the prechecked free `EPICS_CA_SERVER_PORT` value
+`M12_CA_PORT`. Preserve the generated user, group, directory and executable;
+inspect the complete configuration and record its hash. Before installation,
+require the following filename binding; the runner derives its installed
+name from the filename, not the IOC_NAME field inside it:
+
+```bash
+test "${M12_CONF#/}" != "$M12_CONF"
+test "${M12_CONF##*/}" = M12Linger.conf
+test -s "$M12_CONF"
+```
+
+After installation, verify the installed configuration basename, unit name
+and runtime socket path all use `M12Linger` before enable or start. Use that
+same installed name for masking and cleanup. The full Local suite separately requires
+the original generated startup fixture documented in `tests/README.md`.
+
+**P002/P003: advisory and unchanged operation result.** The administrator sets
+each state before the test user runs the whole CLI inside a real SSH session:
+
+```bash
+sudo -n loginctl disable-linger "$M12_USER"
+sudo -n loginctl show-user "$M12_USER" -p Linger -p Sessions
+sudo -n loginctl enable-linger "$M12_USER"
+sudo -n loginctl show-user "$M12_USER" -p Linger -p Sessions
+```
+
+These are separate no/yes phases, not one setup block. For each phase, the
+test shell records current linger, enabled state, unit ActiveState/MainPID
+and known IOC process identity before and after each command:
+
+```bash
+loginctl show-user "$(id -un)" -p Linger --value
+bash "$M12_REPO/bin/ioc-runner" --local -f install "$M12_CONF"
+bash "$M12_REPO/bin/ioc-runner" --local enable M12Linger
+systemctl --user is-enabled epics-@M12Linger.service
+systemctl --user show epics-@M12Linger.service -p ActiveState -p MainPID
+bash "$M12_REPO/bin/ioc-runner" --local disable M12Linger
+```
+
+Run both enable and repeated enable while inactive and while active. In the
+inactive case enable must leave the IOC stopped; in the active case it must
+preserve the same supervisor and IOC identities. Linger=no must produce
+exactly the existing install advisory on stderr and exit 0. Linger=yes must
+omit that advisory and exit 0. Linger itself is unchanged by runner commands.
+Capture the install control while the IOC is stopped; an active-install
+refusal is not an advisory control. Re-run the same complete candidate test
+suite against the unchanged old runner through the existing installed-runner
+selector, using an isolated user-readable copy. Only the newly added
+missing-enable-note assertions should fail on the old runner; record every
+other outcome instead of assuming equivalence.
+
+**P005: actual login/logout.** Open two distinct interactive SSH shells, each
+with the command below. Save each shell's XDG_SESSION_ID as `M12_SESSION_A`
+or `M12_SESSION_B` in the administrator's record, then verify both IDs against
+native User, Class, Service, Leader, Type and State properties. They must be
+distinct real SSH/PAM sessions belonging to M12_UID. Neither the observer nor any
+poller may log in or use `sudo -u`/`su` as the test account during measurement.
+
+```bash
+ssh -tt -o ControlMaster=no -o ControlPath=none "$M12_LOGIN"
+```
+
+Each test shell prints its session ID; the observer then binds both IDs:
+
+```bash
+printf '%s\n' "$XDG_SESSION_ID"
+```
+
+The following commands run as administrator:
+
+```bash
+sudo -n loginctl show-session "$M12_SESSION_A" -p User -p Class -p Service -p Leader -p Type -p State
+sudo -n loginctl show-session "$M12_SESSION_B" -p User -p Class -p Service -p Leader -p Type -p State
+sudo -n loginctl show-user "$M12_USER" -p Sessions
+```
+
+Classify every additional session returned for that user. On versions that
+register a manager-class session, match its Leader to the live MainPID of
+`user@${M12_UID}.service`, corroborated by the process start time/cgroup.
+Only that proven manager session is excluded from the SSH login count.
+Do not ignore unknown, background or extra login sessions. Use the native
+version's supported properties and retain their absence explicitly; older
+versions need not expose a manager-class session.
+
+In the first shell, run the start command below and save readiness, supervisor PID, IOC
+PID plus `/proc/<pid>/stat` start time, and the user-manager PID. Enter
+`exit` in the second shell; from the administrator confirm B has ended while
+A and the same manager/supervisor/IOC remain. Then enter `exit` in the first
+shell. The observer confirms A has ended and no other login session remains.
+A manager-class session alone is not a remaining SSH login. Record last
+logout time from these identified sessions and poll the following
+native state through the frozen observation window. The start command runs
+in the first test shell before either logout:
+
+```bash
+bash "$M12_REPO/bin/ioc-runner" --local start M12Linger
+```
+
+The administrator's observation commands are:
+
+```bash
+sudo -n loginctl show-user "$M12_USER" -p Sessions -p Linger -p State
+sudo -n systemctl show "user@${M12_UID}.service" -p ActiveState -p MainPID -p Result
+sudo -n systemctl show "user-runtime-dir@${M12_UID}.service" -p ActiveState -p Result
+sudo -n ps -u "$M12_UID" -o pid,ppid,lstart,args
+sudo -n journalctl -b -u "user@${M12_UID}.service" --no-pager
+```
+
+A closing session must actually end; a closing-state entry is not yet proof
+of full logout. Continue tracking A/B state or their observed removal along
+with every other session for the UID. A removed user object after logout is a
+recorded result, not a
+reason to recreate its manager. Also inspect the saved PIDs' start times and
+cgroups; PID reuse or unrelated processes cannot establish IOC survival.
+Repeat the entire two-session sequence after enabling linger. Expect the
+same IOC and manager to survive the absence of login sessions through the
+bounded window; a separately identified manager session may remain.
+With finite non-linger policy, expect the manager and its IOC to end after
+that policy takes effect. Do not use `terminate-user`, manual manager stop,
+SSH transport emulation, a shell started by `su`, or a fake loginctl response
+as logout evidence. Record finite observations as bounded observations;
+this test does not establish survival forever or test boot execution.
+
+**P005: native failure boundaries and mode controls.** In the test user's
+active login, first disable the IOC, then mask only its instance and call
+the shipped enable command. Capture the actual nonzero exit and absence of
+the success-path advisory; unmask and restore the original enabled state.
+
+```bash
+systemctl --user mask epics-@M12Linger.service
+M12_RC=0
+bash "$M12_REPO/bin/ioc-runner" --local enable M12Linger || M12_RC=$?
+printf '%s\n' "$M12_RC"
+systemctl --user unmask epics-@M12Linger.service
+systemctl --user daemon-reload
+```
+
+For failed linger lookup, retain the working user bus and point only the
+process's system-bus address at an absent task-owned path:
+
+```bash
+M12_BAD_BUS="unix:path=${M12_OUT}/absent-system-bus"
+M12_RC=0
+DBUS_SYSTEM_BUS_ADDRESS="$M12_BAD_BUS" loginctl show-user "$M12_USER" -p Linger --value || M12_RC=$?
+printf '%s\n' "$M12_RC"
+DBUS_SYSTEM_BUS_ADDRESS="$M12_BAD_BUS" bash "$M12_REPO/bin/ioc-runner" --local enable M12Linger
+```
+
+Prove the native loginctl failure and the shipped CLI's connection attempt
+with strace if the boundary is ambiguous; do not count an unaffected lookup
+as coverage. The runner must still enable successfully and preserve the
+existing non-fatal advice. The environment override must be command-scoped.
+Run Local stop/disable and native System/Container enable controls and verify
+no new linger advice there, along with their original exit and state effects.
+Record install's existing early-return cases separately; helper extraction
+must not move the advisory before them. Do not replace runner functions,
+systemctl, loginctl or the IOC fixture with stubs.
+
+**P003/P004/P006: regression and document commands.** Run from the candidate
+checkout after native preflight, using the callers below. Whole-suite results
+are required; S32 must not be invoked by extracting or sourcing an internal
+test function. The control host operator runs static/reporting/document checks:
+
+```bash
+bash -n bin/ioc-runner
+bash -n tests/test-local-lifecycle.bash
+shellcheck --severity=error bin/ioc-runner tests/test-local-lifecycle.bash
+bash tests/lib/reporting-counts-self-test.bash
+bash tests/lib/test-reporting-self-test.bash
+bash tests/lib/test-record-validator-self-test.bash
+mdbook build --dest-dir "$M12_OUT/book"
+git diff --check
+```
+
+The disposable user's real SSH shell on each VM runs the error suite and
+Local suites. Export `IOC_RUNNER_SCRIPT_DEST` to the verified candidate
+installed executable for the installed invocation, after its installation
+through the documented setup route and readback. Record absolute selected
+path, executable SHA-256 and `-V` output before each invocation:
+
+```bash
+bash tests/test-error-handling.bash
+KEEP_WORKSPACE=1 bash tests/run-all-tests.bash --local --source
+KEEP_WORKSPACE=1 bash tests/run-all-tests.bash --local --installed
+```
+
+The non-root VM administrator, after verifying sudo and exporting the
+required native EPICS/generator bindings, runs the source/System checks:
+
+```bash
+sudo -n -E bash tests/test-source-regression.bash
+bash tests/run-all-tests.bash --system --source
+```
+
+The System master invokes sudo internally. Do not prefix that master with
+sudo and do not give the disposable account sudo access. The prepared
+container host operator runs:
+
+```bash
+bash tests/run-container-tests.bash --image "$M12_IMAGE"
+```
+
+Run the complete Local suite on each native OS in both externally prepared
+linger states. Use source and installed selectors on the candidate; bind
+`IOC_RUNNER_SCRIPT_DEST` to the isolated unchanged baseline executable for
+the old-behavior comparison. The baseline script is unmodified, and the
+candidate suite/fixtures remain identical. Restore the selector immediately
+after comparison. Inspect every nonzero command and full ShellCheck output;
+do not call the suite passing from its PASS count alone. Check generated
+local-guide links and rendered boot/logout text. If mdBook is unavailable,
+use the repository's documented build container and record its image digest
+and complete command before running it. No new-candidate full Gate PASS is
+implied by these selected checks.
+
+**P001/P006: restoration.** Normal, assertion-failure and TERM paths all use
+the separate administrator connection. Preserve diagnostics first. While a
+test login still exists, stop and remove `M12Linger` using the shipped CLI,
+then perform the suite's documented cleanup. After measurement, teardown may
+terminate only the task account's remaining sessions. Cleanup commands are
+not used as T2 evidence:
+
+```bash
+bash "$M12_REPO/bin/ioc-runner" --local stop M12Linger
+bash "$M12_REPO/bin/ioc-runner" --local remove M12Linger
+sudo -n loginctl disable-linger "$M12_USER"
+sudo -n loginctl terminate-user "$M12_USER"
+sudo -n systemctl stop "user@${M12_UID}.service"
+sudo -n systemctl stop "user-runtime-dir@${M12_UID}.service"
+sudo -n ps -u "$M12_UID" -o pid,ppid,args
+sudo -n test ! -e "/run/user/${M12_UID}"
+sudo -n userdel -r "$M12_USER"
+getent passwd "$M12_USER"
+getent group "$M12_USER"
+sudo -n test ! -e "/var/lib/systemd/linger/${M12_USER}"
+```
+
+The first two commands run as the test user after the observation window;
+the remainder run as the administrator. If the manager has already ended,
+an explicit recovery login is permitted only after T2 collection is sealed.
+Capture each cleanup result and continue independent recovery after a failed
+step; never delete the account until its processes, manager, runtime unit
+and runtime directory are absent. Verify that userdel removes only the
+task-created home/group; otherwise report residue without broad deletion.
+Restore saved account-file metadata without overwriting unrelated concurrent
+changes. Retain execution records and source payloads for review. Verify
+original installed binaries, existing user sessions and host policy from a
+fresh administrator connection. A cleanup failure prevents a restoration
+claim and is recorded separately from intended failure stimuli. Send the
+provider the finished notice after final review and restoration; retain VM
+disks and evidence under the existing resource policy.
+
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
@@ -13326,10 +13756,65 @@ session or host-wide logind policy is changed during issue preparation.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Native local CLI | Pending | Peer enable result not reexecuted here |
-| T2 | Not run | Real login/logout path | Pending | No existing account/session or linger state changed |
-| T3 | Not run | Control host | Pending | No public guide edit applied |
-| T4 | Not run | Native failure and mode controls | Pending | Planning and issue preparation only |
+| T1 | 2026-10-16 UTC | Debian 13 and Rocky 8.10, actual unprivileged SSH caller | PASS | Candidate whole Local source/installed suites pass with linger=no and yes; 284 checks each, with four native journal NA on Rocky. Unchanged baseline fails only the added advice assertion with linger=no and passes with yes. Four manual runs pass 60 observations each. Evidence: `work/m12-execution-20261016T033000Z/final-summary.json`, Local and manual records. |
+| T2 | 2026-10-16 04:30-04:49 UTC | Both native OSes, original ServiceTestIOC, two SSH/PAM sessions and independent administrator observer | PASS, bounded | Closing one session retains the original manager/procServ/IOC identities. After the last SSH session ends, linger=no stops them under the measured 10-second policy; linger=yes retains them through 150 seconds. PID, start time, executable and cgroup evidence excludes PID reuse. Evidence: each profile's `logout-no-2/` and `logout-yes/`. |
+| T3 | 2026-10-16 05:17 UTC | Current guide and native observations | PASS | Current mdBook build exits 0; policy, early-return and unchanged-state statements appear in HTML; internal guide links resolve. The first second-person implementation review accepts C3 without a finding. Evidence: `doc-current.json` and `rev20261016_050140`. |
+| T4 | 2026-10-16 through 05:15:50 UTC | Both native OSes, pinned Container image and control host | PASS | Real failed enable/lookup and mode controls pass. Whole error/source/System/Container suites, reporting self-tests, syntax and ShellCheck error gate pass. Normal/assertion/TERM restoration passes on both OSes; fresh administrator readback passes 127 checks each. Evidence: `final-summary.json`, recovery records and `final-readback-2` records. |
+| T4 | 2026-10-16T06:44:09.271238+00:00 | Control host, original per-OS inputs, real SSH in isolated network namespaces | PASS, controller exception boundary | 20 complete baseline/corrected comparisons cover four filesystem/JSON failures and one unchanged-input control per saved profile. Original failure cases skip administrator transport; corrected cases attempt it and retain cleanup=false/exit 1. No VM connection or new successful native restoration is claimed. Evidence: `preparation-correction/network-isolated/result.json` and raw case records. |
+
+
+**Execution evidence, 2026-10-16 UTC.** The evidence root is
+`work/m12-execution-20261016T033000Z/`. The baseline is
+`87c3d5db5696b9743e89415849a294411bfd7b4b`; the candidate runner SHA-256 is
+`8421edb7b6799728a08c34701afee0caba76a99c1e768a854de9e720794c7996`.
+Source and actual setup-installed executable bodies match after excluding
+only their three installation metadata declarations.
+
+- Whole error handling: 536 PASS on each OS. Source regression: Debian
+  188 PASS/1 NA and Rocky 189 PASS. System source and installed each report
+  infrastructure 36 PASS/4 NA and lifecycle 237 PASS on both OSes. Container
+  lifecycle reports 75 PASS. Accepted runs have no FAIL, SKIP or ERR.
+- The six-suite records contain 1,570 identities per OS: Debian 1,565 PASS/5 NA,
+  Rocky 1,558 PASS/12 NA. Their derived identity is
+  `01520f391b6f401f9b64f5bc95c0c8eaa4b0e175e25048c5df52030c4dad19e6`.
+  Removing only the five added Local IDs in both origins reproduces the
+  previous pin. Only that exact consumer changes in `gate/drivers/control/suites.bash`.
+  The Gate driver and full Gate were not run.
+- Genuine instance masking preserves failed enable's nonzero result and omits
+  the success advice. An absent system-bus address produces a real loginctl
+  lookup failure while successful Local enable remains non-fatal. Local
+  stop/disable and System/Container enable do not acquire the advice.
+  Native parser rejection and a genuinely absent Container logrotate retain
+  install's warning/early-return behavior. The missing-tool control runs the
+  whole CLI with real systemctl libraries; it is not a Local lifecycle test.
+- The temporary account remains outside privileged groups. All three recovery
+  paths remove its IOC, sessions, user manager, runtime directory, home and
+  group; temporary default installation and tmpfs are restored. Original
+  account files, policies and linger markers match saved state. Each VM
+  preserves 12 pre-existing log files unchanged and removes only 27 logs
+  matched to archived test configurations. Command-stage exceptions are
+  recorded and native commands use bounded deadlines and a shared lock.
+  These six native runs used the controller before the additional input-error
+  correction below. Their successful restoration results remain bound to that
+  original source. The later filesystem-error comparisons verify the changed
+  controller boundary separately, without relabeling the native runs.
+- Archived regular-file hashes match 3,181 Debian and 4,964 Rocky source
+  records. Three early Debian suite workspaces were already absent at capture;
+  their controller outputs remain, but their full workspace retention is not
+  claimed. Current native fixtures, outputs and restoration records are archived.
+- Failed preparation/harness attempts remain separate: fixture access,
+  newline log-path preflight, an observer event collision, missing default
+  System prerequisites, a non-root fixture lookup, Container prerequisites,
+  and the first final-readback path error. The accepted corrected records are
+  named explicitly. Full ShellCheck returns 1 for retained info diagnostics
+  SC1091/SC2295; the error-level gate returns 0.
+
+The lifetime result covers native systemd 257/239 and the observed vendor
+policy only. Infinity policy, a new boot test, timer firing after logout,
+and recovery timeout injection were not executed. Changed-source bindings
+for C00558/C00559/C00636 are in `m8-source-bindings.json`; the new paragraph
+has separate T1/T2 evidence. Historical M8 totals remain 1,827 Verified,
+2 Partial, 1 Pending and 2 Mismatch. M8, M14 and St04 are unchanged.
 
 Source inspection, observed 2026-10-05T03:37:21Z at 9c491c3, confirms the
 guide gap at `docs/USER_GUIDE_LOCAL.md:92-106`, the install-time note at
@@ -13350,7 +13835,69 @@ or a completed native lifetime test.
 
 ##### Closure Evidence
 
-None.
+Implementation and the observed T1-T4 checks are recorded above. First reviews
+`rev20261016_050140` and `rev20261016_050354` identified recovery exception
+handling and log ownership checks. The correction and rereview cycle ended
+at 2026-10-16 05:25 UTC. `fup20261016_052503` accepts the correction;
+`fup20261016_052513` accepts the actual results but retains one part of the
+same exception-handling finding. Current `recovery.py:35-37` prepares the
+normal-phase input before entering the stage guard, and an exception skips
+the independent administrator call at line 39. Its frozen SHA-256 is
+`3e0e6e7c573c339f0743e1b76fa6fab36d09c52dd70be933549a48f9315ce463`.
+This is a source-inspection finding, not an observed restoration failure.
+The actual six restorations and fresh readback of 127 checks per OS are
+accepted by both lanes; full resolution of the recovery guarantee was not
+accepted at that review cutoff.
+
+Decision Date: 2026-10-16. Correct the remaining input-preparation boundary
+and conduct one additional focused review. Authorization:
+`auth20261016_063825` in the existing review session. The original plan's
+P001/P006 remains the governing recovery contract.
+
+The corrected controller places input read/parse, script read, output write
+and the existing remote call inside one `cleanup_stage` action. Its SHA-256
+is `b0e4156f7130d52908cc53101eb17bbb54f6a29c0775e8eb99a567c75e872827`.
+Actual complete-controller comparisons at 06:44 UTC use byte-identical
+native/remote helpers and the original saved inputs/scripts. Missing input,
+malformed JSON, missing script and an output-path directory produce actual
+exceptions. Original failure cases omit administrator transport; corrected
+cases attempt the real SSH command and preserve cleanup=false and exit 1.
+Both unchanged-input controls reach all three stages in both versions.
+All 20 comparisons pass. SSH reaches the real network-unreachable failure in
+a separate network namespace with no routes. A temporary mount supplies an
+empty system SSH configuration only inside that namespace; the host tree is
+read-only except for the case directory. No internal function, transport or
+fixture substitute is used. These tests prove the controller attempts the
+independent stage; they do not claim remote execution or another successful
+VM cleanup. The initial namespace preparation failures remain recorded
+separately and are excluded from the 20 accepted comparisons.
+
+Evidence: `preparation-correction/network-isolated/` under the execution root,
+including each case's original command, source hashes, actual exception,
+transport output, namespace identity, route table and final result.
+The additional third implementation pass in each lane is complete:
+`fup20261016_064948` (second-person, 06:49:48 UTC) and
+`fup20261016_065206` (third-person, 06:52:06 UTC) accept the correction with
+no remaining C4/C5 finding. Each independently checked all 399 frozen hashes
+and the 20 raw comparisons, including 36 actual SSH failures. Their acceptance
+retains the earlier product and native results; it does not claim a new
+successful VM restoration. Product code, native restoration scripts and
+previous execution evidence remain unchanged. No further review is required
+for this bounded correction.
+
+The provider received the finished notice for both consumers after final
+review and restoration, requesting normal shutdown with all retained files
+and evidence preserved. The matching provider record observes both guests
+shut off at 2026-10-16T05:29:36.995446+00:00 after two successful normal
+shutdown commands. Definitions, disk/seed/creation-record files, reservations
+and captured evidence remain retained. The Debian NVRAM path remains in the
+unchanged domain XML; no direct NVRAM filesystem stat or content hash is
+claimed. These are provider observations, not a new requester runtime test.
+The matching response and copied record are retained as
+`peer-finished-result-2.json` and `provider-closure.json` under the execution
+root. The VM-use request is closed; no guest deletion occurred.
+No commit, push, issue mutation, VM deletion, M8 closure or M12 completion is
+claimed. Repository landing and linked-issue reconciliation remain required.
 
 ##### GitHub Projection
 
@@ -13367,8 +13914,9 @@ Last Compared: 2026-10-14; issue updated at 2026-10-14T23:05:14Z.
 Readback matched the prepared title and body exactly, with the recorded
 labels, milestone and assignee. Recheck with
 `gh issue view 167 --repo jeonghanlee/epics-ioc-runner`.
-Issue registration does not change plan acceptance, implementation
-authorization or the Not run verification results.
+This historical issue readback predates the accepted implementation and
+T1-T4 results above. No issue mutation was performed for this execution; its
+body reconciliation and observed closure remain separate external steps.
 
 #### M13 - Prepare socket directories during native container startup
 

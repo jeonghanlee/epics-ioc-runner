@@ -267,9 +267,14 @@ pre-existing override directory.
 - `local-lifecycle.S31.blank-start-succeeds` | `BEHAVIOR` | Whitespace-only value starts successfully.
 - `local-lifecycle.S31.blank-not-warned` | `BEHAVIOR` | Whitespace-only value is a silent no-op.
 
-### S32 - Persistence (2)
+### S32 - Persistence (7)
 
+- `local-lifecycle.S32.enable-exits-zero` | `BEHAVIOR` | Enable succeeds with non-fatal linger advice.
 - `local-lifecycle.S32.enable-creates-link` | `BEHAVIOR` | Enable creates the default-target link.
+- `local-lifecycle.S32.enable-linger-advice` | `BEHAVIOR` | Enable prints the install advisory exactly once when native lingering is off and omits it when lingering is on.
+- `local-lifecycle.S32.enable-preserves-linger` | `BEHAVIOR` | Enable preserves the caller's native linger state.
+- `local-lifecycle.S32.enable-preserves-runtime` | `BEHAVIOR` | Enable preserves native service activity and supervisor PID.
+- `local-lifecycle.S32.disable-exits-zero` | `BEHAVIOR` | Disable succeeds.
 - `local-lifecycle.S32.disable-removes-link` | `BEHAVIOR` | Disable removes the default-target link.
 
 ### S33 - Remove (2)

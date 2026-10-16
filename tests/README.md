@@ -128,6 +128,27 @@ response. Original startup files and task registrations are restored on exit
 and TERM; failed workspaces remain available. The suites pin ServiceTestIOC to
 `91d42b2ceadec81a065d4cdf35936dbb8d77e202` for their existing lifecycle fixture.
 
+### Local linger and logout verification
+
+Local S32 observes the invoking user's native linger state. It checks enable
+status and advice, unchanged linger and service activity, and enable/disable
+links. The suite does not change lingering or require sudo. To cover both
+states, prepare a disposable account on a verification VM and have a separate
+administrator set lingering off and on before separate whole-suite runs.
+Run each Local suite in that account's real SSH session with its own HOME and
+runtime directory; run privileged suites from the administrator account.
+
+Logout lifetime requires a separate native observation with the original IOC.
+Record the installed systemd version, effective logind/user-manager policy and
+supported stop delay. Identify two real SSH/PAM session IDs, close one and then
+the last, and observe the user manager and IOC from another account. Classify
+any remaining sessions: a separately verified manager-class session is not an
+SSH login. Keep process start times and cgroups with PIDs to detect PID reuse.
+Use a finite window covering the effective stop delay; infinite or unknown
+retention does not establish last-logout termination. Do not stop the manager
+manually or create a test-user login while measuring. Restore task-owned
+resources through the independent administrator after sealing the observation.
+
 ### Full System Setup Prerequisite
 
 Before testing successful `setup-system-infra.bash --full` execution, inspect

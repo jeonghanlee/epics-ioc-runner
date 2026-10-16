@@ -973,6 +973,17 @@ EOF
     TEMPLATE_CHANGED=1
 }
 
+# Advise on user-manager availability without changing lingering or the
+# completed operation's status. An unavailable lookup retains the off advice.
+function advise_local_linger {
+    local linger
+    linger=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
+    if [[ "${linger}" != "yes" ]]; then
+        printf "Note: user lingering is off; 'loginctl enable-linger %s' to run IOCs and log rotation while logged out.\n" "$(id -un)" >&2
+    fi
+    return 0
+}
+
 # Deploy best-effort per-user procServ log rotation (U003/M19, issue #103).
 # Local mode has no rotation otherwise; under Restart=always a crash-looping
 # --user IOC would grow its log unbounded with no operator action. The config
@@ -1128,13 +1139,7 @@ EOF
         fi
     fi
 
-    # Linger advisory (non-fatal): like the IOC units, the timer fires only while
-    # the user manager runs.
-    local linger
-    linger=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
-    if [[ "${linger}" != "yes" ]]; then
-        printf "Note: user lingering is off; 'loginctl enable-linger %s' to run IOCs and log rotation while logged out.\n" "$(id -un)" >&2
-    fi
+    advise_local_linger
 }
 
 # Parse the bounded configuration grammar shared by validation and runtime
@@ -3714,7 +3719,10 @@ case "${COMMAND_ACTION}" in
                 disable) : > "$(s6_service_dir "${IOC_NAME}")/down" ;;
             esac
         else
-            run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service"
+            run_systemctl "${COMMAND_ACTION}" "epics-@${IOC_NAME}.service" || exit $?
+            if [[ "${EXEC_MODE}" == "local" && "${COMMAND_ACTION}" == "enable" ]]; then
+                advise_local_linger
+            fi
         fi
         ;;
     status)

@@ -106,6 +106,15 @@ account:
 loginctl enable-linger "$(id -un)"
 ```
 
+Without lingering, local IOCs stop when the user manager stops after your
+last login session ends. The host's effective logout policy determines when
+that happens; a configured stop delay or indefinite retention can postpone
+shutdown. Lingering keeps the user manager available after logout and at boot.
+When lingering is off, successful Local `enable` prints a non-fatal reminder.
+Local `install` also prints it unless log rotation setup returns early with
+a warning. Neither command enables lingering, and `enable` alone does not
+start a stopped IOC.
+
 ## Operate and remove local IOCs
 
 The service commands take `--local`:
