@@ -7,9 +7,12 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Prepare the reviewed M11 (#166) changes for repository
-landing, then record the landing evidence and close the issue under the
-corresponding Git/GitHub authority. Implementation, bounded T1-T6 verification,
+Next session entry point: Review the draft M12 (#167) plan for local IOC
+lifetime and the non-fatal linger advisory on enable. Its plan acceptance and
+implementation authorization remain none. M11 is Complete: commit
+`ba787f0507d9ab157ed9241e3f71e904b9edc831` is on `origin/release-1.4.2`;
+all 15 committed paths match the prepared contents, and #166 was closed as
+completed at 2026-10-16T01:44:55Z. Implementation, bounded T1-T6 verification,
 both final reviews and runtime restoration are complete. Both verification VMs
 were normally shut down with their disks and evidence retained. The six-run
 identity matrix and subsequent pin change remain separate from a new-candidate
@@ -85,7 +88,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | In progress | No | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Complete | — | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
-| Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | In progress | No | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
+| Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Complete | — | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
 | Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Not started | Yes | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
 | Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Not started | Yes | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
@@ -12753,11 +12756,11 @@ criteria, and the metadata above. Recheck with
 Origin: 1.4.2 / M11
 Identity History: none
 GitHub Issue: [#166](https://github.com/jeonghanlee/epics-ioc-runner/issues/166)
-Status: In progress
+Status: Complete
 
 ##### Summary
 
-The candidate reports a current child's nonzero normal exit code from complete,
+The committed runner reports a current child's nonzero normal exit code from complete,
 PID-associated procServ records and returns runner exit 1 while the supervisor
 remains active. A genuine continued iocsh quote error no longer causes a
 text-only startup failure. The original generator revision below was built and
@@ -12767,8 +12770,11 @@ normal exit 0, historical records and commanded restart teardown remain
 distinct. Native default timing is 30 seconds for initialization and 3 seconds
 for confirmation. Runtime restoration and fresh access checks are complete.
 Both independent final implementation reviews accepted the corrected code,
-documentation, handoff and bounded T1-T6 evidence. Repository landing and issue
-closure remain pending.
+documentation, handoff and bounded T1-T6 evidence. Commit
+`ba787f0507d9ab157ed9241e3f71e904b9edc831` is on `origin/release-1.4.2`,
+with all 15 prepared paths verified against the fetched commit. The issue body
+records all six satisfied acceptance criteria and the verification limits;
+#166 was closed as completed at 2026-10-16T01:44:55Z.
 
 ##### Scope
 
@@ -13153,7 +13159,27 @@ input manifest `849bf8b9a239aa256ca5edf7b4fa6e8a0032606a84869d74c6ad95e574060a3f
 
 ##### Closure Evidence
 
-None.
+Repository landing observed at 2026-10-16T01:34:40Z: after fetching `origin`,
+local HEAD, `origin/release-1.4.2` and the live
+`refs/heads/release-1.4.2` all identify
+`ba787f0507d9ab157ed9241e3f71e904b9edc831`. Its changed-path set is exactly
+the 15 prepared files; their committed SHA-256 values match the prepared
+content on both local HEAD and the fetched upstream. The worktree was clean
+at that observation. Recheck with `git fetch origin`, compare HEAD/upstream,
+and inspect `git ls-remote --heads origin refs/heads/release-1.4.2`.
+Evidence: `work/m11-execution-20261015T190000Z/repository-landing.json`.
+
+The accepted T1-T6 results and restoration evidence above remain unchanged.
+Issue #166 was closed as completed at 2026-10-16T01:44:55Z after the authorized
+body update and close comment. Readback at 2026-10-16T01:45:31Z confirms CLOSED,
+state reason COMPLETED, the exact prepared body with all six criteria checked,
+and exactly one matching close comment. Labels, milestone and assignee remain
+as recorded below. Evidence:
+`work/m11-execution-20261015T190000Z/issue-166-closure.json`.
+Closure comment:
+https://github.com/jeonghanlee/epics-ioc-runner/issues/166#issuecomment-6206133561.
+M11 is Complete on this implementation, bounded verification, restoration,
+repository landing and observed issue closure. M8 and the full Gate remain open.
 
 ##### GitHub Projection
 
@@ -13161,18 +13187,22 @@ Title: Report IOC startup exit codes and respect continued iocsh errors
 Labels: bug, area/detection
 GitHub Milestone: 1.4.2 (number 19)
 Assignee: jeonghanlee
-Draft Body: `work/issue-startup-exit.md`
-Observed State: OPEN
+Draft Body: `work/issue-startup-exit-body.md`
+Published Close Comment: `work/issue-startup-exit-close.md`
+Observed State: CLOSED (COMPLETED)
+Closed At: 2026-10-16T01:44:55Z
 Observed Labels: bug, area/detection
 Observed Milestone: 1.4.2 (number 19)
 Observed Assignee: jeonghanlee
-Last Compared: 2026-10-14; issue updated at 2026-10-14T23:04:43Z.
-Readback matched the prepared title and body exactly, with the recorded
-labels, milestone and assignee. Recheck with
+Last Compared: 2026-10-16T01:45:31Z; issue updated at 2026-10-16T01:44:55Z.
+Readback confirms the registered title, labels, milestone and assignee, the
+exact replacement body, and the single published close comment. All six
+acceptance criteria are checked with their results; the recorded verification
+limits remain explicit. Recheck with
 `gh issue view 166 --repo jeonghanlee/epics-ioc-runner`.
 Issue registration is separate from local plan acceptance, implementation
-authorization and observed verification results. Repository landing and issue
-closure remain pending.
+authorization and observed verification results. Repository landing, issue
+body reconciliation and closure are verified.
 
 #### M12 - Explain local IOC lifetime and advise lingering on enable
 
