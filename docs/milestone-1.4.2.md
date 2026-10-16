@@ -7,12 +7,18 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Prepare the accepted M12 (#167) changes for commit.
+Next session entry point: Prepare the M12 completion record for commit.
+M12 is Complete; issue #167's body and completion comment are reconciled,
+and CLOSED/COMPLETED was observed at 2026-10-16T08:27:52Z.
 Both reviewers accepted the recovery-input correction and its 20 actual
 controller comparisons in the authorized additional pass. The original
 T1-T4 results, all six native restorations and fresh readback remain accepted.
-Both consumers are shut off with disks and evidence retained. Repository
-landing and linked-issue reconciliation remain pending. M12 stays In progress.
+Both consumers are shut off with disks and evidence retained. Commit
+`5e096e463bad74e31cea02296fab51499e15b434` is on `origin/release-1.4.2`;
+all eight committed paths match the accepted contents. Issue #167 closed at
+2026-10-16T08:27:09Z. The later canonical completion record is not yet committed.
+Current milestone totals: 12 Complete, 1 In progress and 1 Not started.
+External gates remain G1 Complete and G2 Open; other work is unchanged.
 Evidence: `work/m12-execution-20261016T033000Z/`.
 M11 is Complete: commit
 `ba787f0507d9ab157ed9241e3f71e904b9edc831` is on `origin/release-1.4.2`;
@@ -94,7 +100,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Complete | — | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
 | Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Complete | — | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
-| Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | In progress | No | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
+| Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Complete | No | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
 | Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Not started | Yes | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
@@ -13214,7 +13220,7 @@ body reconciliation and closure are verified.
 Origin: 1.4.2 / M12
 Identity History: none
 GitHub Issue: [#167](https://github.com/jeonghanlee/epics-ioc-runner/issues/167)
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -13226,8 +13232,11 @@ policy. Native Debian 13 and Rocky 8.10 verification and task restoration
 passed on 2026-10-16. The remaining recovery-input exception path is corrected
 under the additional authorization; 20 actual controller comparisons confirm
 the changed behavior. Both reviewers accepted the correction without a
-remaining in-scope finding. Repository landing and linked-issue reconciliation
-remain pending; this milestone stays In progress.
+remaining in-scope finding. The accepted changes are committed and pushed as
+`5e096e463bad74e31cea02296fab51499e15b434`. The issue body records all six
+satisfied acceptance criteria, and #167 is closed as completed. Implementation,
+bounded verification, restoration, repository landing and issue reconciliation
+are complete.
 
 ##### Scope
 
@@ -13896,8 +13905,27 @@ claimed. These are provider observations, not a new requester runtime test.
 The matching response and copied record are retained as
 `peer-finished-result-2.json` and `provider-closure.json` under the execution
 root. The VM-use request is closed; no guest deletion occurred.
-No commit, push, issue mutation, VM deletion, M8 closure or M12 completion is
-claimed. Repository landing and linked-issue reconciliation remain required.
+
+Repository landing observed at 2026-10-16T07:52:48.734307+00:00:
+commit `5e096e463bad74e31cea02296fab51499e15b434` is on `release-1.4.2`.
+Local HEAD, fetched upstream and the live remote branch agree, and all eight
+committed file hashes match the accepted contents. Evidence:
+`repository-landing.json` under the execution root. Recheck the remote with
+`git ls-remote --exit-code origin refs/heads/release-1.4.2`.
+The 2026-10-16T08:15:32Z fetch/status recheck still reports a clean synchronized
+branch before this status-only update. The prior commit/push delegation is
+fulfilled; this later canonical update is not included in that commit.
+Under the separate Issue delegation on 2026-10-16, the prepared body update,
+completion comment and completed closure all returned success. Readback at
+2026-10-16T08:27:52Z confirms CLOSED/COMPLETED, closed at
+2026-10-16T08:27:09Z. The body exactly matches the prepared file with six
+checked acceptance criteria, and the single comment exactly matches its file.
+Title, labels, milestone and assignee are unchanged. Evidence:
+`issue-167-closure.json` under the execution root.
+M12 is Complete based on the accepted implementation and bounded T1-T4 results,
+both final reviews, native restoration, repository landing and observed issue
+closure. The previous verification limits remain unchanged. This completion
+record is not yet committed; no M8, M14, VM or overall session action follows.
 
 ##### GitHub Projection
 
@@ -13905,18 +13933,25 @@ Title: Advise lingering on local enable and document logout lifetime
 Labels: bug, documentation, area/shell
 GitHub Milestone: 1.4.2 (number 19)
 Assignee: jeonghanlee
-Draft Body: `work/issue-local-linger.md`
-Observed State: OPEN
+Draft Body: `work/issue-local-linger-body.md`
+Draft Close Comment: `work/issue-local-linger-close.md`
+Observed State: CLOSED (COMPLETED)
 Observed Labels: bug, documentation, area/shell
 Observed Milestone: 1.4.2 (number 19)
 Observed Assignee: jeonghanlee
-Last Compared: 2026-10-14; issue updated at 2026-10-14T23:05:14Z.
-Readback matched the prepared title and body exactly, with the recorded
-labels, milestone and assignee. Recheck with
+Observed Closed At: 2026-10-16T08:27:09Z
+Last Compared: 2026-10-16T08:27:52Z; issue updated at 2026-10-16T08:27:09Z.
+The live title, labels, milestone and assignee match this projection. The
+published body exactly matches `work/issue-local-linger-body.md`, with all six
+criteria checked. The single published comment exactly matches
+`work/issue-local-linger-close.md`; its URL is
+https://github.com/jeonghanlee/epics-ioc-runner/issues/167#issuecomment-6211356317.
+Live evidence: `issue-167-closure.json` under the execution root.
+Recheck with
 `gh issue view 167 --repo jeonghanlee/epics-ioc-runner`.
-This historical issue readback predates the accepted implementation and
-T1-T4 results above. No issue mutation was performed for this execution; its
-body reconciliation and observed closure remain separate external steps.
+The body update, completion comment and manual completed closure are verified.
+The implementation commit retains its `Closes #167` trailer for the later
+default-branch merge.
 
 #### M13 - Prepare socket directories during native container startup
 
