@@ -91,6 +91,8 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S19.sudoers-regex.identical"
     "${SUITE_ID}.S19.runner-name.max-length-64"
     "${SUITE_ID}.S19.runner-sudoers-name-contracts.agree"
+    "${SUITE_ID}.S20.unbalanced-quote-not-fatal"
+    "${SUITE_ID}.S20.unbalanced-quote-corroborates"
     "${SUITE_ID}.S20.pattern-unbalanced-quote"
     "${SUITE_ID}.S20.pattern-invalid-directory-path"
     "${SUITE_ID}.S20.pattern-can-t-open"
@@ -1511,6 +1513,10 @@ function test_crash_pattern_source_contract {
         "CRASH_LOG_PATTERNS_SEVERITY" "${runner_script}")
     base_patterns="(${fatal_patterns}|${ambiguous_patterns})"
 
+    _verify_corro_source_fixture "nomatch" "${fatal_patterns}" "" \
+        "Unbalanced quote" "${SUITE_ID}.S20.unbalanced-quote-not-fatal"
+    _verify_corro_source_fixture "match" "${ambiguous_patterns}" "" \
+        "Unbalanced quote" "${SUITE_ID}.S20.unbalanced-quote-corroborates"
     _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "ERROR st.cmd line 52: Unbalanced quote." \
         "${SUITE_ID}.S20.pattern-unbalanced-quote"

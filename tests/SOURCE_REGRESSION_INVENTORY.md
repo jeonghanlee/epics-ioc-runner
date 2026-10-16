@@ -223,10 +223,12 @@ S19 adds four REQUIRED direct-inspection identities accepted by the owner on 202
 
 ## S20 - Crash Pattern Source Contract
 
-S20 defines twenty-eight REQUIRED direct-inspection identities. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in the lifecycle suites.
+S20 declares REQUIRED direct-inspection identities for the crash-pattern contract. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in the lifecycle suites.
 
 | Check ID | Kind | Test Method | Source Contract |
 | --- | --- | --- | --- |
+| `source-regression.S20.unbalanced-quote-not-fatal` | `REQUIRED` | `direct-inspection` | The fatal subset excludes an unbalanced quote. |
+| `source-regression.S20.unbalanced-quote-corroborates` | `REQUIRED` | `direct-inspection` | The ambiguous subset includes an unbalanced quote. |
 | `source-regression.S20.pattern-unbalanced-quote` | `REQUIRED` | `direct-inspection` | The base regex matches an unbalanced-quote line. |
 | `source-regression.S20.pattern-invalid-directory-path` | `REQUIRED` | `direct-inspection` | The base regex matches an invalid-directory line. |
 | `source-regression.S20.pattern-can-t-open` | `REQUIRED` | `direct-inspection` | The base regex matches a `Can't open` line. |

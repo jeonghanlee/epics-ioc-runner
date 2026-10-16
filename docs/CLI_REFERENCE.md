@@ -245,7 +245,8 @@ In system and local mode, before calling systemd, the runner:
    validated.
 
 After the transition the runner reads the log from its previous end and waits
-up to 30 seconds for `All initialization complete`:
+up to 30 seconds for `All initialization complete`, followed by a 3-second
+confirmation period:
 
 | Outcome | Output | Exit |
 | --- | --- | --- |
@@ -253,9 +254,29 @@ up to 30 seconds for `All initialization complete`:
 | `start` on an IOC that is running and healthy | `IOC '<name>' is already running.` | 0 |
 | Error lines after initialization | A warning with the matching lines | 0 |
 | Active, but no completion line within the time limit | A warning | 0 |
+| A current child exits with a known nonzero normal status | `Error: IOC '<name>' exited during startup (exit code <N>).` | 1 |
 | A fatal error before `iocInit` | `Error: IOC '<name>' failed to initialize (fatal error before iocInit).` | 1 |
 | Repeated restarts | `Error: IOC '<name>' is crash-looping.` or `Error: IOC '<name>' is crash-looping before reaching iocInit.` | 1 |
 | The service is not active | `Error: IOC '<name>' failed to start or crashed immediately (State: <state>).` | 1 |
+
+The numeric status comes from a complete procServ exit record associated with
+its child PID in this invocation's log window. `<N>` is the child status;
+the runner returns 1. A nonzero status takes precedence over readiness,
+including when a later automatic retry reaches the marker. The log hint
+identifies where to inspect the cause; the status alone does not establish it.
+
+An iocsh `Unbalanced quote` message can occur under `on error continue` while
+the IOC remains alive. That message alone does not fail startup. After the
+readiness marker it can produce the error-pattern warning above. Error policy
+is local to each iocsh file; the runner observes execution rather than inferring
+policy from `st.cmd` text.
+
+Signal termination is distinct from normal exit and has no invented numeric
+exit code. Historical records and the old child's commanded restart teardown
+are excluded. Incomplete records can finish within the existing timeout or
+confirmation period; missing status retains the fatal/death-banner fallback.
+A normal exit 0 alone does not establish readiness. An unreadable log produces
+a warning instead of a clean-start claim.
 
 A configuration can extend the error patterns with `CRASH_LOG_PATTERNS_EXTRA`;
 an invalid value is ignored for the run with a warning. Direct `systemctl`

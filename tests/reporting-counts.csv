@@ -2,7 +2,7 @@ suite,checks,steps
 container-lifecycle,75,16
 error-handling,536,43
 list-states,23,9
-local-lifecycle,214,41
-source-regression,187,22
+local-lifecycle,279,42
+source-regression,189,22
 system-infra,40,8
-system-lifecycle,168,36
+system-lifecycle,237,37

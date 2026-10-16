@@ -230,8 +230,8 @@ pre-existing override directory.
 - `local-lifecycle.S30.fatal-probe-verdict` | `BEHAVIOR` | Pre-init FATAL probe reports failed initialization.
 - `local-lifecycle.S30.silent-loop-exits-one` | `BEHAVIOR` | Silent crash-loop probe exits one.
 - `local-lifecycle.S30.silent-loop-verdict` | `BEHAVIOR` | Silent crash-loop probe reports crash looping.
-- `local-lifecycle.S30.parse-error-exits-one` | `BEHAVIOR` | IOC shell parse-error probe exits one.
-- `local-lifecycle.S30.parse-error-verdict` | `BEHAVIOR` | IOC shell parse-error probe reports failed initialization.
+- `local-lifecycle.S30.continued-parse-error-exits-zero` | `BEHAVIOR` | A surviving softIoc with a continued quote error and no readiness marker returns zero.
+- `local-lifecycle.S30.continued-parse-error-markerless-warning` | `BEHAVIOR` | That probe warns about missing initialization completion without claiming readiness or IOC failure.
 - `local-lifecycle.S30.historical-fatal-exits-zero` | `BEHAVIOR` | Historical fatal content does not fail a healthy start.
 - `local-lifecycle.S30.historical-fatal-success-verdict` | `BEHAVIOR` | Historical fatal probe reports successful start.
 - `local-lifecycle.S30.truncate-available` | `PREREQUISITE` | `truncate` is available.
@@ -387,3 +387,36 @@ order and compares the closed catalog with `reporting-counts.csv`. Runner
 origin changes the selected binary and the SUITE `runner` field, not the
 identity set. Missing prerequisites and non-applicable permission branches
 close their declared dependent checks without changing `Total`.
+
+
+## S41 - Original generated startup
+
+The shared `lib/test-startup-fixture.bash` exports the pinned original generator,
+runs it, and builds its unchanged main. The preparation contract is in
+[the test README](README.md#original-generated-startup-fixture).
+
+The step declares one required `original-generated-fixture` check, followed by
+five behavioral checks for each case below: `runner-exit`, `diagnostic`,
+`native-status`, `supervisor-state`, and `console-response`. Each identity is
+`local-lifecycle.S41.<case>-<check>`. Evidence comes from the complete
+selected runner and actual generated IOC; there is no internal-function mock.
+
+| Case | Expected startup behavior |
+| --- | --- |
+| `healthy` | Readiness, exit 0, and a live IOC response |
+| `main-before-undefined-break` | Genuine command failure before readiness, child exit 2 |
+| `main-after-undefined-break` | Genuine command failure after readiness, child exit 2 |
+| `main-before-quote-break` | Genuine parse failure, child exit 2 |
+| `loaded-before-quote-break-break` | Parent and loaded file break, child exit 2 |
+| `main-before-quote-continue` | Continued parse error before readiness, responsive IOC |
+| `main-after-quote-continue` | Continued parse error after readiness, responsive IOC |
+| `loaded-before-quote-break-continue` | Parent breaks and loaded file continues, responsive IOC |
+| `loaded-before-quote-continue-break` | Parent continues and loaded file breaks, responsive IOC |
+| `zero-before-init` | Real console exit yields native status 0; a surviving retry without readiness warns and returns 0 |
+| `signal-before-init` | Native SIGKILL, crash-loop fallback without a normal exit code |
+| `status-shaped-text` | IOC output naming an unrelated PID cannot create a numeric failure |
+
+The final `active-start`, `active-restart`, `stopped-restart`, and `cleanup`
+checks cover the healthy control and removal of registration and socket.
+All cases use the production 30-second initialization and 3-second confirmation
+bounds. Printed diagnostic text is separate from native termination evidence.

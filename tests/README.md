@@ -50,6 +50,15 @@ selected test depends on them. Do not infer preparation from another VM or an
 earlier handoff. If a prerequisite fails, stop dependent tests and record that
 failure separately from intentional error cases.
 
+Use a separate administrative connection for teardown. For an account created
+exclusively for the test, stop and remove its IOCs, disable its temporary linger,
+terminate its login sessions, and stop both `user@<uid>.service` and
+`user-runtime-dir@<uid>.service` before deleting the account. Verify that its
+processes and `/run/user/<uid>` are absent first. A stopped user manager does not
+by itself prove that the runtime unit has stopped; the runtime cleanup helper
+can require the account to exist. Preserve the run's evidence and restore the
+recorded account-file metadata after deleting only the task-created account.
+
 ### Lifecycle IOC build prerequisites
 
 The Local and System lifecycle suites clone and build `ServiceTestIOC`.
@@ -69,6 +78,55 @@ On Rocky 8, `re2c` is available from the PowerTools repository. The suite
 writes `configure/RELEASE.local` for EPICS Base and builds the IOC; it does
 not build these support modules or install their OS dependencies. Check the
 fixture's build requirements again when its external revision changes.
+
+### Original generated startup fixture
+
+Both lifecycle suites also build the original generator at revision
+`ee214deedc5594bb93cd0a77d42615b99783bbd0`. Set
+`IOC_RUNNER_STARTUP_GENERATOR` to a trusted local Git repository containing
+that commit. The shared helper exports the commit into its own workspace,
+runs `generate_ioc_structure.bash`, and builds the generated main unchanged.
+It requires `makeBaseApp.pl`, Git, tar, make, timeout, and socat.
+
+The generator is supplied by the EPICS-env maintainer through the site's
+approved source-access channel; it is not included in this public repository.
+Request the `generate_ioc_structure.bash` repository at the exact revision
+above. If you lack direct access, request a self-contained Git bundle from
+that maintainer, clone it locally, and verify that it contains that commit
+before setting `IOC_RUNNER_STARTUP_GENERATOR` to the clone's absolute path.
+Record the source identity and bundle digest in the private VM handoff.
+The account running the suite must be able to read the repository and its
+parent directories. An unrelated generator or a reconstructed main does not
+satisfy this prerequisite.
+
+For an approved bundle, substitute its local path and the intended clone path:
+
+```bash
+git clone /path/to/generator.bundle /path/to/startup-generator
+export IOC_RUNNER_STARTUP_GENERATOR=/path/to/startup-generator
+git -C "$IOC_RUNNER_STARTUP_GENERATOR" cat-file -e 'ee214deedc5594bb93cd0a77d42615b99783bbd0^{commit}'
+```
+
+The final command must exit 0. Preserve this exported variable when invoking
+the System suite with `sudo -E`.
+
+The generated application additionally requires built `retools`, `caPutLog`,
+`iocStats`, and `pvxs` modules. If their paths differ from the template's
+layout, set `IOC_RUNNER_STARTUP_RELEASE` to a readable file containing the
+required RELEASE assignments. The helper appends that trusted build input to
+the generated `configure/RELEASE.local` after setting `EPICS_BASE`; it does not
+change the original generator, main, or installed dependencies. A missing
+source or failed build records a required-check failure and skips dependent
+checks.
+
+System S27 keeps its operator outside `systemd-journal` and compares a genuine
+terminating quote error with a continued quote error. System S36 and Local S41
+exercise original generated startup scripts through the selected whole runner.
+They retain production startup timing, use task-owned output paths and ports,
+and capture runner output, native child records, unit state, and an IOC console
+response. Original startup files and task registrations are restored on exit
+and TERM; failed workspaces remain available. The suites pin ServiceTestIOC to
+`91d42b2ceadec81a065d4cdf35936dbb8d77e202` for their existing lifecycle fixture.
 
 ### Full System Setup Prerequisite
 

@@ -162,8 +162,8 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S30|local-lifecycle.S30.fatal-probe-verdict|BEHAVIOR"
     "S30|local-lifecycle.S30.silent-loop-exits-one|BEHAVIOR"
     "S30|local-lifecycle.S30.silent-loop-verdict|BEHAVIOR"
-    "S30|local-lifecycle.S30.parse-error-exits-one|BEHAVIOR"
-    "S30|local-lifecycle.S30.parse-error-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.continued-parse-error-exits-zero|BEHAVIOR"
+    "S30|local-lifecycle.S30.continued-parse-error-markerless-warning|BEHAVIOR"
     "S30|local-lifecycle.S30.historical-fatal-exits-zero|BEHAVIOR"
     "S30|local-lifecycle.S30.historical-fatal-success-verdict|BEHAVIOR"
     "S30|local-lifecycle.S30.truncate-available|PREREQUISITE"
@@ -287,6 +287,9 @@ declare -g -A LOCAL_STEP_CHECK_IDS=()
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 # shellcheck source=tests/lib/test-console-pty.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-pty.bash"
+# shellcheck source=tests/lib/test-startup-fixture.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-startup-fixture.bash"
+startup_fixture_catalog S41 LOCAL_CATALOG_ROWS
 
 # --- Managed Architecture Paths ---
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
@@ -325,6 +328,7 @@ RUN_DIR="/run/user/$(id -u)/procserv"
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
+declare -gr SERVICE_TEST_IOC_REVISION="91d42b2ceadec81a065d4cdf35936dbb8d77e202"
 declare -g IOC_NAME="iocServiceTestIOC"
 
 declare -g WORKSPACE=""
@@ -439,7 +443,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 40; index += 1)); do
+    for ((index = 1; index <= 41; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -460,7 +464,7 @@ function initialize_reporting {
     done
     for row in "${LOCAL_CATALOG_ROWS[@]}"; do
         IFS='|' read -r step_id check_id check_kind <<< "${row}"
-        if [[ "${check_kind}" == "BEHAVIOR" ]]; then
+        if [[ "${check_kind}" == "BEHAVIOR" || "${check_id}" == "${SUITE_ID}.S41.original-generated-fixture" ]]; then
             test_method="real-path"
         else
             test_method="direct-inspection"
@@ -715,6 +719,11 @@ function _handle_exit {
         exit "${REPORT_FINAL_STATUS}"
     fi
 
+    if ! startup_fixture_cleanup; then
+        final_status=1
+        _log "ERROR" "Failed to restore the original startup fixture; retaining its workspace."
+    fi
+
     if ! _cleanup_m10_local; then
         final_status=1
         _log "ERROR" "Failed to clean up the M10 local reliability fixture."
@@ -744,7 +753,7 @@ function _handle_exit {
     fi
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
-        if [[ ${exit_code} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
+        if [[ ${final_status} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
             print_divider
             _log "WARN" "DEBUG: Test workspace retained for inspection."
             _log "WARN" "Path: ${WORKSPACE}"
@@ -767,7 +776,7 @@ function _handle_exit {
 }
 
 trap _handle_exit EXIT
-trap 'exit 1' SIGINT
+trap 'exit 1' SIGINT SIGTERM
 
 function _log {
     local level="$1"
@@ -914,6 +923,7 @@ function setup_environment {
     fi
 
     # Compile the application at the top-level directory.
+    git -C "${TOP_DIR}" checkout --detach "${SERVICE_TEST_IOC_REVISION}" >/dev/null 2>&1
     cd "${TOP_DIR}" || exit 1
     if [[ ! -d "bin" ]]; then
         _log "INFO" "Configuring and compiling EPICS application..."
@@ -1466,17 +1476,15 @@ function _remove_crash_probe {
 
 function _run_crash_probe {
     local ioc_name="$1"
-    local expected_kind="$2"   # "fatal" -> exit 1 failed-to-init; "healthy" -> exit 0 success
+    local expected_kind="$2"
     local assertion_name="$3"
     local output
     local exit_code=0
     local rc_ok="false"
     local msg_ok="false"
 
-    # M11/#67: a pre-iocInit FATAL-subset token is now a hard failure (exit 1 with
-    # the "failed to initialize" verdict), not the old active-IOC Warning. A healthy
-    # IOC reaches the marker and reports success (exit 0); pre-offset / benign noise
-    # is correctly ignored.
+    # Fatal evidence and repeated deaths fail startup. A surviving IOC without
+    # readiness warns; a healthy IOC confirms readiness. Historical text is ignored.
     output=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || exit_code=$?
     _remove_crash_probe "${ioc_name}"
 
@@ -1493,6 +1501,14 @@ function _run_crash_probe {
         verify_state "true" "${rc_ok}" "${assertion_name}: exit 1"
         if printf "%s" "${output}" | grep -q "crash-looping"; then msg_ok="true"; fi
         verify_state "true" "${msg_ok}" "${assertion_name}: crash-looping verdict"
+    elif [[ "${expected_kind}" == "markerless" ]]; then
+        if [[ "${exit_code}" == "0" ]]; then rc_ok="true"; fi
+        verify_state "true" "${rc_ok}" "${assertion_name}: exit 0"
+        if [[ "${output}" == *"did not report initialization complete"* &&
+              "${output}" != *"successfully started"* && "${output}" != *"Error: IOC"* ]]; then
+            msg_ok="true"
+        fi
+        verify_state "true" "${msg_ok}" "${assertion_name}: markerless warning"
     else
         if [[ "${exit_code}" == "0" ]]; then rc_ok="true"; fi
         verify_state "true" "${rc_ok}" "${assertion_name}: exit 0 (healthy)"
@@ -1725,7 +1741,7 @@ dbLoadRecords("missing.db
 EOF
     chmod +x "${parse_ioc_dir}/st.cmd"
     _install_crash_probe "${parse_ioc_name}" "${parse_ioc_dir}"
-    _run_crash_probe "${parse_ioc_name}" "fatal" "Crash detection: iocsh parse error -> exit 1"
+    _run_crash_probe "${parse_ioc_name}" "markerless" "Continued iocsh parse error without readiness"
 
     local history_ioc_name="CrashTestHistory"
     local history_ioc_dir="${WORKSPACE}/crash_history_ioc"
@@ -2652,6 +2668,7 @@ function run_all_tests {
         "test_site_env_layer"
         "test_post_init_error_marker"
         "test_log_command"
+        "test_generated_startup"
     )
 
     local step=1

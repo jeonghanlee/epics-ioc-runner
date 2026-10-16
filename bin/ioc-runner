@@ -119,7 +119,7 @@ declare -g TARGET_SYSTEM_GROUP="${IOC_RUNNER_SYSTEM_GROUP:-ioc}"
 # Fatal subset: a standalone pre-marker exit-1 trigger (failed-to-init). These name
 # a process that cannot run, not a transient that may recover. FATAL requires
 # non-identifier boundaries on both sides so identifier fragments remain benign.
-declare -g CRASH_LOG_PATTERNS_FATAL="(^|[^[:alnum:]_])FATAL([^[:alnum:]_]|$)|Segmentation fault|undefined symbol|error while loading|Unbalanced quote"
+declare -g CRASH_LOG_PATTERNS_FATAL="(^|[^[:alnum:]_])FATAL([^[:alnum:]_]|$)|Segmentation fault|undefined symbol|error while loading"
 # Ambiguous subset: corroborating only, NEVER a standalone trigger. A benign
 # first-boot IOC may print these (a missing optional .sav, an absent optional
 # include) and still reach iocInit a moment later. 'Invalid directory path' lives
@@ -128,7 +128,9 @@ declare -g CRASH_LOG_PATTERNS_FATAL="(^|[^[:alnum:]_])FATAL([^[:alnum:]_]|$)|Seg
 # standalone pre-marker exit-1 on it false-fails a healthy IOC (golden-confirmed).
 # These are case-insensitive message phrases; the former bare ERROR token moved
 # to the case-sensitive severity subset below (#153, ADR 0004).
-declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="Can't open|cannot open|No such file or directory|Invalid directory path"
+# An iocsh quote error can continue under the current file's error policy.
+# Its text alone does not establish that the supervised child terminated.
+declare -g CRASH_LOG_PATTERNS_AMBIGUOUS="Can't open|cannot open|No such file or directory|Invalid directory path|Unbalanced quote"
 # Severity subset: corroborating only, matched CASE-SENSITIVELY, because the
 # markers are framework severity tags, not English vocabulary (ADR 0004): EPICS
 # Base ERL_ERROR is the uppercase word ERROR (errlog.h, ANSI-colored, no colon;
@@ -1377,19 +1379,32 @@ function resolve_scan_offset {
 }
 
 # Read the log window once (from scan_offset) and report startup signals as a
-# fixed-field stdout line: "<marker_rel> <banner_count> <fatal_present> <corro_present>"
-# (M11/#67, D028/D029). marker_rel is the byte offset of the readiness marker
+# fixed-field stdout line:
+# "<marker_rel> <banner_count> <fatal> <corro> <child_pid> <exit_pid> <exit_code> <ended>".
+# marker_rel is the byte offset of the readiness marker
 # within the window (first occurrence) or -1 if absent; banner_count counts death
-# banners (RAW); fatal_present / corro_present are 1/0 over the #92-filtered crash
-# scan, for the fatal subset and the full effective set respectively. Every grep
-# is errexit-guarded (grep exits 1 on no-match under 'set -e').
+# banners except commanded teardown; fatal / corro are 1/0 over the filtered crash
+# scan, for the fatal subset and the full effective set respectively. Complete
+# native procServ records associate normal status with a known child; -1 means
+# no normal status, and ended also covers a signal without inventing an exit code.
+# The known PID carries association across a marker or rotation. The ignored PID
+# identifies commanded restart teardown. This cooperative log is not authenticated.
 function read_startup_signals {
     local log_file="$1"
     local scan_offset="$2"
     local effective_patterns="$3"
-    local window filtered marker_out marker_rel banner_count fatal_present corro_present
+    local known_pid="${4:-0}" ignored_pid="${5:-0}"
+    local window complete_window filtered marker_out marker_rel fatal_present corro_present
+    local child_signals banner_count child_pid exit_pid exit_code ended
 
-    window=$(tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null || printf "")
+    # Preserve trailing newlines so a partial status line is never promoted to
+    # a complete record by command substitution or a here-string.
+    window=$(tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null || true; printf '%s' '.')
+    window="${window%.}"
+    complete_window=""
+    if [[ "${window}" == *$'\n'* ]]; then
+        complete_window="${window%$'\n'*}"$'\n'
+    fi
 
     # Feed grep from a here-string, never 'printf | grep': under 'set -o pipefail'
     # an early-exiting grep (-m1 / -q) closes the pipe, the writer takes SIGPIPE
@@ -1400,7 +1415,36 @@ function read_startup_signals {
         marker_rel="${marker_out%%:*}"
     fi
 
-    banner_count=$(grep -aFc -- "${IOC_DEATH_BANNER}" 2>/dev/null <<< "${window}" || true)
+    child_signals=$(awk -v child="${known_pid}" -v ignored="${ignored_pid}" \
+        -v banner="${IOC_DEATH_BANNER}" '
+        BEGIN { banners = 0; exit_pid = 0; code = -1; ended = 0 }
+        { sub(/\r$/, "") }
+        /^@@@ The PID of new child "[^"]*" is: [1-9][0-9]*$/ {
+            child = $NF
+            next
+        }
+        /^@@@ Received a sigChild for process [1-9][0-9]*[.] Normal exit status = [0-9]+$/ {
+            pid = $7
+            sub(/[.]$/, "", pid)
+            value = $NF + 0
+            if (pid == child && pid != ignored && value <= 255) {
+                ended = 1
+                if (code <= 0) { exit_pid = pid; code = value }
+            }
+            next
+        }
+        /^@@@ Received a sigChild for process [1-9][0-9]*[.] The process was killed by signal [1-9][0-9]*$/ {
+            pid = $7
+            sub(/[.]$/, "", pid)
+            if (pid == child && pid != ignored) ended = 1
+            next
+        }
+        index($0, banner) == 1 {
+            if (!(ignored > 0 && child == ignored)) banners++
+        }
+        END { printf "%d %s %s %d %d", banners, child, exit_pid, code, ended }
+    ' <<< "${complete_window}")
+    read -r banner_count child_pid exit_pid exit_code ended <<< "${child_signals}"
 
     # Issue #153 / #92: normalize (ANSI SGR stripped) and drop benign-noise lines
     # through the shared filter; the marker byte-offset scan above keeps the raw
@@ -1418,7 +1462,19 @@ function read_startup_signals {
         corro_present=1
     fi
 
-    printf '%s %s %s %s' "${marker_rel}" "${banner_count}" "${fatal_present}" "${corro_present}"
+    printf '%s %s %s %s %s %s %s %s' "${marker_rel}" "${banner_count}" \
+        "${fatal_present}" "${corro_present}" "${child_pid}" "${exit_pid}" "${exit_code}" "${ended}"
+}
+
+# Normal child status is evidence of termination, not of its underlying cause.
+function check_startup_child_exit {
+    local log_file="$1" exit_code="$2"
+
+    if (( exit_code > 0 )); then
+        printf "\nError: IOC '%s' exited during startup (exit code %s).\n" "${IOC_NAME}" "${exit_code}" >&2
+        print_log_file_hint "${log_file}"
+        exit 1
+    fi
 }
 
 function print_log_file_hint {
@@ -3378,8 +3434,20 @@ function do_start_restart {
 
     # Capture the prior unit state so a no-op `start` on an already-running IOC
     # can be reported at once instead of waiting out the readiness timeout.
-    local pre_active
+    local pre_active pre_mainpid pre_child_pid=0 ignored_child_pid=0 scan_child_pid=0
     pre_active=$(run_systemctl is-active "${unit}" 2>/dev/null || true)
+    if [[ "${pre_active}" == "active" ]]; then
+        pre_mainpid=$(run_systemctl show "${unit}" --property=MainPID --value 2>/dev/null || true)
+        if [[ "${pre_mainpid}" =~ ^[1-9][0-9]*$ &&
+              -r "/proc/${pre_mainpid}/task/${pre_mainpid}/children" ]]; then
+            read -r pre_child_pid _ < "/proc/${pre_mainpid}/task/${pre_mainpid}/children" || true
+            [[ "${pre_child_pid}" =~ ^[1-9][0-9]*$ ]] || pre_child_pid=0
+        fi
+        scan_child_pid="${pre_child_pid}"
+        if [[ "${action}" == "restart" ]]; then
+            ignored_child_pid="${pre_child_pid}"
+        fi
+    fi
 
     # U-6 (#106): a conf edited after the running unit's activation was
     # never re-validated by install; a restart applies those edits
@@ -3443,12 +3511,13 @@ function do_start_restart {
     # child loops under autorestart). (R4)
     if [[ "${action}" == "start" && "${pre_active}" == "active" ]]; then
         if [[ "$(run_systemctl is-active "${unit}" 2>/dev/null || true)" == "active" ]]; then
-            local fp_last fp_sig fp_banner fp_healthy=0
+            local fp_last fp_sig fp_banner fp_ended fp_healthy=0
             fp_last=$(grep -aboF -- "${IOC_READY_MARKER}" "${log_file}" 2>/dev/null | tail -n1 || true)
             if [[ -n "${fp_last}" ]]; then
-                fp_sig=$(read_startup_signals "${log_file}" "$(( ${fp_last%%:*} + ${#IOC_READY_MARKER} ))" "${effective_patterns}")
-                read -r _ fp_banner _ _ <<< "${fp_sig}"
-                if (( fp_banner == 0 )); then
+                fp_sig=$(read_startup_signals "${log_file}" "$(( ${fp_last%%:*} + ${#IOC_READY_MARKER} ))" \
+                    "${effective_patterns}" "${pre_child_pid}")
+                read -r _ fp_banner _ _ _ _ _ fp_ended <<< "${fp_sig}"
+                if (( fp_banner == 0 && fp_ended == 0 )); then
                     fp_healthy=1
                 fi
             fi
@@ -3457,17 +3526,6 @@ function do_start_restart {
                 return 0
             fi
         fi
-    fi
-
-    # D035: a `restart` re-opens the logfile same-inode-append, so procServ's one
-    # commanded-teardown banner lands in the scan window (OQ6, both goldens).
-    # Subtract it so the recurring-banner threshold means the same for both verbs.
-    # Gate on pre_active: a `restart` of an already-stopped unit tears down no live
-    # child and emits no commanded banner, so subtracting there would mask a
-    # genuine pre-iocInit crash loop (R3).
-    local teardown_adjust=0
-    if [[ "${action}" == "restart" && "${pre_active}" == "active" ]]; then
-        teardown_adjust=1
     fi
 
     # D010: guard the (test-overridable) timing against malformed values so a bad
@@ -3483,16 +3541,20 @@ function do_start_restart {
     fi
 
     # Phase 1: poll for the readiness marker (up to MAX_INIT_TIMEOUT seconds).
-    local scan_offset signals marker_rel banner_count fatal_present corro_present
+    local scan_offset signals marker_rel banner_count=0 fatal_present corro_present
+    local child_exit_code child_ended fatal_seen=0
     local deadline=$((SECONDS + MAX_INIT_TIMEOUT))
     local marker_seen=0 marker_abs=0
     local post_marker_offset=0 marker_inode="" marker_tailhash="" marker_check=""
     while [[ ${SECONDS} -lt ${deadline} ]]; do
         scan_offset=$(resolve_scan_offset "${log_file}" "${log_start_offset}" "${log_start_inode}" "${log_start_tailhash}")
-        signals=$(read_startup_signals "${log_file}" "${scan_offset}" "${effective_patterns}")
-        read -r marker_rel banner_count fatal_present corro_present <<< "${signals}"
+        signals=$(read_startup_signals "${log_file}" "${scan_offset}" "${effective_patterns}" \
+            "${scan_child_pid}" "${ignored_child_pid}")
+        read -r marker_rel banner_count fatal_present corro_present scan_child_pid \
+            _ child_exit_code child_ended <<< "${signals}"
+        check_startup_child_exit "${log_file}" "${child_exit_code}"
 
-        if [[ "${marker_rel}" != "-1" ]]; then
+        if [[ "${marker_rel}" != "-1" && "${fatal_seen}" == "0" ]]; then
             marker_abs=$((scan_offset + marker_rel))
             # Fingerprint the file at the marker for the phase-2 dwell
             # (#108), then re-verify the marker bytes: a rotation in
@@ -3513,11 +3575,16 @@ function do_start_restart {
             continue
         fi
         if [[ "${fatal_present}" == "1" ]]; then
+            fatal_seen=1
+        fi
+        # Allow a following complete child status to supply the numeric failure.
+        # Missing status remains bounded by the existing initialization deadline.
+        if (( fatal_seen == 1 && child_ended == 1 )); then
             printf "\nError: IOC '%s' failed to initialize (fatal error before iocInit).\n" "${IOC_NAME}" >&2
             print_log_file_hint "${log_file}"
             exit 1
         fi
-        if (( banner_count - teardown_adjust >= 2 )); then
+        if (( banner_count >= 2 && child_ended == 1 )); then
             printf "\nError: IOC '%s' is crash-looping before reaching iocInit.\n" "${IOC_NAME}" >&2
             print_log_file_hint "${log_file}"
             exit 1
@@ -3527,6 +3594,16 @@ function do_start_restart {
 
     # Phase 1 timeout: no marker within MAX_INIT_TIMEOUT (D034/D005).
     if [[ ${marker_seen} -eq 0 ]]; then
+        if (( fatal_seen == 1 )); then
+            printf "\nError: IOC '%s' failed to initialize (fatal error before iocInit).\n" "${IOC_NAME}" >&2
+            print_log_file_hint "${log_file}"
+            exit 1
+        fi
+        if (( banner_count >= 2 )); then
+            printf "\nError: IOC '%s' is crash-looping before reaching iocInit.\n" "${IOC_NAME}" >&2
+            print_log_file_hint "${log_file}"
+            exit 1
+        fi
         local post_state
         post_state=$(run_systemctl is-active "${unit}" 2>/dev/null || true)
         if [[ "${post_state}" == "active" ]]; then
@@ -3544,16 +3621,21 @@ function do_start_restart {
         exit 1
     fi
 
-    # Phase 2: confirm over a short dwell, evaluated AFTER the marker byte position
-    # (D021/D027). The ONLY standalone exit-1 trigger here is a post-marker death
-    # banner; crash patterns / re-init markers / _EXTRA are corroborating only.
+    # Phase 2: confirm after the marker. Normal nonzero status is reported first;
+    # death without that status retains the failure fallback. Pattern-only input
+    # remains corroborating. A split status record may finish within this dwell.
     local dwell_deadline=$((SECONDS + CONFIRM_DWELL))
-    local p_off p_sig p_banner p_corro
+    local p_off p_sig p_banner p_corro dwell_death_seen=0
     while [[ ${SECONDS} -lt ${dwell_deadline} ]]; do
         p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "${marker_inode}" "${marker_tailhash}")
-        p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
-        read -r _ p_banner _ p_corro <<< "${p_sig}"
+        p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}" \
+            "${scan_child_pid}" "${ignored_child_pid}")
+        read -r _ p_banner _ p_corro scan_child_pid _ child_exit_code child_ended <<< "${p_sig}"
+        check_startup_child_exit "${log_file}" "${child_exit_code}"
         if (( p_banner >= 1 )); then
+            dwell_death_seen=1
+        fi
+        if (( dwell_death_seen == 1 && child_ended == 1 )); then
             printf "\nError: IOC '%s' is crash-looping.\n" "${IOC_NAME}" >&2
             print_log_file_hint "${log_file}"
             exit 1
@@ -3565,12 +3647,14 @@ function do_start_restart {
     # pattern / _EXTRA token while the IOC is alive is a Warning, not a failure
     # (D027/D033).
     p_off=$(resolve_scan_offset "${log_file}" "${post_marker_offset}" "${marker_inode}" "${marker_tailhash}")
-    p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}")
-    read -r _ p_banner _ p_corro <<< "${p_sig}"
+    p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}" \
+        "${scan_child_pid}" "${ignored_child_pid}")
+    read -r _ p_banner _ p_corro scan_child_pid _ child_exit_code child_ended <<< "${p_sig}"
+    check_startup_child_exit "${log_file}" "${child_exit_code}"
     # A death banner landing between the last dwell pass and this
     # final scan is still a failure (#108) — success must not be
     # printed for a just-died IOC.
-    if (( p_banner >= 1 )); then
+    if (( p_banner >= 1 || dwell_death_seen == 1 )); then
         printf "\nError: IOC '%s' is crash-looping.\n" "${IOC_NAME}" >&2
         print_log_file_hint "${log_file}"
         exit 1

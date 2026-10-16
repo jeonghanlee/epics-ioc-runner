@@ -7,9 +7,17 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Review the M11 implementation and test plan for
-IOC startup exit reporting (#166), including its real IOC fixture and native
-procServ evidence requirements, before requesting plan and execution approval.
+Next session entry point: Prepare the reviewed M11 (#166) changes for repository
+landing, then record the landing evidence and close the issue under the
+corresponding Git/GitHub authority. Implementation, bounded T1-T6 verification,
+both final reviews and runtime restoration are complete. Both verification VMs
+were normally shut down with their disks and evidence retained. The six-run
+identity matrix and subsequent pin change remain separate from a new-candidate
+Gate PASS. The owner accepted and authorized the M11 execution scope on 2026-10-15.
+Execution records: plan20261015_184100 and auth20261015_184100 in
+`work/review_sessions/20261013_083800_m8-partial-completion/plan/`.
+conv20261015_182800 records both reviewers' technical plan acceptance.
+Current execution evidence is under `work/m11-execution-20261015T190000Z/`.
 M10 is Complete: implementation and T1-T14 were accepted, commit
 `e183437c3df9c972a138877eeb79c2d3b7215ef4` was pushed to `release-1.4.2`,
 and #163 was closed as completed on 2026-10-15. Its Closure Evidence and
@@ -44,8 +52,9 @@ promoting either to Verified.
 The earlier numeric-client run left product code unchanged. M10 subsequently
 changed completion, help and diagnostics; its bounded source bindings are in
 `work/m10-verification-20261015T073559Z/source-bindings.json`. M8 and its final
-T1-T6 remain open. Both reused verification guests were restored and normally
-shut off on 2026-10-15, with their disks and original evidence retained.
+T1-T6 remain open. At M10 completion, both reused verification guests were restored and normally
+shut off on 2026-10-15, with their disks and original evidence retained. M11
+subsequently reused them; its current lifecycle result is recorded below.
 
 The initial detach implementation is commit `1bb270f45192763eb9db799bbf8a9b97901c803f`:
 `con` and `socat` use Ctrl-A by default, `--detach-key` selects a key per
@@ -76,7 +85,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | In progress | No | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Complete | — | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
-| Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Not started | Yes | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
+| Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | In progress | No | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
 | Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Not started | Yes | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
 | Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Not started | Yes | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
@@ -12744,18 +12753,22 @@ criteria, and the metadata above. Recheck with
 Origin: 1.4.2 / M11
 Identity History: none
 GitHub Issue: [#166](https://github.com/jeonghanlee/epics-ioc-runner/issues/166)
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-The startup check reports readiness, fatal-pattern matches and procServ
-death banners, but does not report the IOC child's normal exit code.
-The 2026-10-04 OFFICE-tools measurement relayed by LAB-EPICS-env reports
-generated IOCs that exit 2 when iocsh startup fails under `on error break`,
-and exit 0 for continued command errors under `on error continue`.
-That generated executable and runtime observation have not been reverified
-here. The two requirements are to respect continued commands and to show
-the observed nonzero child exit plainly, even while procServ stays active.
+The candidate reports a current child's nonzero normal exit code from complete,
+PID-associated procServ records and returns runner exit 1 while the supervisor
+remains active. A genuine continued iocsh quote error no longer causes a
+text-only startup failure. The original generator revision below was built and
+executed unchanged on Debian 13 and Rocky 8.10; actual break handling exits 2,
+and continued cases retain readiness and a responding IOC. Signal termination,
+normal exit 0, historical records and commanded restart teardown remain
+distinct. Native default timing is 30 seconds for initialization and 3 seconds
+for confirmation. Runtime restoration and fresh access checks are complete.
+Both independent final implementation reviews accepted the corrected code,
+documentation, handoff and bounded T1-T6 evidence. Repository landing and issue
+closure remain pending.
 
 ##### Scope
 
@@ -12765,6 +12778,8 @@ the observed nonzero child exit plainly, even while procServ stays active.
   file, with per-file `on error break` and `on error continue` behavior.
 - `docs/CLI_REFERENCE.md` and `docs/FAQ.md`: the resulting startup outcomes
   and distinction between active procServ and a terminated IOC child.
+- `docs/adr/0001-restart-supervision-c1h.md`: an addendum for the changed
+  startup outcome rule, preserving its historical decisions.
 - Native regression coverage for the affected startup paths.
 
 Out of scope: changing IOC generators or EPICS Base, systemd/procServ restart
@@ -12803,29 +12818,99 @@ and completion of the whole-book M8 verification.
   method and verification method, and prepare a separate issue draft. This
   authorizes planning; plan acceptance and implementation remain none.
 
-Current assessment at a07af0895fdf1850e2db19d088855d342f5b37e4, inspected
-2026-10-14; `bin/ioc-runner` has no working-tree changes:
+Plan review, 2026-10-15: first second-person and first third-person reviews
+accepted the same draft without concrete findings. Review target full-document
+SHA-256: `8bef029f5be24bb65870a3463dbf15aa344312f6131b00db4b4c198815e61d77`.
+Result: `work/review_sessions/20261013_083800_m8-partial-completion/convergence/conv20261015_182800_codex_root_m11_plan_review.md`.
+This is technical plan review only. Decision Date: 2026-10-15. The owner
+subsequently accepted the reviewed plan and authorized implementation, both
+isolated VM environments and restoration. Results below record actual execution.
+
+Pre-implementation assessment at `715c93fdad6c1ce284934d682870b5109f0b87fa`, inspected
+2026-10-15; the baseline `bin/ioc-runner` SHA-256 was
+`88eeb9b223dd97c9719cba7f259277267d6c3b892b9f8e02fe57aea9a2ef3c42`:
 
 | Class | Evidence | Planned treatment |
 | --- | --- | --- |
-| Confirmed finding | `read_startup_signals` returns marker position, death-banner count and pattern flags without a child exit code; `do_start_restart` does not print that code | Extend the existing scanner and every caller to retain the observed normal child status |
+| Confirmed finding | `read_startup_signals` returns four fields without a child exit code; `do_start_restart` has four scanner consumers: active-start, initialization polling, confirmation polling and the final confirmation scan | Extend the scanner contract and all four consumers together |
 | Confirmed source contract | Retained procServ source in the intake evidence distinguishes `Normal exit status = N` under `WIFEXITED` from a signal under `WIFSIGNALED` | Verify the installed format and supervised executable before choosing the parser |
-| Runtime hypothesis | The reported generated main returns 2 on startup failure; retained alternative mains ignore the result or map failure to 1 | Pin the original generated artifact and report its actual code; do not hard-code 2 |
+| Confirmed source contract | Original generator revision `ee214deedc5594bb93cd0a77d42615b99783bbd0` checks `iocsh(argv[1])` and calls `epicsExit(2)` on failure; `st.cmd@Cross` is a symlink to `st.cmd@Common`, which starts with `on error break` | Generate and build through that exact source; retain the generated main unchanged and verify actual exit mapping |
 | Runtime hypothesis | A continued iocsh diagnostic may intersect the pre-readiness fatal set, which includes `Unbalanced quote` | Reproduce genuine continued errors before narrowing classification; preserve independent fatal detection |
+| Confirmed test limitation | System S27 uses a malformed-quote softIoc script and asserts the text-only fatal verdict; several other fatal fixtures print matching strings through `system` | Preserve the journal-access check while separating genuine termination from continued-error controls; echoed text tests only pattern policy |
+
+###### Original Fixture And Build Input
+
+The isolated source copy is `work/m11-template-source.git`, pinned to the
+generator revision above. The existing checkout in another repository is not
+a fixture: its main is older and its local edits are unrelated. Keep the source
+endpoint in local records. Relevant original Git blob IDs are:
+
+| Path in the generator | Blob ID |
+| --- | --- |
+| `generate_ioc_structure.bash` | `5fd737d001c059d48bd2b066b59898ab3034c342` |
+| `templates/makeBaseApp/top/iocApp/src/_APPNAME_Main.cpp` | `a0ded4bd56c06cca280854558ef9c18886114389` |
+| `templates/makeBaseApp/top/iocBoot/ioc/st.cmd@Common` | `7cfb1f11ed2064478b92f0a661414f30361ad781` |
+| `templates/makeBaseApp/top/iocBoot/ioc/st.cmd@Cross` | `b426b173322bf576438aa0da40aee064437d3281` |
+| `test-runtime.bash` | `a9421d955962bb0bca0062e72fbd345cad17007d` |
+
+Use a task-owned export of this revision, preserving symlinks, and the real
+installed `makeBaseApp.pl`. Set `M11_TOOLS` to that export and `M11_WORK` to
+the isolated guest workspace; source the verified EPICS environment first.
+The generator runs outside its own directory and stages only its newly
+generated repository. These are planned commands, not executed checks:
+
+```bash
+mkdir -p "$M11_WORK/generated"
+cd "$M11_WORK/generated"
+bash "$M11_TOOLS/generate_ioc_structure.bash" -p m11probe -l testlab -n m11probe
+make -C "$M11_WORK/generated/m11probe"
+```
+
+Record the selected `EPICS_BASE`, `EPICS_HOST_ARCH`, build log, generated
+main/startup/DBD hashes, executable hash and resolved libraries. The original
+RELEASE enables autosave, recsync, retools, caPutLog, iocStats and pvxs; verify
+these dependencies rather than assuming the ServiceTestIOC prerequisites
+cover this fixture. Do not disable missing modules or replace the main to
+obtain a passing build. A missing dependency stops the affected run as a
+preparation failure. Before first build, use only the generated tree's existing
+local override hooks if paths need correction; retain their exact diff.
+
+Preserve one unmodified generated startup as the control. Supply task-owned,
+writable `TARGET_TOP/epics-pvinfo/env` and `TARGET_TOP/epics-pvinfo/names`
+directories because the original startup writes there after `iocInit`.
+Each test variant starts from that control, retaining the same executable:
+insert only a documented real failing command, its per-file error policy and,
+where needed, a real `iocshLoad()` call. Keep the variant diff and hash.
+Use an undefined command and an actual unbalanced quote as distinct stimuli;
+never echo the expected error or procServ status. Cover errors both before
+and after `iocInit`. For a loaded script, record the parent and child policies
+separately and measure mixed-policy cases instead of assuming inheritance.
+
+The generator's `test-runtime.bash` is useful prior art for generate/build,
+local install/start and console probing, but its missing-prerequisite exit 0
+is a skip, and its fixed port is not a reservation. M11 requires explicit
+prerequisite success, isolated ports and a genuine post-start console response.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-10-15; reviewed canonical M11, conv20261015_182800.
+Implementation Authorization: 2026-10-15; plan20261015_184100 P001-P006 and auth20261015_184100.
 Superseded Plan Artifacts: none
 
-1. Read `tests/README.md` VM Preparation and Handoff. Pin source/installed
+1. Read `tests/README.md` VM Preparation and Handoff and its required reading.
+   Resume the retained Debian 13 and Rocky 8.10 consumers through their provider
+   only after execution authorization; recheck each image, SSH identity,
+   account, manager, sudo policy, packages and resource ownership. Pin source/installed
    runner hashes, the original generated main and executable, Base and
    procServ versions, effective units and log paths. Verify that any wrapper
    propagates the IOC status. Preserve the old runner and original fixtures.
-   If the reported generated artifact is unavailable, record the prerequisite;
-   an invented main or echoed diagnostic cannot establish its behavior.
+   Use the pinned generator above. First establish a healthy original build
+   and its runtime paths, then run each failing/continued variant directly
+   with the real executable and under native procServ. Direct execution with
+   closed stdin measures normal exit mapping; it is separate from the live
+   supervised readiness check. An invented main or echoed diagnostic cannot
+   establish either behavior.
 2. Reproduce genuine command failures under `on error break` and
    `on error continue`, in both `st.cmd` and a loaded iocsh file. Record each
    file's policy, native child-status records, readiness, IOC response,
@@ -12836,6 +12921,12 @@ Superseded Plan Artifacts: none
    offset/inode/tail-hash rotation handling and child-attempt ordering.
    Distinguish normal exit, signal termination and unavailable evidence;
    neither an active procServ unit nor `128 + signal` is a normal child code.
+   Match complete procServ status records to the supervised child PID and
+   current attempt using the observed native record order. A bare number or
+   IOC text containing the same words is insufficient. Retain association
+   across confirmation scans; a status following its death banner may arrive
+   in a later read. Wait only within the existing startup/confirmation bounds
+   for that record before falling back, without inventing a numeric status.
 4. Report current failed startup with the observed nonzero status and the
    existing log hint, returning runner exit 1. Proposed wording is
    `IOC '<name>' exited during startup (exit code <N>).` A code alone does
@@ -12844,23 +12935,89 @@ Superseded Plan Artifacts: none
    Preserve the existing failure fallback for unavailable/incomplete records.
    Narrow only continued-error cases demonstrated in step 2: readiness and
    a surviving IOC must not fail solely on that printed command error.
-   A normal exit 0 alone is not readiness. M14/#165 owns `sevr=fatal` handling.
+   A normal exit 0 alone is not readiness. Preserve the existing markerless
+   active-unit timeout warning/exit 0 when there is no qualifying failure;
+   do not print readiness success for it. Signal or repeated-death evidence
+   keeps its existing failure meaning without a fabricated normal exit code.
+   For `start` on an already running healthy IOC, retain the existing
+   fast path; do not import old normal exits into this invocation. For an
+   active `restart`, exclude the commanded old child's teardown by its
+   identity, not by dropping the first normal-exit record regardless of PID.
+   A new child's nonzero exit during this invocation is a failure even if a
+   later automatic retry emits readiness. A pre-existing readiness marker
+   cannot hide that failure. M14/#165 owns `sevr=fatal` handling.
 5. Extend the Local and System lifecycle suites using their original fixtures
    and a pinned original generated artifact where their main contract differs.
+   Add shared fixture preparation only if both suites need it; it must run
+   the pinned original generator and keep its prerequisite failures explicit.
+   Freeze any ServiceTestIOC revision used by these runs as well. Split S27's
+   continued-quote case from a genuine terminating generated-IOC case, keeping
+   the non-journal operator and readable-log assertions. Update source S20's
+   pattern-contract expectations only for a demonstrated narrow classification
+   change; its extracted regex assertions do not prove native behavior.
    Compare identical inputs against old and corrected runners: demonstrated
    defect assertions fail before correction; already-correct paths are controls.
    Run affected native startup/log regressions, syntax/ShellCheck and reporting
    checks; update catalogs/counts only for changed check identities.
-6. Align the affected CLI reference and FAQ with observed behavior, build and
+6. Align the affected CLI reference and FAQ with observed behavior, and append
+   the changed startup rule to ADR 0001 without rewriting its historical
+   decisions. Keep ADR 0004's severity rule and M14 scope intact. Build and
    check links, and request second-person documentation and third-person
    real-path review. Refresh affected M8 source bindings afterwards. This does
    not close M8 or implement M14.
 
 Runtime preparation must freeze task-owned IOC/unit names, original files and
-metadata, timing bounds, cleanup and a fresh restoration readback. Use isolated
+metadata, timing bounds, cleanup and a fresh restoration readback. Retain the
+production 30-second initialization bound and 3-second confirmation dwell for
+acceptance; any shortened diagnostic run is identified separately. Use isolated
 Debian 13 and Rocky 8.10 consumers for System/Local start/restart. Retain failed
 evidence and restore temporary services/configuration; unrelated IOCs are not
-test targets. No guest or product changes occur during issue preparation.
+test targets. Prepare a manifest before the first guest mutation and stop on a
+pre-existing name/path collision. On normal completion and TERM, stop/remove
+only the created IOCs, verify child processes and sockets are gone, restore
+changed runner/templates/policy and their ownership/mode/ACL, and compare the
+pre-existing service state. Failed evidence stays available. Finally notify
+the provider to shut down and retain the guests. No guest or product changes
+occur during this plan review.
+
+###### Verification Commands And Evidence
+
+The execution record must bind the generated fixture to each complete CLI
+invocation: `generate`, `install`, `start`, `restart`, `stop` and `remove`,
+using both System and Local mode. It records arguments, stdin, exit status,
+stdout/stderr, procServ raw records, child PID, service state and console
+response separately. `start` covers stopped and already-active states;
+`restart` covers stopped and active states. The direct IOC invocation does
+not replace any part of the supervised CLI path.
+
+Run the existing suites as whole scripts after their documented preparation;
+they have no selected-case command-line option. Freeze the commands and
+environment in the execution record before launch. Commands below run from
+the verification checkout after the required environment is sourced; the
+System command elevates the prepared test principal; the Local command uses
+the dedicated user's native manager. The source-regression collector must
+start as the sudo-capable non-root user because it sets up its own sudo call:
+
+```bash
+sudo -E env KEEP_WORKSPACE=1 bash tests/test-system-lifecycle.bash
+KEEP_WORKSPACE=1 bash tests/test-local-lifecycle.bash
+bash tests/run-all-tests.bash --source-regression
+bash tests/lib/test-reporting-self-test.bash
+bash tests/lib/reporting-counts-self-test.bash
+bash tests/lib/test-record-validator-self-test.bash
+bash -n bin/ioc-runner
+shellcheck bin/ioc-runner
+mdbook build
+```
+
+Syntax/ShellCheck also cover every changed test/helper. Check changed relative
+links and fragment IDs against the actual generated HTML. New regression assertions must fail
+against the preserved old runner and pass against the candidate on identical
+fixtures. Already-correct behavior is a control, not a claimed fixed defect.
+Supplementary partial-line, delayed-status and rotation cases may control the
+outer log-file boundary but must invoke the complete shipped runner; label
+them separately from native procServ evidence. Include multiple child attempts,
+an IOC line resembling a status record, and a death during the final dwell scan.
 
 ##### Test Plan
 
@@ -12877,21 +13034,120 @@ test targets. No guest or product changes occur during issue preparation.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Native generated IOC | Pending | Peer report only; no runtime re-verification |
-| T2 | Not run | Native generated IOC | Pending | Generated-main fixture and exact installed procServ status format must be pinned |
-| T3 | Not run | Native system/local consumers | Pending | Existing fixtures retained; no changed runner executed |
-| T4 | Not run | Control host | Pending | No public documentation edit applied |
-| T5 | Not run | Native status/window boundaries | Pending | Installed procServ format and original generated main must be pinned |
-| T6 | Not run | Native regressions and restoration | Pending | Planning and issue preparation only |
+| T1 | 2026-10-15 | Debian 13 and Rocky 8.10; native System/Local | Passed | Original generated main, real quote/undefined commands and mixed per-file policies; candidate console responses; whole source and installed lifecycle suites |
+| T2 | 2026-10-15 | Same native consumers | Passed | Native procServ normal status 2 associated with the observed child PID; runner exit 1 and explicit child-code message while procServ stays active |
+| T3 | 2026-10-15 | Same native consumers | Passed | Whole source/error and source/installed lifecycle suites; existing healthy, fatal, crash, restart and rotation checks; counts below |
+| T4 | 2026-10-15 | Control host and two reviewer lanes | Passed | mdBook build and 75 changed-page link/fragment checks passed; prerequisite instructions corrected; final second-person and third-person reviews accepted the changed clauses and their bounded evidence |
+| T5 | 2026-10-15 | Native System/Local plus explicit outer filesystem inputs | Passed | Each OS: 31 whole-CLI boundary cases; 10 native controls and 21 controlled log/permission cases; native signal and zero-exit cases also run in shipped fixtures |
+| T6 | 2026-10-15 | Native regressions and control host | Passed | Identical baseline/candidate inputs, syntax, ShellCheck warning gate, three reporting self-tests, four native TERM checks, real cleanup-failure propagation and fresh restoration checks accepted by both final reviewers; the six-run matrix per OS retains its old-pin exit 1 and is not a new-candidate Gate PASS |
 
-Source inspection, observed 2026-10-05T03:37:21Z at 9c491c3, confirms
-`bin/ioc-runner:1372-1408` returns marker/banner/pattern fields without an
-exit code, and `3422-3564` chooses startup outcomes from those fields.
-The locally available procServ source formats normal exit status separately
-from signal termination; its installed-version output remains to be checked.
-The local tools template and EPICS-env commonIocsh example have different
-main exit mappings and do not verify the reported updated OFFICE-tools
-generated executable. Intake, source copies and these limits are preserved
+Evidence root: `work/m11-execution-20261015T190000Z/`. The runner candidate
+SHA-256 is `f2df2d89ecc70c03349bf074343443e16e485e43beaf4d9c1501dc464bdc8126`.
+The installed executable bodies match the source after excluding the three
+installation metadata declarations. The independently generated direct/native
+observations contain 25 cases per OS; the baseline/candidate CLI comparison
+contains 14 identical startup inputs per OS. Direct execution uses closed stdin
+and establishes exit mapping, not supervised readiness. Candidate continued
+cases include actual console responses. Three continued-quote cases per mode
+change from baseline exit 1 to candidate exit 0; the break cases already failed
+before the change and now also report the observed child code.
+
+| Whole suite | Debian 13 | Rocky 8.10 |
+| --- | --- | --- |
+| Source regression | 188 PASS, 1 NA | 189 PASS |
+| Error handling | 536 PASS | 536 PASS |
+| System lifecycle, source | 237 PASS | 237 PASS |
+| Local lifecycle, source | 279 PASS | 275 PASS, 4 NA |
+| Local lifecycle, installed | 279 PASS | 275 PASS, 4 NA |
+| System lifecycle, installed | 237 PASS | 237 PASS |
+| System infrastructure | 36 PASS, 4 NA | 36 PASS, 4 NA |
+
+These completed runs contain no FAIL, SKIP or SCRIPT_ERROR. Their exact commands,
+environments and separate machine/human records are retained in the evidence
+root. NA records remain applicability results, not passed assertions. The final
+identity matrix independently reran six suites per OS: 3,120 checks, 3,103 PASS
+and 17 NA, with no FAIL, SKIP or SCRIPT_ERROR. Both actual driver verdicts report
+identity `5371f6d24bd1b0e626002263c58fca2041be0e09cf70530f9f3b12d1be40fa5c`;
+the driver pin now matches it. The executed driver returned 1 because its old
+pin differed. Cross-host differences are the documented journal, RHEL symlink,
+sudo-regex and SELinux applicability cases. This is not a Gate PASS: repinning
+invalidates earlier Gate steps and the full new-candidate Gate remains M8 work.
+Evidence: `matrix-pin-update.json` and `matrix-suite-observations.json` under
+the execution root.
+
+Supplementary T5 records explicitly control only the outer log or filesystem;
+they do not establish native procServ emission. The historical-status case is a
+synthetic stale-log control, and local-unreadable uses real file permissions.
+The derived summary corrects their initial input labels without rewriting raw
+results. Final-confirmation uses a 3-second polling interval to reach the final
+scan; initialization/confirmation bounds remain 30/3. Partial records,
+delayed status, inode replacement, truncate-and-regrow and multiple attempts
+invoke the complete runner. M14 severity behavior remains excluded.
+
+Both initial implementation reviews found bounded fixture or prerequisite
+issues. Corrected Local account identity and the continued-quote expectation
+were exercised in the complete suites above. Cleanup failures now contribute
+to the final status and retain the workspace. All four native System/Local TERM
+checks pass. Actual child-input deletion failure was exercised in Debian Local
+and Rocky System: only the cleanup assertion fails, the suite exits 1, its
+explicit error and workspace remain, and startup/services are restored. The
+temporary immutable attribute was removed afterward. This verifies cleanup
+failure propagation through an assertion and EXIT, not an isolated EXIT-only
+failure. Both second implementation reviews accepted the corrections with this
+runtime limit. Failed setup and harness attempts remain retained and are not
+counted as passing product checks.
+
+Separate final SSH checks verify the original 20 files per guest, directory
+metadata and configuration entries, original service state, absent task account,
+group, linger, manager, runtime directory, ACL and sudoers, and passwordless
+administrative sudo. Executed source hashes are unchanged before/after the
+matrix; product/test inputs match the reviewed tree. Four guest test documents
+are older copies and are not runtime inputs. The control driver differs only
+by the subsequent pin update. Final archives and every member hash pass the
+local validator in `evidence-validation-2/results.json`.
+
+One original Rocky native observation recorded a child PID still present at
+its immediate cleanup check. The preserved row is not an immediate-cleanup
+pass; separate final inspection confirms all 25 recorded native child PIDs on
+each OS are absent. Teardown must stop the task's SSH sessions and user runtime
+unit before deleting its account; the test README records that order.
+
+Existing System S28 runs forced the installed logrotate policy on
+prior inactive test logs. Those logs and rotations are preserved; their exact
+pre-run bytes and timestamps were not independently captured, so byte-exact
+restoration of those historical logs is not claimed.
+
+Final independent reviews on 2026-10-15: second-person
+`fup20261015_233100_codex_second_on_rev20261015_214200.md` and third-person
+`fup20261015_233052_codex_third_on_rev20261015_214507.md`, under
+`work/review_sessions/20261013_083800_m8-partial-completion/reviews/`.
+Each lane completed its second implementation pass, the single correction and
+review cycle. All four distinct initial findings are resolved; no new in-scope
+defect remains. The accepted handoff is `hand20261015_232437` in that session's
+`handoff/` directory. This acceptance does not close M8, M14, the full Gate,
+the issue or the overall review session.
+
+`source-bindings-accepted.json` under the execution root records the final
+acceptance of the evaluated M11 clauses against the immutable
+`source-bindings-final.json`. Eleven historical IDs and seven new blocks remain
+separate; the two M14 mismatches and all historical comparison results remain
+unchanged. This is clause-specific acceptance, not acceptance of every statement
+in the containing paragraphs.
+
+The provider observed both requested guests normally shut off at
+2026-10-15T23:24:08Z. Definitions, disks, seeds, creation records, NVRAM references,
+reservations and provider evidence were retained. The provider did not rerun
+guest restoration; the independent fresh SSH readback above establishes that
+result. `provider-closure.json` under the execution root retains the provider
+record reference, hash and shutdown observations. No guest deletion occurred.
+
+Historical intake at 2026-10-05T03:37:21Z and 9c491c3 observed that
+`bin/ioc-runner:1372-1408` returned marker/banner/pattern fields without an
+exit code, and `3422-3564` chose startup outcomes from those fields.
+Installed procServ output and the updated generated executable were not yet
+verified at that intake; the original-generator native evidence above now
+establishes the M11 result. The older local tools and commonIocsh examples
+remain distinct fixtures. Intake, source copies and these limits are preserved
 in `work/m8-verification-runs/20261005T033721Z-9c491c3-peer-intake/intake.json`;
 input manifest `849bf8b9a239aa256ca5edf7b4fa6e8a0032606a84869d74c6ad95e574060a3f`.
 
@@ -12914,8 +13170,9 @@ Last Compared: 2026-10-14; issue updated at 2026-10-14T23:04:43Z.
 Readback matched the prepared title and body exactly, with the recorded
 labels, milestone and assignee. Recheck with
 `gh issue view 166 --repo jeonghanlee/epics-ioc-runner`.
-Issue registration does not change plan acceptance, implementation
-authorization or the Not run verification results.
+Issue registration is separate from local plan acceptance, implementation
+authorization and observed verification results. Repository landing and issue
+closure remain pending.
 
 #### M12 - Explain local IOC lifetime and advise lingering on enable
 
