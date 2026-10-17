@@ -453,3 +453,23 @@ warnings remain available.
 The preceding decisions remain historical. This addendum changes startup
 classification and reporting, not procServ or systemd restart policy,
 Container behavior, or the separate `sevr=fatal` overlap tracked by #165.
+
+
+## M14 Addendum: Qualified Readiness (2026-10-16)
+
+The exact severity exception and retained evidence contract are defined in
+[ADR 0004](0004-severity-marker-corroboration.md#m14-addendum-retained-startup-severity-2026-10-16).
+System and Local start/restart observe severity before changing scan phases,
+retain up to three distinct lines through rotation/truncation, and return 0
+with qualified completion after readiness and confirmation. The report does
+not establish that the affected module or device function works.
+
+Independent pre-marker fatal text is checked in the first marker window.
+Native nonzero child status and termination keep their existing priority.
+When the initialization deadline expires without readiness, report the
+active-unit timeout or unreadable-log warning as applicable, alongside any
+retained severity. The 30-second initialization timeout,
+3-second confirmation, 0.2-second polling and procServ/systemd restart policies
+remain unchanged. Container diagnostics and the active-start no-op are outside
+this change. Earlier interpretation of pre-marker `sevr=fatal` is superseded
+by this addendum.

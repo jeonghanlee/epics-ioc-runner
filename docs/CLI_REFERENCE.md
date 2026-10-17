@@ -252,12 +252,27 @@ confirmation period:
 | --- | --- | --- |
 | Initialization completes with no error pattern | `IOC '<name>' successfully started.` | 0 |
 | `start` on an IOC that is running and healthy | `IOC '<name>' is already running.` | 0 |
-| Error lines after initialization | A warning with the matching lines | 0 |
+| Initialization completes with observed framework severity | `Warning: IOC '<name>' initialization completed with error logs.` and retained severity details | 0 |
+| Other matching error phrases after initialization | A heuristic warning with the matching lines | 0 |
 | Active, but no completion line within the time limit | A warning | 0 |
 | A current child exits with a known nonzero normal status | `Error: IOC '<name>' exited during startup (exit code <N>).` | 1 |
 | A fatal error before `iocInit` | `Error: IOC '<name>' failed to initialize (fatal error before iocInit).` | 1 |
 | Repeated restarts | `Error: IOC '<name>' is crash-looping.` or `Error: IOC '<name>' is crash-looping before reaching iocInit.` | 1 |
 | The service is not active | `Error: IOC '<name>' failed to start or crashed immediately (State: <state>).` | 1 |
+
+The runner retains the first three distinct normalized severity lines observed
+before, with, or after readiness during this invocation. A completed startup
+with those lines is qualified: check the affected IOC functions before use.
+An initialized IOC does not establish that a reported module operation works.
+Observed details survive log rotation and truncation; unread bytes cannot be
+recovered. An active-unit timeout or unreadable-log warning includes retained
+severity without claiming completed initialization.
+
+Exact lowercase bounded `sevr=fatal` is treated as component severity. It does
+not establish a fatal startup failure by itself. Separate fatal text on that
+line still counts before readiness; case variants and identifier fragments
+are not exempt. The already-running `start` path does not add a new warning
+for historical severity.
 
 The numeric status comes from a complete procServ exit record associated with
 its child PID in this invocation's log window. `<N>` is the child status;

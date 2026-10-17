@@ -111,7 +111,10 @@ The final command must exit 0. Preserve this exported variable when invoking
 the System suite with `sudo -E`.
 
 The generated application additionally requires built `retools`, `caPutLog`,
-`iocStats`, and `pvxs` modules. If their paths differ from the template's
+`iocStats`, `pvxs`, `asyn`, and `StreamDevice` modules. The latter two must
+provide `drvAsynIPPort.dbd`, `stream.dbd`, and `devaaoStream` support in the
+generated DBD. Supply `ASYN` and `STREAM` RELEASE assignments for those built
+modules. If their paths differ from the template's
 layout, set `IOC_RUNNER_STARTUP_RELEASE` to a readable file containing the
 required RELEASE assignments. The helper appends that trusted build input to
 the generated `configure/RELEASE.local` after setting `EPICS_BASE`; it does not
@@ -127,6 +130,29 @@ and capture runner output, native child records, unit state, and an IOC console
 response. Original startup files and task registrations are restored on exit
 and TERM; failed workspaces remain available. The suites pin ServiceTestIOC to
 `91d42b2ceadec81a065d4cdf35936dbb8d77e202` for their existing lifecycle fixture.
+
+### Native severity and controlled log inputs
+
+The same original generated IOC loads `fixtures/startup-severity.db` and
+`fixtures/startup-severity.proto`. An `aao` DOUBLE array with a `%s` output
+converter triggers a real StreamDevice error. The suite requires the actual
+conversion diagnostic, `STAT`/`SEVR`/`NORD`/`PACT`, readiness order, live child,
+unit state and console response. These observations distinguish a failed output
+function from a responsive, initialized IOC.
+
+Each of the three placements (separated pre-marker, ordinary initialization,
+and post-marker processing) runs under stopped start, active restart and
+stopped restart. Active start is a historical-log no-op control. A separate
+case terminates the original IOC after severity and readiness, checking that
+its native nonzero exit retains priority. Native cases use production timing.
+
+Supplementary cases keep the actual IOC, procServ, systemd and complete runner
+while controlling only the external log file read through `tail`. They cover
+exact matching, poll order, retained evidence across inode replacement,
+copytruncate and regrowth, missing readiness, unreadable logs and partial child
+status records. These cases use the existing test timing overrides; their
+supplied text is not native module-fault evidence. Their saved original log,
+actual child PID and file inode/size trace identify the boundary being controlled.
 
 ### Local linger and logout verification
 

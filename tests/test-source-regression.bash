@@ -1697,7 +1697,7 @@ function test_crash_exclusion_source_contract {
 
     filter_needle="filtered=\$(crash_scan_filter \"\${window}\")"
     exclusion_needle="filtered=\$(grep -avE -- \"\${CRASH_LOG_EXCLUDE_PATTERNS}\" 2>/dev/null <<< \"\${scan_window}\" || true)"
-    fatal_scan_needle="if grep -qaiE -- \"\${CRASH_LOG_PATTERNS_FATAL}\" 2>/dev/null <<< \"\${filtered}\"; then"
+    fatal_scan_needle="if grep -qaiE -- \"\${CRASH_LOG_PATTERNS_FATAL}\" 2>/dev/null <<< \"\${fatal_view}\"; then"
     corroborating_scan_needle="if grep -qaiE -- \"\${effective_patterns}\" 2>/dev/null <<< \"\${filtered}\"; then"
     filter_line=$(run_as_invoker grep -nFm1 \
         "${filter_needle}" "${runner_script}" || true)

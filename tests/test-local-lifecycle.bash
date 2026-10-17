@@ -2553,10 +2553,10 @@ function test_post_init_error_marker {
         'system "echo polls sent replies errors  OID name"') || rc=$?
     ok="false"; [[ "${rc}" == "0" ]] && ok="true"
     verify_state "true" "${ok}" "Post-init report lines: start succeeds (exit 0)"
-    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    warn="false"; printf "%s" "${output}" | grep -qE "matching an error pattern|initialization completed with error logs" && warn="true"
     verify_state "false" "${warn}" "Post-init report lines: no warning"
 
-    # T2: a genuine uppercase ERROR severity line after the marker raises the
+    # T2: controlled uppercase ERROR log input after the marker raises the
     # warning on a start that still exits 0 (D027: corroboration never fails a
     # live IOC — the rc pin is what catches an errexit leak in the warn path),
     # and the matched line is shown beneath it.
@@ -2565,10 +2565,10 @@ function test_post_init_error_marker {
         'system "echo ERROR: iocInit reported a device problem"') || rc=$?
     ok="false"; [[ "${rc}" == "0" ]] && ok="true"
     verify_state "true" "${ok}" "Post-init ERROR marker: start exits 0"
-    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    warn="false"; printf "%s" "${output}" | grep -qE "matching an error pattern|initialization completed with error logs" && warn="true"
     verify_state "true" "${warn}" "Post-init ERROR marker: warning raised"
     shows="false"
-    if printf "%s" "${output}" | grep -q "matched line(s):" \
+    if printf "%s" "${output}" | grep -qE "matched line\(s\):|observed startup error log line\(s\):" \
         && printf "%s" "${output}" | grep -q "ERROR: iocInit reported a device problem"; then
         shows="true"
     fi
@@ -2582,7 +2582,7 @@ function test_post_init_error_marker {
     output=$(_run_post_init_probe "PostInitAnsi" "${softioc_bin}" "${ansi_cmd}") || rc=$?
     ok="false"; [[ "${rc}" == "0" ]] && ok="true"
     verify_state "true" "${ok}" "Post-init ANSI ERROR marker: start exits 0"
-    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    warn="false"; printf "%s" "${output}" | grep -qE "matching an error pattern|initialization completed with error logs" && warn="true"
     verify_state "true" "${warn}" "Post-init ANSI ERROR marker: warning raised"
 }
 

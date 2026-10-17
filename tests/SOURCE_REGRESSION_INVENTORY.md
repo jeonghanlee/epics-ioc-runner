@@ -274,7 +274,7 @@ S21 adds five REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S21.exclude-pattern.compiles` | `REQUIRED` | `direct-inspection` | The exclusion source constant is valid for `grep -E`. |
 | `source-regression.S21.history-load.matches-base-patterns` | `REQUIRED` | `direct-inspection` | The emitted history-load diagnostic remains a corroboration positive control after ANSI SGR normalization, before exclusion. |
 | `source-regression.S21.history-write.matches-exclude-pattern` | `REQUIRED` | `direct-inspection` | The exclusion source constant recognizes the history-write diagnostic. |
-| `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The shared `crash_scan_filter` call precedes the fatal and corroborating scans, and the whole-line exclusion grep lives inside that filter. |
+| `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The shared `crash_scan_filter` precedes fatal scanning of `fatal_view` and corroboration scanning of `filtered`; whole-line exclusion remains inside the filter. This is source inspection, not runtime severity evidence. |
 
 ## M7 S22 Addition and M13 Extension
 

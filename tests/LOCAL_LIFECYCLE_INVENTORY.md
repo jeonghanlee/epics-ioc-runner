@@ -425,3 +425,47 @@ The final `active-start`, `active-restart`, `stopped-restart`, and `cleanup`
 checks cover the healthy control and removal of registration and socket.
 All cases use the production 30-second initialization and 3-second confirmation
 bounds. Printed diagnostic text is separate from native termination evidence.
+
+### Retained native severity
+
+The shared helper adds one required `severity-fixture` check. Every combination
+of `pre-separated`, `pre-ordinary`, `post-marker` and `stopped-start`,
+`active-restart`, `stopped-restart` declares these eight BEHAVIOR checks:
+
+| Check suffix | Real-path observation |
+| --- | --- |
+| `runner-exit` | Qualified startup returns 0 |
+| `diagnostic` | Retained severity details, without unqualified success |
+| `conversion-error` | Actual StreamDevice DOUBLE-to-string failure |
+| `readiness-order` | Native error occurs at the selected readiness placement |
+| `record-state` | Failed record STAT/SEVR/NORD/PACT, independently of readiness |
+| `native-child` | Actual generated executable remains alive |
+| `supervisor-state` | Native systemd unit is active |
+| `console-response` | Original IOC answers its console |
+
+Identity shape: `local-lifecycle.S41.severity-<placement>-<state>-<check>`.
+Each placement also has `severity-<placement>-active-start` for the unchanged
+already-running path. `severity-child-exit-<check>` covers `runner-exit`,
+`diagnostic`, `conversion-error`, `native-status`, and `supervisor-state` when
+the original main exits 2 after severity/readiness. `severity-cleanup` checks
+removal of the task registration and socket. These native cases add 82 checks.
+
+### Controlled outer log input
+
+Each case below declares `runner-exit`, `diagnostic`, and `filesystem-input`,
+with identity `local-lifecycle.S41.log-input-<case>-<check>`:
+
+- Matching: `same-window`, `ansi`, `repeated`, `distinct-limit`, `uppercase`,
+  `mixed-case`, `leading-identifier`, `trailing-identifier`.
+- Independent failure: `separate-fatal`, `separate-segfault`, `separate-symbol`,
+  `separate-loader`.
+- Poll and file boundaries: `error-first`, `marker-first`, `history-excluded`,
+  `inode-replacement`, `copytruncate`, `regrowth`, `final-scan`.
+- Missing or partial evidence: `no-readiness`, `unreadable`, `partial-status`,
+  `completed-status`.
+
+`log-input-cleanup` checks final removal. These 70 checks execute the full CLI
+with its real IOC/service and control only the external log input. Saved native
+logs and inode/size traces distinguish them from genuine module faults. They
+use shortened test timing; they do not claim a native module emitted the
+controlled text. Source and installed selectors share this complete catalog.

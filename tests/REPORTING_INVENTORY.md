@@ -57,3 +57,14 @@ transport replaced by a local outer-boundary helper.
 Step 1 is complete when every source assertion and conditional result branch
 has one mapping, each real suite catalog matches its `reporting-counts.csv`
 row, and no moved S07-S14 source-regression identity remains in system-infra.
+
+
+## Shared Startup Extension
+
+Local S41 and System S36 share the original generated IOC catalog. The native
+severity extension contributes 82 checks per suite, and the outer filesystem
+log inputs contribute 70. The lifecycle inventories define their identities
+and evidence boundaries; the runtime catalog and `reporting-counts.csv` remain
+the count authority. New regression checks intentionally fail when the same
+test tree selects the unchanged baseline executable. Those baseline results
+are distinct from candidate acceptance and from a complete Gate verdict.

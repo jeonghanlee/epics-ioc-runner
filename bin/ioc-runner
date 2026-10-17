@@ -1386,6 +1386,7 @@ function resolve_scan_offset {
 # Read the log window once (from scan_offset) and report startup signals as a
 # fixed-field stdout line:
 # "<marker_rel> <banner_count> <fatal> <corro> <child_pid> <exit_pid> <exit_code> <ended>".
+# Up to three distinct normalized severity lines follow on separate lines.
 # marker_rel is the byte offset of the readiness marker
 # within the window (first occurrence) or -1 if absent; banner_count counts death
 # banners except commanded teardown; fatal / corro are 1/0 over the filtered crash
@@ -1400,6 +1401,8 @@ function read_startup_signals {
     local effective_patterns="$3"
     local known_pid="${4:-0}" ignored_pid="${5:-0}"
     local window complete_window filtered marker_out marker_rel fatal_present corro_present
+    local fatal_window fatal_view severity_hits
+    local severity_fatal='(^|[^[:alnum:]_])sevr=fatal([^[:alnum:]_]|$)'
     local child_signals banner_count child_pid exit_pid exit_code ended
 
     # Preserve trailing newlines so a partial status line is never promoted to
@@ -1456,8 +1459,21 @@ function read_startup_signals {
     # window so the caller's offset math is unaffected.
     filtered=$(crash_scan_filter "${window}")
 
+    # Only bytes preceding the first readiness marker can establish an
+    # independent initialization failure. Slice raw bytes before normalizing,
+    # so ANSI escapes and multibyte text cannot shift the readiness boundary.
+    fatal_view="${filtered}"
+    if (( marker_rel >= 0 )); then
+        fatal_window=$(LC_ALL=C; printf '%s' "${window:0:marker_rel}")
+        fatal_view=$(crash_scan_filter "${fatal_window}")
+    fi
+    # Preserve both boundaries and every other word on the line. Repeated
+    # lowercase severity markers are exempt; independent fatal text is not.
+    while [[ "${fatal_view}" =~ ${severity_fatal} ]]; do
+        fatal_view="${fatal_view/"${BASH_REMATCH[0]}"/"${BASH_REMATCH[1]}${BASH_REMATCH[2]}"}"
+    done
     fatal_present=0
-    if grep -qaiE -- "${CRASH_LOG_PATTERNS_FATAL}" 2>/dev/null <<< "${filtered}"; then
+    if grep -qaiE -- "${CRASH_LOG_PATTERNS_FATAL}" 2>/dev/null <<< "${fatal_view}"; then
         fatal_present=1
     fi
     corro_present=0
@@ -1466,9 +1482,51 @@ function read_startup_signals {
     elif grep -qaE -- "${CRASH_LOG_PATTERNS_SEVERITY}" 2>/dev/null <<< "${filtered}"; then
         corro_present=1
     fi
+    severity_hits=$(grep -aE -- "${CRASH_LOG_PATTERNS_SEVERITY}" 2>/dev/null <<< "${filtered}" |
+        awk '{ sub(/\r$/, "") } !seen[$0]++ && count++ < 3' || true)
 
     printf '%s %s %s %s %s %s %s %s' "${marker_rel}" "${banner_count}" \
         "${fatal_present}" "${corro_present}" "${child_pid}" "${exit_pid}" "${exit_code}" "${ended}"
+    if [[ -n "${severity_hits}" ]]; then
+        printf '\n%s' "${severity_hits}"
+    fi
+    return 0
+}
+
+# Keep bounded invocation evidence even when later log reads lose earlier bytes.
+function retain_startup_severity {
+    local signals="$1" line prior duplicate
+    local -n observed="$2" retained="$3"
+
+    [[ "${signals}" == *$'\n'* ]] || return 0
+    # The nameref updates the caller's invocation flag.
+    # shellcheck disable=SC2034
+    observed=1
+    while IFS= read -r line || [[ -n "${line:-}" ]]; do
+        (( ${#retained[@]} < 3 )) || break
+        duplicate=0
+        for prior in "${retained[@]}"; do
+            if [[ "${prior}" == "${line}" ]]; then
+                duplicate=1
+                break
+            fi
+        done
+        if (( duplicate == 0 )); then
+            retained+=("${line}")
+        fi
+    done <<< "${signals#*$'\n'}"
+    return 0
+}
+
+function print_startup_severity {
+    local line
+    local -n output_lines="$1"
+
+    printf '  observed startup error log line(s):\n' >&2
+    for line in "${output_lines[@]}"; do
+        printf '    %s\n' "${line}" >&2
+    done
+    printf '  Check the affected IOC functions before use.\n' >&2
 }
 
 # Normal child status is evidence of termination, not of its underlying cause.
@@ -3548,6 +3606,10 @@ function do_start_restart {
     # Phase 1: poll for the readiness marker (up to MAX_INIT_TIMEOUT seconds).
     local scan_offset signals marker_rel banner_count=0 fatal_present corro_present
     local child_exit_code child_ended fatal_seen=0
+    local severity_seen=0
+    # Populated and displayed through nameref arguments.
+    # shellcheck disable=SC2034
+    local -a severity_lines=()
     local deadline=$((SECONDS + MAX_INIT_TIMEOUT))
     local marker_seen=0 marker_abs=0
     local post_marker_offset=0 marker_inode="" marker_tailhash="" marker_check=""
@@ -3558,6 +3620,10 @@ function do_start_restart {
         read -r marker_rel banner_count fatal_present corro_present scan_child_pid \
             _ child_exit_code child_ended <<< "${signals}"
         check_startup_child_exit "${log_file}" "${child_exit_code}"
+        retain_startup_severity "${signals}" severity_seen severity_lines
+        if [[ "${fatal_present}" == "1" ]]; then
+            fatal_seen=1
+        fi
 
         if [[ "${marker_rel}" != "-1" && "${fatal_seen}" == "0" ]]; then
             marker_abs=$((scan_offset + marker_rel))
@@ -3578,9 +3644,6 @@ function do_start_restart {
             log_start_inode=$(get_file_inode "${log_file}")
             log_start_tailhash=$(get_file_tailhash "${log_file}" 0)
             continue
-        fi
-        if [[ "${fatal_present}" == "1" ]]; then
-            fatal_seen=1
         fi
         # Allow a following complete child status to supply the numeric failure.
         # Missing status remains bounded by the existing initialization deadline.
@@ -3617,6 +3680,9 @@ function do_start_restart {
             else
                 printf "\nWarning: IOC '%s' is active but did not report initialization complete within %ss.\n" "${IOC_NAME}" "${MAX_INIT_TIMEOUT}" >&2
             fi
+            if (( severity_seen == 1 )); then
+                print_startup_severity severity_lines
+            fi
             print_log_file_hint "${log_file}"
             return 0
         fi
@@ -3637,6 +3703,7 @@ function do_start_restart {
             "${scan_child_pid}" "${ignored_child_pid}")
         read -r _ p_banner _ p_corro scan_child_pid _ child_exit_code child_ended <<< "${p_sig}"
         check_startup_child_exit "${log_file}" "${child_exit_code}"
+        retain_startup_severity "${p_sig}" severity_seen severity_lines
         if (( p_banner >= 1 )); then
             dwell_death_seen=1
         fi
@@ -3656,6 +3723,7 @@ function do_start_restart {
         "${scan_child_pid}" "${ignored_child_pid}")
     read -r _ p_banner _ p_corro scan_child_pid _ child_exit_code child_ended <<< "${p_sig}"
     check_startup_child_exit "${log_file}" "${child_exit_code}"
+    retain_startup_severity "${p_sig}" severity_seen severity_lines
     # A death banner landing between the last dwell pass and this
     # final scan is still a failure (#108) — success must not be
     # printed for a just-died IOC.
@@ -3663,6 +3731,12 @@ function do_start_restart {
         printf "\nError: IOC '%s' is crash-looping.\n" "${IOC_NAME}" >&2
         print_log_file_hint "${log_file}"
         exit 1
+    fi
+    if (( severity_seen == 1 )); then
+        printf "\nWarning: IOC '%s' initialization completed with error logs.\n" "${IOC_NAME}" >&2
+        print_startup_severity severity_lines
+        print_log_file_hint "${log_file}"
+        return 0
     fi
     if (( p_corro >= 1 )); then
         printf "\nWarning: IOC '%s' is active, but its post-initialization log has line(s) matching an error pattern.\n" "${IOC_NAME}" >&2

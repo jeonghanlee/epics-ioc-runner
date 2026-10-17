@@ -7,17 +7,44 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Prepare the M12 completion record for commit.
+Next session entry point: Prepare M14 repository landing, then reconcile and close issue #165 under separate Git/GitHub authority.
+The authorized M14 implementation and runtime verification have finished.
+Complete source/installed Local and System suites passed on both OS families;
+the unchanged baseline failed exactly the same 46 added assertions per run,
+with no additional existing-control failure. The twelve direct runs retain
+72 current and 36 baseline genuine module observations. Failed conversion,
+readiness, record fields and console response are observed separately.
+
+The shipped six-run matrix completed all twelve records: 4035 PASS and 17
+examined applicability NA, with no FAIL/SKIP/SCRIPT_ERROR. Its old identity-pin
+verdict remains FAIL. The new pin is derived from these records; it establishes
+no new-candidate Gate PASS. Normal, assertion-failure, actual TERM and cleanup-
+failure recovery are verified. Final independent administrator checks passed
+82 checks per VM; task accounts, keys, linger and tmpfs are removed. Exact
+metadata matches at the restoration checkpoint; a later login can change
+access times and runtime-directory timestamps again. Operator/ADR builds and
+117 internal links passed. Both final implementation reviews accepted the
+corrections and bounded T1-T5 evidence. C00700/C00722 now match within the
+declared severity-overlap correction; the historical aggregate is unchanged.
+Both VMs were normally shut off at 20:23:51 UTC with disks and evidence retained;
+the matching provider response and private record were checked at 20:26:04 UTC.
+M14 stays In progress for repository landing and issue #165 reconciliation/closure;
+no commit, push, issue mutation or M8 closure occurred.
+Current private evidence: `work/m14-execution-20261016T180600Z/`.
+
 M12 is Complete; issue #167's body and completion comment are reconciled,
 and CLOSED/COMPLETED was observed at 2026-10-16T08:27:52Z.
 Both reviewers accepted the recovery-input correction and its 20 actual
 controller comparisons in the authorized additional pass. The original
 T1-T4 results, all six native restorations and fresh readback remain accepted.
-Both consumers are shut off with disks and evidence retained. Commit
+Both consumers were shut off at M12 completion with disks and evidence retained. Commit
 `5e096e463bad74e31cea02296fab51499e15b434` is on `origin/release-1.4.2`;
 all eight committed paths match the accepted contents. Issue #167 closed at
-2026-10-16T08:27:09Z. The later canonical completion record is not yet committed.
-Current milestone totals: 12 Complete, 1 In progress and 1 Not started.
+2026-10-16T08:27:09Z. The canonical completion record was committed and pushed
+as `eb396aba52a0a2955cf1cd9c027e43e0788feeb8`; local HEAD, upstream and the live
+remote matched at 08:35:02 UTC. Evidence: `completion-record-landing.json`
+under the M12 evidence root below.
+Current milestone totals: 12 Complete, 2 In progress and 0 Not started.
 External gates remain G1 Complete and G2 Open; other work is unchanged.
 Evidence: `work/m12-execution-20261016T033000Z/`.
 M11 is Complete: commit
@@ -43,14 +70,15 @@ reviewed M10 were accepted. Execution records: plan20261015_073559 / auth2026101
 The complete-surface draft received second third-person and first second-person
 acceptance; its final technical review is conv20261015_070440. Implementation
 results are recorded in the M10 Verification Results below. Retain St04 as
-Partial and M14 on hold.
+Partial. M14 planning resumes after the other three issue-backed changes.
 C00153's staging-path guard and C01455's
 user/group guard are retained as internal design documentation; both rejection
 branches remain unexecuted. Both documentation corrections are complete after
 the combined final second-person review on 2026-10-14.
 C01365 remains native St04 unobserved and needs a disposition. M14 is tracked
-by #165 and remains Not started; its C00700/C00722
-comparisons remain Mismatch until verified. Before
+by #165 and is In progress; its C00700/C00722 current comparisons were accepted
+on 2026-10-16 as Matches within the declared severity-overlap correction.
+The original Mismatch records remain historical. Before
 requesting or reusing a VM, read [VM Preparation and
 Handoff](../tests/README.md#vm-preparation-and-handoff) and its required reading. All
 1832 candidates in the last sealed comparison have selected results (1827 Verified,
@@ -102,7 +130,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Complete | — | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
 | Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Complete | No | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
-| Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Not started | Yes | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
+| Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | In progress | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 
@@ -11989,6 +12017,19 @@ document corrections:
   branch was executed; historical C00153 Pending and C01455 Partial remain
   unchanged. No product code changed. M8 and final T1-T6 remain open.
 
+- Bounded severity comparison, observed on 2026-10-16. The corrected whole
+  runner and current FAQ text resolve the demonstrated C00700/C00722 severity
+  counterexample. Both second implementation reviews accepted each comparison
+  as Matches within the declared severity-overlap correction. Twelve complete
+  Local/System source/installed/baseline runs on Debian 13 and Rocky 8 retain
+  72 current and 36 baseline native module observations; independent fatal
+  and child-failure controls retain their outcomes. The actual conversion
+  remains a failed component function despite completed IOC initialization.
+  Final binding: `work/m14-execution-20261016T180600Z/m8-two-clause-comparison-final-r1.json`;
+  FAQ source capture: `work/m8-verification-runs/20261016T194106Z-eb396ab-source-refresh/`.
+  Preserve the original Mismatch records and all historical aggregate counts.
+  This comparison does not promote unrelated clauses or close M8/T1-T6.
+
 ##### Closure Evidence
 
 None.
@@ -14028,18 +14069,23 @@ Current acceptance is bound to runner SHA256 `0f373a34f027c045abb1d735702c75e926
 Origin: 1.4.2 / M14
 Identity History: none
 GitHub Issue: [#165](https://github.com/jeonghanlee/epics-ioc-runner/issues/165)
-Status: Not started
+Status: In progress
 
 ##### Summary
 
-The case-insensitive fatal scan recognizes the `fatal` part of `sevr=fatal`
-and can report failed initialization before the readiness marker appears.
+The case-insensitive fatal scan recognizes the `fatal` part of `sevr=fatal`.
+At baseline `eb396aba52a0a2955cf1cd9c027e43e0788feeb8`, an earlier poll can
+latch this as fatal and prevent later readiness from completing startup.
+The M11 implementation waits for child status or the initialization deadline;
+the original issue's immediate-failure description predates that change.
+If the first poll sees the marker and error together, the marker branch runs
+first and the pre-marker error can instead disappear from the final warning.
 EPICS severity describes an error reported by a component; it does not itself
 establish that the IOC process terminated or that all initialization failed.
 The completed startup result must retain the module error without claiming
 that all required IOC functions are healthy.
 
-The current ADR 0004 explicitly preserves the pre-marker interpretation,
+At the baseline, ADR 0004 explicitly preserves the pre-marker interpretation,
 while FAQ severity descriptions promise corroboration only. M14 changes that
 interpretation deliberately and aligns the affected documentation. The existing
 text-emission reproduction establishes the scanner's behavior, not a real
@@ -14057,6 +14103,8 @@ module fault or its operational impact.
 - `tests/test-local-lifecycle.bash`, `tests/test-system-lifecycle.bash`,
   supporting original IOC fixtures, applicable lifecycle inventories,
   `tests/test-source-regression.bash`, its inventory and reporting counts.
+- Task DB/protocol input for the original generated IOC, loaded through its
+  public commands with unchanged main, generated DBD and module libraries.
 - `docs/FAQ.md`, `docs/CLI_REFERENCE.md` and the affected decisions in
   `docs/adr/0004-severity-marker-corroboration.md` and ADR 0001.
 
@@ -14095,6 +14143,21 @@ injection or shared-account policy change is part of this work.
 - Decision Date: 2026-10-14. Continue the remaining M8 comparisons before
   starting M14. Keep the M14 plan and issue open for later implementation;
   this ordering decision does not resolve either severity comparison.
+- Decision Date: 2026-10-16. Resume M14 plan preparation after M10, M11 and
+  M12 completion. Native execution and product changes have not started.
+- Decision Date: 2026-10-16. Continue correction of the rejected native fault
+  condition and one additional plan-review round. Runtime authority remains
+  separate from this planning direction.
+- Decision Date: 2026-10-16. Accept plan20261016_162050 and authorize
+  P001-P006/V001-V005, retained-VM preparation, native verification and
+  restoration. auth20261016_174408 records the execution direction.
+- Observed 2026-10-16: the approved read-only preflight found missing native
+  StreamDevice artifacts and no suitable retained SSH Local test operator on
+  either guest. The accepted plan requires stopping on missing prerequisites.
+  The owner subsequently selected preparation option 1 on 2026-10-16.
+  The bounded module-build and temporary-account amendment is accepted and
+  authorized under plan20261016_180600/auth20261016_180600. No new G dependency
+  or scanner-contract change is introduced.
 - No M/G prerequisite is asserted. M14 does not require M8 to be Complete;
   M8 must recheck affected claims after the product change.
 - The requested behavior is to retain severity errors, wait for initialization,
@@ -14103,53 +14166,637 @@ injection or shared-account policy change is part of this work.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
-Superseded Plan Artifacts: none
+Plan Status: accepted
+Plan Acceptance: 2026-10-16; plan20261016_180600
+Implementation Authorization: 2026-10-16; auth20261016_180600, P001-P006/V001-V005 including the preparation amendment
+Superseded Plan Artifacts: plan20261016_162050 (preparation premise only; behavior contract retained)
 
-1. Pin an original IOC fixture with the required module and a deterministic
-   real error through `errlogSevPrintf(errlogFatal, ...)`. A sequencer command
-   argument error is a source-confirmed candidate; its installed command and
-   actual output must be verified before selecting it. Record affected
-   functionality, readiness, IOC response and child status independently.
-2. Reproduce the old whole-runner result with that real condition. Freeze
-   exact fixture/source hashes, temporary resources, commands, time bounds
-   and restoration checks before any VM mutation.
-3. Narrow the fatal scan's interpretation of the exact severity marker while
-   preserving other fatal evidence. Retain relevant startup-window error lines
-   for a qualified result after readiness, including marker-first polling,
-   same-window arrival and rotation cases. Keep M11 changes separate.
-4. Add the native regression cases and update their inventories/counts. Run
-   healthy, error, independent fatal, termination, restart and log-window
-   regressions through the shipped runner; source checks only supplement them.
-5. Update the affected operator and design documents; perform independent
-   second- and third-person review, documentation build/link checks and
-   source recapture before changing either M8 Mismatch disposition.
+Baseline: `eb396aba52a0a2955cf1cd9c027e43e0788feeb8`. The following is the
+accepted plan, not a record of executed verification.
+
+###### Premise Classification
+
+| Class | Evidence | Consequence |
+| --- | --- | --- |
+| Confirmed source finding | `read_startup_signals` scans the normalized window with the case-insensitive fatal pattern; `do_start_restart` retains `fatal_seen` | Exact severity needs an exception in the fatal interpretation, while its original text remains available |
+| Confirmed source finding | Phase 1 accepts a marker before checking that poll's fatal flag; phase 2 reads after the marker | Retain severity before advancing the window, including first-poll marker arrival; distinguish genuinely pre-marker fatal text from post-marker corroboration |
+| Confirmed rejected stimulus | `caPutLogInit` calls `caPutLogTaskStart` first; inactive security produces `errlogMajor` and returns before `caPutLogAsInit` | The proposed command cannot establish the fatal-severity regression; select another reachable genuine fault before accepting P002/T1 |
+| Confirmed source path; runtime unverified | StreamDevice `aao` output with `FTVL=DOUBLE`, `NELM=1` and `%s` reaches the unsupported string-conversion branch in `devaaoStream.c:305`; output formatting precedes transport locking | Use real DB/protocol input through the unchanged IOC; require the actual fatal line, failed record function and independent IOC readiness before claiming T1 |
+| Confirmed environment gap | Fresh read-only preflight on 2026-10-16 found no native StreamDevice artifacts and no suitable retained SSH test operator on either guest | Stop before native reproduction and product edits; obtain direction on the bounded preparation proposal below |
+
+###### Ordered File Plan
+
+| Plan ID | Files or subsystem | Intended change | Verification |
+| --- | --- | --- | --- |
+| P001 | Private execution record and two retained verification VMs | Freeze source/fixture hashes, caller environments, original state, commands, finite time bounds and recovery inputs | T1/T2 prerequisites and T4 restoration evidence |
+| P002 | `tests/lib/test-startup-fixture.bash`; `tests/fixtures/startup-severity.db` and `startup-severity.proto` | Add incompatible StreamDevice array-format input and native start/restart observations to the original generated IOC; preserve original main, generated DBD and generator | T1 native prerequisite and old/candidate comparison |
+| P003 | `bin/ioc-runner` | Exclude only the exact severity marker from the fatal-only scan, retain invocation severity details and report qualified completion | T1-T3 full CLI paths |
+| P004 | Both lifecycle suites and inventories; source-regression suite/inventory; `tests/reporting-counts.csv`; `tests/REPORTING_INVENTORY.md`; `gate/drivers/control/suites.bash` | Catalogue behavior assertions, preserve existing M11 controls and refresh derived counts/identity pin from clean actual matrix records | T2-T4; no Gate PASS inferred from a selected Check |
+| P005 | `docs/FAQ.md`, `docs/CLI_REFERENCE.md`, ADR 0001 and ADR 0004; `tests/README.md` | Describe severity versus termination, retained warning, actual fixture requirements and bounded evidence | T5 reader review, build and links |
+| P006 | This detail and private evidence/source captures | Record observed results, restoration and reviews; reassess only affected M8 clauses | T4/T5; other historical dispositions unchanged |
+
+###### Genuine Module Fault: StreamDevice Array Conversion
+
+Use `tests/lib/test-startup-fixture.bash` and its original generator revision
+`ee214deedc5594bb93cd0a77d42615b99783bbd0`. Keep the generated main, DBD and
+compiled source unchanged. Test inputs are startup commands, task DB/protocol
+files and trusted RELEASE assignments. The generator already supports `ASYN`
+and `STREAM`, including `drvAsynIPPort.dbd` and `stream.dbd`; the installed
+StreamDevice DBD must provide `devaaoStream`. No sequencer registrar is added.
+Do not replace its main, mock iocsh, or print an expected error as the native
+fault. The existing ServiceTestIOC revision remains
+`91d42b2ceadec81a065d4cdf35936dbb8d77e202` for the other lifecycle cases.
+
+The following caPutLog input was proposed and rejected during the first
+second-person review on 2026-10-16. It is recorded as a rejected stimulus,
+not as an executable T1 prescription:
+
+```text
+caPutLogInit("127.0.0.1:17011", 0, 0.1)
+epicsThreadSleep(1)
+iocInit
+caPutLogShow(0)
+```
+
+In the inspected caPutLog source (`R4.1-18-gdafb0b2`), `caPutLog.c:106-108`
+calls `caPutLogTaskStart` and returns on error. That function checks inactive
+access security at `caPutLogTask.c:130-132`, emits `errlogMajor` and returns.
+The later `caPutLogAsInit` fatal branch is therefore unreachable through this
+input. `caPutLog not initialized` proves neither fatal severity nor a runner
+regression. No module runtime was executed in reaching this source conclusion.
+
+The replacement is a real output configuration error: an `aao` record uses
+`FTVL=DOUBLE` with the string converter `%s`. Add these exact input files
+under `tests/fixtures/` and copy them into the generated fixture's private boot
+directory. They configure the actual module; they do not replace its code.
+
+`startup-severity.db`:
+
+```text
+record(aao, "$(P)Conversion") {
+    field(DESC, "Incompatible stream output format")
+    field(DTYP, "stream")
+    field(FTVL, "DOUBLE")
+    field(NELM, "1")
+    field(OUT, "@startup-severity.proto $(PROTOCOL) $(PORT) 0")
+}
+```
+
+`startup-severity.proto`:
+
+```text
+bad_init {
+    out "%s";
+    @init { out "%s"; }
+}
+bad_process {
+    out "%s";
+}
+```
+
+After original support registration and before original initialization,
+configure one IOC-private port and load the DB. Assign `M14_PORT_NUMBER` to an
+unused loopback port, record it, and disable automatic connection. The failure
+occurs while formatting, before any device write; no device emulator or real
+device is required. Keep `STREAM_PROTOCOL_PATH` pointed at the copied input's
+absolute directory and load the DB by absolute path. The execution record
+provides the exact expanded path and a unique `M14_PREFIX` ending in `:`.
+
+```text
+epicsEnvSet("STREAM_PROTOCOL_PATH", "$(M14_INPUT_DIR)")
+drvAsynIPPortConfigure("M14_CONVERSION", "127.0.0.1:$(M14_PORT_NUMBER)", 0, 1, 0)
+dbLoadRecords("$(M14_INPUT_DIR)/startup-severity.db", "P=$(M14_PREFIX),PORT=M14_CONVERSION,PROTOCOL=bad_init")
+```
+
+Source chain, inspected at StreamDevice revision
+`668d1d525509604ab4ccd7382022dfb469c99841` and Base revision
+`bf11a0c31c919ba85ba2e23b72bcf0b5f9f62e77`:
+
+1. Base `aaoRecord.c:init_record` sets `NORD=1` for `NELM=1` before calling
+   device initialization. StreamDevice `devaaoStream.c:initRecord` allocates
+   the real array and calls `streamInitRecord` with the actual read/write
+   callbacks. `Stream::initRecord` attaches to the configured asyn interface,
+   parses the protocol and starts its `@init` handler.
+2. `StreamCore::evalOut` calls `formatOutput` before `busLockRequest`.
+   `formatOutput` calls `Stream::formatValue`, which dispatches to the actual
+   `writeData` callback for an unredirected `%s`. With one DOUBLE element,
+   its string-conversion default emits `errlogSevPrintf(errlogFatal, ...)`
+   and returns ERROR. The expected diagnostic contains
+   `writeData <record>: can't convert from DBF_DOUBLE to string`.
+3. The protocol finishes synchronously with FormatError;
+   `Stream::protocolFinishHook` records internal CALC_ALARM status and signals
+   init completion. The false return also propagates through `startProtocol`,
+   so `Stream::initRecord` reports `Can't start @init handler` and returns
+   before `initDone.wait()`. This internal status is not an observed record
+   STAT value. Base's `doInitRecord0` invokes record support without propagating
+   that record's return as the whole `iocBuild` result. Actual record fields,
+   readiness and continued IOC operation must still be observed at runtime.
+4. Asyn `drvAsynIPPortConfigure` registers its normal interfaces with
+   automatic connection disabled. StreamDevice `connectToBus` binds its
+   asynUser and interfaces and returns true even when disconnected. Missing
+   port registration, parsing failure or an earlier unsupported DBD is a
+   failed prerequisite, not the selected conversion fault.
+
+Use three input variants. For the separated pre-marker case, replace only
+the original `iocInit` command with `iocBuild`, `epicsThreadSleep(1)` and
+`iocRun`; Base's own `iocInit` calls `iocBuild() || iocRun()`. Keep the original
+`on error break`. For the ordinary pre-marker case, keep `iocInit` unchanged
+with `bad_init` and no added pause. This does not guarantee one scanner poll;
+deterministic same-poll coverage belongs to the whole-runner outer-log tests.
+For the post-marker case, select `bad_process` at DB load, keep `iocInit`,
+then run the following commands before the confirmation interval ends:
+
+```text
+on error continue
+dbpf("$(M14_PREFIX)Conversion.PROC", "1")
+on error break
+dbpr("$(M14_PREFIX)Conversion", 2)
+```
+
+The narrow continue block permits the genuine record-processing error to be
+reported without changing the intended surviving-IOC case into an M11 shell
+exit case. Record its actual return and log, and keep the separate M11 break
+controls. Require the conversion diagnostic and observed timing; neither a
+sleep nor a source prediction proves the scanner saw a particular window.
+
+For every variant, record actual fatal output, record `STAT`, `SEVR`, `NORD`
+and `PACT` through real `dbpr`/console, failed conversion, IOC readiness,
+console response and native child records separately. Do not equate an
+initialized IOC or a record alarm with a working output function. After plan
+acceptance, first confirm the installed ASYN/STREAM revisions, library hashes,
+DBD registration and source equivalence to this call chain on both guests.
+Run the unchanged baseline against the same genuine inputs before product
+edits. Missing fatal output or a different path stops T1; no printed substitute,
+private-function call, generator alteration or resource-exhaustion fault may
+replace it. The sequencer argument candidate remains unused because this
+generator links the library without registering the public `seq` command.
+
+###### Scanner And Result Contract
+
+1. Normalize ANSI SGR and apply the existing benign-history filter first.
+   In the fatal-only view, mask only lowercase `sevr=fatal` with non-identifier
+   boundaries on both sides. Keep surrounding text and scan it for the
+   existing fatal patterns. Repeated markers must all be handled; a separate
+   `FATAL`, `Segmentation fault`, `undefined symbol` or `error while loading`
+   on the same line still counts. Case variants and identifier fragments
+   must not gain a new exemption. The corroboration view retains the original
+   severity text; extra patterns remain corroboration only.
+2. Inspect the portion before the raw readiness marker for pre-marker fatal
+   evidence, including when both first arrive in one poll. Post-marker fatal
+   text alone keeps the existing warning policy. Native nonzero child status
+   retains priority over the marker and any later automatic retry.
+3. Retain invocation-local severity evidence before the phase transition and
+   during confirmation. Keep the first three distinct normalized severity
+   lines, consistent with the existing display limit, and a separate observed
+   flag. Do not retain whole repeated windows or create a new public setting.
+   Observed lines survive rotation and truncation; bytes never observed before
+   deletion cannot be recovered or claimed. Keep raw offsets, inode/tail-hash
+   checks, complete-record parsing, child PID association and commanded old
+   child exclusion. Keep the active-start no-op path unchanged.
+4. Readiness plus confirmation without failure returns 0. If retained severity
+   is present, report that initialization completed with error logs, show the
+   retained details and log hint, and ask the operator to check affected
+   functions. Do not print unqualified successful startup for that case.
+   Other post-marker corroboration retains its current heuristic warning.
+5. No readiness keeps the existing active-unit timeout return 0 with an
+   unconfirmed-initialization warning, or an unreadable-log warning when that
+   is the observed condition. A severity observation remains visible there;
+   no completed-startup wording is allowed. Actual nonzero child exit,
+   independent pre-marker fatal evidence and crash-loop failures remain exit 1.
+   Keep defaults of 30 seconds initialization, 3 seconds confirmation and
+   0.2 seconds polling. Do not change supervisor policy or infer module health.
+
+###### Environment, Commands And Recovery
+
+Read `tests/README.md` VM Preparation and Handoff, `gate/RUNBOOK.md` and
+`docs/INSTALL.md` before executing P001. Request resumption of the retained
+Debian 13/Rocky 8.10 consumers only after current-plan authorization. The
+private handoff supplies exact addresses, pinned host keys, EPICS/module
+paths, generator checkout, operator and administrator access. Do not reuse
+an earlier handoff's readiness assertion as a current check.
+
+Use the new task-owned non-root test operator in a real SSH session for Local
+mode, and the retained sudo-capable administrator for System preparation/recovery.
+Record actual HOME, UID, groups, user bus and linger state. Do not reuse the
+deleted M12 account or change shared lingering, login policy or ACLs. The
+accepted preparation amendment permits a task-local unchanged-source StreamDevice
+build and a new temporary account with task-only SSH/linger. Stop on any further
+missing prerequisite; installing packages or modifying other repositories remains
+outside this plan. System/source-regression checks run from the prepared
+administrator; source-regression's dispatcher must start as non-root.
+
+Before any deployment, record the original installed runner and metadata,
+system template, affected service/timer states, configuration/log/runtime
+paths and task workspace absence. Copy recovery programs and their exact
+inputs to an administrator-readable directory and validate them before
+changing the guest. Recover normal completion, assertion failure and TERM;
+cleanup errors must produce a nonzero controller result while independent
+remaining cleanup still runs. Verify this through the actual controller.
+
+The whole Local suite deletes shared user assets, not just its named IOCs.
+For every caller used by a direct run or the later six-run matrix, require no
+preexisting registered, enabled or running IOC that consumes those assets.
+Before the first mutation, preserve an explicit path manifest covering
+`~/.config/systemd/user/epics-@.service`, every existing
+`epics-@.service.bak.*`, both `epics-logrotate` units, their drop-ins and
+enablement symlinks, `~/.config/ioc-runner/logrotate.conf`, and the runtime
+`ioc-runner-logrotate.state`. Preserve file bytes, link targets, ownership,
+modes, ACLs/xattrs and timestamps, plus parent-directory metadata and explicit
+absence entries. Record any effective path overrides rather than assuming
+defaults. Recheck that there is no concurrent writer or consumer before each
+run. Stop if this isolation or the readable backup cannot be established.
+
+After every direct or matrix run, restore that manifest, remove only newly
+created paths proven to belong to the run, reload the user's manager, and
+restore the recorded timer enablement/activity. Verify bytes, metadata,
+symlinks and absence from the separate administrator connection. A timer
+state check alone does not prove deleted files were restored. Do not delete
+the retained account or rely on the suite's EXIT trap for these shared assets.
+Apply the same check to the matrix's actual Local caller, even if it differs
+from the directly selected operator. Keep the original snapshot unchanged
+through normal, assertion-failure and TERM recovery.
+
+The private execution record assigns `M14_REPO`, `M14_BASELINE`,
+`M14_LOCAL_USER`, `M14_UID`, `M14_GID`, `EPICS_BASE`, `EPICS_HOST_ARCH`,
+`IOC_RUNNER_STARTUP_GENERATOR` and `IOC_RUNNER_STARTUP_RELEASE` before these
+commands. Commands run in the assigned checkout; exports alone are not path
+assignments. Record argv, environment, input, stdout/stderr, exit status and
+timestamps for every invocation.
+
+```bash
+sudo -n true
+systemctl --version
+test -x "$EPICS_BASE/bin/$EPICS_HOST_ARCH/softIoc"
+test -r "$IOC_RUNNER_STARTUP_RELEASE"
+git -C "$IOC_RUNNER_STARTUP_GENERATOR" cat-file -e 'ee214deedc5594bb93cd0a77d42615b99783bbd0^{commit}'
+id
+loginctl show-user "$M14_LOCAL_USER" -p Linger
+systemctl --user show-environment
+```
+
+The final three commands run in the Local operator's session; require its
+actual UID/HOME/runtime directory to match the handoff. Test all required
+native build tools and module artifacts listed in tests/README before launch.
+Reserve loopback ports and reject existing task IOC names or paths. The source
+and installed runner selectors must resolve to the recorded candidate. No
+selected-case option exists on the lifecycle suites: run the whole scripts.
+
+Every direct Local run, including both baseline/candidate selections, also
+requires the genuine writable tmpfs used by S37. The administrator prepares
+it using the boundary defined in `gate/drivers/remote/run-local-lifecycle.bash`:
+
+```bash
+M14_TMPFS=$(mktemp -d /tmp/ioc-runner-m14.XXXXXX)
+sudo -n mount -t tmpfs -o nodev,nosuid,noexec,size=4m,mode=0755 tmpfs "$M14_TMPFS"
+sudo -n install -d -o "$M14_UID" -g "$M14_GID" -m 0700 "$M14_TMPFS/data"
+```
+
+Record the exact mountpoint immediately, including partial preparation.
+Transfer its exact value to the Local operator's environment, then check as
+that operator before each invocation:
+
+```bash
+export IOC_RUNNER_M10_LOG_FIXTURE="$M14_TMPFS/data"
+test -w "$IOC_RUNNER_M10_LOG_FIXTURE"
+test "$(findmnt -n -o FSTYPE --target "$IOC_RUNNER_M10_LOG_FIXTURE")" = tmpfs
+```
+
+After the suite's cleanup and evidence copy, the administrator unmounts and
+removes only that recorded mountpoint. Execute this on normal completion,
+failure and TERM, checking actual mount absence and propagating cleanup failure:
+
+```bash
+sudo -n umount -- "$M14_TMPFS"
+rmdir -- "$M14_TMPFS"
+```
+
+A failed mount is a preparation failure; do not unmount an unrelated path.
+Give each direct invocation a fresh fixture. The later six-run matrix uses
+the shipped wrapper, which prepares its own tmpfs; it does not prepare any
+earlier direct call. A missing tmpfs prerequisite or resulting SKIP never
+counts as a passing Local suite.
+
+```bash
+KEEP_WORKSPACE=1 REPORT_MACHINE_OUTPUT=1 bash tests/test-local-lifecycle.bash
+sudo -E env KEEP_WORKSPACE=1 REPORT_MACHINE_OUTPUT=1 bash tests/test-system-lifecycle.bash
+IOC_RUNNER_TEST_MODE=installed KEEP_WORKSPACE=1 bash tests/test-local-lifecycle.bash
+sudo -E env IOC_RUNNER_TEST_MODE=installed KEEP_WORKSPACE=1 bash tests/test-system-lifecycle.bash
+bash tests/run-all-tests.bash --source-regression
+bash tests/lib/test-reporting-self-test.bash
+bash tests/lib/reporting-counts-self-test.bash
+bash tests/lib/test-record-validator-self-test.bash
+bash -n bin/ioc-runner
+shellcheck --severity=warning bin/ioc-runner
+mdbook build
+```
+
+Run Local commands as the test operator and System commands as the separate
+administrator. Extend syntax/ShellCheck to every changed suite/helper. Use
+production timing for the genuine module fault and M11 controls; preserve
+the existing suite's explicitly shortened rotation tests as such. Bound each
+CLI probe with a 60-second outer timeout, each whole lifecycle suite with
+30 minutes, and each source/error suite with 20 minutes. On an outer timeout,
+record infrastructure failure and execute recovery; do not classify it as an
+expected IOC failure or retry automatically without identifying the cause.
+
+For old-versus-candidate comparison, use the same changed fixture/test tree
+and select each whole executable through the existing installed-path
+selector, `IOC_RUNNER_TEST_MODE=installed` with `IOC_RUNNER_SCRIPT_DEST`
+set to the baseline or candidate absolute path. The baseline comes from
+`git show eb396aba52a0a2955cf1cd9c027e43e0788feeb8:bin/ioc-runner`.
+Never extract runner functions. New defect assertions must fail for the old
+runner and pass for the candidate; known-correct controls must pass for both.
+Keep those intentional baseline failures separate from candidate acceptance.
+
+When catalogue identities change, run the canonical six-run matrix through
+`gate/drivers/control/suites.bash` using its documented host/environment
+arguments. Derive the new identity pin only from complete clean actual records
+on both OS families, following Gate RUNBOOK Check-identity pin. A prior pin
+mismatch remains a failed matrix verdict; the subsequent pin change is a new
+tree and cannot turn it into a new-candidate Gate PASS.
+
+On each exit path, stop/remove only task-created IOCs with the shipped CLI;
+restore modified original startup files, installed bytes/metadata, task-local
+unit overrides and recorded service/timer state. Verify no task process,
+socket, configuration or listener remains. Preserve raw evidence before
+cleanup and compare original state from a fresh administrator connection.
+Do not delete an existing operator or its home, change system policy, or
+discard evidence. Send the provider a finished notice after restoration and
+final review, then verify normal shutdown with disks/evidence retained.
+
+###### Required Behavior Matrix
+
+| Case group | Stimulus and observation | Required outcome |
+| --- | --- | --- |
+| Native module error | StreamDevice DOUBLE-to-string conversion failure, before readiness with a pause, ordinary initialization without an added pause, and after readiness; observe failed record function and console separately | Qualified completed startup, exit 0 with retained severity; Pending until the native prerequisite and full comparison run |
+| Verb/state coverage | Each module-error variant under stopped start, active restart and stopped restart; already-active start as a separate no-op control | Both OS families and modes; old teardown excluded; no historical warning invented by the no-op |
+| Independent failure | Real original IOC break/nonzero exit, signal and zero-before-init controls; native death after severity and readiness | Existing numeric or fallback failure behavior; no signal-to-normal-code invention |
+| Exact matching | Whole runner over controlled outer log input: lowercase bounded marker, ANSI marker, repeated markers, case variants, identifier fragments, marker plus a separate fatal diagnostic on one line | Only exact severity exemption; other fatal evidence preserved; document native versus controlled evidence |
+| Poll ordering | Error first, marker first, same window, and error at the final confirmation scan | Pre-marker severity retained; post-marker-only fatal remains corroboration; native nonzero exit takes priority |
+| Log boundaries | Historical error before invocation, active restart teardown, observed error followed by inode replacement/copytruncate/regrowth, and incomplete log records | No old-run false warning; observed error survives reset; no promise to recover unseen deleted bytes |
+| Missing evidence | No readiness while active, unreadable log, and readiness followed by genuine termination | Explicit unconfirmed/unreadable/failure outcomes; never unqualified completion |
+
+The genuine T1 matrix is two OS families x two modes x three starting
+states/verbs for each error placement. Controlled log cases exercise the whole
+runner and are supplementary filesystem-boundary tests, not module-fault
+evidence. Freeze final case IDs and expected outcomes before launch and derive
+counts from the actual catalog; do not invent PASS totals from this plan.
+Review the final implementation and evidence through the existing third-person
+and second-person lanes, with one bounded correction cycle. Leave T1-T5
+Pending until their real paths execute. Refresh affected source captures and
+M8 C00700/C00722 only from resulting evidence; M8 closure, St04 and G2 remain
+outside this milestone.
+
+###### Plan Review Result: 2026-10-16
+
+The first third-person review found missing S37 tmpfs preparation and
+incomplete preservation of shared user assets. Both corrections were accepted
+in the second third-person pass and confirmed by the first reader pass.
+The reader pass then found the complete caPutLog caller-chain contradiction
+above, preventing technical acceptance of that draft. The earlier third-person
+acceptance did not override this evidence.
+
+Review artifacts in `work/review_sessions/20261013_083800_m8-partial-completion/`:
+`rev20261016_090033`, `fup20261016_090528`, and `rev20261016_090905`.
+The frozen reviewed document hash was
+`22915066b5c8ccd038ab1188b25a5426e1dc2da150e9a2ccd8ea39556078811c`;
+this result records the subsequent disposition without claiming another pass.
+One correction/review cycle completed with this unresolved fixture finding.
+The owner subsequently directed continuation on 2026-10-16. The additional
+bounded round reviewed the replacement StreamDevice input against document
+SHA-256 `21c0d781ee700c1a4a1271dcad47176a742cd631244762dd02d09a653a21e83c`.
+The second second-person pass, `fup20261016_161135`, and third third-person
+pass, `fup20261016_161402`, both technically accepted that corrected draft.
+All three plan findings are resolved; no concrete C1-C5 defect remains.
+
+Both reviewers traced the complete public input and module path, including
+record count, registration, format conversion before transport, synchronous
+failed-start return and Base initialization. The source-chain paragraph now
+uses the exact `doInitRecord0` name and distinguishes internal CALC_ALARM from
+runtime record STAT, as explicitly established in those reports. This
+clarification and the review-result/next-entry updates follow the reviewed
+hash; they do not change the prescribed inputs or scanner contract.
+
+Technical acceptance does not establish native reproduction, owner acceptance
+or implementation authority. The named development plan and finding crosswalk
+are recorded in this session's `plan/` and `convergence/` directories and indexed
+by its README. At review completion, the plan remained draft/none/none and
+M14 Not started. The subsequent owner direction accepted plan20261016_162050
+and authorized its execution through auth20261016_174408. No further
+plan-review round is opened.
+
+Preparation checks: diff validation and syntax checks for five Bash command
+blocks passed. The existing mdBook built successfully; this milestone is not
+in its SUMMARY, so that build does not verify the plan's rendering. T1-T5 stay
+Pending; no product/test source or VM state changed during plan review.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | native module error | Original IOC/module command produces genuine fatal severity before readiness; run whole start/restart and observe readiness, module outcome and IOC response | Debian 13 and Rocky 8.10, System/Local | Old runner regression demonstrated; changed runner returns 0 with retained error details after readiness and confirmation; module failure is not called healthy |
+| T1 | native module error | Original generated IOC loads the real StreamDevice DB/protocol fault; observe the fatal conversion, record outcome and readiness under whole start/restart | Debian 13 and Rocky 8.10, System/Local | Old runner regression demonstrated; changed runner returns 0 with retained error details after readiness and confirmation; failed output function is not called healthy |
 | T2 | native failure | Genuine child termination/crash-loop fixtures plus controlled same-line severity and separate fatal diagnostic | Same pinned environments and verbs | Independent failure still returns 1; exact severity handling does not erase other evidence |
 | T3 | native log lifecycle | Existing healthy, timeout, unreadable log, historical log, active restart teardown and rotation fixtures; include severity before/with marker and ANSI-normalized text | Same pinned environments | Correct invocation window, preserved severity warning, no false completion or commanded-teardown failure |
-| T4 | reporting and source | Shipped reporting validators, updated inventory/count checks, Bash syntax and applicable ShellCheck gate | Control host | New behavioral checks are catalogued; static checks supplement actual execution |
+| T4 | reporting, source and restoration | Shipped validators, inventory/count/pin checks, syntax/ShellCheck, actual controller normal/failure/TERM recovery and original-state comparison | Control host and both native VMs | New checks are catalogued; original files, metadata, service states and task tmpfs are restored; cleanup failures remain failures |
 | T5 | documentation | Build/link checks, exact source recapture and independent reader/behavior review of changed FAQ, CLI and ADR text | Control host and retained native results | Current behavior, design and operator instructions agree; affected M8 clauses reassessed from actual evidence |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Native IOC/module | Pending | Prior text-emission test is not an actual module-error test |
-| T2 | Not run | Native IOC/procServ | Pending | No changed runner executed |
-| T3 | Not run | Native startup and log lifecycle | Pending | No changed runner executed |
-| T4 | Not run | Control host | Pending | No implementation or test changes yet |
-| T5 | Not run | Documentation and source capture | Pending | Current C00700/C00722 remain Mismatch |
+| T1 | 2026-10-16 through 19:40 UTC | Both native OS families; Local/System source, installed and unchanged baseline | PASS | Twelve complete direct runs retain 72 current and 36 baseline placement/verb observations. Every current native case returns qualified 0; exactly 46 added assertions fail in each unchanged-baseline run. Actual conversion failure, readiness, record fields and console response are separate observations. direct-suite-evidence-r1.json. |
+| T2 | 2026-10-16 through 20:04 UTC | Original generated IOC and complete source/installed lifecycle suites | PASS | Existing break/continue, actual child exit and independent fatal controls pass. Baseline comparison confirms unchanged known-correct outcomes; supplementary same-line inputs preserve separate fatal evidence. |
+| T3 | 2026-10-16 through 20:04 UTC | Complete Local/System suites on both OS families | PASS | History, teardown, poll ordering, final scan, rotation/truncation, missing readiness and unreadable-log cases pass. Twenty-three outer-log cases exercise the whole runner; they remain distinct from native module emission. |
+| T4 | 2026-10-16 through 20:07 UTC | Control host and both native guests | PASS within M14; Gate remains open | Reporting/source/syntax checks pass. Twelve matrix records contain 4035 PASS and 17 examined NA; prior pin verdict remains FAIL. Normal/assertion/TERM/cleanup-failure recovery is verified, with final 82-check administrator readback per VM and exact metadata checkpoints. matrix-assessment-r1.json, cleanup-failure-assessment-r2.json, final-cleanup-r2.json. |
+| T5 | 2026-10-16 through 20:17:27 UTC | Fresh documentation capture and both final implementation reviews | PASS within the declared comparison scope | Operator and separate ADR builds pass; 117 internal links pass. Source capture 20261016T194106Z-eb396ab-source-refresh binds the changed FAQ/CLI/ADRs. fup20261016_201400 and fup20261016_201727 accept the corrected implementation, evidence and bounded C00700/C00722 comparisons. m8-two-clause-comparison-final-r1.json preserves the original mismatch history. |
+
+###### Complete Execution Evidence: 2026-10-16
+
+Direct Local source and installed runs each report Debian 436 PASS and Rocky
+432 PASS with four existing journal-policy NA. System source and installed
+runs each report 389 PASS on each OS. The same changed test catalog against
+the complete baseline runner has exactly 46 FAIL per Local/System run, with
+no additional known-correct control failure. Native conversion is still a
+failed component function; qualified readiness does not certify its health.
+
+The original six-run driver completed at 20:03:47 UTC. Each host contains
+2026 checks. Debian has 2021 PASS and five NA; Rocky has 2014 PASS and twelve
+NA. Differences are confined to Local journal policy, RHEL-only symlink setup,
+sudoers regex applicability and SELinux applicability. Both actual identity
+lists hash to `f0be2fe9d09d5a92ff8c0c4dffb03ef37151c2c23cb45533eaf9c520837df410`.
+The driver retains its old-pin FAIL; the derived pin update is a candidate
+change, not a new Gate PASS. All remote producer-stop, evidence and original
+Local/System restoration stages returned 0.
+
+Actual TERM was sent to the Local/System controllers on both guests after a
+live IOC was observed. All four controller results remained nonzero, and
+producer termination, evidence collection and independent restoration passed.
+An additional real filesystem denial caused suite preparation exit 1 and
+archive exit 2; the controller remained failed and still restored System
+state. Its initial result checker expected the child path, while mkdir
+reported the inaccessible parent. The corrected assessment checks the retained
+actual output; it does not rerun or replace the execution. No outer-timeout
+injection is claimed.
+
+Final task-account removal succeeded. The first fresh administrator readback
+found timestamp differences only; content, identity, permissions and extended
+attributes agreed. The original manifests were not changed. A new administrator
+connection restored those times, ran the unchanged 82-check readback successfully,
+then restored access times changed by the observer itself. All 56 original
+metadata paths matched at that checkpoint on each VM. Later SSH/PAM/sudo access
+and runtime-session lifecycle can change those timestamps again. The task
+private key was removed after both results passed. Retained users, build/log
+evidence and disks remain. Both final reviews accepted this checkpoint and its
+limits. The provider subsequently confirmed normal shutdown of both VMs with
+retained definitions, disks and evidence; the closure observation is below.
+
+The earlier System source/baseline archive commands captured only empty task
+directories because sudo did not preserve TMPDIR. The actual retained suite
+workspaces were subsequently archived and bound to the real suite logs;
+`*-actual-workspace.stdout` and their binding JSON support those comparisons.
+The incomplete archives remain excluded. All execution details and failed
+attempts are retained under the private evidence root named above.
+
+###### Final Implementation Acceptance: 2026-10-16
+
+Second-person fup20261016_201400 and third-person fup20261016_201727 each complete
+the second implementation pass and the single correction/follow-up cycle.
+The ADR markerless-deadline condition and remote-producer absence before System
+restoration are verified resolved. No concrete in-scope defect or review
+decision remains. Both lanes checked the same eighteen repository paths,
+twenty-two controllers and eighty-four evidence bindings in implementation-review-r2.
+The retained formal handoff is hand20261016_200900; its pending-review statements
+describe that earlier checkpoint and are superseded by this acceptance.
+Convergence: `work/review_sessions/20261013_083800_m8-partial-completion/convergence/conv20261016_202522_codex_root_m14_implementation_acceptance.md`.
+
+The two current FAQ comparisons are accepted as Matches within the declared
+severity-overlap correction, based on the exact captured text and actual native
+and controlled-log evidence. Their final record preserves the original
+Mismatch comparisons and draft without replacing historical aggregate counts.
+No whole-book semantic resweep, general module-health result, new-candidate
+Gate PASS, production verification, outer-timeout injection or St04 result is
+claimed. Review and execution acceptance do not close repository landing,
+issue #165, M8 or the overall review session.
+
+###### Native Preparation And Initial Execution: 2026-10-16
+
+Unchanged StreamDevice commit `668d1d525509604ab4ccd7382022dfb469c99841`
+built its real `src.install` library/DBD target against each guest's existing
+Base/asyn. Native DBD registration, library resolution and generated-IOC linkage
+were checked. The top-level example application failed to link its VXI11
+registrar; that failed build remains separate evidence, not a full-build PASS.
+No module source or generated main/DBD was replaced.
+
+The original full runner at `eb396aba52a0a2955cf1cd9c027e43e0788feeb8` returned
+1 for both genuine pre-marker placements on each OS even though the original
+IOC reached readiness and answered its console. The post-marker placement
+returned 0 with the previous warning. The candidate returned qualified 0 with
+the actual conversion line for all three placements on each guest. Native
+record observations were UDF/INVALID before readiness and CALC/INVALID after
+processing, with NORD=1 and PACT=0. These are failed output functions, not
+module-health PASS results.
+
+The baseline and candidate prerequisite controllers each restored the Local
+shared-asset absence/metadata manifest through separate administrator access.
+The first whole-suite attempt failed before suite startup because its new
+parent directory was not traversable by the test account. Its independent
+Local cleanup and tmpfs unmount both passed on each guest. After correcting
+that task-directory mode, the full Local source suites started. Earlier failed
+commands and incomplete evidence archives remain retained; only the successful
+complete archives support the prerequisite observations.
+
+Execution records, frozen inputs, stdout/stderr, exit codes and recovery
+records are under `work/m14-execution-20261016T180600Z/`. At this initial
+checkpoint, no final shutdown or account-removal result was yet available;
+the complete execution and final acceptance entries above record later results.
+
+###### Preparation Observation: 2026-10-16
+
+The provider restarted the retained Debian 13 and Rocky 8.10 guests. Fresh
+requester SSH checks confirmed administrator access and `sudo -n id -u=0`.
+Both have EPICS Base, native build tools, asyn libraries/DBDs and the original
+generator revision. Neither root filesystem search found `libstream.so`,
+`libstream.a`, `stream.dbd` or `devaaoStream.c`. The retained startup RELEASE
+contains the earlier retools/caPutLog/iocStats/PVXS paths, with no STREAM
+assignment. This is a preparation failure, not an IOC or runner result.
+
+The only retained non-administrator login account has home `/nonexistent`;
+there is no retained test home or SSH setup satisfying the prescribed Local
+operator path. No linger entries exist. The administrator remains usable.
+The default installed runner is absent, which must be preserved as an absence
+entry during the already planned deployment/restoration. Existing system
+configuration evidence remains intact. A template-name-only `systemctl show`
+probe was rejected; that output establishes no service state.
+
+Private evidence: `debian13-preflight.*`, `rocky8-preflight.*`,
+`debian13-dependency-locations.*`, `rocky8-dependency-locations.*` under
+`work/m14-execution-20261016T174408Z/`. Each command input, argv, timestamps,
+stdout, stderr and exit status is retained. The first probes returned 1 at
+the missing default-runner hash check; the subsequent location/account probes
+returned 0 with empty StreamDevice searches. None is a passed T1-T5 test.
+No package, build, IOC, test suite, account or configuration mutation ran.
+
+The provider's matching final reply and closure record at
+2026-10-16T17:54:56Z report both normal shutdown commands returned 0 and both
+guest states are shut off. Definitions, disks, seed files, reservations,
+pinned keys and evidence were retained. The record limits NVRAM evidence to
+its unchanged definition reference; it claims no privileged content hash.
+Private copies `provider-handoff.json`, `provider-closed.json` and their source
+hash record `provider-evidence.json` preserve this resource window. No guest
+application-state rollback was needed because only read-only checks ran;
+the required T4 normal/assertion/TERM recovery remains unexecuted.
+
+###### Accepted Preparation Amendment: 2026-10-16
+
+The owner selected option 1 after the observed prerequisite failure. The following
+bounded preparation is accepted and authorized in plan20261016_180600 and
+auth20261016_180600, together with the unchanged P002-P006 and T1-T5:
+
+1. On each retained VM, export unchanged StreamDevice revision
+   `668d1d525509604ab4ccd7382022dfb469c99841` into a new task workspace and build
+   it against that guest's existing Base/asyn. Set only build configuration
+   and trusted RELEASE inputs. Keep module source, the generated IOC main/DBD
+   and the fault stimulus unchanged. Check library hashes, DBD registration
+   and the actual conversion path before any product edit. No system package
+   installation or other-repository edit is proposed.
+2. Create one new temporary Local test account per guest, with its home and
+   SSH key restricted to the task. Enable linger only for that new account.
+   Keep the existing administrator for System/recovery and the shipped matrix;
+   preserve the matrix caller's shared assets as already required. Capture
+   original account databases and metadata, then verify real SSH/user-manager
+   access. Do not modify the retained account, shared SSH policy or existing
+   linger entries. After verification, remove only the new account/key/linger
+   state, restore original metadata, and preserve logs and build evidence.
+
+Run preparation as the retained administrator; compile as its non-root account.
+Use the original native generator and actual module implementation. Task-local
+source/build inputs and outputs are retained as evidence. Validate recovery
+inputs before account or shared-asset changes, and exercise the actual controller
+on normal, assertion-failure and TERM exits. Existing scanner and T1-T5 contracts
+remain unchanged. No repeated approval question is required within this scope.
 
 ##### Closure Evidence
 
-None.
+Technical implementation and bounded T1-T5 evidence were accepted by both
+final reviewers on 2026-10-16. Original-state recovery and temporary-resource
+removal passed the independent checks recorded in final-cleanup-r2.json.
+
+The provider observed both retained guests normally shut off at
+2026-10-16T20:23:51Z; both shipped shutdown commands returned 0. The matching
+final reply and private closure record were checked at 20:26:04 UTC. The
+record confirms unchanged domain identities/definitions, retained disk and
+seed files, creation records, reservations, pinned keys and captured evidence.
+NVRAM preservation is limited to its unchanged definition reference; no
+privileged content hash is claimed. Original application state was restored
+before shutdown, with the timestamp checkpoint limits recorded above.
+Private evidence: provider-closure.json and provider-closure-observation.json
+under `work/m14-execution-20261016T180600Z/`. The retained provider record hash
+is `2b16856c09e9a684b24bafd2d8814c051e356980defc0d71fe599b06e8a99c63`.
+
+P001-P006 and bounded T1-T5 are complete within the authorized implementation,
+verification and restoration scope. Repository landing and issue #165 body
+reconciliation/observed closure remain outstanding; M14 is In progress.
+No new-candidate Gate PASS, M8 closure or session closure is implied.
 
 ##### GitHub Projection
 
