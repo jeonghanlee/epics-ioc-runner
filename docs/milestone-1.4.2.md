@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Prepare M14 repository landing, then reconcile and close issue #165 under separate Git/GitHub authority.
+Next session entry point: Resume the remaining M8 acceptance conditions after verifying the M14 completion record is in Git.
 The authorized M14 implementation and runtime verification have finished.
 Complete source/installed Local and System suites passed on both OS families;
 the unchanged baseline failed exactly the same 46 added assertions per run,
@@ -28,8 +28,13 @@ corrections and bounded T1-T5 evidence. C00700/C00722 now match within the
 declared severity-overlap correction; the historical aggregate is unchanged.
 Both VMs were normally shut off at 20:23:51 UTC with disks and evidence retained;
 the matching provider response and private record were checked at 20:26:04 UTC.
-M14 stays In progress for repository landing and issue #165 reconciliation/closure;
-no commit, push, issue mutation or M8 closure occurred.
+M14 is Complete. Commit `53f80f4c077e9ad4aeee25fb97ffd70cb0d3d771` is on
+`origin/release-1.4.2`; all eighteen committed files match the prepared contents.
+Local HEAD, upstream and the live remote matched at 2026-10-17T00:30:13Z.
+Issue #165's body and completion comment are reconciled; CLOSED/COMPLETED
+was verified at 2026-10-17T01:44:01Z after closure at 01:42:58 UTC.
+At that issue-closure checkpoint, this completion record was not yet committed.
+M8 and release gates remain open.
 Current private evidence: `work/m14-execution-20261016T180600Z/`.
 
 M12 is Complete; issue #167's body and completion comment are reconciled,
@@ -44,7 +49,7 @@ all eight committed paths match the accepted contents. Issue #167 closed at
 as `eb396aba52a0a2955cf1cd9c027e43e0788feeb8`; local HEAD, upstream and the live
 remote matched at 08:35:02 UTC. Evidence: `completion-record-landing.json`
 under the M12 evidence root below.
-Current milestone totals: 12 Complete, 2 In progress and 0 Not started.
+Current milestone totals: 13 Complete, 1 In progress and 0 Not started.
 External gates remain G1 Complete and G2 Open; other work is unchanged.
 Evidence: `work/m12-execution-20261016T033000Z/`.
 M11 is Complete: commit
@@ -76,7 +81,7 @@ user/group guard are retained as internal design documentation; both rejection
 branches remain unexecuted. Both documentation corrections are complete after
 the combined final second-person review on 2026-10-14.
 C01365 remains native St04 unobserved and needs a disposition. M14 is tracked
-by #165 and is In progress; its C00700/C00722 current comparisons were accepted
+by closed issue #165 and is Complete; its C00700/C00722 current comparisons were accepted
 on 2026-10-16 as Matches within the declared severity-overlap correction.
 The original Mismatch records remain historical. Before
 requesting or reusing a VM, read [VM Preparation and
@@ -130,7 +135,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Complete | — | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
 | Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Complete | No | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
-| Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | In progress | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
+| Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Complete | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 
@@ -14069,7 +14074,7 @@ Current acceptance is bound to runner SHA256 `0f373a34f027c045abb1d735702c75e926
 Origin: 1.4.2 / M14
 Identity History: none
 GitHub Issue: [#165](https://github.com/jeonghanlee/epics-ioc-runner/issues/165)
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -14794,20 +14799,38 @@ under `work/m14-execution-20261016T180600Z/`. The retained provider record hash
 is `2b16856c09e9a684b24bafd2d8814c051e356980defc0d71fe599b06e8a99c63`.
 
 P001-P006 and bounded T1-T5 are complete within the authorized implementation,
-verification and restoration scope. Repository landing and issue #165 body
-reconciliation/observed closure remain outstanding; M14 is In progress.
+verification and restoration scope. Commit
+`53f80f4c077e9ad4aeee25fb97ffd70cb0d3d771` was pushed to `release-1.4.2`;
+all eighteen committed files match the prepared contents. Local HEAD, fetched
+upstream and the live remote matched at 2026-10-17T00:30:13Z. The owner separately
+delegated the prepared issue-body update, completion comment and closure.
+Issue #165 closed as completed at 2026-10-17T01:42:58Z. The readback verified
+CLOSED/COMPLETED, the exact prepared body and comment, all six satisfied
+acceptance checkboxes, and unchanged label/milestone/assignee at 01:44:01 UTC.
+
+M14 is Complete. Recheck the external state with
+`gh issue view 165 --repo jeonghanlee/epics-ioc-runner` or the issue API's
+`state` and `state_reason` fields. Private evidence: repository-landing.json
+and issue-closure-r1.json under `work/m14-execution-20261016T180600Z/`.
+The closure record SHA-256 is
+`834076dc2b6bf251d636ea34aafb30cde21b524cc64598be108e1ba1220f7b34`.
+At the issue-closure checkpoint, this completion record was not yet committed.
 No new-candidate Gate PASS, M8 closure or session closure is implied.
 
 ##### GitHub Projection
 
 Title: Distinguish fatal severity logs from IOC initialization failure
-Labels: bug (verified on 2026-10-14)
-GitHub Milestone: 1.4.2 (number 19; open, verified on 2026-10-14)
-Observed State: OPEN
+Labels: bug (verified on 2026-10-17)
+GitHub Milestone: 1.4.2 (number 19; open, verified on 2026-10-17)
+Observed State: CLOSED
+Observed State Reason: COMPLETED
 Observed Labels: bug
 Observed Milestone: 1.4.2 (number 19)
-Last Compared: 2026-10-14; issue updated at 2026-10-14T20:07:26Z;
-body matched work/issue-startup-severity.md. Recheck with
+Observed Assignee: jeonghanlee
+Observed Closed At: 2026-10-17T01:42:58Z
+Last Compared: 2026-10-17T01:44:01Z; issue updated at 2026-10-17T01:42:58Z;
+body and completion comment exactly match work/issue-startup-severity-body.md
+and work/issue-startup-severity-close.md. Recheck with
 `gh issue view 165 --repo jeonghanlee/epics-ioc-runner`.
 
 #### G1 - Test fixture account `opc` in `ioc` with linger
