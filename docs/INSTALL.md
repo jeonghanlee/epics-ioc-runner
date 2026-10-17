@@ -136,8 +136,9 @@ Docker tmpfs mounted at `/run`, include `exec` in its mount options; `noexec`
 prevents s6 from executing the generated `run` scripts.
 
 An enabled service's generated `run` script creates its configured socket
-parent before starting procServ, with the service user and group and mode
-`0770`. Directory preparation failure prints an error and exits 1 before
+parent before starting procServ, using the
+[console socket permissions](PERMISSION_MODEL.md#console-socket-permissions).
+Directory preparation failure prints an error and exits 1 before
 procServ runs. No earlier CLI `start` is required for automatic startup.
 Only directory preparation uses a fixed command search path; procServ and
 the IOC inherit the supervisor's `PATH`, including EPICS tool directories.

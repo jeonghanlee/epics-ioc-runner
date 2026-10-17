@@ -69,9 +69,11 @@ The runner prints `IOC '<ioc_boot_dir>' successfully started.`, and
 
 ### Deployment directory requirement
 
-In system mode the IOC runs as `ioc-srv` and writes runtime files, such as
-`.iocsh_history`, autosave files, and save/restore snapshots, to its working
-directory. `IOC_CHDIR` must therefore be writable by `ioc-srv`.
+In system mode the IOC runs as `ioc-srv`, with `IOC_CHDIR` as its initial
+working directory. `IOC_CHDIR` must be writable by `ioc-srv`.
+Also check that `ioc-srv` can write to each
+[configured runtime-file destination](FAQ.md#can-i-deploy-iocs-from-personal-directories),
+which can differ from `IOC_CHDIR`.
 
 The shared `/opt/epics-iocs` tree carries a default ACL, described in
 [INSTALL.md](INSTALL.md#shared-deployment-directory-setup-optepics-iocs),

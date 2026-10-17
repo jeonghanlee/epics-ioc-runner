@@ -7,7 +7,29 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Resume the remaining M8 acceptance conditions after verifying the M14 completion record is in Git.
+Next session entry point: Resolve the held native St04 condition before closing M8; the current statement/evidence reconciliation is finished, and the accepted documentation still needs repository landing.
+The M14 completion record landed as
+`204443249be4459705069c2776cdacf91ca3ab04`; recorded HEAD, upstream and live
+remote observations agree. The current M8 candidate changes only three public
+pages: socket-permission definitions are linked to their authoritative table,
+and runtime-file destinations are distinguished from the initial working
+directory. Its primary book build, local links, full T5 reader pass and
+corrected T6 pass are accepted. T4's ASCII, address, history-word and complete
+surface-coverage checks are accepted: 358 covered entries and two documented
+public-coverage exclusions. These are inventory entries, not runtime passes.
+T3 now has reviewed evidence connections for all 1942 current source segments
+and all 1832 historical IDs, with each actual case's limits retained. These
+are evidence connections, not passed-test counts. The 108 current delta clauses
+have 79 Verified, 21 Source-only and eight Not executable dispositions.
+Four additional Local installed-CLI starts passed on Debian 13 and Rocky 8:
+clean success and a bare built-in phrase warning on each OS. Both reviewers
+accepted these four cases and their restoration; both VMs were normally shut
+off with evidence retained. Native St04 remains held and Partial. The two
+internal guards remain source-only, and historical aggregate counts are
+unchanged. M8 remains In progress; no unconditional T3 PASS is claimed.
+Current M8 evidence: `work/m8-final-candidate-20261017T041421Z/` and the
+20261017T042136Z source snapshot named in M8 Verification Results.
+
 The authorized M14 implementation and runtime verification have finished.
 Complete source/installed Local and System suites passed on both OS families;
 the unchanged baseline failed exactly the same 46 added assertions per run,
@@ -4608,8 +4630,139 @@ whole-book T1-T6 closure and the remaining native cases stay open.
 
 ##### Verification Results
 
+###### Current candidate: 2026-10-17
+
+The source snapshot is
+`work/m8-verification-runs/20261017T042136Z-2044432-source-refresh/`,
+based on commit `204443249be4459705069c2776cdacf91ca3ab04` plus the accepted
+INSTALL, ARCHITECTURE and USER_GUIDE corrections. Its source manifest SHA-256
+is `38470af2bc942486465c3652f72571fa509d8dca9b6f8fa33283ebaf5ed2c7a0`;
+the 215-member capture manifest is
+`984aff7f635325060927d1f9d62dafb8acf5a13b3a0bceec00aa0adadc81dcfa`.
+The image is
+`sha256:2b53e59ebf0edf2913e0636ff2e31351f0f0c4c7593fb51d1f22b4b629173015`.
+These identities describe the frozen candidate; this later canonical evidence
+record is not represented as part of that earlier source capture.
+
+The accepted corrections remove duplicate socket-permission definitions and
+the claim that every runtime file is written to IOC_CHDIR. The latter remains
+the initial working directory, while each configured destination needs the
+service account's write access. No product, test fixture or command example
+changed. The primary book is warning-free. The supplemental out-of-book build
+retains two milestone placeholder warnings and is not called warning-free.
+
+Retained execution evidence was reopened, not rerun. M10's seven bindings
+cover nine historical IDs; both OS records contain 281 installed completion
+checks and twelve source/installed help calls. Current setup, launcher and
+completion bytes match the executed inputs; the runner help function also
+matches. The initial transfer archive contains an earlier setup test helper;
+both correction-transfer records identify the current helper bytes, followed
+by 44 passing S27 assertions per OS in the corrected whole-suite records.
+The earlier archive is not used as the corrected execution identity. This
+correction is recorded in
+`work/m8-final-candidate-20261017T041421Z/m10-corrected-helper-provenance.json`
+(SHA-256 `8059437cb973bfc38c6d4366fc24bf349d370e69af37132875abce0a6e446af8`).
+Individual parser-stream digests remain distinct from the locally retained
+direct-help output and actual fixture assertion records. M12's two OS
+archives retain 240 manual checks and four finite logout observations; current
+linger, install and dispatch code agrees with the relevant executed code.
+M14 evidence retains 72 current and 36 baseline genuine severity observations.
+Separate rechecks of the eight current source/installed System/Local runs
+cover 96 original generated-startup observations and 184 controlled outer
+log-filesystem observations. The latter remain controlled inputs, not genuine
+module faults. Source identity and hash checks are not additional runtime tests.
+
+All 25 changed historical text rows have current document/evidence links in
+`changed-statement-crosswalk.json` under the current M8 evidence root.
+The other 1807 historical texts remain locatable after whitespace
+normalization, which does not establish reusable behavioral evidence.
+The 39 distinct changed implementation-reference excerpts were reconciled at
+clause level: the third reviewer accepted an initial 39 historical IDs and
+completed the remaining 319; the second reviewer completed the other 1474
+IDs. All 1832 have an explicit current connection or retained limitation.
+The latter review distinguishes 827 retained-execution connections, 634
+reference-only or non-executable clauses, ten current-delta precedence rows,
+two source-only internal contracts and one held native St04 condition.
+These are evidence-review counts, not new runtime-test counts.
+The historical 1832-row aggregate remains unchanged. C00153/C01455 retain
+their accepted internal-contract treatment, and native St04 remains held.
+
+The current 108-row delta review accepts 79 Verified, 21 Source-only and
+eight Not executable rows after both reviewers accepted the four native
+phrase conditions. These are current statement dispositions, not additional
+runtime-test counts. All 330 retained manifests were rechecked: 11495 entries
+match and no filename evidence reference remains unresolved. File integrity
+alone does not establish behavioral applicability.
+The 1942 raw source candidates have complete reviewed connections: 1758 exact
+historical text matches, 108 current deltas, 74 narrower segments and two
+composites. Repeated headings and separators add no execution. The explicit
+composite supplement preserves the indicated C01418/C01419 sentence boundaries.
+Current delta dispositions govern overlapping historical wording; all original
+failed runs, comparisons and case limits remain intact.
+The complete result is
+`work/m8-final-candidate-20261017T041421Z/current-reviewed-evidence.json`
+(SHA-256 `ed4923bce96f2332bbe57d478e198e6212b4351ea1cf6998e0952d676583aa39`).
+It contains the full per-ID reviewer records and source links; no current
+source segment is unlinked. Original protected Container generate files remain
+unreadable. Their reviewed applicability uses the actual common host path and
+actual Container consumers, without claiming a newly inspected Container
+failure matrix or a Rocky Container execution.
+
+A finite four-case batch used the current installed CLI, actual user managers,
+procServ and the original ServiceTestIOC revision
+`91d42b2ceadec81a065d4cdf35936dbb8d77e202` on Debian 13 and Rocky 8. Both healthy
+starts printed clean success. Appending `echo "Unbalanced quote"` to each
+original startup input produced the heuristic warning and matching-line display
+with exit 0; the supervisor and IOC stayed active and the console responded.
+This controlled input verifies message classification, not a genuine parser
+failure. The genuine parser-error observations remain separate. No new System
+or Container execution is claimed. Each installed CLI came from the actual
+CLI-only setup path with task-local destinations; the normalized installed
+runner matches the current source SHA-256
+`021c8c6a1829f0d208a3f60489c649478558777d03cddea71cda606c493a655c`.
+
+Both native runs restored the task startup input and user-directory metadata,
+removed task services and sockets, and passed fresh SSH unit readback and
+protected-file comparisons. Two earlier driver attempts stopped before IOC
+execution and remain excluded from the four successful cases. The provider
+confirmed normal shutdown of both guests at 2026-10-17T05:26:14Z with disks and
+evidence retained; the request and both result-file hashes match its private
+closure record. Evidence is under `work/m8-phrase-20261017T051638Z/`:
+`native-evidence.json` (SHA-256
+`fdd15ced951b9a3c1251487062261bf2c8516f6a0c3ff8a2f0841146c86a7bb2`),
+its 138-entry file manifest and `provider-closure-check.json`. Both existing
+reviewers accepted the actual cases, original inputs, output interpretation
+and restoration: rev20261017_053442 and rev20261017_055747 under the active M8
+session. D037, D056, D085 and D101 now have their formerly missing phrase
+condition. System applicability remains the reviewed common-code connection
+with actual prior System consumers; these four new executions are Local only.
+
+The first current-candidate T4 inventory review accepts all 354 historical
+entries: 352 covered, zero partial or missing, and two public-coverage
+exclusions. Six newly exposed aspects are explicitly mapped and covered,
+giving 360 entries in total: 358 covered and two excluded. Complete source
+reading covers the runner, setup, launcher and completion files, including
+embedded templates. All 1085 source/document bindings were rechecked against
+current file and slice hashes. These are static coverage results, not runtime
+passes. The accepted report and mapping are under the active M8 session:
+`reviews/rev20261017_044201_codex_third_m8_t4_surface.md` and
+`reviews/codex_third_t4_surface_mapping_20261017_044201.json` (SHA-256
+`59e7a1d3ab8b05eb3dd2679548af07e6f91423e83dde929fa6b72c81ac605dd2`).
+T3 evidence reconciliation is finished with the held native St04 condition
+explicit. An unconditional T3 PASS remains open. T1/T2/T4/T5/T6 acceptance
+and the completed evidence connections do not close M8, establish repository
+landing, or establish a new-candidate production Gate PASS.
+
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
+| T1 | 2026-10-17T04:21:37Z | Pinned mdBook image; corrected frozen source | Primary build exits 0 without warnings; 13 pages, 2226 inline spans and 109 fences match native HTML | work/m8-verification-runs/20261017T042136Z-2044432-source-refresh/ |
+| T2 | 2026-10-17T04:21:54Z | Actual rendered primary and supplemental pages | All 181 local references across 22 sources resolve; 8 external references excluded | work/m8-verification-runs/20261017T042153Z-2044432-final-book-checks/ |
+| T4 | 2026-10-17T04:42:01Z | Corrected candidate; actual static outputs and independent complete source reading | ASCII and address checks pass; 51 history-word hits accepted. Inventory: 358 covered, two excluded, zero partial or missing; no runtime promotion | work/m8-final-candidate-20261017T041421Z/corrected-history-word-assessment.json; rev20261017_044201 and its mapping under the active M8 session |
+| T6 | 2026-10-17T04:24:00Z | Full initial target plus complete corrected-page reading | Two document defects corrected and accepted; second T6 pass concludes the one correction-and-rereview cycle | reviews/fup20261017_042400_codex_third_on_rev20261017_041800.md under the active M8 session |
+| T5 | 2026-10-17T04:34:59Z | All 13 pages, SUMMARY and complete CHANGELOG 1.1.0 Migration | First final-candidate reader pass accepted; no concrete C1-C4 finding | reviews/rev20261017_043459_codex_second_m8_whole_book.md under the active M8 session |
+| T3 | 2026-10-17T05:58:32Z | Current frozen source, actual retained executions and both native phrase reviews | All 1942 current segments and 1832 historical IDs linked with explicit case limits; current delta 79 Verified, 21 Source-only, eight Not executable. Four actual new starts accepted; native St04 remains held and Partial | work/m8-final-candidate-20261017T041421Z/current-reviewed-evidence.json; rev20261017_050040, rev20261017_052728, rev20261017_055535, rev20261017_053442 and rev20261017_055747 under the active M8 session |
+| T3 | 2026-10-17T05:26:14Z | Debian 13 and Rocky 8; actual Local installed CLI, original ServiceTestIOC, native systemd/procServ | Four starts pass; healthy success and bare-phrase warning with exit 0 on both OS. Restoration and normal VM shutdown verified; independent applicability review pending | work/m8-phrase-20261017T051638Z/ |
+| T3 | 2026-10-17T04:38:24Z | Retained actual Debian/Rocky execution records; current source identities | Bounded evidence rechecked and changed statements linked; whole current statement/case reconciliation remains incomplete; no native rerun | work/m8-final-candidate-20261017T041421Z/ |
 | T3 | 2026-10-14T16:06:56.903809+00:00 | Debian13 and Rocky8 native managers; genuine systemctl 232/239/257 | Genuine numeric systemctl input verified; 1 clauses reassessed | work/m8-verification-runs/20261014T160656Z-a07af08-numeric-client-verified/result.md |
 | T3 | 2026-10-14T09:51:47.968251+00:00 | Retained native execution records | Remaining 68 comparison disposition; 0 clauses reassessed | work/m8-verification-runs/20261014T095147Z-a07af08-remaining68-disposition/result.md |
 | T3 | 2026-10-14T09:51:01.880607+00:00 | Retained native execution records | Two reviewed native session comparisons; 2 clauses reassessed | work/m8-verification-runs/20261014T095101Z-a07af08-remaining-session-two-accepted/result.md |
