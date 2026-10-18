@@ -14,6 +14,7 @@ closed catalog with that CSV before environment preflight.
 
 | Suite | Script | Scope | Runner | Category | Inventory |
 | --- | --- | --- | --- | --- | --- |
+| container-lifecycle | test-container-lifecycle.bash | container | source or installed | lifecycle-behavior | CONTAINER_LIFECYCLE_INVENTORY.md |
 | error-handling | test-error-handling.bash | none | source | error-contract | ERROR_HANDLING_INVENTORY.md |
 | list-states | test-list-states.bash | local or system | source or installed | lifecycle-behavior | [LIST_STATES_INVENTORY.md](LIST_STATES_INVENTORY.md) |
 | local-lifecycle | test-local-lifecycle.bash | local | source or installed | lifecycle-behavior | LOCAL_LIFECYCLE_INVENTORY.md |
@@ -27,6 +28,11 @@ complete machine-record file validated against the producer exit status and
 keeps child human output outside that validation boundary.
 
 ## Fixed-Vector Rules
+
+Standalone installation boundary regressions in `test-install-boundaries.bash`
+report per-case assertion totals and native CLI evidence as described in
+`tests/README.md`. They do not emit shared `TEST`/`STEP`/`SUITE` records and
+are outside the suite counts in `reporting-counts.csv`.
 
 - Every suite declares its complete ordered identity set before the first
   environment probe or behavior check.
