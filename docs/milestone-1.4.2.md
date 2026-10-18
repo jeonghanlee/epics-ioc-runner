@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: `docs/milestone-1.4.2.md`, prepare the completion-record commit. M8 verification is complete under D15; keep M15 Deferred in Backlog and G2 Open.
+Next session entry point: `docs/milestone-1.4.2.md`, prepare the M16 commit when requested. Its implementation, targeted verification, and disposable-container cleanup are finished; landing evidence is pending. M8 remains Complete under D15; M15 remains Deferred and G2 remains Open.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -23,10 +23,10 @@ T1/T2/T4/T5/T6 acceptance, reconciled T3 evidence and landed public documents
 support M8 closure. The two internal guards retain their accepted source-only
 treatment. G2 remains the independent release-bake gate.
 
-Current milestone totals: 14 Complete, 0 In progress and 0 Not started.
+Current milestone totals: 14 Complete, 1 In progress and 0 Not started.
 External gates: G1 Complete and G2 Open. Backlog: one Deferred item, M15,
-excluded from the release tally. The completion record is not yet committed;
-the public deliverables are in `ef92f116df92d8a9dffdb9005ddbf0bd804380c5`.
+excluded from the release tally. The M8 completion record is committed in
+`2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16 changes are not yet committed.
 
 ### Prior checkpoints before D15
 
@@ -212,6 +212,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Complete | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
+| Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | In progress | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass and temporary containers are removed; landing evidence pending; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
 
 ### Decisions
 
@@ -15701,6 +15702,136 @@ Observed on 2026-09-28 (UTC):
 ##### Closure Evidence
 
 None.
+
+#### M16 - Align policy examples, reporting, and mode-specific installation
+
+Origin: 1.4.2 / M16
+Identity History: none
+GitHub Issue: none
+Status: In progress
+
+##### Summary
+
+Align the Rocky sudoers example with the documented authorization boundary,
+accept Container machine records in the shared validator, and pass the
+Container scan directory consistently through the test harness. Enforce the
+local rotation best-effort contract for file writes and replacements, and
+limit site.env validation to the System and Local modes defined by ADR 0003.
+
+##### Scope
+
+- The five candidates reviewed at `2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`.
+- The unused SC_TOP variable reported by ShellCheck in test-system-infra.bash.
+- Regression coverage, affected operator/test documentation, and this record.
+
+Out of scope: changes to sudo grants, Container environment loading, production
+deployment, the release Gate, and the deferred live socket observation in M15.
+
+##### Completion Criteria
+
+- The policy example states the same wildcard scope as PERMISSION_MODEL.md.
+- Real reporter output for each supported suite passes the actual validator;
+  malformed records remain rejected.
+- The shipped Container harness passes with its default and custom scan paths,
+  and its real Container records pass the corrected validator.
+- Native filesystem write/replacement faults reach the full Local install CLI;
+  install returns zero with a rotation warning, retains its IOC configuration,
+  and removes rotation staging files. Normal installation still deploys rotation.
+- Container install ignores malformed unused site.env; System and Local
+  install continue to reject malformed site.env before deployment.
+- Required static checks pass and source changes have landing evidence.
+
+##### Dependencies And Decisions
+
+- Decision Date: 2026-10-18. Apply all five review candidates and the reported
+  lint warning. The site.env correction follows ADR 0003's existing mode scope.
+- No G2 dependency: these are local targeted checks, not release acceptance.
+- Existing M8 completion, M15 deferral, and CLOSED_DOORS decisions remain valid.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-10-18, owner direction to apply all reported review items
+Implementation Authorization: 2026-10-18, owner direction to apply all reported review items
+Superseded Plan Artifacts: none
+
+1. Correct the policy example and reporting inventory; remove the unused variable.
+2. Extend reporter-to-validator regression inputs to cover supported suites;
+   reproduce the Container category rejection and correct its missing mapping.
+3. Forward the resolved scan path as a Container environment variable and use
+   that variable inside the container shell without interpolating path data.
+4. Reproduce rotation failures through actual filesystem boundaries, guard
+   writes and replacements, preserve reload tracking after partial deployment,
+   and remove remaining staging files before returning a warning.
+5. Restrict site.env checking to its consuming modes, update documentation,
+   and execute the normal and failure cases below.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Static | Bash syntax, ShellCheck warning gate and full inventory, diff whitespace and policy/docs comparison | Current checkout | No syntax/whitespace errors or warning-level findings |
+| T2 | Reporting API | Existing self-tests plus actual reporter-to-validator records for every supported suite | Host, private retained workspace | All supported dimensions accepted; malformed records rejected; pre-fix Container rejection observed |
+| T3 | Integration | Full run-container-tests.bash with real softIoc, s6 and procServ; consume actual machine output separately | Disposable Debian 13 and Rocky 8 containers, default/custom scan paths | Both path choices pass; pre-fix custom-path failure retained; machine consumer accepts actual output |
+| T4 | CLI/filesystem | Full Local install with real tools, a full small tmpfs and a nonreplaceable destination, plus normal control | Disposable container, private directories | Actual fault observed; IOC install succeeds with warning and no staging residue; normal rotation deploys |
+| T5 | CLI | Malformed site.env through full Container/System/Local install | Disposable container and isolated fixture paths | Container accepts; System and Local reject before IOC deployment |
+| T6 | Error-contract regression | Existing test-error-handling.bash, including console-client isolation; validate its actual machine records | Non-root account in disposable Debian 13 container with user and mount namespaces | All 536 catalog entries pass without skipped checks; validator accepts the records |
+
+Evidence: `work/m16-coherence-20261018/`, including the unmodified baseline
+archive, raw stdout/stderr, native exit codes, source hashes and final summaries.
+These are bounded installation/reporting checks: no duration, throughput, or
+long-running observation claim. Each case retains final evidence before the
+disposable container is removed. Resource faults must be visible in command
+output and resulting files; missing exposure is Incomplete. T3-T5 replace no
+internal product function or service tool. T6 retains the existing error
+suite's external-tool fixtures and establishes error-contract regression
+coverage, not native IOC lifecycle coverage. Synthetic reporter inputs in T2
+test only the reporting API; they are not IOC execution results. Stop on
+unexpected host changes, fixture conflicts, missing prerequisites, or incomplete
+capture.
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-10-18 UTC | Host, Bash source inventory and ShellCheck 0.10.0 | Passed | All 90 Bash files pass syntax checks; `shellcheck -s bash -S warning` exits 0. The complete plain-ShellCheck inventory was read; its exit 1 contains info/style findings. Policy directives match the baseline after excluding comments. `git diff --check` and the operator mdBook build pass. Evidence: `static-results.json`, `shellcheck-*.log`, `book.*` under the evidence root. |
+| T2 | 2026-10-18 UTC | Host, actual reporter and validator | Passed | Validator 118/118, reporter 118/118, counts 8/8. All 13 supported suite/scope/runner combinations are accepted and malformed-record regressions remain rejected. The pre-fix validator fails six assertions for Container source/installed records. Evidence: `validator-before.*`, `validator-after.*`, `reporter.*`, `counts.*`. |
+| T3 | 2026-10-18 UTC | Disposable Debian 13 and Rocky 8 containers | Passed | Default and custom scan paths pass 75/75 on each OS: four runs, 300 assertions. A separate real Container run emits 75 PASS records; the corrected validator accepts those bytes and the baseline validator rejects them. The baseline custom-path run fails its supervisor prerequisite. Evidence: `container-default/`, `container-custom/`, `container-records/`, `baseline-custom/`. |
+| T4 | 2026-10-18T21:02:35Z | Disposable Debian 13 container, native filesystem and tools | Passed | Five Local cases pass 31/31 assertions: normal, full tmpfs, denied replacement, existing-template partial deployment, and destination directory. ENOSPC and EPERM reach the full CLI; install returns 0 with a warning, retains its IOC configuration, and leaves no rotation staging files. The existing-template trace shows a real daemon-reload request after a timer replacement and a later service replacement failure. Evidence: `native-final/`; failing baseline controls in `native-baseline/`. |
+| T5 | 2026-10-18T21:02:35Z | Same disposable Debian 13 container | Passed | Three cases pass 13/13 assertions. Malformed site.env causes System/Local install to exit 1 before IOC configuration deployment. Container install exits 0, preserves the unused file, and renders its run script. The baseline Container install rejects the same malformed file. Evidence: `native-final/site-*`, `native-baseline/site-container.*`. |
+| T6 | 2026-10-18T21:08:00Z | Non-root account, disposable Debian 13 container | Passed | 536/536 PASS, no FAIL/SKIP/NA/SCRIPT_ERROR, native suite exit 0; the actual validator also exits 0. The original default-container run retains 533 PASS, one failed namespace prerequisite and two SKIP. The passing run permits namespaces only inside the disposable container through its seccomp/AppArmor settings. Evidence: `error-handling.*`, `namespace-probe.*`, `error-handling-namespaces.*`, and `error-handling-namespaces-validator.*`. |
+
+The native installation cases use Bash 5.2.37, logrotate 3.22.0, systemd
+257.13, procServ 2.9.0-dev, and the image's real softIoc. No running systemd
+user manager is claimed: the test observes reload requests, not a successful
+manager reload or timer execution. Full setup deploys the real system template
+but exits 1 at its final reload because systemd is not PID 1; Container setup
+exits 0. These preparation statuses remain separate from the eight passing
+installation cases.
+
+The corrected fixture preparations and the final fresh-container run determine
+T4/T5 acceptance; earlier incomplete preparations remain in the evidence root.
+The T6 suite's full machine and human streams are retained. Its wrapper exits
+1 only on an additional copy of the reporter workspace that the reporter had
+already removed; the copy error is preserved and is not counted as a product
+failure. `verification-summary.json` independently counts the saved records
+and links the native statuses. `container-provenance.json` records actual
+container IDs, image identity, and tool versions.
+
+##### Closure Evidence
+
+- Implementation and targeted verification are authorized; no new commit,
+  push, or GitHub mutation is part of this direction.
+- All five accepted corrections and the unused-variable cleanup are present.
+  The changed code, regression assertions, and operator/test instructions were
+  checked against the accepted scope. No independent reviewer acceptance is
+  claimed for this implementation pass.
+- At 2026-10-18T21:23:08Z, all four task-owned disposable containers are absent.
+  Three final filesystem archives and the raw test outputs remain under the
+  evidence root; `cleanup.json` records their identities and removal checks.
+- Verification is complete; Status remains In progress until repository
+  changes have landing evidence. M8, M15, and G2 are unchanged.
+- Landing evidence: pending.
 
 ## Backlog
 
