@@ -441,6 +441,13 @@ bash tests/run-container-tests.bash
 bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
 ```
 
+The Container harness passes `IOC_RUNNER_SCAN_DIR` to setup, the supervisor,
+the suite, and the runner. For a custom scan directory:
+
+```bash
+IOC_RUNNER_SCAN_DIR=/run/ioc-test bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
+```
+
 The separate boot regression uses native `s6-svscan` as PID 1 and restarts
 the actual container. It checks absent and existing socket parents, disabled
 services, service identity and permissions, and failure before procServ when
@@ -475,6 +482,69 @@ develop and iterate with `--source`, validate a finished install with
 `--installed` around the install step (`setup-system-infra.bash` /
 `make install`), run `--source-regression` for source-tree setup and metadata
 changes, and run the error suite once per code change.
+
+#### Installation filesystem and mode boundaries
+
+`test-install-boundaries.bash` runs the complete install CLI with native
+procServ, logrotate, systemctl, and filesystem operations. Run it as root
+only inside a disposable EPICS container with the repository mounted at
+`/repo` and a writable `/evidence` directory. It requires `EPICS_BASE`,
+`softIoc`, `runuser`, and the `m16check` account. Each case uses a fresh
+`/case/<case>` directory and refuses an existing boot fixture. It installs
+configuration but does not start an IOC or claim a working user systemd bus.
+
+From the repository root on the host, start a disposable Debian EPICS
+container with a retained evidence directory and the bounded tmpfs:
+
+```bash
+install_evidence=$(mktemp -d /tmp/ioc-install-evidence.XXXXXX)
+printf "Evidence: %s\n" "${install_evidence}"
+docker_args=(--rm -it --tmpfs /case/write/ioc-runner:rw,size=4096)
+docker_args+=(-v "$PWD:/repo:ro" -v "${install_evidence}:/evidence")
+docker run "${docker_args[@]}" jeonghanlee/debian13-epics:latest bash
+```
+
+Inside that container, prepare the real tools and service directories:
+
+```bash
+apt-get update
+apt-get install -y --no-install-recommends logrotate systemd sudo acl
+useradd -m m16check
+mkdir -p /evidence
+bash /repo/bin/setup-system-infra.bash --full
+IOC_RUNNER_SCAN_DIR=/run/m16-install bash /repo/bin/setup-system-infra.bash --container
+s6-svscan /run/m16-install &
+s6-svscanctl -z /run/m16-install
+export IOC_RUNNER_DISPOSABLE_CONTAINER=1
+```
+
+Full setup must create the actual system unit template for `site-system`;
+an unavailable system manager may reject its final reload. Check that the
+template exists before proceeding. Wait until `s6-svscanctl -z` returns zero
+before running `site-container`.
+
+```bash
+test -s /etc/systemd/system/epics-@.service
+bash /repo/tests/test-install-boundaries.bash normal /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash write /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash replace /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash replace-existing-template /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash directory /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash site-local /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash site-system /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash site-container /repo/bin/ioc-runner /evidence
+```
+
+Each test must exit zero and report `failed=0`. Native write and replacement
+faults must appear in the captured CLI stderr while the install exits zero,
+warns, and removes its staging files. The existing-template case also traces
+the real CLI to prove a changed rotation unit still requests a reload after
+a later replacement failure. System and Local reject malformed `site.env`;
+Container preserves it and installs successfully. Raw CLI outputs and statuses
+and the outer test status (`<case>.test-status`) are saved in `/evidence`.
+Exit the container after the checks; Docker removes it and the host evidence
+directory remains. Selecting an earlier complete runner file as the
+second argument applies the same checks to that implementation.
 
 ### 2. Run Individual Test Suites
 To isolate one suite manually:

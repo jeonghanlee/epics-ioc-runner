@@ -150,8 +150,13 @@ allowing the IOC installation to continue. System setup uses its own
   the edits. Site rotation policy belongs in a separate logrotate
   configuration.
 
-Rotation directory creation and configuration or unit staging failures each
-print a warning and skip rotation deployment without failing IOC installation.
+Rotation directory creation, staging, file-write, and replacement failures
+print a warning without failing IOC installation. A failed write skips
+deployment and removes the staged files. A failed replacement removes remaining
+staged files; files already replaced remain installed, and any changed unit
+still requests a daemon reload. A destination directory is rejected rather
+than receiving a staged file as a child. Correct the reported filesystem
+problem and repeat installation to finish rotation deployment.
 The staging files are created beside their intended destinations.
 Validation uses a temporary `.logrotate-validate-state.XXXXXX` under the rotation
 configuration directory, falling back to the system temporary directory and

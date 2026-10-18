@@ -993,6 +993,8 @@ function advise_local_linger {
 # logrotate, an invalid config, or an unreachable user bus only warns. Removal
 # is operator-managed (never-auto-remove); there is no --local uninstall verb.
 function deploy_local_logrotate {
+    local render_failed=0
+
     if ! resolve_logrotate_tool; then
         print_divider >&2
         printf "Warning: 'logrotate' not found; local log rotation is NOT installed.\n" >&2
@@ -1025,7 +1027,7 @@ function deploy_local_logrotate {
     # The config glob uses the resolved absolute LOG_DIR (same value baked into
     # the unit --logfile=), so procServ and logrotate never resolve to different
     # paths. maxsize needs logrotate >= 3.8.1 (both goldens ship well above it).
-    cat > "${tmp_cfg}" <<EOF
+    cat > "${tmp_cfg}" <<EOF || render_failed=1
 ${LOG_DIR}/*.log {
     weekly
     maxsize 50M
@@ -1042,7 +1044,7 @@ EOF
     # %t specifier resolves to /run/user/<uid> at unit-run time under the user
     # manager, keeping the logrotate state host-local (avoids a shared-NFS state
     # race) without resolving the path in the install shell.
-    cat > "${tmp_svc}" <<EOF
+    cat > "${tmp_svc}" <<EOF || render_failed=1
 [Unit]
 Description=Rotate procServ user logs (local mode)
 
@@ -1053,7 +1055,7 @@ Nice=10
 IOSchedulingClass=idle
 EOF
 
-    cat > "${tmp_tmr}" <<EOF
+    cat > "${tmp_tmr}" <<EOF || render_failed=1
 [Unit]
 Description=Hourly procServ user log rotation (local mode)
 
@@ -1065,6 +1067,12 @@ RandomizedDelaySec=5m
 [Install]
 WantedBy=timers.target
 EOF
+
+    if (( render_failed )); then
+        printf 'Warning: cannot write local log rotation files; rotation not installed.\n' >&2
+        rm -f -- "${tmp_cfg}" "${tmp_svc}" "${tmp_tmr}" || true
+        return 0
+    fi
 
     # Syntax-gate the generated config (dry run; writes no state). A failure here
     # warns and skips the deploy without aborting the IOC install -- unlike
@@ -1096,35 +1104,41 @@ EOF
     # DIFFERS goes to a single keep/update decision for the logrotate set
     # (M6/D10), because replacing it changes a unit shared by the user's other
     # IOCs. The daemon-reload is handed to do_install so exactly one runs.
-    local units_changed=0
+    local i=0
+    local -a staged=("${tmp_cfg}" "${tmp_svc}" "${tmp_tmr}")
+    local -a destinations=("${cfg_path}" "${svc_path}" "${tmr_path}")
     local -a diff_tmp=() diff_dst=() diff_unit=()
 
-    if [[ ! -f "${cfg_path}" ]]; then mv -f "${tmp_cfg}" "${cfg_path}"
-    elif cmp -s "${tmp_cfg}" "${cfg_path}"; then rm -f "${tmp_cfg}"
-    else diff_tmp+=("${tmp_cfg}"); diff_dst+=("${cfg_path}"); diff_unit+=(0); fi
-
-    if [[ ! -f "${svc_path}" ]]; then mv -f "${tmp_svc}" "${svc_path}"; units_changed=1
-    elif cmp -s "${tmp_svc}" "${svc_path}"; then rm -f "${tmp_svc}"
-    else diff_tmp+=("${tmp_svc}"); diff_dst+=("${svc_path}"); diff_unit+=(1); fi
-
-    if [[ ! -f "${tmr_path}" ]]; then mv -f "${tmp_tmr}" "${tmr_path}"; units_changed=1
-    elif cmp -s "${tmp_tmr}" "${tmr_path}"; then rm -f "${tmp_tmr}"
-    else diff_tmp+=("${tmp_tmr}"); diff_dst+=("${tmr_path}"); diff_unit+=(1); fi
+    for i in "${!staged[@]}"; do
+        if [[ ! -f "${destinations[$i]}" ]]; then
+            if ! mv -fT -- "${staged[$i]}" "${destinations[$i]}"; then
+                printf 'Warning: cannot deploy local log rotation file %s; rotation setup incomplete.\n' "${destinations[$i]}" >&2
+                rm -f -- "${staged[@]}" || true
+                return 0
+            fi
+            (( i == 0 )) || LOGROTATE_UNITS_CHANGED=1
+        elif cmp -s "${staged[$i]}" "${destinations[$i]}"; then
+            rm -f -- "${staged[$i]}" || true
+        else
+            diff_tmp+=("${staged[$i]}")
+            diff_dst+=("${destinations[$i]}")
+            diff_unit+=("$((i != 0))")
+        fi
+    done
 
     if (( ${#diff_dst[@]} )); then
         if decide_shared_asset_update "logrotate configuration and units"; then
-            local i
             for i in "${!diff_dst[@]}"; do
-                mv -f "${diff_tmp[$i]}" "${diff_dst[$i]}"
-                [[ "${diff_unit[$i]}" == 1 ]] && units_changed=1
+                if ! mv -fT -- "${diff_tmp[$i]}" "${diff_dst[$i]}"; then
+                    printf 'Warning: cannot deploy local log rotation file %s; rotation setup incomplete.\n' "${diff_dst[$i]}" >&2
+                    rm -f -- "${staged[@]}" || true
+                    return 0
+                fi
+                [[ "${diff_unit[$i]}" == 1 ]] && LOGROTATE_UNITS_CHANGED=1
             done
         else
-            rm -f "${diff_tmp[@]}"
+            rm -f -- "${diff_tmp[@]}" || true
         fi
-    fi
-
-    if (( units_changed )); then
-        LOGROTATE_UNITS_CHANGED=1
     fi
 
     # Arm the timer (enabled survives a manager restart). Guard on is-enabled so
@@ -2544,13 +2558,13 @@ function do_install {
         exit 1
     fi
 
-    # Grammar-check an optional site-wide environment file (ADR 0003). It is not
+    # Grammar-check the optional systemd site-wide environment file (ADR 0003). It is not
     # a conf -- it carries EPICS environment variables, not the IOC_* keys -- so
     # only the bounded parser must accept it; validate_conf's required-key check
     # would reject a legitimate site file. The unit template layers it under
     # %i.conf, so per-IOC keys still override it.
     local site_env_file="${CONF_DIR}/site.env"
-    if [[ -f "${site_env_file}" ]]; then
+    if [[ "${EXEC_MODE}" != "container" && -f "${site_env_file}" ]]; then
         if ! read_conf_all "${site_env_file}" site_env_map "${site_env_file}"; then
             printf "Error: Site environment file %s failed the grammar check.\n" "${site_env_file}" >&2
             exit 1

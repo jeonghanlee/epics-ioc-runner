@@ -61,7 +61,7 @@ per-IOC conf.
    `EnvironmentFile`-compatible `KEY=VALUE` grammar as the conf, but it is not a
    conf — it carries EPICS environment variables, not the `IOC_*` keys. It is
    therefore validated at the grammar layer only: when the file exists,
-   `install` checks that the bounded parser accepts it (`read_conf_all`, over
+   System and Local `install` check that the bounded parser accepts it (`read_conf_all`, over
    the single `parse_conf_file` grammar established by #113) and reports a
    syntax error if it does not. It is deliberately **not** run through
    `validate_conf`, whose required-key check

@@ -152,8 +152,9 @@ stop at the first invalid field.
    `IOC_PORT` is absent, the runner adds the standard value.
 6. The configuration directory exists and is writable. System and container
    mode require an administrator-created directory; local mode creates it.
-7. `site.env` in the configuration directory, when present, passes the same
-   grammar check as a configuration.
+7. System and Local modes: `site.env` in the configuration directory, when
+   present, passes the same grammar check as a configuration. Container mode
+   neither reads nor validates this systemd environment file.
 8. An existing `<name>.conf` is overwritten only after `Do you want to
    overwrite it? [y/N]`; `-f` answers yes. Refusal or closed input aborts
    with exit 1 before replacing the configuration or shared local assets.
