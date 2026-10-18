@@ -28,6 +28,10 @@ source with `setup-system-infra.bash --container`, starting `s6-svscan` on the
 scan directory so the container stdout carries the IOC output, and collecting
 each image's report and exit status.
 
+`IOC_RUNNER_SCAN_DIR` selects the scan directory for the harness, container
+setup, supervisor, suite, and runner. The harness passes its resolved value
+through Docker's environment so every consumer uses the same path.
+
 Deep `inspect` maps another account's file descriptors, so the container needs
 the `CAP_SYS_PTRACE` capability; the harness adds it.
 
