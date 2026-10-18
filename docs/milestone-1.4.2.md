@@ -7,10 +7,62 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: Resolve the held native St04 condition before closing M8; the current statement/evidence reconciliation is finished, and the accepted documentation still needs repository landing.
+Next session entry point: `docs/milestone-1.4.2.md`, prepare the completion-record commit. M8 verification is complete under D15; keep M15 Deferred in Backlog and G2 Open.
+
+Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
+verify classification and display of recorded St04 input as DISCONN on
+Debian 13 and Rocky 8. The selected plan completed 15/15 calls: eleven
+controlled inputs and four native LISTEN controls. D15 accepts this evidence
+for the documentation task and excludes live same-invocation St04 observation
+from its completion criteria. That remaining observation is Deferred Backlog
+M15 and does not require another current test.
+
+Historical native S07/C01365/current C01473 results remain Partial; the
+scope decision adds no native PASS and makes no impossibility claim. Existing
+T1/T2/T4/T5/T6 acceptance, reconciled T3 evidence and landed public documents
+support M8 closure. The two internal guards retain their accepted source-only
+treatment. G2 remains the independent release-bake gate.
+
+Current milestone totals: 14 Complete, 0 In progress and 0 Not started.
+External gates: G1 Complete and G2 Open. Backlog: one Deferred item, M15,
+excluded from the release tally. The completion record is not yet committed;
+the public deliverables are in `ef92f116df92d8a9dffdb9005ddbf0bd804380c5`.
+
+### Prior checkpoints before D15
+
+The following checkpoints retain their original observations and counts.
+D15 supersedes their conclusions that the missing live St04 observation keeps
+M8 or its documentation verification open. Current status is defined above
+and in the M8 Closure Evidence and M15 detail.
+
+The selected controlled-input plan has 15/15 passing behavior calls:
+the previous nine Debian 13 calls and six new Rocky 8 calls. These comprise
+eleven controlled-input cases and four native LISTEN controls. Debian was
+not rerun. Rocky kept SELinux Enforcing while the exact temporary permission
+was installed twice, once for the interruption rehearsal and once for the
+behavior run. Both installations were removed, and task/policy restoration
+passed before shutdown. The provider confirmed both original guests off
+and retained at 2026-10-18T06:40:50.642248Z; all 197 frozen runtime evidence
+hashes match. Both final runtime review lanes accepted the result and its
+one factual input-label correction.
+Current attempt evidence: `work/m8-st04-rocky-policy-20261018/`;
+previous Debian evidence: `work/m8-st04-netdir-20261018/`.
+The accepted documentation landed as
+`ef92f116df92d8a9dffdb9005ddbf0bd804380c5`. The revised repeat experiment
+completed 191896 connection attempts, 600000 raw table snapshots and 404 whole
+CLI list queries across Debian and Rocky. Independent native reads captured
+51 exact IOC-path St04 rows, including five Type0001 rows. None of the actual
+CLI traces consumed a matching St04 row or printed DISCONN, so the consumer
+clause remains Partial. Each worker phase lasted about 60 seconds; independent
+observers reached their sample caps after about 3.0-3.4 seconds per phase.
+Both runtime review lanes accepted the results and restoration. The provider
+confirmed both guests shut off with evidence retained at 2026-10-17T19:30:29Z.
+Current repeat evidence: `work/m8-st04-repeat-20261017/`; prior experiment
+evidence remains under `work/m8-st04-vm-20261017/`. M8 Verification Results
+records actual counts, case limits and the remaining consumer condition.
 The M14 completion record landed as
 `204443249be4459705069c2776cdacf91ca3ab04`; recorded HEAD, upstream and live
-remote observations agree. The current M8 candidate changes only three public
+remote observations agree. The accepted M8 documentation changed only three public
 pages: socket-permission definitions are linked to their authoritative table,
 and runtime-file destinations are distinguished from the initial working
 directory. Its primary book build, local links, full T5 reader pass and
@@ -24,7 +76,7 @@ have 79 Verified, 21 Source-only and eight Not executable dispositions.
 Four additional Local installed-CLI starts passed on Debian 13 and Rocky 8:
 clean success and a bare built-in phrase warning on each OS. Both reviewers
 accepted these four cases and their restoration; both VMs were normally shut
-off with evidence retained. Native St04 remains held and Partial. The two
+off with evidence retained. The St04-to-DISCONN consumer clause remains Partial. The two
 internal guards remain source-only, and historical aggregate counts are
 unchanged. M8 remains In progress; no unconditional T3 PASS is claimed.
 Current M8 evidence: `work/m8-final-candidate-20261017T041421Z/` and the
@@ -151,7 +203,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Console | M5 | State how each console client handles a pasted detach key | Milestone | Complete | — | none | The attach banner and the three console documents no longer claim the key never reaches the IOC, and state the con and socat difference for pasted text; [detail](#m5---state-how-each-console-client-handles-a-pasted-detach-key) |
 | Generate | M6 | Rewrite an identical configuration regardless of its owner (#161) | Milestone | Complete | — | D10, D11 | Any group member regenerates an identical existing configuration without a `chmod` failure, a transfer from another owner asks first unless `-f` is given, the file carries the target mode afterwards, the S04 checks pin the rewrite, and a system-lifecycle check regenerates as a second operator; [detail](#m6---rewrite-an-identical-configuration-regardless-of-its-owner) |
 | Console | M7 | Document iocsh history ownership across principals (#162) | Milestone | Complete | — | D9 | FAQ Q13 states the verified ownership behavior and the per-principal settings, Q5 points to it, and CLOSED_DOORS carries CI-44; [detail](#m7---document-iocsh-history-ownership-across-principals) |
-| Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | In progress | No | M6, D12, D13, D14 | Every page of the mdBook site is revised and supplemented against the current runner, setup script, and templates for the operator who installs and runs IOCs, and every command and output it shows is checked against a real run; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
+| Documentation | M8 | Revise and supplement the published documentation against the current code | Milestone | Complete | No | M6, D12, D13, D14, D15 | Published pages, accepted T1-T6 evidence and recorded-input St04 behavior satisfy the D15 scope; live same-call observation is Deferred Backlog M15; [detail](#m8---revise-and-supplement-the-published-documentation-against-the-current-code) |
 | Gate | M9 | Extend the multi-user gate to the 1.4.1 and 1.4.2 changes | Milestone | Complete | — | G1 | Every user-visible 1.4.1 and 1.4.2 change that differs between principals has a multi-user scenario with a stated expected result, and the complete multi-user driver passes on both test consumers; [detail](#m9---extend-the-multi-user-gate-to-the-141-and-142-changes) |
 | Command line | M10 | Correct the command-line help, completion, and mode-specific messages (#163) | Milestone | Complete | — | none | Completion offers `log`, `-n`, and `--lines`; the usage names `--lines`; container mode prints mode-correct identity and `inspect` messages; setup `--help` works for a non-root user; a failed logrotate validation states that setup stops; the `IOC_RUNNER_SCAN_DIR` forwarding question is settled; [detail](#m10---correct-the-command-line-help-completion-and-mode-specific-messages) |
 | Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Complete | — | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
@@ -179,6 +231,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D12 | Supersede the 2026-09-26 direction to rewrite the published documentation without regard to the previous pages. M8 revises and supplements the existing pages against the current code instead: the pages were first written between 2026-03 and 2026-09 and ten of the twelve last changed in 2026-09 alongside the code, so their faults are organization and coverage rather than drift. Revision may split, merge, or move sections between pages; every command, option, path, and output a page shows is still checked against the current code and a real run. | 2026-09-28 |
 | D13 | M8 keeps the twelve published pages and their file names, and adds one glossary page. Sections that mix page types are split or moved between the existing pages, steps repeated between the system and local guides are kept in one place, and `CLI_REFERENCE.md` covers every command and option; in-repository links to a changed heading are updated. The book introduction drops the 1.0.x upgrade section, the release runbook entry, and the milestone register entries; the upgrade steps move into the 1.1.0 Migration section of `CHANGELOG.md`, which points to them. Design rationale that follows from the code stays in the concept pages. | 2026-09-28 |
 | D14 | Narrow D13 on mixed sections: the Manual Setup Reference section of `INSTALL.md` and the Verification section of `PERMISSION_MODEL.md` stay on their pages as their own headed sections, because each checks the subject of its page directly (the setup script, the permission model). The troubleshooting table of `LOG_LAYOUT.md` is the section that moves. | 2026-09-28 |
+| D15 | Complete M8 using its accepted documentation checks and actual whole-CLI recorded-input St04 results. Exclude live same-invocation St04 observation from current M8 acceptance and retain it as Deferred Backlog M15. Preserve original native Partial observations and historical counts; authorize no retry or release Gate completion. | 2026-10-18 |
 
 ### Assignment History
 
@@ -1620,7 +1673,7 @@ Last Compared: after 2026-09-26T18:58:04Z with `gh issue view 162`; issue update
 Origin: 1.4.2 / M8
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1652,6 +1705,10 @@ The owner direction dated 2026-10-12 also includes the VM Preparation and
 Handoff section of `tests/README.md`: purpose-specific guest requirements,
 preparation ownership, reuse checks, and restoration boundaries.
 
+D15 accepts the completed recorded-input St04 classification and rendering
+checks for this documentation task. Live same-invocation St04 consumption is
+outside current M8 acceptance and is retained in Deferred Backlog M15.
+
 Out of scope: `docs/CLOSED_DOORS.md`, the milestone registers, `docs/adr/`,
 `docs/review_sessions/`, other test documentation under `tests/`, the gate
 runbook, and any change to runner behavior.
@@ -1664,6 +1721,10 @@ runbook, and any change to runner behavior.
   one place.
 - Every command, option, path, and output the pages show matches the
   current code and a real run.
+- Under D15, the actual full CLI reading recorded kernel St04 input and
+  displaying DISCONN satisfies this output's M8 verification requirement.
+  Capturing a live St04 row and DISCONN output in the same invocation is
+  deferred to M15; no native result is inferred from this scope decision.
 - Links inside the book and from files outside it that point into `docs/`
   resolve, and the mdBook build passes.
 - Every outcome D13 and D14 name is present in the pages: the glossary page,
@@ -1686,6 +1747,9 @@ runbook, and any change to runner behavior.
   client masks without added capabilities. The unavailable-client case also
   excludes socat names from the native-tool PATH mirror, as the shipped
   rejection fixture does.
+- D15, Decision Date: 2026-10-18. Close current documentation verification
+  on the accepted evidence and defer live St04 observation to M15. G2 remains
+  independent of M8 and Open for the release Gate.
 
 ##### Implementation Plan
 
@@ -1693,6 +1757,246 @@ Plan Status: accepted
 Plan Acceptance: 2026-10-01; owner accepted the 2026-10-01 verification-plan revision after four third-person passes and one second-person pass
 Implementation Authorization: 2026-10-01; owner authorized the accepted 2026-10-01 verification-plan revision
 Superseded Plan Artifacts: the original accepted plan in `222ab3c`
+
+##### Accepted verification closeout: 2026-10-18
+
+Plan Status: accepted
+Plan Acceptance: 2026-10-18; D15 accepts current verification and defers live observation
+Implementation Authorization: 2026-10-18; documentation closeout and Backlog recording only
+Superseded Plan Artifacts: prior M8 acceptance requirements for live same-invocation St04 observation only; their runtime results are retained
+
+1. Record accepted recorded-input behavior and existing T1/T2/T4/T5/T6 and
+   T3 reconciliation evidence as the scoped M8 completion.
+2. Create Deferred Backlog M15 for the unobserved native condition, retaining
+   historical Partial records and excluding it from current execution.
+3. Update the work row, detail, closure evidence, totals and next entry;
+   verify consistency without another runtime test or source change.
+
+Both closeout-plan reviews accepted this boundary without a finding:
+`rev20261018_154600` and `rev20261018_154700`, under the existing M8 session.
+Detailed plan: `plan20261018_154334_codex_root_st04_closeout.md` in that
+session's `plan/` directory. The native suite's original criterion and results
+remain unchanged. No additional test, policy change or Git action is included.
+
+##### Authorized Rocky SELinux test permission: 2026-10-18
+
+Plan Status: accepted
+Plan Acceptance: 2026-10-18; both technical review lanes accepted the proposal, and the owner selected option 1
+Implementation Authorization: 2026-10-18; auth20261018_055136 authorizes plan20261018_042853 P001-P005/V001-V007, with preparation review before policy mutation
+
+The retained Rocky audit confirms that SELinux denied `mounton` on the
+same numeric proc net directory as the failed bind syscall. The authorized
+temporary rule allows only `mounton` from `unconfined_t` to directories
+labeled `unconfined_t`, while keeping Enforcing enabled. It applies across
+that test guest while installed; it cannot be restricted to one PID or
+pathname. The owner accepted this permission scope on 2026-10-18. The plan
+includes an independent removal guard, an interruption rehearsal, the four
+original controlled cases and two native controls, then verified policy
+restoration and normal VM shutdown. Both permitted installations have now
+run and been removed. The actual interruption rehearsal and all six Rocky
+behavior calls passed their declared checks; no installation remains.
+Detailed proposal: `work/review_sessions/20261013_083800_m8-partial-completion/plan/plan20261018_042853_codex_root_rocky_selinux_proposal.md`.
+Reviewed result: `work/review_sessions/20261013_083800_m8-partial-completion/convergence/conv20261018_043810_codex_root_rocky_diagnosis.md`.
+Helper preparation and the separate correction of the rehearsal result
+reader were accepted before the behavior run. The final controller and
+audit both consumed the reviewed interruption proof. Original unsuccessful
+tool results are retained beside the corrected results. Runtime evidence
+and provider closure are complete; both final runtime review lanes accepted
+the result after the single R3 input-label correction.
+Preparation acceptance: `conv20261018_061857`; rehearsal correction
+acceptance: `conv20261018_063705`, under the active M8 review session.
+See Verification Results for the observed outputs and coverage limits.
+
+##### Completed St04 directory-attachment attempt: 2026-10-18
+
+Plan Status: accepted
+Plan Acceptance: 2026-10-18; continuation of the selected controlled-input experiment with the mount prerequisite corrected under plan20261018_020255
+Implementation Authorization: 2026-10-18; current owner continuation and standing isolated-test authority, auth20261018_020255; preparation review required before guest use
+
+Use a fresh `work/m8-st04-netdir-20261018/` attempt. The prior attempt remains
+V002 FAIL and 0/15 behavior calls. The new plan replaces the leaf bind on
+`/proc/<pid>/net/unix` with a read-only bind of a private directory on the same
+PID's `/proc/<pid>/net`. Its `unix` file preserves the exact archived input;
+every other live entry links to the still-running driver's real proc entry in
+the same network namespace. Require exact sibling routing, mount isolation and
+same-PID post-exec input delivery before IOC setup. The actual prerequisite
+passed on Debian 13. Rocky 8 returned EACCES from the first bind syscall;
+its read-only remount and post-exec probe were not reached.
+
+The unchanged experiment uses eleven original recorded tables plus four native
+LISTEN controls, the full shipped CLI and original NativeList fixture. Preserve
+the accepted watchdog, finite bounds, independent cleanup and provider shutdown.
+A Debian prerequisite or restoration failure stops this batch; no fallback or
+automatic retry is included. Native Partial and unconditional T3/G2 remain open.
+The authoritative detailed plan is
+`work/review_sessions/20261013_083800_m8-partial-completion/plan/plan20261018_020255_codex_root_st04_net_directory.md`.
+Its source-supported mount diagnosis is an inference; the earlier trace did
+not record mount syscall errno. The new attempt ended with nine passing
+Debian behavior calls and six unexecuted Rocky calls. No fallback or retry
+ran. Both resource windows are closed. See Verification Results for the
+actual result and remaining limits.
+
+##### Previous St04 test design: 2026-10-17
+
+Plan Status: accepted
+Plan Acceptance: 2026-10-17; owner accepted plan20261017_212008 after full third-person review count3
+Implementation Authorization: 2026-10-17; owner authorized P001-P005 and V001-V007, including bounded VM execution and restoration; auth20261017_232354
+
+The accepted design's first Debian attempt ended at its mandatory namespace
+prerequisite. The five retained stream-type
+St04 observations establish native input availability; none of the earlier
+CLI calls consumed that input. The new design tests the complete unchanged
+CLI with frozen filesystem input and retains the native observation limit.
+The read-only remount failed before the same-PID input proof and IOC setup.
+All product behavior calls remain unexecuted. The result and recovery evidence
+are recorded in Verification Results below; no automatic retry is permitted.
+
+The accepted detailed plan is
+`work/review_sessions/20261013_083800_m8-partial-completion/plan/plan20261017_212008_codex_root_supersedes_plan20261017_211000_st04_replay.md`.
+It pins the two original archives, all eleven raw input hashes, source hashes,
+helper command interfaces, trace checks, finite bounds and recovery steps.
+The four helpers are prepared under `work/m8-st04-replay-20261017/` for
+preparation review. V001 re-read both original archives and extracted all
+eleven complete records; every byte count and SHA256 matches the accepted
+plan. Python 3.6 grammar checks passed for the helpers and embedded scripts.
+These checks establish input provenance and syntax only. Source runner and
+shipped fixture bytes remain unchanged. Guest execution follows preparation
+review and the per-guest namespace prerequisite.
+
+Implementation preparation review completed its single correction cycle on
+2026-10-17. C1/C3 accepted the complete CLI path, input and output checks.
+Three of four C2 findings are resolved: independent recovery of recorded
+resources, command evidence on exceptions, and independent protected/fresh
+readbacks. At that checkpoint one cleanup deadline path remained: unchanged `NativeList.run()`
+catches `BaseException`, kills the command group, then calls `communicate()`
+without a timeout before rethrowing. The helper's one-shot cleanup alarm
+does not independently bound that drain. No actual hang was observed.
+
+On 2026-10-18 UTC, the owner accepted and authorized the proposed independent
+watchdog and one focused follow-up in `auth20261018_004112`. The ignored
+driver/controller now record a separate watchdog's PID/start identity and
+absolute cleanup deadline. The watchdog closes inherited command descriptors,
+records observed cleanup descendants, and terminates only still-matching
+identities on expiry. Normal completion signals and reaps it; independent
+recovery and fresh readback include its recorded identities. This retains
+the 45-second guest cleanup allocation, accepted outer bounds, original
+fixture and product bytes. Preparation review count3 accepted the correction
+in `fup20261018_004800` and `fup20261018_004514`; all four preparation findings
+are resolved. No runtime deadline claim follows from that source review.
+Earlier evidence remains
+`fup20261017_235000`, `fup20261017_234925`, and `conv20261017_235102` in the
+same review session. At the end of the earlier unused window, V002-V006 and all
+15 planned behavior calls were unexecuted. The provider confirmed normal
+Debian shutdown and both original guests retained at
+2026-10-17T23:53:02.939104Z; Rocky was not attempted. The requester made no
+guest connection or mutation in this window. Copied provider evidence and
+the independent comparison are `work/m8-st04-replay-20261017/provider-closure.json`
+and `provider-closure-check.json`. Both original UUIDs, persistent domain XML,
+six retained file identities, persistent network settings and reservations
+matched; all 31 captured evidence hashes were checked. Disk contents were
+not hashed, and Debian NVRAM evidence covers its XML path only. The live
+network XML hash changed; its reservations remained equal. No deletion occurred.
+
+Design review completed on 2026-10-17. The second- and third-person reviewers
+accepted the corrected draft after one correction and follow-up cycle
+(review count2). Three design findings are resolved: separate the pre-setup
+infrastructure reader from the post-setup CLI, keep private data beside the
+service-readable fixture path, and distinguish actual task collisions from
+an idle template-only unit. No design finding remains open in that scope.
+Review evidence is `fup20261017_212200` and `fup20261017_212345` under the
+same session's `reviews/` directory. This records technical design review;
+runtime results remain unexecuted. A further full third-person pass,
+`rev20261017_230512` (review count3), found no must-fix or minor defect.
+The owner then accepted the reviewed plan and authorized execution.
+
+1. Verify input provenance without privileges. Extract eleven complete raw
+   tables byte-for-byte from the sealed repeat archives; retain headers,
+   every row, whitespace and ordering. Freeze the expected values before
+   execution. Use the original fixture's IOC name suffix per OS so no input
+   path needs rewriting; reject existing task-path collisions. Use a fresh
+   root-owned0755 task root under verified root-owned1777 `/var/tmp`, with
+   private0700 inputs/evidence beside a separate0755 IOC fixture path. Check
+   actual `ioc-srv` traversal before setup. Preserve the original fixture's
+   own directory permissions; no private0700 ancestor may block the IOC.
+2. On each retained verification guest, prove a private mount namespace and
+   read-only bind of the selected input onto the future CLI PID's
+   `/proc/<pid>/net/unix`. Before IOC setup, the same process must use
+   `execve` to run a dedicated infrastructure reader and compare its literal
+   post-exec `/proc/net/unix` bytes with the frozen input. This probe creates
+   no socket and supplies no product-behavior evidence. `/proc/net` resolves
+   through `/proc/self/net`; a different PID's read is insufficient.
+   Require this actual prerequisite on each guest before IOC setup.
+3. Exercise TERM and deadline cleanup of the mounted namespace helper before
+   starting the IOC. These are infrastructure checks; they do not claim
+   interrupted-IOC coverage. Require parent mount isolation, process reaping
+   and no persistent namespace reference after each probe.
+4. Use the unchanged shipped `NativeList.preflight()`, `setup()` and
+   `cleanup()` with real systemd, procServ and softIoc in System/root/source
+   mode. Allow an inactive template-only instance with zero PIDs and no
+   queued job, task files/runtime/log or unexpected drop-ins; `loaded`
+   alone is not a collision. Reject actual task resources, non-idle state,
+   nonzero PIDs, jobs, dedicated instance fragments or unexpected overrides.
+   Run native `list -vv` before and after the controlled-input cases.
+   Keep the original fixture overrides and actual native processes; no
+   runner function, systemctl output, ss output or socket fixture is replaced.
+5. Run seven recorded inputs on Debian13 and four on Rocky8, once each.
+   After fixture readiness, separately use same-PID `execve` to run the
+   unchanged `/bin/bash -p <source-runner> list -vv`. Require that CLI's
+   own trace to show the fixed proc bytes and
+   its output to show the expected K-STATE, INODE and REF in the exact IOC
+   row, with exit0. A pre-exec read, truncated trace or another PID's read
+   cannot satisfy this check. The printed table is checked directly; expected
+   results do not come from a copied implementation of the product parser.
+6. Restore and independently inspect task resources and protected files, keep
+   archives and failed attempts, and obtain provider shutdown/retention
+   confirmation. Review both OS results through the existing two reviewers.
+   Record controlled-input results separately from native results.
+
+| Input class | Debian13 | Rocky8 | Expected controlled result |
+| --- | --- | --- | --- |
+| Actual Type0001/St04 tables | 4 | 1 | DISCONN, inode0, ref2 |
+| Actual Type0000/St04 tables | 1 | 1 | DISCONN, inode0, ref2; no stable stream-lifetime claim |
+| Actual St03 table | 1 | 1 | ESTAB, captured inode, ref2 |
+| Actual header-only table | 1 | 1 | UNKNOWN, N/A inode, ref0 |
+| Native controls before/after | 2 | 2 | LISTEN and the actual listener inode |
+
+There are 15 planned CLI calls: eleven controlled-input cases and four native
+controls. This does not state an achieved count. Each call is bounded to
+25seconds; each guest attempt to600seconds, cleanup/readback to90seconds,
+and the outer controller to720seconds. New trace/evidence data is capped
+at128MiB per guest; overflow is failure, never a truncated PASS. There are
+no automatic retries or further connection-pressure loops. Debian's mechanism
+and restoration must pass before the Rocky attempt.
+
+Normal exit, assertion failure, timeout, INT and TERM must close the owned
+namespace and processes before original fixture cleanup. Fresh SSH must show
+no surviving task unit/process/configuration/socket path and unchanged
+protected files. Compare mount identity and absence of task mounts; do not
+compare changing parent proc-table contents. Keep existing evidence and both
+guests' disks and definitions. No host mount or package installation is planned.
+
+Completion of these checks establishes only complete-CLI behavior for the
+recorded filesystem inputs. `tests/LIST_STATES_INVENTORY.md` requires native
+execution for its S07 coverage: controlled replay cannot satisfy that native
+criterion. C01365/current C01473 remains Partial, M8 In progress, and
+unconditional T3/G2 open unless the original same-invocation native condition
+is separately observed. Product and shipped fixture code remain unchanged.
+
+##### Earlier accepted execution plans
+
+Bounded St04 repeat plan, accepted and execution-authorized on 2026-10-17:
+use the retained Debian13 and Rocky8 verification guests sequentially with
+one client and four concurrent clients, each phase bounded to60seconds.
+Increase actual connection transitions and native observation frequency;
+retain the unchanged runner and shipped NativeList setup/cleanup. Capture
+whole CLI read traces as the consumer evidence. Per OS bounds are100000
+connection attempts,202 list calls and300000 raw snapshots, with100MiB raw
+proc data per phase. Actual counts and overlap must be reported separately.
+The complete batch plan is `work/review_sessions/20261013_083800_m8-partial-completion/plan/plan20261017_191228_codex_root_st04_repeat.md`; only ignored outer drivers and
+this evidence record change. Both preparation review and fresh provider
+readiness precede execution. Named St04 plus same-call DISCONN is required
+for branch coverage; an unsuccessful search preserves Partial. Restore task
+resources and obtain the provider's shutdown/retention response.
 
 The original plan was accepted and authorized on 2026-09-28. The
 2026-10-01 direction accepted the plan review findings and evidence
@@ -4623,12 +4927,27 @@ whole-book T1-T6 closure and the remaining native cases stay open.
 | --- | --- | --- | --- | --- |
 | T1 | build | From the repository top, `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/book -w /book jeonghanlee/mdbook mdbook build`, the image the Pages workflow uses | Control host | Exit 0 with no warning |
 | T2 | links | A Bash check under `work/` of every relative link and anchor in the published pages, the top-level `README.md`, `CHANGELOG.md`, `gate/RUNBOOK.md`, `tests/README.md`, `docs/adr/`, and `bin/setup-system-infra.bash` against the files and the heading ids of the T1 build | Control host | Every link resolves |
-| T3 | commands | With the runner of the current tree installed, run every command a page shows, as shown with placeholders replaced, and compare its output with the page. The commands of `INSTALL.md` and `UNINSTALL.md` change accounts, sudoers, and units, so they run only on a consumer that is set up again afterwards, and only after owner approval | Test consumer in system and local mode; one default image of `tests/run-container-tests.bash` for container commands | Each command runs and prints what the page shows |
+| T3 | commands | With the runner of the current tree installed, run every command a page shows, as shown with placeholders replaced, and compare its output with the page. The commands of `INSTALL.md` and `UNINSTALL.md` change accounts, sudoers, and units, so they run only on a consumer that is set up again afterwards, and only after owner approval. D15 accepts the actual recorded-input full-CLI St04 result; live same-call observation belongs to M15 | Test consumer in system and local mode; one default image of `tests/run-container-tests.bash` for container commands | Each command runs and prints what the page shows within the accepted D15 scope; original native verdicts remain unchanged |
 | T4 | static | `LC_ALL=C grep -nP "[^\x00-\x7F]"`, a word-bounded `grep -nwE` for `now`, `still`, `new`, `no longer`, and `previously`, and `tests/check-doc-addresses.bash` over every published page; the item 1 inventory accounts for every entry, with S20 retained under the 2026-10-12 public-coverage exclusion | Control host | No non-ASCII hit other than the semantic glyphs that markdown-authoring section 7 allows, no history word in page prose: each hit is judged and recorded, a word that compares with an earlier state of the runner or the pages fails, and a word that describes current behavior (`a new IOC`, `the IOC is still running`) passes, no address failure, no missing active entry; S20 retained as a retired public claim |
 | T5 | review | Second-person review pass over the changed pages before commit | Control host | Every finding resolved or ruled on by the owner |
 | T6 | review | Third-person pass that walks plan items 2 through 8, D13, and D14 one by one against the changed pages, including that the material item 3 and item 4 consolidate appears in one place only | Control host | Every item carried out, or ruled on by the owner |
 
 ##### Verification Results
+
+###### Current acceptance under D15: 2026-10-18
+
+M8 documentation verification is complete within the accepted scope.
+T1/T2/T4/T5/T6 retain their final accepted results. T3 combines the completed
+current-source evidence reconciliation with the accepted whole-CLI
+recorded-input tests. Their 15 passing calls comprise eleven controlled
+inputs and four native LISTEN controls, not fifteen live St04 observations.
+Native S07/C01365/current C01473 remains an unobserved same-call condition
+with historical Partial results, carried in Deferred Backlog M15.
+
+The dated records below retain their original observed values, failures,
+counts and coverage limits. D15 supersedes only the earlier conclusions
+that this missing native condition keeps current M8 verification open.
+No new runtime result or unconditional historical native PASS is recorded.
 
 ###### Current candidate: 2026-10-17
 
@@ -4753,8 +5072,263 @@ explicit. An unconditional T3 PASS remains open. T1/T2/T4/T5/T6 acceptance
 and the completed evidence connections do not close M8, establish repository
 landing, or establish a new-candidate production Gate PASS.
 
+The subsequent bounded VM experiment used the unchanged current runner and
+original shipped NativeList softIoc fixture in System/root/source mode on
+Debian 13 (kernel 6.12.111+deb13-cloud-amd64) and Rocky 8
+(kernel 4.18.0-553.el8_10.x86_64). Each OS completed three repetitions of
+pending-connect cancellation, acceptance resume and whole CLI server stop:
+nine trials and 47 whole CLI list queries per OS. The server-stop condition
+uses the fixture's Restart=no and KillSignal=SIGKILL settings; it is not a
+default graceful-stop claim. Both runs observed LISTEN once, ESTAB 11 times
+and UNKNOWN 35 times, with all 47 list calls exiting 0. None consumed a named
+St04 row or printed DISCONN. Debian retained 1690 kernel samples, including
+1016 with unnamed St04; Rocky retained 1812, including 1058 with unnamed St04.
+These are sample counts, not unique sockets. Rocky's raw wchan was 0; its
+pending condition was established by live sleeping x86_64 connect syscall 42
+and the actual client stream, without claiming an exported wait-function name.
+
+Both completed runs passed original fixture cleanup, protected-file comparison
+(30 recorded entries on Debian, 28 on Rocky), and independent fresh SSH
+readback showing inactive units with MainPID/ControlPID 0 and no owned task
+paths or surviving recorded PID/start identities. Evidence workspaces remain
+retained. Earlier failed attempts remain separate and contribute zero
+completed trials. This is Check-grade evidence: C01365/current C01473 remains
+Partial, M8 remains In progress, and unconditional T3 and release Gate PASS
+remain open. The provider separately confirmed normal shutdown and retention
+of both guests at 2026-10-17T07:56:03Z.
+Both runtime review lanes accepted these bounded observations and their
+limits: rev20261017_074302 and rev20261017_074310 for Debian, and
+fup20261017_075826 and fup20261017_075630 for Rocky, under the active M8
+session. The retained provider closure record is
+`work/m8-st04-vm-20261017/provider-closure.json`, SHA256
+`402f99e4c6ab128167abd926f63982f7b747179c87a0a7e5bbf88545380c4f3a`.
+
+The revised repeat experiment used the same unchanged runner, original
+NativeList fixture, OS kernels and System/root/source case. One client and
+then four concurrent clients repeatedly connected and closed during two
+approximately 60-second phases per OS. Complete native tables and whole CLI
+read traces are retained under `work/m8-st04-repeat-20261017/`.
+
+| Actual measure | Debian 13 | Rocky 8 |
+| --- | ---: | ---: |
+| Connection attempts | 96053 | 95843 |
+| Successful connect returns | 95126 | 95543 |
+| EAGAIN outcomes | 927 | 300 |
+| Raw table snapshots | 300000 | 300000 |
+| Exact IOC-path St04 sample rows | 43 | 8 |
+| Type0001 rows among those St04 samples | 4 | 1 |
+| Complete CLI list queries, all exit 0 | 202 | 202 |
+| Actual CLI proc read calls | 575 | 566 |
+| Same-invocation St04 input and DISCONN output | 0 | 0 |
+
+Debian's selected CLI output is LISTEN 1, ESTAB 1, CONNECTING 42 and
+UNKNOWN 158; Rocky's is LISTEN 1, ESTAB 1, CONNECTING 41 and UNKNOWN 159.
+Independent raw observation now establishes actual pathname-bearing St04
+output, including stream type on each OS. The remaining 46 IOC-path St04
+rows have Type0000; Rocky's separate `/run/systemd/private` row is excluded.
+These are emitted row samples, not unique sockets or proof that all fields
+coexisted in a stable kernel object. No CLI trace contains an exact target-path
+St04 row, and none prints DISCONN. A separate observer's positive sample
+does not establish the same-invocation consumer criterion. C01365/current
+C01473 therefore remains Partial; M8, unconditional T3 and G2 stay open.
+
+All four independent observers reached the 150000-snapshot cap after
+3.112645 and 3.402859 seconds on Debian and 3.018070 and 3.084651 seconds on
+Rocky. This is not continuous raw observation of the full worker phases;
+the CLI continued to perform its own native reads. Whole invocation intervals
+overlapping observer and worker activity number 6/7 on Debian and 6/6 on
+Rocky; these are not exact syscall coincidences. The corrected 100 MiB
+raw-byte boundary was not reached. The first preparation review and one cap
+correction are recorded by conv20261017_191818; the executed outer driver
+SHA256 is `df527aa1e2f6f5eb368e12138be3fb9f76105311fc276979ebe8ee0184bfe63f`.
+
+Both runs passed original fixture cleanup, protected comparisons (30 entries
+on Debian and 28 on Rocky), and independent fresh SSH checks with inactive
+units, MainPID/ControlPID 0, no remaining task paths and no surviving owned
+PID/start identities. Original logs and evidence directories remain retained.
+Optional cleanup calls for unloaded units preserve their nonzero returns;
+the actual task stop, remove and final absence checks passed. The first
+two-OS runtime review is accepted by both lanes: rev20261017_192335 and
+rev20261017_192450 for Debian, fup20261017_193134 and fup20261017_193200 for
+Rocky, under the active M8 session. No interruption-recovery, installed,
+Local, Container or default graceful-stop coverage is added.
+
+The provider's final response and copied private closure record establish
+normal shutdown and preservation of both original guests at
+2026-10-17T19:30:29.924955Z. Definitions, recorded disk/seed/creation-record
+attributes, persistent network settings, address reservations and 26 captured
+evidence files match across shutdown. The live network XML hash differs;
+Debian NVRAM preservation is limited to its recorded XML path, with no
+privileged content inspection claimed. Closure evidence is
+`work/m8-st04-repeat-20261017/provider-closure.json`, SHA256
+`e6b55db9cedf4d5230856698225ed1093a4c219e3566d2364542051391f747b0`,
+and `provider-closure-check.json` in the same directory. Product and shipped
+fixture code remain unchanged.
+
+The first controlled-input attempt ran on Debian 13 on 2026-10-18 UTC after
+the accepted watchdog correction. V001 input provenance was complete. V002
+failed before IOC setup: the initial bind command exited 0, but the separate
+read-only bind remount exited 32 with "mount point not mounted or bad option".
+The namespace helper stopped before its input read and same-PID exec proof.
+No mount syscall errno was captured by the selected trace; the underlying
+cause is unresolved. V003-V005 are SKIP, with zero of 11 controlled calls and
+zero of four native controls executed. The summary's zero behavior failures
+is not a pass. Rocky was not attempted, as the accepted batch stop rule requires.
+
+Restoration of this prerequisite-only attempt passed: the unchanged fixture
+cleanup returned no error, all 32 protected entries matched, and fresh SSH
+readback found no remaining task paths, mounts or recorded live PID/start
+identities. The shared-template instance and absent blocker were inactive
+with MainPID/ControlPID 0. The watchdog started, completed and was reaped;
+cleanup took 0.042291 seconds. Its 45-second expiry, the TERM/deadline probes,
+IOC cleanup and all product behavior remain untested by this attempt.
+
+The provider confirmed normal Debian shutdown and both original guests off
+and retained at 2026-10-18T00:56:40.986108Z. The requester compared both UUIDs,
+persistent domain XML, six file identities, persistent network settings,
+reservations and all 38 captured evidence hashes. Disk contents were not
+hashed; Debian NVRAM verification covers its XML path only. Live network XML
+differs with equal reservations. The private closure copy is
+`work/m8-st04-replay-20261017/provider-closure-20261018.json`, SHA256
+`1bfd13aab53467c9348cb346d9c452d230cc2b8f54e841fad1f9069d4adaef3c`.
+The same directory contains `provider-closure-check-20261018.json` and
+`execution-check-20261018.json`. Both lanes accepted the first runtime review
+of this attempt with zero new findings: `rev20261018_010200` and
+`rev20261018_010411` under the active M8 session. This accepts the accuracy of
+the failed-attempt record and limited restoration. The attempt adds no
+consumer coverage; native Partial, M8 In progress and
+unconditional T3/G2 status are unchanged. Product and shipped fixture bytes
+match the accepted plan.
+
+The stable proc net directory attempt ran on 2026-10-18 under
+`plan20261018_020255` after both preparation reviews accepted it.
+The result is 9/15 behavior calls executed and passed, with six unexecuted
+Rocky calls. Debian V002-V005 passed; Rocky V002 failed and V003-V005
+were skipped. Both V006 guest restoration checks passed. Runtime evidence
+review V007 is accepted by both lanes: `rev20261018_023140` and
+`rev20261018_023221`, count1 with zero new findings. Acceptance covers
+the actual result and its limits; Rocky V002 remains FAIL.
+
+Debian's D1-D4 exact archived Type0001/St04 inputs and D5's separate
+Type0000/St04 input produced DISCONN/INODE0/REF2. D5 retained the later
+same-path St02 rows. D6 produced ESTAB/INODE10272/REF2 and the original
+header-only D7 input produced UNKNOWN/INODE N/A/REF0. Each call executed the
+unchanged full CLI; its same-PID post-exec trace opened literal
+`/proc/net/unix`, consumed the exact input through EOF and returned0.
+The local evidence audit independently reconstructed the consumed bytes
+and checked the actual output rows against the frozen expectations.
+The two native before/after controls retained LISTEN and the actual
+listener inode7968. Original fixture failures were0.
+
+Debian's separate infrastructure probes verified the same-PID post-exec
+read-only directory attachment and live sibling routing, then release after
+TERM and a five-second deadline. Rocky's first bind returned32; its actual
+mount syscall returned EACCES before the remount, post-exec read, hold
+probes or IOC setup. The driver's generic evidence AssertionError is a
+secondary report of that nonzero probe exit. No Rocky product failure is
+established. The cause was unknown at the end of that attempt; the later
+read-only diagnosis below identifies the exact SELinux denial.
+No retry, fallback or permission-policy change ran.
+
+Guest execution and recovery took about13.75 seconds on Debian and2.27
+seconds on Rocky. Both watchdogs ended normally; the45-second expiry path
+was not exercised. Debian cleanup included its actual IOC; Rocky cleanup
+covered prerequisite-only resources. Fresh connections found no owned
+live PID, runtime path or mount, and parent mount namespaces were unchanged.
+All32 Debian and30 Rocky protected entries matched their before snapshots.
+Provider closure was independently checked at02:15:11Z for Debian and
+02:23:33Z for Rocky: both original guests were shut off and retained.
+The checks compared original identities, persistent definitions, six retained
+file identities, network reservations and45/52 captured evidence hashes.
+Disk contents were not hashed; Debian NVRAM evidence covers its XML path.
+
+Evidence is under `work/m8-st04-netdir-20261018/`: per-OS raw archives,
+`execution-check.json`, `audit.py` and
+`provider-closure-check-{debian,rocky}.json`.
+The replay establishes Debian CLI classification and rendering for the
+recorded input. Its live ss state need not match that historical input.
+It does not establish native same-invocation St04 consumption. Native S07,
+C01365/current C01473 remain Partial; M8 remains In progress and
+unconditional T3/G2 remain open. No runner or shipped-fixture bytes changed.
+
+The authorized Rocky permission test completed on 2026-10-18. It used the
+unchanged shipped runner and NativeList fixture, with the original R1-R4
+bytes. The behavior attempt started at 06:37:52Z and completed execution
+and recovery in 36.674 seconds. Its six planned calls all ran and passed;
+none was unexecuted or unknown. All four controlled calls consumed their
+exact input through EOF after same-PID exec of the full `list -vv` CLI and
+returned 0. The observed results match the previously fixed expectations:
+
+| Case | Input | State | INODE | REF |
+| --- | --- | --- | --- | --- |
+| R1, R2 | Original recorded St04 tables, 217 bytes each | DISCONN | 0 | 2 |
+| R3 | Original recorded St03 table, 158 bytes | ESTAB | 31671 | 2 |
+| R4 | Original header-only table, 56 bytes | UNKNOWN | N/A | 0 |
+| Native before and after | Live kernel table | LISTEN | 45875 | 2 |
+
+The native controls retained the same procServ/softIoc process identities and
+listener inode. Original fixture failures were 0. The private mount was
+read-only; PID/network namespaces and live sibling routing were preserved.
+Actual TERM and five-second deadline probes released the prerequisite
+namespace. Enforcing remained 1 at the recorded checks.
+
+The separate prerequisite-only rehearsal applied the first temporary module,
+then killed the real wrapper after its driver completed. The independent
+guard observed owner-pipe closure, removed the module and recovered the task.
+The original SSH status was 255, and the original controller returned 1
+because it required 137. No separate original guest wait status was retained.
+An additive checker instead verifies the exact frozen kill branch, process
+lifetimes, guard outcome and fresh restoration evidence; SSH 255 alone is
+not accepted. The original audit's missing-directory error is also retained.
+Both corrected downstream consumers actually ran the final reviewed checker;
+the behavior controller and full final audit returned 0. Original failures
+remain unchanged and are separate from the accepted product observations.
+
+Both installations restored the complete captured module inventory, module
+source hashes, booleans and loaded-policy hash. Eight real full-record
+comparisons passed across both phases, including all 30 protected entries
+per phase. Fresh SSH reads found no task-owned live process, path or mount;
+the recorded units were inactive with MainPID/ControlPID 0. Guard expiry,
+early-launch wrapper loss, HUP and reboot recovery were not exercised.
+
+The provider's normal shutdown record at 06:40:50.642248Z confirms both
+original guests off and retained. The requester checked both UUIDs,
+persistent definitions, six retained file identities, persistent network
+settings, reservations and all 263 captured evidence hashes, including all
+197 runtime manifest members. Live network XML differed while reservations
+matched. Disk and seed content hashes were not taken; Debian NVRAM evidence
+covers its persistent XML path. The provider did not rerun guest restoration.
+
+Evidence is under `work/m8-st04-rocky-policy-20261018/`:
+`execution-check-corrected.json`, the original failed receipts, both raw
+archives, `runtime-evidence-manifest.json` and `provider-closure-check.json`.
+The behavior archive SHA256 is
+`ef1f343ed6af01dc48309c5994b4582e40295425bb88327f1a62cae64de3b03e`;
+the runtime manifest SHA256 is
+`f5d8b6277a4cda9cabc0265b6592bb2a1fe5058a532dac13aab106708a941378`;
+the provider closure SHA256 is
+`9c7aa9a3709ab8bb0f997a693c046487af9c93234a663653ee4cb37e07f7e2bb`.
+Final runtime review V007 is accepted by both lanes after one factual R3
+input-label correction: `fup20261018_065455` and `fup20261018_065650` under
+the active M8 review session. This completes final result review count2;
+no runtime evidence or expected output changed. Combined with the previous
+Debian nine passes, the selected plan has 15/15 passing calls:
+eleven controlled inputs and four native LISTEN controls. This verifies
+classification and rendering of recorded input; native same-invocation
+St04 consumption remains unobserved. Native S07, C01365/current C01473 stay
+Partial; M8 stays In progress and unconditional T3/G2 remain open.
+
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
+| T3 | 2026-10-18T06:37:52Z attempt | Rocky 8.10; full shipped CLI and original NativeList; temporary permission with Enforcing retained | Four controlled and two native calls PASS; actual interruption and task/policy restoration verified; guests off and retained; both final reviews accepted; native Partial unchanged | work/m8-st04-rocky-policy-20261018/; execution-check-corrected.json; provider-closure-check.json; fup20261018_065455 and fup20261018_065650 |
+| T3 | 2026-10-18 read-only diagnosis | Rocky 8.10; retained audit plus original syscall trace | Matching AVC and SYSCALL event establishes SELinux mounton denial; both review lanes accept the diagnosis and proposed scope; no product rerun or policy change in this diagnosis; both guests off and retained; permission subsequently authorized above | work/m8-st04-rocky-diagnosis-20261018/; audit capture SHA256 a9aa2459e6421c6290f9684ee5291c91b8cf6ddd0eea7ba345010ce779f1ae1e; conv20261018_043810 |
+| T3 | 2026-10-18T02:13:37Z attempt | Debian 13; full source CLI, original NativeList and controlled proc input | Seven controlled and two native calls PASS; all prerequisites and restoration PASS; runtime record accepted; native Partial unchanged | work/m8-st04-netdir-20261018/debian13/; archive SHA256 42785d85cbb5d171a042457927c550c0c53a413c8eba2ece687b79217ca4248a |
+| T3 | 2026-10-18T02:22:01Z attempt | Rocky 8; private namespace prerequisite before IOC setup | Bind syscall EACCES; V002 FAIL; V003-V005 SKIP; 0/6 behavior calls; prerequisite restoration PASS; runtime record accepted | work/m8-st04-netdir-20261018/rocky8/; archive SHA256 4b248916f9bcb8ab6af6d313ef5fbc1986d0f425daa6171f43a3747867b71298 |
+| T3 | 2026-10-18T00:52:22Z attempt | Debian 13; private namespace prerequisite before IOC setup | V002 FAIL: read-only bind remount exit32; V003-V005 SKIP; 0/15 behavior calls; prerequisite-only restoration verified. Rocky unattempted; native Partial unchanged | work/m8-st04-replay-20261017/debian13/; archive SHA256 2f348fa8542c87f851dd1711206808e5f1999e23d87828e4a0810b2fa5d7c1df |
+| T3 | 2026-10-17T19:20:32Z | Debian 13; native System/root/source CLI and original NativeList fixture | 96053 attempts, 300000 snapshots and 202 queries; 43 IOC-path St04 rows including four Type0001. No same-call CLI DISCONN; restoration accepted; Partial | work/m8-st04-repeat-20261017/debian13/; archive SHA256 9c3dafa21cd2da6d1512a1ef07516c096173297e56b8f2d0fd7eab8d050eeee7 |
+| T3 | 2026-10-17T19:26:01Z | Rocky 8; native System/root/source CLI and original NativeList fixture | 95843 attempts, 300000 snapshots and 202 queries; eight IOC-path St04 rows including one Type0001. No same-call CLI DISCONN; restoration accepted; Partial | work/m8-st04-repeat-20261017/rocky8/; archive SHA256 280b5c41619516ccfa9c497ef0fca4f549b1427da411b106d92fe756e6b32073 |
+| T3 | 2026-10-17T07:38:17Z | Debian 13; native System/root/source CLI and original NativeList fixture | Nine trials and 47 list queries completed; no named St04 or DISCONN. Task restoration verified; clause remains Partial | work/m8-st04-vm-20261017/debian13/r2/; archive SHA256 8fd3c6d3fa731207ab6d10c817aaf1df7701f4def6028659ec8a50228a97df6f |
+| T3 | 2026-10-17T07:54:37Z | Rocky 8; native System/root/source CLI and original NativeList fixture | Nine trials and 47 list queries completed; no named St04 or DISCONN. Task restoration verified; clause remains Partial | work/m8-st04-vm-20261017/rocky8/r3/; archive SHA256 f63ff36d7652a111fb08826b7628fc9c6532016c71199829f811ef4ac2648efd; provider-closure.json at the experiment root |
 | T1 | 2026-10-17T04:21:37Z | Pinned mdBook image; corrected frozen source | Primary build exits 0 without warnings; 13 pages, 2226 inline spans and 109 fences match native HTML | work/m8-verification-runs/20261017T042136Z-2044432-source-refresh/ |
 | T2 | 2026-10-17T04:21:54Z | Actual rendered primary and supplemental pages | All 181 local references across 22 sources resolve; 8 external references excluded | work/m8-verification-runs/20261017T042153Z-2044432-final-book-checks/ |
 | T4 | 2026-10-17T04:42:01Z | Corrected candidate; actual static outputs and independent complete source reading | ASCII and address checks pass; 51 history-word hits accepted. Inventory: 358 covered, two excluded, zero partial or missing; no runtime promotion | work/m8-final-candidate-20261017T041421Z/corrected-history-word-assessment.json; rev20261017_044201 and its mapping under the active M8 session |
@@ -12190,7 +12764,43 @@ document corrections:
 
 ##### Closure Evidence
 
-None.
+- Decision Date: 2026-10-18. M8 is Complete under D15. The only withdrawn
+  runtime completion requirement is same-invocation live St04 consumption
+  and DISCONN output; it remains Deferred as M15. Native Partial records
+  and all historical aggregate counts are preserved.
+- The accepted public deliverables landed in
+  `ef92f116df92d8a9dffdb9005ddbf0bd804380c5`. Current public pages, SUMMARY,
+  CHANGELOG, tests/README, product scripts and NativeList match that commit.
+  Local HEAD and the local upstream ref match it at the closeout check;
+  no fresh remote query or Git mutation was performed for this record.
+- T1: the real primary mdBook build exited 0 without warnings. T2: 181 local
+  links passed, with eight external references excluded. T4: 358 inventory
+  entries are covered and two public-coverage exclusions remain explicit.
+  T5 and corrected T6 were accepted. Their actual build and source evidence
+  is under `work/m8-verification-runs/20261017T042136Z-2044432-source-refresh/`;
+  the accepted assembled record is `rev20261017_060315` in the M8 session.
+- T3: current reviewed evidence connects all 1942 source segments and 1832
+  historical IDs with their original case limits. The 108 current delta
+  clauses retain 79 Verified, 21 Source-only and eight Not executable.
+  These are evidence dispositions, not new runtime counts. The result is
+  `work/m8-final-candidate-20261017T041421Z/current-reviewed-evidence.json`,
+  SHA256 `ed4923bce96f2332bbe57d478e198e6212b4351ea1cf6998e0952d676583aa39`.
+- St04 behavior: the accepted Debian nine calls plus Rocky six calls verify
+  actual recorded-input processing by the unchanged full CLI. Runtime,
+  restoration and provider closure remain accepted in `conv20261018_065948`.
+  Evidence roots are `work/m8-st04-netdir-20261018/` and
+  `work/m8-st04-rocky-policy-20261018/`. All 197 frozen Rocky runtime hashes
+  matched during this closeout check. Both guests were recorded off and
+  retained at 2026-10-18T06:40:50.642248Z; no new guest action occurred.
+- Both closeout-plan review lanes accepted the evidence and scope amendment:
+  `rev20261018_154600` and `rev20261018_154700`. The current update changes
+  the work record only. Its commit remains pending; public deliverable
+  landing is already established above. M8 has no linked GitHub issue.
+  G2 remains Open for the separate release Gate.
+- Applied-record review completed on 2026-10-18: `rev20261018_155410`
+  and `rev20261018_155500` accepted the actual update without findings.
+  Both checked the row/detail pairs and original-result preservation; this
+  completes the documentation closeout with M15 Deferred and G2 Open.
 
 #### M9 - Extend the multi-user gate to the 1.4.1 and 1.4.2 changes
 
@@ -15098,10 +15708,97 @@ None.
 
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| Verification | M15 | Observe live St04 input and DISCONN output in one list invocation | Carry-forward | Deferred | No | D15 | A bounded native full-CLI run reads the target live St04 row and prints DISCONN in that same invocation on each OS; [detail](#m15---observe-live-st04-input-and-disconn-output-in-one-list-invocation) |
 
-No unassigned work is held in this register. GitHub Backlog was not imported
-as unrelated release work.
+M15 is excluded from current release execution and the milestone tally.
+Its Deferred state authorizes no retry. Unrelated GitHub Backlog is not
+imported here.
 
 ### Backlog Details
 
-None.
+#### M15 - Observe live St04 input and DISCONN output in one list invocation
+
+Origin: 1.4.2 / M15
+Identity History: created 2026-10-18 from the remaining live-observation condition in M8; M8 retains its identity
+GitHub Issue: none
+Status: Deferred
+
+##### Summary
+
+The recorded-input tests establish that the full unchanged CLI reads actual
+archived kernel St04 tables and displays DISCONN. A separate live experiment
+observed target-path St04 rows but did not capture a full list invocation
+that both consumed such a row and printed DISCONN. The bounded method has
+not reproduced that complete observation. D15 accepts current documentation
+verification and defers this remaining condition without claiming it impossible.
+
+##### Scope
+
+- A future bounded test of the real kernel table, full shipped list CLI and
+  original NativeList fixture on Debian and Rocky.
+- Same-invocation input/output evidence and verified restoration of all
+  resources created by that future test.
+
+Out of scope: product behavior changes, another recorded-input replay as
+native proof, automatic retries, changing historical verdicts, or reopening
+M8 solely because this deferred observation is absent.
+
+##### Completion Criteria
+
+- On each OS, an actual full CLI trace reads the target live St04 row and
+  the same invocation prints DISCONN with its exit status recorded.
+- No internal function replacement or recorded filesystem input substitutes
+  for the live path being verified.
+- The bounded attempt retains raw evidence and verifies task restoration.
+  An unsuccessful attempt remains an observed limitation, not a PASS.
+
+##### Dependencies And Decisions
+
+- D15, Decision Date: 2026-10-18. Exclude this work from current execution and
+  retain Status Deferred and Ready No.
+- Reopening requires a new dated assignment decision and acceptance and
+  authorization of a concrete bounded plan. No current VM use is reserved.
+- This backlog condition does not block completed M8 or change G2.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. If assigned later, inspect retained native evidence and identify a bounded
+   method that can establish same-invocation input and output.
+2. Specify the exact real path, time and attempt limits, failure criteria and
+   restoration before requesting execution authorization.
+3. Execute only the accepted finite plan and retain unsuccessful observations.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | native integration | Full shipped list CLI and original NativeList; correlate its actual live proc input with its own output | Disposable Debian and Rocky consumers selected by a future accepted plan | Target St04 input and DISCONN output in the same invocation |
+| T2 | restoration | Compare task-owned resources and protected state before and after the future attempt | The same consumers | Task resources removed and protected state restored |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run under M15 | Future bounded native plan | Pending; prior M8 same-call observation remains Partial | Retained M8 evidence below |
+| T2 | Not run under M15 | Future bounded native plan | Pending | None; prior M8 restoration does not verify a future attempt |
+
+Retained evidence: `work/m8-st04-repeat-20261017/` contains 191896
+connection attempts, 600000 raw snapshots and 404 full CLI queries across
+both OSes. Separate reads captured 51 target-path St04 rows, including five
+Type0001 rows. No matching St04 read and DISCONN output occurred in a full
+CLI invocation. Those native results remain Partial. The earlier experiment
+is retained under `work/m8-st04-vm-20261017/`.
+
+Accepted recorded-input behavior is retained separately under
+`work/m8-st04-netdir-20261018/` and
+`work/m8-st04-rocky-policy-20261018/`; it completes the D15 documentation
+scope and does not satisfy M15 / T1. No new experiment ran for this assignment.
+
+##### Closure Evidence
+
+None. Deferred by D15 on 2026-10-18; no current execution is authorized.
