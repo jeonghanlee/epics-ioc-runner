@@ -18,18 +18,12 @@ declare -gr SUITE_ID="system-infra"
 declare -gr SUITE_SCOPE="system"
 declare -gr SUITE_RUNNER="none"
 declare -gr SUITE_CATEGORY="installed-conformance"
-declare -g SC_PATH="${BASH_SOURCE[0]}"
-declare -g SC_TOP=""
 declare -g REPORT_DIR=""
 declare -g REPORT_READY=0
 declare -g SUDOERS_EXISTS=0
 declare -g LOGROTATE_EXISTS=0
 declare -g -a SYSTEM_INFRA_CHECK_IDS=()
 
-if [[ "${SC_PATH}" != /* ]]; then
-    SC_PATH="${PWD}/${SC_PATH}"
-fi
-SC_TOP="${SC_PATH%/*}"
 # shellcheck source=lib/test-reporting.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
