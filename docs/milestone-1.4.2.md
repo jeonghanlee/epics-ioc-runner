@@ -4936,6 +4936,45 @@ whole-book T1-T6 closure and the remaining native cases stay open.
 
 ##### Verification Results
 
+###### Local log-storage fixture procedure: 2026-10-19
+
+Supplemental T3 execution verified the three Bash blocks in
+`tests/README.md`, Local log-storage fixture, at candidate
+`ef84f0cb6c9e218289823972b3b1ebbdcf9bfeb5`. The documented account and path
+placeholders were supplied; native tools prepared and consumed real 4 MiB
+tmpfs mounts through separate administrative and non-root SSH sessions.
+
+| Label | Observed At (UTC) | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T3 | 2026-10-19T23:15:59Z through 23:16:55Z | Retained Debian 13 VM; util-linux 2.41.5 | Passed: normal use, ENOSPC, TERM and interrupted preparation, 4/4 cases | `work/local-tmpfs-20261019/debian13/`; TERM and partial preparation in `retry-term/` |
+| T3 | 2026-10-19T23:19:14Z through 23:19:19Z | Retained Rocky 8.10 VM; util-linux 2.32.1 | Passed: the same four cases, 4/4 | `work/local-tmpfs-20261019/rocky8/` |
+
+Both OSes verified non-root writes, `nodev,nosuid,noexec`, mount mode 0755,
+and data ownership with mode 0700. Native ENOSPC returned 1 at the 4 MiB
+limit; TERM returned 143. Both rejected an unset mountpoint before use.
+TERM acceptance uses a waiting parent Bash to retain the native child status;
+the initial Debian SSH status 255 remains an incomplete observation outside
+the eight accepted cases. Its original evidence is preserved.
+
+Cleanup passed for all task mounts and all nine temporary directories,
+including the initial incomplete attempt. Successful mount-table reads
+confirmed each mountpoint absent before `rmdir`. Before/after hashes of
+`/etc/passwd`, `/etc/group` and `/etc/sudoers` matched on both guests.
+Provider closure and independent `virsh domstate` reads at
+2026-10-19T23:21:46Z confirmed both original guests shut off and retained.
+
+The result and command receipts are retained under
+`work/local-tmpfs-20261019/`, including `result.md`, `verification.json`,
+`provider-closure.json` and `final-vm-state.json`. The 375-member
+`evidence-sha256.json` manifest has SHA-256
+`ec7f9c7573eda661a2841506361eb862155ed97081f627fcdfd8553e19f323c7`.
+All members were rechecked when recording this result.
+
+This verifies the fixture procedure only; S37, the complete Local lifecycle
+suite and the fresh-consumer release Gate were not rerun. M8 remains
+Complete, M15 remains Deferred and G2 remains Open. Historical aggregate
+counts are unchanged.
+
 ###### Current acceptance under D15: 2026-10-18
 
 M8 documentation verification is complete within the accepted scope.
