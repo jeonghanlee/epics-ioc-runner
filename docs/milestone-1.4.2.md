@@ -7,7 +7,7 @@ Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 
-Next session entry point: `docs/milestone-1.4.2.md`, prepare the M16 commit when requested. Its implementation, targeted verification, and disposable-container cleanup are finished; landing evidence is pending. M8 remains Complete under D15; M15 remains Deferred and G2 remains Open.
+Next session entry point: `docs/milestone-1.4.2.md`, confirm G2's production golden bake and its `opc` fixture before planning release Gate execution. All 15 assigned milestones are Complete; no milestone row is Ready. M15 remains Deferred in Backlog.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -23,10 +23,11 @@ T1/T2/T4/T5/T6 acceptance, reconciled T3 evidence and landed public documents
 support M8 closure. The two internal guards retain their accepted source-only
 treatment. G2 remains the independent release-bake gate.
 
-Current milestone totals: 14 Complete, 1 In progress and 0 Not started.
+Current milestone totals: 15 Complete, 0 In progress and 0 Not started.
 External gates: G1 Complete and G2 Open. Backlog: one Deferred item, M15,
 excluded from the release tally. The M8 completion record is committed in
-`2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16 changes are not yet committed.
+`2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16's implementation and verification
+records are committed and pushed through `c5cf323ebd5862cc21835b9a314b16cb0f2d801d`.
 
 ### Prior checkpoints before D15
 
@@ -212,7 +213,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Complete | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
-| Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | In progress | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass and temporary containers are removed; landing evidence pending; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
+| Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | Complete | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass, temporary containers are removed, and changes are landed through c5cf323; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
 
 ### Decisions
 
@@ -15708,7 +15709,7 @@ None.
 Origin: 1.4.2 / M16
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -15820,8 +15821,9 @@ container IDs, image identity, and tool versions.
 
 ##### Closure Evidence
 
-- Implementation and targeted verification are authorized; no new commit,
-  push, or GitHub mutation is part of this direction.
+- The plan and implementation were authorized on 2026-10-18. Commit and push
+  were separately delegated on 2026-10-18 and completed for the six commits
+  below. There is no linked GitHub issue or required external gate for M16.
 - All five accepted corrections and the unused-variable cleanup are present.
   The changed code, regression assertions, and operator/test instructions were
   checked against the accepted scope. No independent reviewer acceptance is
@@ -15829,9 +15831,28 @@ container IDs, image identity, and tool versions.
 - At 2026-10-18T21:23:08Z, all four task-owned disposable containers are absent.
   Three final filesystem archives and the raw test outputs remain under the
   evidence root; `cleanup.json` records their identities and removal checks.
-- Verification is complete; Status remains In progress until repository
-  changes have landing evidence. M8, M15, and G2 are unchanged.
-- Landing evidence: pending.
+- Landing observed at 2026-10-19T01:04:10Z: after `git fetch origin`, `HEAD`
+  and `origin/release-1.4.2` both resolve to
+  `c5cf323ebd5862cc21835b9a314b16cb0f2d801d`. All 146 files in the fetched tree
+  match the verified candidate's `candidate-source/SHA256SUMS`, including
+  all 14 files changed by the six commits. The worktree was clean before
+  this completion-record update.
+- The comparison reads each path with `git show origin/release-1.4.2:<path>`
+  and checks its SHA256 against the retained candidate inventory. Local
+  landing records are in `work/m16-landing-20261018/`; the original runtime
+  results remain under the verification evidence root.
+- T1-T6, cleanup, and repository landing satisfy every completion criterion.
+  Status is Complete. M8 remains Complete, M15 remains Deferred, and G2
+  remains Open for the independent release Gate.
+
+| Change | Commit |
+| --- | --- |
+| Container scan directory propagation | `2bff84898398ee2d120335d677a2c12a99d1b575` |
+| Optional installation assets and mode-specific site.env validation | `710650b928fff46a8f7e0947d9d9668c10b61201` |
+| Container reporting validation | `6d71e6c2a12b8e2671a44537458e43a2267fad03` |
+| Wildcard sudoers scope documentation | `bff8169cb3bca6cc0ff96452de3efbbe8315e601` |
+| Infrastructure test cleanup | `a5f196200ede608575a23831625ff75ab4fb61da` |
+| Implementation and verification record | `c5cf323ebd5862cc21835b9a314b16cb0f2d801d` |
 
 ## Backlog
 
