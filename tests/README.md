@@ -79,6 +79,67 @@ writes `configure/RELEASE.local` for EPICS Base and builds the IOC; it does
 not build these support modules or install their OS dependencies. Check the
 fixture's build requirements again when its external revision changes.
 
+### Local log-storage fixture
+
+Every Local lifecycle invocation, including `run-all-tests.bash --local` and
+the dispatcher's default selection, requires a fresh writable, size-limited
+tmpfs for S37. Set `IOC_RUNNER_M10_LOG_FIXTURE` to its data directory. The
+suite runs without sudo, but an administrator must prepare this mount first.
+An absent or unsuitable fixture fails the prerequisite and skips dependent
+checks; it is not a passing Local run.
+
+In a separate administrator session on the verification VM, set
+`LOCAL_TEST_USER` to the existing account that will run the suite. Run each
+command only after the preceding command succeeds:
+
+```bash
+LOCAL_TEST_USER="test-account"
+LOCAL_TEST_UID=$(id -u "${LOCAL_TEST_USER}")
+LOCAL_TEST_GID=$(id -g "${LOCAL_TEST_USER}")
+LOCAL_TEST_TMPFS=$(mktemp -d /tmp/ioc-runner-local-log.XXXXXX)
+printf 'Local fixture mount: %s\n' "${LOCAL_TEST_TMPFS}"
+sudo -n mount -t tmpfs -o nodev,nosuid,noexec,size=4m,mode=0755 tmpfs "${LOCAL_TEST_TMPFS}"
+sudo -n install -d -o "${LOCAL_TEST_UID}" -g "${LOCAL_TEST_GID}" -m 0700 "${LOCAL_TEST_TMPFS}/data"
+```
+
+Record the exact mountpoint immediately, including partial preparation.
+In the test account's existing session, assign that recorded absolute path to
+`LOCAL_TEST_TMPFS`, then export and check the fixture before running the
+selected Local suite:
+
+```bash
+export IOC_RUNNER_M10_LOG_FIXTURE="${LOCAL_TEST_TMPFS:?}/data"
+test -d "${IOC_RUNNER_M10_LOG_FIXTURE}" && test -w "${IOC_RUNNER_M10_LOG_FIXTURE}"
+test "$(findmnt -n -o FSTYPE --target "${IOC_RUNNER_M10_LOG_FIXTURE}")" = tmpfs
+```
+
+Stop if either check fails. Exporting a variable in the administrator's shell
+does not transfer it to the test account's session. The EPICS and original
+generator prerequisites below remain required.
+
+After the suite stops and its cleanup finishes, preserve any required evidence
+outside the tmpfs. On success, failure, or interruption, use the separate
+administrator session to verify and remove only the recorded mount:
+
+```bash
+test "$(findmnt -n -o TARGET --target "${LOCAL_TEST_TMPFS:?}")" = "${LOCAL_TEST_TMPFS}"
+test "$(findmnt -n -o FSTYPE --target "${LOCAL_TEST_TMPFS:?}")" = tmpfs
+sudo -n umount -- "${LOCAL_TEST_TMPFS:?}"
+findmnt -rn -o TARGET,FSTYPE
+rmdir -- "${LOCAL_TEST_TMPFS:?}"
+```
+
+Both `test` commands and `umount` must exit 0. Require a successful `findmnt`
+read with the recorded mountpoint absent before running `rmdir`; a remaining
+mount or a tool error stops cleanup. Require `rmdir` to exit 0. If preparation failed
+before mounting, confirm the recorded directory is not a mountpoint and remove
+only that empty directory with `rmdir`. Never unmount another filesystem or
+report failed cleanup as successful. Prepare a new fixture for each invocation.
+
+The two-host Gate uses `gate/drivers/remote/run-local-lifecycle.bash`, which
+prepares and removes its own tmpfs through administrative sudo. That wrapper
+does not prepare fixtures for direct suite or dispatcher invocations.
+
 ### Original generated startup fixture
 
 Both lifecycle suites also build the original generator at revision
@@ -415,13 +476,17 @@ Accounts with a non-interactive sudo route continue without a credential
 prompt; otherwise the dispatcher runs `sudo -v` before capture so any required
 authentication remains attached to the operator terminal.
 
+Before any selection that includes Local lifecycle, complete the
+[Local log-storage fixture](#local-log-storage-fixture) preparation and export
+its path in the invoking user's session. Clean it up after that invocation.
+
 ```bash
 # Default: both modes, source binary.
 # Requires EPICS_BASE, 'ioc' group membership, sudo access, and lsof.
 # A persistent user journal enables the monitor-isolation step; otherwise it SKIPs with a WARN (the same class covers absent logrotate, socat, or softIoc).
 bash tests/run-all-tests.bash
 
-# Local lifecycle, edited source (no sudo or 'ioc' group required).
+# Local lifecycle, edited source (prepared tmpfs; suite runs without sudo).
 bash tests/run-all-tests.bash --local --source
 
 # System lifecycle (infra + lifecycle), edited source.
@@ -442,7 +507,10 @@ bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
 ```
 
 The Container harness passes `IOC_RUNNER_SCAN_DIR` to setup, the supervisor,
-the suite, and the runner. For a custom scan directory:
+the suite, and the runner. If setup fails, that container exits with the setup
+status before starting the supervisor or suite; the harness records the
+failure and exits nonzero after processing the selected images.
+For a custom scan directory:
 
 ```bash
 IOC_RUNNER_SCAN_DIR=/run/ioc-test bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
