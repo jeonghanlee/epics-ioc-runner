@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 Gate baseline ref: `1.4.1` (D16)
 
-Next session entry point: `docs/milestone-1.4.2.md`, review and accept the revised M17 plan (startup generator and module assignments for the Gate suite matrix), then confirm G2's production golden bake and its `opc` fixture before planning release Gate execution. 15 of 16 assigned milestones are Complete; M17 is Ready. M15 remains Deferred in Backlog.
+Next session entry point: `docs/milestone-1.4.2.md`, confirm G2's production golden bake and its `opc` fixture before planning release Gate execution. All 16 assigned milestones are Complete; no milestone row is Ready. M15 remains Deferred in Backlog.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -24,11 +24,12 @@ T1/T2/T4/T5/T6 acceptance, reconciled T3 evidence and landed public documents
 support M8 closure. The two internal guards retain their accepted source-only
 treatment. G2 remains the independent release-bake gate.
 
-Current milestone totals: 15 Complete, 0 In progress and 1 Not started.
+Current milestone totals: 16 Complete, 0 In progress and 0 Not started.
 External gates: G1 Complete and G2 Open. Backlog: one Deferred item, M15,
 excluded from the release tally. The M8 completion record is committed in
 `2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16's implementation and verification
-records are committed and pushed through `c5cf323ebd5862cc21835b9a314b16cb0f2d801d`.
+records are committed and pushed through `c5cf323ebd5862cc21835b9a314b16cb0f2d801d`;
+M17's implementation is committed and pushed as `c9e594702a231cb99b89181f6c42e6065a1e4efb`.
 
 ### Prior checkpoints before D15
 
@@ -215,7 +216,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 | Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | Complete | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass, temporary containers are removed, and changes are landed through c5cf323; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
-| Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Not started | Yes | none | The suite driver stages the pinned generator and the module assignment file on both consumers, both lifecycle suites and the step 5 command receive them, a missing or wrong input stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
+| Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Complete | No | none | The suite driver stages the pinned generator and the module assignment file on both consumers, both lifecycle suites and the step 5 command receive them, a missing or wrong input stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
 
 ### Decisions
 
@@ -15901,7 +15902,7 @@ container IDs, image identity, and tool versions.
 Origin: 1.4.2 / M17
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -16011,9 +16012,9 @@ provisioning; building or changing any EPICS module.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: accepted by the owner on 2026-11-09 after the review loop of this revised plan ended with no finding above the floor
+Implementation Authorization: authorized by the owner on 2026-11-09 for the accepted plan
 Superseded Plan Artifacts: the plan accepted on 2026-11-09 without a module assignment input, committed in `e9d7101`
 
 1. In `gate/drivers/control/suites.bash`, read `IOC_RUNNER_STARTUP_GENERATOR`
@@ -16070,14 +16071,42 @@ Gate's step 5.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-11-10T02:03Z | control host | Pass | `bash -n` and `shellcheck -x gate/drivers/control/suites.bash` print no error or warning; observed against the plan accepted 2026-11-09, repeat for the revised plan |
-| T2 | 2026-11-10T02:05:06Z | control host; consumer pair named on the command line | Pass | Absent, non-repository, and wrong-revision inputs each exit 1 with the matching error and no `PREFLIGHT`, `EVIDENCE`, `GENERATOR`, or `RUN suite=` line; no run directory is created; `work/m17-generator-20261110/t2.log`; observed against the plan accepted 2026-11-09, so the nonexistent release path case has not run and the checks repeat for the revised plan |
-| T3 | 2026-11-10T03:07Z | Debian 13 and Rocky 8 iocrunner test consumers from the 2026-11-09 golden pair; candidate `e9d7101` with the uncommitted driver change | Fail | `GATE SUITES FAIL`. Generator staging passed on both hosts (bundle SHA-256 `c1a02d04d604bd144b99587ca0430770e0aadbb8dead18eba8c1f51f111b3b35`, revision `ee214dee`) and every `original-generated-fixture` REQUIRED check passed. Each lifecycle run then failed `severity-fixture` (`Original IOC includes native StreamDevice array support: expected true, actual false`) and skipped 453 dependent checks per host: the generated DBD lacks `devaaoStream` because the generator's `configure/RELEASE` leaves `STREAM` commented out. `work/m17-generator-20261110/t3.log`, `work/gate-suites-20261110T025131Z-359501/`; observed against the plan accepted 2026-11-09, repeat for the revised plan |
-| T4 | Not run | the T3 consumers | Pending | none |
+| T1 | 2026-11-10T06:13:06Z | control host | Pass | `bash -n` and `shellcheck -x gate/drivers/control/suites.bash` print no error or warning; `work/m17-generator-20261110/t1-t2-revised.log` |
+| T2 | 2026-11-10T06:13:06Z | control host; consumer pair named on the command line | Pass | The four cases (absent generator, non-repository path, repository without the pinned revision, nonexistent `IOC_RUNNER_STARTUP_RELEASE` path with a valid generator) each exit 1 with an error naming their own input and print no `PREFLIGHT`, `EVIDENCE`, `GENERATOR`, `RELEASE`, `CONTROL`, or `RUN suite=` line; no run directory is created; `work/m17-generator-20261110/t1-t2-revised.log` |
+| T3 | 2026-11-10T06:13:35Z (run `20261110T061335Z-836025`) | Debian 13 and Rocky 8 iocrunner test consumers from the 2026-11-09 golden pair (Check grade); candidate `e9d7101` plus the uncommitted driver, release file, and documentation changes | Pass | `GATE SUITES PASS hosts=2`. Both hosts report `SUITES OK` with 2026 checks and no FAIL, SKIP, or SCRIPT_ERROR (Debian 2021 PASS and 5 NA, Rocky 2014 PASS and 12 NA); the check-identity pin matched. All 729 S36 and S41 checks pass on each host, including `original-generated-fixture` and `severity-fixture`. Generator bundle SHA-256 `c1a02d04d604bd144b99587ca0430770e0aadbb8dead18eba8c1f51f111b3b35` at revision `ee214dee`; release file SHA-256 `b92dd1e058117c0dd2c19611c43cb040e08b0bd8e312760632a27a2bb2660cec`, identical on both consumers. All 88 `cross-host.diff` lines are PASS-versus-NA differences in local S29, source-regression S23, and system-infra S06 and S07, the OS applicability set. `work/m17-generator-20261110/t3-revised.log`, `work/gate-suites-20261110T061335Z-836025/` |
+| T4 | 2026-11-10T06:38:16Z to 2026-11-10T06:45:30Z, cleanup afterwards | the T3 consumers (Check grade) | Pass | The RUNBOOK step 5 suite command ran on both consumers from the root-readable `~/gitsrc` tree with the paths the T3 evidence recorded. Each ends with `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` and `SYSTEM_RC=0`, reports 389 of 389 assertions passed with no FAIL, SKIP, or NA, shows all 217 S36 checks PASS, and has no permission denial outside `st.cmd` lines. The RUNBOOK cleanup instruction then removed the recorded generator clone and release copy on each consumer and printed `STARTUP INPUTS REMOVED`; the owner approved those two paths per host and the earlier first-run clone, which was removed as well, and the staging directory holds no entries afterwards. `work/m17-generator-20261110/t4-debian.log`, `work/m17-generator-20261110/t4-rocky.log` |
 
 ##### Closure Evidence
 
-- none
+- The plan was accepted on 2026-11-09 and implementation was authorized the
+  same day. Commit and push were separately delegated. There is no linked
+  GitHub issue. The only external gate that remains is the release Gate's
+  production bake (G2), which M17 does not close.
+- T1 through T4 passed on the revised plan, and their observed results are
+  recorded above. T3 and T4 ran on test consumers outside the release Gate
+  pair, so they are Check grade and are not Gate evidence; the release Gate
+  runs every step again on its own fresh pair. The test guests were closed by
+  their provider after the runs, with their disks kept.
+- The documentation changes (`gate/RUNBOOK.md`, `tests/README.md`) received a
+  second-person pass that found one defect, a module list the new assignments
+  made incomplete; it was corrected and the next pass returned no finding above
+  the floor. The plan itself ended its review loop the same way. No independent
+  reviewer acceptance is claimed for the driver code beyond T1 through T4.
+- The implementation is committed as
+  `c9e594702a231cb99b89181f6c42e6065a1e4efb` ("Stage the startup generator and
+  module assignments for Gate suites"), carrying `gate/startup-generator.release`,
+  `gate/drivers/control/suites.bash`, `gate/RUNBOOK.md`, and `tests/README.md`.
+- Landing observed at 2026-11-10T09:31:09Z: after `git fetch origin`, `HEAD`
+  and `origin/release-1.4.2` both resolve to
+  `c9e594702a231cb99b89181f6c42e6065a1e4efb`. The upstream blob of each of the
+  four changed paths equals the committed file, and no other path differs
+  between `origin/release-1.4.2` and `HEAD`. Recheck with
+  `git fetch origin` and `git diff --name-only origin/release-1.4.2 HEAD`.
+- Every completion criterion is met: the suite matrix and the step 5 command
+  pass with S36 and S41 green (T3, T4), the four invalid inputs stop the driver
+  before remote work (T2), the run evidence records the revision, consumer
+  paths, and digests (T3), and the runbook, test guide, and drivers pass their
+  checks (T1 and the documentation passes).
 
 ## Backlog
 
