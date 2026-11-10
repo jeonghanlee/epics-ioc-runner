@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #167 are closed under it
 Gate baseline ref: `1.4.1` (D16)
 
-Next session entry point: `docs/milestone-1.4.2.md`, complete M18 (changelog entry and upgrade notes), then record implementation authority for the accepted M19 plan and open release readiness; the release Gate runs on the fresh golden pair baked by cloud-provision. 16 of 18 assigned milestones and both external gates are Complete; M18 is In progress and M19 waits on M18. M15 remains Deferred in Backlog.
+Next session entry point: `docs/milestone-1.4.2.md`, record implementation authority for the accepted M19 plan and open release readiness (M18 is Complete); the release Gate runs on the fresh golden pair baked by cloud-provision. 17 of 18 assigned milestones and both external gates are Complete; M19 is Ready and waits for implementation authority. M15 remains Deferred in Backlog.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -24,12 +24,13 @@ T1/T2/T4/T5/T6 acceptance, reconciled T3 evidence and landed public documents
 support M8 closure. The two internal guards retain their accepted source-only
 treatment. G2 remains the independent release-bake gate.
 
-Current milestone totals: 16 Complete, 1 In progress and 1 Not started.
+Current milestone totals: 17 Complete, 0 In progress and 1 Not started.
 External gates: G1 and G2 Complete. Backlog: one Deferred item, M15,
 excluded from the release tally. The M8 completion record is committed in
 `2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16's implementation and verification
 records are committed and pushed through `c5cf323ebd5862cc21835b9a314b16cb0f2d801d`;
-M17's implementation is committed and pushed as `c9e594702a231cb99b89181f6c42e6065a1e4efb`.
+M17's implementation is committed and pushed as `c9e594702a231cb99b89181f6c42e6065a1e4efb`;
+M18's implementation is committed and pushed as `de6bf7540b4897b4a510b6b85da7ac7cc29e4df5`.
 
 ### Prior checkpoints before D15
 
@@ -217,8 +218,8 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Complete | — | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 | Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | Complete | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass, temporary containers are removed, and changes are landed through c5cf323; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
 | Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Complete | No | none | The suite driver stages the pinned generator and the module assignment file on both consumers, both lifecycle suites and the step 5 command receive them, a missing or wrong input stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
-| Release | M18 | Add the 1.4.2 changelog entry and upgrade notes | Milestone | In progress | No | D8, D17, D18 | `CHANGELOG.md` carries a 1.4.2 section above 1.4.1 with every observable change of #157 through #167 and the four D8 upgrade actions, each statement checked against the code, and the section passes its document review; [detail](#m18---add-the-142-changelog-entry-and-upgrade-notes) |
-| Release | M19 | Release 1.4.2 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M16, M17, M18, G1, G2, D8, D16, D18, D19 | Version stamped `1.4.2`, the Gate passes on the version commit with the container and documentation checks, `release-1.4.2` is merged to master, tag `1.4.2` and the GitHub release are published, and milestone `1.4.2` is closed; [detail](#m19---release-142) |
+| Release | M18 | Add the 1.4.2 changelog entry and upgrade notes | Milestone | Complete | No | D8, D17, D18 | `CHANGELOG.md` carries a 1.4.2 section above 1.4.1 with every observable change of #157 through #167 and the four D8 upgrade actions, each statement checked against the code, and the section passes its document review; [detail](#m18---add-the-142-changelog-entry-and-upgrade-notes) |
+| Release | M19 | Release 1.4.2 | Milestone | Not started | Yes | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M16, M17, M18, G1, G2, D8, D16, D18, D19 | Version stamped `1.4.2`, the Gate passes on the version commit with the container and documentation checks, `release-1.4.2` is merged to master, tag `1.4.2` and the GitHub release are published, and milestone `1.4.2` is closed; [detail](#m19---release-142) |
 
 ### Decisions
 
@@ -16144,7 +16145,7 @@ Gate's step 5.
 Origin: 1.4.2 / M18
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -16238,7 +16239,20 @@ Superseded Plan Artifacts: none
 
 ##### Closure Evidence
 
-- none
+- The plan was accepted on 2026-11-10 and implementation was authorized the
+  same day. Commit and push were separately delegated. There is no linked
+  GitHub issue.
+- The changelog section is committed and pushed as
+  `de6bf7540b4897b4a510b6b85da7ac7cc29e4df5`; the cycle plan and the T1
+  through T4 results are committed and pushed as
+  `9211d3a56eb999d4d1d174a9906c865baaf78726`. After the push, HEAD, its
+  upstream, and a fresh fetch of `origin/release-1.4.2` all named
+  `9211d3a56eb999d4d1d174a9906c865baaf78726`, and the working tree had no
+  difference from it.
+- T1 through T4 passed and are recorded above. Verifying the statements
+  corrected the FAQ reference, the Container reinstall user, and Migration
+  step 1 before the section was accepted. The second-person pass found no
+  finding above the floor.
 
 #### M19 - Release 1.4.2
 
