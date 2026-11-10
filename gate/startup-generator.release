@@ -1,0 +1,10 @@
+# Module assignments for the generated startup IOC that the lifecycle suites
+# build. The suites append this file to the generated configure/RELEASE.local,
+# and MODULES comes from the generated configure/RELEASE. The generated IOC
+# links a module only when its name is defined here: STREAM needs ASYN and
+# CALC, and CALC needs SSCAN and SNCSEQ.
+ASYN = $(MODULES)/asyn
+SNCSEQ = $(MODULES)/seq
+SSCAN = $(MODULES)/sscan
+CALC = $(MODULES)/calc
+STREAM = $(MODULES)/StreamDevice

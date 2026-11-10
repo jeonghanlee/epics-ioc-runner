@@ -206,15 +206,35 @@ record remains pending until that record is written.
 
 ### 2. Complete suite matrix
 
-Run the shipped control-side driver from the candidate repository root:
+Run the shipped control-side driver from the candidate repository root. Set
+`IOC_RUNNER_STARTUP_GENERATOR` to the control-host Git repository that holds
+the original startup generator revision required by
+[`../tests/README.md`](../tests/README.md#original-generated-startup-fixture):
 
 ```bash
 DEBIAN_HOST="vmadmin@<debian-host>"
 DEBIAN_EPICS_ENV="<absolute-debian-epics-env>"
 ROCKY_HOST="vmadmin@<rocky-host>"
 ROCKY_EPICS_ENV="<absolute-rocky-epics-env>"
+export IOC_RUNNER_STARTUP_GENERATOR="<absolute-control-host-generator-repository>"
 bash gate/drivers/control/suites.bash "$DEBIAN_HOST" "$DEBIAN_EPICS_ENV" "$ROCKY_HOST" "$ROCKY_EPICS_ENV"
 ```
+
+The generated startup IOC links a module only when its name is defined in its
+RELEASE, so the suites also need the module assignments in
+`gate/startup-generator.release`. Set `IOC_RUNNER_STARTUP_RELEASE` to another
+control-host file to replace them.
+
+Before any remote work, the driver stops when `IOC_RUNNER_STARTUP_GENERATOR`
+is unset, does not name a Git repository, or names one without that revision,
+and when the release file is not readable. It bundles only that revision,
+clones it on each consumer under `~/ioc-runner-gate-generator/<run-id>`,
+copies the release file to `~/ioc-runner-gate-generator/<run-id>.release`, and
+passes both to the lifecycle suites. Each host's `GENERATOR host=... path=...`
+line, also kept in `<run-dir>/<host>.generator`, records the consumer path
+`<generator-path>` and the bundle SHA-256. Its `RELEASE host=... path=...`
+line, kept in `<run-dir>/<host>.release`, records the consumer path
+`<release-path>` and the file's SHA-256. Both stay on the consumer for step 5.
 
 The driver runs six suites on each host:
 
@@ -437,12 +457,14 @@ place.
 
 Confirm the installed runner still reports the candidate commit, then resolve
 the environment path as in precondition 4 and run the installed `--system`
-suites on each consumer from `<abs-toplevel>`, one control-host log per host:
+suites on each consumer from `<abs-toplevel>`, one control-host log per host.
+Set `<generator-path>` and `<release-path>` to the paths the host's step 2
+`GENERATOR` and `RELEASE` lines recorded:
 
 ```bash
 set -o pipefail
 ssh vmadmin@<host> '/usr/local/bin/ioc-runner -V'
-ssh vmadmin@<host> "cd <abs-toplevel> || exit 1; set +u; if [ -z \"\${EPICS_BASE:-}\" ]; then . <epics-env>; fi; set -u; bash tests/run-all-tests.bash --system --installed 2>&1" | tee <nfs-system-log>; printf 'SYSTEM_RC=%s\n' "$?" | tee -a <nfs-system-log>
+ssh vmadmin@<host> "cd <abs-toplevel> || exit 1; set +u; if [ -z \"\${EPICS_BASE:-}\" ]; then . <epics-env>; fi; set -u; export IOC_RUNNER_STARTUP_GENERATOR='<generator-path>' IOC_RUNNER_STARTUP_RELEASE='<release-path>'; bash tests/run-all-tests.bash --system --installed 2>&1" | tee <nfs-system-log>; printf 'SYSTEM_RC=%s\n' "$?" | tee -a <nfs-system-log>
 sha256sum <nfs-system-log>
 ```
 
@@ -469,6 +491,16 @@ Required result: no output. A remaining denial, in particular one naming
 `tests/lib/` or `run-all-tests.bash`, is the defect this step exists to catch
 and not an environment fault — the barrier and its source control above already
 established that the export squashes root and that a relative read succeeds.
+
+After step 5 has finished on both hosts, remove each host's staged generator
+clone and release copy. Remove only the recorded `<generator-path>` and
+`<release-path>`, never their parent or a glob:
+
+```bash
+ssh vmadmin@<host> "rm -rf -- '<generator-path>' '<release-path>'; test ! -e '<generator-path>' && test ! -e '<release-path>' && echo 'STARTUP INPUTS REMOVED'"
+```
+
+Required result: `STARTUP INPUTS REMOVED` on each host.
 
 ## Evidence
 
@@ -501,6 +533,11 @@ Also record:
   names and SHA-256 digests;
 - Golden acceptance results;
 - both full-setup logs and SHA-256 digests;
+- the startup generator revision, the bundle SHA-256 from
+  `<run-dir>/generator.meta`, each host's `<generator-path>` from
+  `<run-dir>/<host>.generator`, the release file's control-host path and
+  SHA-256 from `<run-dir>/release.meta`, each host's `<release-path>` from
+  `<run-dir>/<host>.release`, and each host's `STARTUP INPUTS REMOVED` result;
 - suite evidence directory and `cross-host.diff`;
 - both `P_nfs-sim` play recaps;
 - both `root_squash` barrier logs and SHA-256 digests;

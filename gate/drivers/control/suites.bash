@@ -10,6 +10,17 @@
 # $4 absolute EPICS environment path on the second host
 # $5 optional --remote-repo flag
 # $6 optional absolute repository path shared by both hosts
+#
+# IOC_RUNNER_STARTUP_GENERATOR names a control-host Git repository holding the
+# pinned original startup generator revision. The driver bundles only that
+# revision, clones it under each consumer's home for the run, and passes the
+# clone to both lifecycle suites. The clone is left in place for Gate step 5.
+#
+# IOC_RUNNER_STARTUP_RELEASE optionally names a control-host file of module
+# assignments for the generated startup IOC; it defaults to
+# gate/startup-generator.release. The driver copies the file beside the clone
+# and passes the copy to both lifecycle suites. The copy is left in place for
+# Gate step 5.
 set -euo pipefail
 
 export PATH="/usr/local/bin:/usr/bin:/bin"
@@ -28,14 +39,28 @@ readonly REPO_TOP
 readonly REPORT_COUNTS_FILE="${REPO_TOP}/tests/reporting-counts.csv"
 # shellcheck source=tests/lib/test-record-validator.bash
 source "${REPO_TOP}/tests/lib/test-record-validator.bash"
+# shellcheck source=tests/lib/test-startup-fixture.bash
+source "${REPO_TOP}/tests/lib/test-startup-fixture.bash"
 readonly OUTPUT_ROOT="${REPO_TOP}/work"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 readonly RUN_ID
 readonly RUN_DIR="${OUTPUT_ROOT}/gate-suites-${RUN_ID}"
 readonly -a SSH_CMD=(ssh -n -o BatchMode=yes -o ConnectTimeout=10)
+readonly -a SSH_STDIN_CMD=(ssh -o BatchMode=yes -o ConnectTimeout=10)
+readonly GENERATOR_REF="refs/heads/gate-startup-generator"
+readonly GENERATOR_BUNDLE="${RUN_DIR}/startup-generator.bundle"
+readonly GENERATOR_SCRATCH="${RUN_DIR}/startup-generator-source"
+readonly GENERATOR_REMOTE_PARENT="ioc-runner-gate-generator"
+readonly DEFAULT_STARTUP_RELEASE="${REPO_TOP}/gate/startup-generator.release"
 
 declare -A HOST_HEAD=()
 declare -A HOST_REPO=()
+declare -A HOST_GENERATOR=()
+declare -A HOST_RELEASE=()
+GENERATOR_SOURCE=""
+GENERATOR_BUNDLE_SHA256=""
+STARTUP_RELEASE_SOURCE=""
+STARTUP_RELEASE_SHA256=""
 CONTROL_DRIVER_SHA256=""
 readonly CONTROL_STATUS_FILE="${RUN_DIR}/control.status"
 readonly CONTROL_META_FILE="${RUN_DIR}/control.meta"
@@ -115,6 +140,124 @@ function preflight_host {
     HOST_HEAD["${token}"]="${head}"
     HOST_REPO["${token}"]="${repo}"
     printf 'PREFLIGHT host=%s env=%s head=%s repo=%s\n' "${host}" "${env_path}" "${head}" "${repo}"
+}
+
+function validate_startup_generator {
+    local source_path="${IOC_RUNNER_STARTUP_GENERATOR:-}"
+
+    if [[ -z "${source_path}" ]]; then
+        die "IOC_RUNNER_STARTUP_GENERATOR must name the original startup generator Git repository"
+    fi
+    if [[ ! -d "${source_path}" ]]; then
+        die "startup generator path is not a directory: ${source_path}"
+    fi
+    if ! git -C "${source_path}" rev-parse --git-dir >/dev/null 2>&1; then
+        die "startup generator path is not a Git repository: ${source_path}"
+    fi
+    if ! git -C "${source_path}" cat-file -e "${STARTUP_GENERATOR_REVISION}^{commit}" 2>/dev/null; then
+        die "startup generator repository lacks revision ${STARTUP_GENERATOR_REVISION}: ${source_path}"
+    fi
+    GENERATOR_SOURCE="$(cd "${source_path}" && pwd)"
+}
+
+function validate_startup_release {
+    local release_path="${IOC_RUNNER_STARTUP_RELEASE:-${DEFAULT_STARTUP_RELEASE}}"
+
+    if [[ ! -f "${release_path}" || ! -r "${release_path}" ]]; then
+        die "startup release file is not a readable regular file (IOC_RUNNER_STARTUP_RELEASE or the repository default): ${release_path}"
+    fi
+    STARTUP_RELEASE_SOURCE="$(readlink -f -- "${release_path}")"
+}
+
+function record_startup_release {
+    STARTUP_RELEASE_SHA256="$(sha256sum "${STARTUP_RELEASE_SOURCE}" | awk '{print $1}')"
+    printf 'RELEASE source=%s sha256=%s\n' \
+        "${STARTUP_RELEASE_SOURCE}" "${STARTUP_RELEASE_SHA256}" | tee "${RUN_DIR}/release.meta"
+}
+
+function build_startup_generator_bundle {
+    git clone -q --no-checkout -- "${GENERATOR_SOURCE}" "${GENERATOR_SCRATCH}" ||
+        die "failed to clone the startup generator into the run directory"
+    git -C "${GENERATOR_SCRATCH}" update-ref "${GENERATOR_REF}" "${STARTUP_GENERATOR_REVISION}" ||
+        die "failed to create the startup generator bundle ref"
+    git -C "${GENERATOR_SCRATCH}" bundle create -q "${GENERATOR_BUNDLE}" "${GENERATOR_REF}" ||
+        die "failed to create the startup generator bundle"
+    rm -rf -- "${GENERATOR_SCRATCH}"
+    GENERATOR_BUNDLE_SHA256="$(sha256sum "${GENERATOR_BUNDLE}" | awk '{print $1}')"
+    printf 'GENERATOR source=%s revision=%s bundle=%s bundle_sha256=%s\n' \
+        "${GENERATOR_SOURCE}" "${STARTUP_GENERATOR_REVISION}" \
+        "${GENERATOR_BUNDLE}" "${GENERATOR_BUNDLE_SHA256}" | tee "${RUN_DIR}/generator.meta"
+}
+
+function stage_startup_generator {
+    local host="$1"
+    local token="$2"
+    local evidence_file="${RUN_DIR}/${token}.generator"
+    local remote_dir="\${HOME}/${GENERATOR_REMOTE_PARENT}/${RUN_ID}"
+    local remote_command=""
+    local output=""
+    local path=""
+
+    remote_command="umask 077; d=\"${remote_dir}\"; test ! -e \"\${d}\" && test ! -e \"\${d}.bundle\" && mkdir -p \"\${HOME}/${GENERATOR_REMOTE_PARENT}\" && cat > \"\${d}.bundle\""
+    if ! "${SSH_STDIN_CMD[@]}" "${host}" "${remote_command}" < "${GENERATOR_BUNDLE}"; then
+        printf 'gate suites: startup generator transfer failed: %s\n' "${host}" >&2
+        return 1
+    fi
+
+    remote_command="umask 077; d=\"${remote_dir}\"; "
+    remote_command+="sha=\$(sha256sum \"\${d}.bundle\" | awk '{print \$1}'); "
+    remote_command+="test \"\${sha}\" = '${GENERATOR_BUNDLE_SHA256}' && "
+    remote_command+="git clone -q -b '${GENERATOR_REF#refs/heads/}' -- \"\${d}.bundle\" \"\${d}\" && "
+    remote_command+="git -C \"\${d}\" cat-file -e '${STARTUP_GENERATOR_REVISION}^{commit}' && "
+    remote_command+="rm -f -- \"\${d}.bundle\" && "
+    remote_command+="printf 'GENERATOR host=${host} path=%s revision=${STARTUP_GENERATOR_REVISION} bundle_sha256=%s\\n' \"\$(cd \"\${d}\" && pwd)\" \"\${sha}\""
+    if ! output="$("${SSH_CMD[@]}" "${host}" "${remote_command}")"; then
+        printf '%s\n' "${output}" > "${evidence_file}"
+        printf 'gate suites: startup generator staging failed: %s\n' "${host}" >&2
+        return 1
+    fi
+    if [[ ! "${output}" =~ ^GENERATOR[[:space:]]host=[A-Za-z0-9._@:-]+[[:space:]]path=(/[A-Za-z0-9._/+:-]+)[[:space:]]revision=[0-9a-f]{40}[[:space:]]bundle_sha256=[0-9a-f]{64}$ ]]; then
+        printf '%s\n' "${output}" > "${evidence_file}"
+        printf 'gate suites: startup generator staging returned an invalid record: %s\n' "${host}" >&2
+        return 1
+    fi
+    path="${BASH_REMATCH[1]}"
+    HOST_GENERATOR["${token}"]="${path}"
+    printf '%s\n' "${output}" | tee "${evidence_file}"
+}
+
+function stage_startup_release {
+    local host="$1"
+    local token="$2"
+    local evidence_file="${RUN_DIR}/${token}.release"
+    local remote_file="\${HOME}/${GENERATOR_REMOTE_PARENT}/${RUN_ID}.release"
+    local remote_command=""
+    local output=""
+    local path=""
+
+    remote_command="umask 077; f=\"${remote_file}\"; test ! -e \"\${f}\" && mkdir -p \"\${HOME}/${GENERATOR_REMOTE_PARENT}\" && cat > \"\${f}\""
+    if ! "${SSH_STDIN_CMD[@]}" "${host}" "${remote_command}" < "${STARTUP_RELEASE_SOURCE}"; then
+        printf 'gate suites: startup release transfer failed: %s\n' "${host}" >&2
+        return 1
+    fi
+
+    remote_command="f=\"${remote_file}\"; "
+    remote_command+="sha=\$(sha256sum \"\${f}\" | awk '{print \$1}'); "
+    remote_command+="test \"\${sha}\" = '${STARTUP_RELEASE_SHA256}' && "
+    remote_command+="printf 'RELEASE host=${host} path=%s sha256=%s\\n' \"\$(readlink -f \"\${f}\")\" \"\${sha}\""
+    if ! output="$("${SSH_CMD[@]}" "${host}" "${remote_command}")"; then
+        printf '%s\n' "${output}" > "${evidence_file}"
+        printf 'gate suites: startup release verification failed: %s\n' "${host}" >&2
+        return 1
+    fi
+    if [[ ! "${output}" =~ ^RELEASE[[:space:]]host=[A-Za-z0-9._@:-]+[[:space:]]path=(/[A-Za-z0-9._/+:-]+)[[:space:]]sha256=[0-9a-f]{64}$ ]]; then
+        printf '%s\n' "${output}" > "${evidence_file}"
+        printf 'gate suites: startup release staging returned an invalid record: %s\n' "${host}" >&2
+        return 1
+    fi
+    path="${BASH_REMATCH[1]}"
+    HOST_RELEASE["${token}"]="${path}"
+    printf '%s\n' "${output}" | tee "${evidence_file}"
 }
 
 function verify_remote_runner_provenance {
@@ -314,6 +457,7 @@ function run_host {
     local local_human="${RUN_DIR}/${token}.human"
     local meta_file="${RUN_DIR}/${token}.meta"
     local command_prefix="{ . '${env_path}'; } >&2 &&"
+    local generator_env="IOC_RUNNER_STARTUP_GENERATOR='${HOST_GENERATOR[${token}]}' IOC_RUNNER_STARTUP_RELEASE='${HOST_RELEASE[${token}]}'"
     local specification=""
     local suite=""
     local scope=""
@@ -341,16 +485,16 @@ function run_host {
         "sudo -n true >&2 && env REPORT_MACHINE_OUTPUT=1 bash tests/run-all-tests.bash --source-regression" \
         "${status_file}" || return 1
     run_remote_suite "${host}" "${token}" local-lifecycle local source \
-        "${command_prefix} bash gate/drivers/remote/run-local-lifecycle.bash source" \
+        "${command_prefix} ${generator_env} bash gate/drivers/remote/run-local-lifecycle.bash source" \
         "${status_file}" || return 1
     run_remote_suite "${host}" "${token}" local-lifecycle local installed \
-        "${command_prefix} bash gate/drivers/remote/run-local-lifecycle.bash installed" \
+        "${command_prefix} ${generator_env} bash gate/drivers/remote/run-local-lifecycle.bash installed" \
         "${status_file}" || return 1
     run_remote_suite "${host}" "${token}" system-infra system none \
         "${command_prefix} IOC_RUNNER_TEST_MODE=installed sudo -nE env REPORT_MACHINE_OUTPUT=1 bash tests/test-system-infra.bash" \
         "${status_file}" || return 1
     run_remote_suite "${host}" "${token}" system-lifecycle system installed \
-        "${command_prefix} IOC_RUNNER_TEST_MODE=installed sudo -nE env REPORT_MACHINE_OUTPUT=1 bash tests/test-system-lifecycle.bash" \
+        "${command_prefix} ${generator_env} IOC_RUNNER_TEST_MODE=installed sudo -nE env REPORT_MACHINE_OUTPUT=1 bash tests/test-system-lifecycle.bash" \
         "${status_file}" || return 1
 
     for specification in "${run_order[@]}"; do
@@ -722,12 +866,15 @@ function main {
     require_command git
     require_command cp
     require_command chmod
+    require_command rm
 
     token_one="$(token_for_host "${host_one}")"
     token_two="$(token_for_host "${host_two}")"
     if [[ "${token_one}" == "${token_two}" ]]; then
         die "the two hosts resolve to the same evidence token"
     fi
+    validate_startup_generator
+    validate_startup_release
     mkdir -p "${OUTPUT_ROOT}"
     if [[ -e "${RUN_DIR}" ]]; then
         die "run directory already exists: ${RUN_DIR}"
@@ -735,6 +882,8 @@ function main {
     mkdir "${RUN_DIR}"
     printf 'EVIDENCE run=%s dir=%s\n' "${RUN_ID}" "${RUN_DIR}"
     capture_control_provenance
+    build_startup_generator_bundle
+    record_startup_release
 
     preflight_host "${host_one}" "${env_one}" "${token_one}"
     preflight_host "${host_two}" "${env_two}" "${token_two}"
@@ -745,6 +894,14 @@ function main {
         die "runner provenance failed: ${host_one}"
     verify_remote_runner_provenance "${host_two}" "${token_two}" || \
         die "runner provenance failed: ${host_two}"
+    stage_startup_generator "${host_one}" "${token_one}" || \
+        die "startup generator staging failed: ${host_one}"
+    stage_startup_generator "${host_two}" "${token_two}" || \
+        die "startup generator staging failed: ${host_two}"
+    stage_startup_release "${host_one}" "${token_one}" || \
+        die "startup release staging failed: ${host_one}"
+    stage_startup_release "${host_two}" "${token_two}" || \
+        die "startup release staging failed: ${host_two}"
 
     drive_one="${RUN_DIR}/${token_one}.drive"
     drive_two="${RUN_DIR}/${token_two}.drive"

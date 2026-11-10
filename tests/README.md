@@ -172,16 +172,19 @@ The final command must exit 0. Preserve this exported variable when invoking
 the System suite with `sudo -E`.
 
 The generated application additionally requires built `retools`, `caPutLog`,
-`iocStats`, `pvxs`, `asyn`, and `StreamDevice` modules. The latter two must
-provide `drvAsynIPPort.dbd`, `stream.dbd`, and `devaaoStream` support in the
-generated DBD. Supply `ASYN` and `STREAM` RELEASE assignments for those built
-modules. If their paths differ from the template's
-layout, set `IOC_RUNNER_STARTUP_RELEASE` to a readable file containing the
-required RELEASE assignments. The helper appends that trusted build input to
-the generated `configure/RELEASE.local` after setting `EPICS_BASE`; it does not
-change the original generator, main, or installed dependencies. A missing
-source or failed build records a required-check failure and skips dependent
-checks.
+`iocStats`, `pvxs`, `seq`, `sscan`, `calc`, `asyn`, and `StreamDevice`
+modules. `asyn` and `StreamDevice` must provide `drvAsynIPPort.dbd`,
+`stream.dbd`, and `devaaoStream` support in the generated DBD. The generated application links a module only when its name is
+defined in `configure/RELEASE`, so supply `ASYN`, `SNCSEQ`, `SSCAN`, `CALC`,
+and `STREAM` assignments: `STREAM` needs `ASYN` and `CALC`, and `CALC` needs
+`SSCAN` and `SNCSEQ`. [`gate/startup-generator.release`](../gate/startup-generator.release)
+holds these five assignments for the template's `$(MODULES)` layout. Set
+`IOC_RUNNER_STARTUP_RELEASE` to it, or to a readable file with the same
+assignments when the module paths differ from that layout. The helper appends
+that trusted build input to the generated `configure/RELEASE.local` after
+setting `EPICS_BASE`; it does not change the original generator, main, or
+installed dependencies. A missing source or failed build records a
+required-check failure and skips dependent checks.
 
 System S27 keeps its operator outside `systemd-journal` and compares a genuine
 terminating quote error with a continued quote error. System S36 and Local S41
