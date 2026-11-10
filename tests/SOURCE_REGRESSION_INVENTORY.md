@@ -186,8 +186,11 @@ S16 adds four REQUIRED direct-inspection identities for the container execution 
 | --- | --- | --- | --- |
 | `source-regression.S16.launch-arguments.extracted` | `REQUIRED` | `direct-inspection` | Both `ExecStart=` lines and the s6 run-script render format are extracted before comparison. |
 | `source-regression.S16.launch-arguments.must-agree` | `REQUIRED` | `direct-inspection` | The ordered procServ option names agree across the runner unit, the setup unit, and the s6 render. |
-| `source-regression.S16.s6-render.fixed-values` | `REQUIRED` | `direct-inspection` | The s6 render logs to stdout (`--logfile=-`), keeps the `^D^C^]` ignore set, and passes an empty `--autorestartcmd`. |
+| `source-regression.S16.s6-render.fixed-values` | `REQUIRED` | `direct-inspection` | The s6 render logs to stdout (`--logfile=-`), keeps the `^D^C` ignore set, and passes an empty `--autorestartcmd`. |
+| `source-regression.S16.unit.ignore-set` | `REQUIRED` | `direct-inspection` | Both systemd unit `ExecStart=` lines pass exactly `--ignore=^D^C`; procServ reads `^` as a control prefix only before `A` through `Z`. |
 | `source-regression.S16.completion.mode-options-agree` | `REQUIRED` | `direct-inspection` | Every mode option the runner parses (`--local`, `--user`, `--container`) is offered by the completion script. |
+
+The 1.4.2 ignore-set correction adds `source-regression.S16.unit.ignore-set`, a fifth REQUIRED direct-inspection identity in this group. The option-name comparison above does not read values, so this check pins the unit value that the s6 fixed-value check already pins for the container render.
 
 ## Accepted M8 S17 Addition
 
@@ -220,10 +223,12 @@ S19 adds four REQUIRED direct-inspection identities accepted by the owner on 202
 
 ## S20 - Crash Pattern Source Contract
 
-S20 defines twenty-eight REQUIRED direct-inspection identities. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in the lifecycle suites.
+S20 declares REQUIRED direct-inspection identities for the crash-pattern contract. The runner source is read through the invoking-user boundary established by P00. Runtime crash behavior remains in the lifecycle suites.
 
 | Check ID | Kind | Test Method | Source Contract |
 | --- | --- | --- | --- |
+| `source-regression.S20.unbalanced-quote-not-fatal` | `REQUIRED` | `direct-inspection` | The fatal subset excludes an unbalanced quote. |
+| `source-regression.S20.unbalanced-quote-corroborates` | `REQUIRED` | `direct-inspection` | The ambiguous subset includes an unbalanced quote. |
 | `source-regression.S20.pattern-unbalanced-quote` | `REQUIRED` | `direct-inspection` | The base regex matches an unbalanced-quote line. |
 | `source-regression.S20.pattern-invalid-directory-path` | `REQUIRED` | `direct-inspection` | The base regex matches an invalid-directory line. |
 | `source-regression.S20.pattern-can-t-open` | `REQUIRED` | `direct-inspection` | The base regex matches a `Can't open` line. |
@@ -269,7 +274,7 @@ S21 adds five REQUIRED direct-inspection identities accepted by the owner on 202
 | `source-regression.S21.exclude-pattern.compiles` | `REQUIRED` | `direct-inspection` | The exclusion source constant is valid for `grep -E`. |
 | `source-regression.S21.history-load.matches-base-patterns` | `REQUIRED` | `direct-inspection` | The emitted history-load diagnostic remains a corroboration positive control after ANSI SGR normalization, before exclusion. |
 | `source-regression.S21.history-write.matches-exclude-pattern` | `REQUIRED` | `direct-inspection` | The exclusion source constant recognizes the history-write diagnostic. |
-| `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The shared `crash_scan_filter` call precedes the fatal and corroborating scans, and the whole-line exclusion grep lives inside that filter. |
+| `source-regression.S21.line-filter.precedes-crash-scans` | `REQUIRED` | `direct-inspection` | The shared `crash_scan_filter` precedes fatal scanning of `fatal_view` and corroboration scanning of `filtered`; whole-line exclusion remains inside the filter. This is source inspection, not runtime severity evidence. |
 
 ## M7 S22 Addition and M13 Extension
 
@@ -353,6 +358,20 @@ unchanged.
 | `source-regression.S25.mismatching-status.exits-one` | `BEHAVIOR` | `real-path` | The push driver exits 1 when external destination state changes after transfer. |
 | `source-regression.S25.mismatching-status.diagnostic` | `BEHAVIOR` | `real-path` | A status mismatch emits the explicit candidate-copy error. |
 
+## S26 Test Library Self-Test Addition
+
+S26 has three real-path behavior identities. It runs each shipped test-library
+self-test as the invoking user and requires exit 0, so the gate matrix
+exercises the reporting library, the record validator, and the count parser on
+every run. Each self-test's output is written to a temporary workspace, which
+is kept and whose failed assertions are printed only when a self-test fails.
+
+| Check ID | Kind | Test Method | Verification Contract |
+| --- | --- | --- | --- |
+| `source-regression.S26.self-test.reporting` | `BEHAVIOR` | `real-path` | `tests/lib/test-reporting-self-test.bash` exits 0. |
+| `source-regression.S26.self-test.record-validator` | `BEHAVIOR` | `real-path` | `tests/lib/test-record-validator-self-test.bash` exits 0. |
+| `source-regression.S26.self-test.reporting-counts` | `BEHAVIOR` | `real-path` | `tests/lib/reporting-counts-self-test.bash` exits 0. |
+
 ## Move Invariants
 
 1. Each current assertion and prerequisite receives exactly one accepted D13 disposition and reason.
@@ -369,3 +388,65 @@ unchanged.
 ## Verification Method
 
 Before the move, count the 36 mapped result branches, confirm every S07 through S14 `verify_state` call has one row, and confirm all eight validity prerequisites remain represented. Review each row's current claim, kind, method, evidence validity, and proposed ID before accepting one disposition and reason. After the move, reconcile the destination suite against those accepted dispositions, then confirm the system-infrastructure pipeline contains only S01 through S07. M8 adds the fifty-seven accepted S15 through S21 identities without changing the original move dispositions. M7 adds the original eleven S22 identities and M13 adds eleven more through the shipped full setup in a private mount namespace. M19 adds the four S23 identities through the shipped setup deploying to an absent destination parent. The release gate adds five S24 staged-setup identities and four S25 push-status identities. Runtime verification uses the real source-regression and installed-conformance suites on Debian 13 and Rocky 8; a hand-built reproduction does not satisfy this inventory.
+
+## Native Setup Diagnostics
+
+S27 requires a disposable prepared systemd VM, native setup tools and the
+existing `ioc-srv`/`ioc` identity. The `native-prerequisites` check has kind
+`PREREQUISITE`, method `direct-inspection`; an unmet prerequisite skips the
+entire group. The helper copies /etc into a private mount namespace, redirects
+other destinations, rejects symlinks at setup write paths and their parents,
+and invokes the complete shipped setup as real root/non-root with a restricted
+environment. A real full setup creates the private baseline before the invalid
+policy case. PID 1 always reads its original filesystem view; the helper
+reloads that real manager after the namespace exits. All native logs and
+protected-state snapshots are retained in root-owned /var/tmp directories.
+No internal parser, validator, command or system manager is replaced.
+
+The following `source-regression.S27.` suffixes have kind `BEHAVIOR`, method
+`real-path`. `execution-complete` also requires the helper's final exit 0.
+
+- `parser.root.help`
+- `parser.root.short`
+- `parser.root.full-help`
+- `parser.root.container-help`
+- `parser.root.conflict-help`
+- `parser.root.help-unknown`
+- `parser.root.unknown-help`
+- `parser.root.conflict`
+- `parser.root.repeat-full-help`
+- `parser.root.repeat-container-help`
+- `parser.user.help`
+- `parser.user.short`
+- `parser.user.full-help`
+- `parser.user.container-help`
+- `parser.user.conflict-help`
+- `parser.user.help-unknown`
+- `parser.user.unknown-help`
+- `parser.user.conflict`
+- `parser.user.repeat-full-help`
+- `parser.user.repeat-container-help`
+- `parser.user.noargs`
+- `parser.user.full`
+- `parser.user.container`
+- `parser.user.repeat-full`
+- `parser.user.repeat-container`
+- `parser.no-deployment`
+- `baseline.exit-zero`
+- `invalid.exit-one`
+- `invalid.abort-message`
+- `invalid.policy-preserved`
+- `invalid.cli-preserved`
+- `invalid.completion-preserved`
+- `invalid.cli-stage-absent`
+- `invalid.temporaries-clean`
+- `valid.exit-zero`
+- `valid.policy-deployed`
+- `valid.runner-deployed`
+- `valid.completion-deployed`
+- `valid.temporaries-clean`
+- `cli.exit-zero`
+- `repeated-full.exit-zero`
+- `protected-state-restored`
+- `manager-state-restored`
+- `execution-complete`

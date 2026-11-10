@@ -1,0 +1,7 @@
+record(aao, "$(P)Conversion") {
+    field(DESC, "Incompatible stream output format")
+    field(DTYP, "stream")
+    field(FTVL, "DOUBLE")
+    field(NELM, "1")
+    field(OUT, "@startup-severity.proto $(PROTOCOL) $(PORT) 0")
+}

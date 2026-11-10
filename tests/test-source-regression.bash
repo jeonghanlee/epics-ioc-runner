@@ -81,6 +81,7 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S16.launch-arguments.extracted"
     "${SUITE_ID}.S16.launch-arguments.must-agree"
     "${SUITE_ID}.S16.s6-render.fixed-values"
+    "${SUITE_ID}.S16.unit.ignore-set"
     "${SUITE_ID}.S16.completion.mode-options-agree"
     "${SUITE_ID}.S17.metadata.targets-extracted"
     "${SUITE_ID}.S17.metadata.injectors-agree"
@@ -90,6 +91,8 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S19.sudoers-regex.identical"
     "${SUITE_ID}.S19.runner-name.max-length-64"
     "${SUITE_ID}.S19.runner-sudoers-name-contracts.agree"
+    "${SUITE_ID}.S20.unbalanced-quote-not-fatal"
+    "${SUITE_ID}.S20.unbalanced-quote-corroborates"
     "${SUITE_ID}.S20.pattern-unbalanced-quote"
     "${SUITE_ID}.S20.pattern-invalid-directory-path"
     "${SUITE_ID}.S20.pattern-can-t-open"
@@ -164,6 +167,9 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S25.matching-status.exits-zero"
     "${SUITE_ID}.S25.mismatching-status.exits-one"
     "${SUITE_ID}.S25.mismatching-status.diagnostic"
+    "${SUITE_ID}.S26.self-test.reporting"
+    "${SUITE_ID}.S26.self-test.record-validator"
+    "${SUITE_ID}.S26.self-test.reporting-counts"
 )
 SC_PATH="${BASH_SOURCE[0]}"
 if [[ "${SC_PATH}" != /* ]]; then
@@ -171,6 +177,15 @@ if [[ "${SC_PATH}" != /* ]]; then
 fi
 SC_TOP="${SC_PATH%/*}"
 REPO_TOP="${SC_TOP}/.."
+declare -g NATIVE_SETUP_CATALOG
+NATIVE_SETUP_CATALOG=$(bash "${SC_TOP}/lib/setup-diagnostic-native.bash" --catalog)
+SOURCE_CHECK_IDS+=("${SUITE_ID}.S27.native-prerequisites")
+while IFS= read -r native_key; do
+    SOURCE_CHECK_IDS+=("${SUITE_ID}.S27.${native_key}")
+done <<< "${NATIVE_SETUP_CATALOG}"
+SOURCE_CHECK_IDS+=("${SUITE_ID}.S27.execution-complete")
+unset native_key NATIVE_SETUP_CATALOG
+
 # shellcheck source=lib/test-reporting.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
 
@@ -209,7 +224,7 @@ function verify_state {
     printf "%b[ FAIL ]%b %s\n" "${RED}" "${NC}" "${check_id}" >&2
     printf "  %bExpected : %s%b\n" "${YELLOW}" "${expected}" "${NC}" >&2
     printf "  %bActual   : %s%b\n" "${YELLOW}" "${actual}" "${NC}" >&2
-    report_record "${check_id}" FAIL "expected ${expected}, actual ${actual}"
+    report_record "${check_id}" FAIL "$(report_escape_reason "expected ${expected}, actual ${actual}")"
 }
 
 function source_check_metadata {
@@ -219,7 +234,8 @@ function source_check_metadata {
     local required_direct="false"
 
     if [[ "${check_id}" == "${SUITE_ID}.S22.isolation.prerequisites" ]] ||
-       [[ "${check_id}" == "${SUITE_ID}.S25.transport.fixture-ready" ]]; then
+       [[ "${check_id}" == "${SUITE_ID}.S25.transport.fixture-ready" ]] ||
+       [[ "${check_id}" == "${SUITE_ID}.S27.native-prerequisites" ]]; then
         printf -v "${kind_name}" '%s' PREREQUISITE
         printf -v "${method_name}" '%s' direct-inspection
         return
@@ -260,7 +276,7 @@ function register_reporting_catalog {
     local method=""
     local remainder=""
     local step_id=""
-    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22 S23 S24 S25)
+    local -a step_ids=(P00 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17 S18 S19 S20 S21 S22 S23 S24 S25 S26 S27)
 
     for step_id in "${step_ids[@]}"; do
         report_register_step "${step_id}" "Source regression ${step_id}"
@@ -1195,6 +1211,7 @@ function _launch_arguments_contract {
     local extracted="empty"
     local agreement="differ"
     local fixed_values="present"
+    local unit_ignore="present"
     local completion_opts=""
     local mode_option=""
     local mode_options="all"
@@ -1223,13 +1240,22 @@ function _launch_arguments_contract {
 
     if [[ "${render_format}" != *"--logfile=- "* ]]; then
         fixed_values="missing:logfile-stdout"
-    elif ! run_as_invoker grep -qF -- "sh_quote '^D^C^]'" "${runner_script}"; then
+    elif ! run_as_invoker grep -qF -- "sh_quote '^D^C'" "${runner_script}"; then
         fixed_values="missing:ignore-set"
     elif ! run_as_invoker grep -qF -- '"'"''"'"' "${runner_script}"; then
         fixed_values="missing:empty-autorestartcmd"
     fi
     verify_state "present" "${fixed_values}" \
         "${SUITE_ID}.S16.s6-render.fixed-values"
+
+    # procServ converts '^' only before A-Z, so the unit value is pinned exactly.
+    if [[ "${runner_exec}" != *" --ignore=^D^C "* ]]; then
+        unit_ignore="missing:runner-unit"
+    elif [[ "${setup_exec}" != *" --ignore=^D^C "* ]]; then
+        unit_ignore="missing:setup-unit"
+    fi
+    verify_state "present" "${unit_ignore}" \
+        "${SUITE_ID}.S16.unit.ignore-set"
 
     completion_opts=$(run_as_invoker grep -m1 -E '^[[:space:]]*opts="' "${completion_script}" || true)
     completion_opts="${completion_opts#*\"}"
@@ -1487,6 +1513,10 @@ function test_crash_pattern_source_contract {
         "CRASH_LOG_PATTERNS_SEVERITY" "${runner_script}")
     base_patterns="(${fatal_patterns}|${ambiguous_patterns})"
 
+    _verify_corro_source_fixture "nomatch" "${fatal_patterns}" "" \
+        "Unbalanced quote" "${SUITE_ID}.S20.unbalanced-quote-not-fatal"
+    _verify_corro_source_fixture "match" "${ambiguous_patterns}" "" \
+        "Unbalanced quote" "${SUITE_ID}.S20.unbalanced-quote-corroborates"
     _verify_corro_source_fixture "match" "${base_patterns}" "${severity_patterns}" \
         "ERROR st.cmd line 52: Unbalanced quote." \
         "${SUITE_ID}.S20.pattern-unbalanced-quote"
@@ -1667,7 +1697,7 @@ function test_crash_exclusion_source_contract {
 
     filter_needle="filtered=\$(crash_scan_filter \"\${window}\")"
     exclusion_needle="filtered=\$(grep -avE -- \"\${CRASH_LOG_EXCLUDE_PATTERNS}\" 2>/dev/null <<< \"\${scan_window}\" || true)"
-    fatal_scan_needle="if grep -qaiE -- \"\${CRASH_LOG_PATTERNS_FATAL}\" 2>/dev/null <<< \"\${filtered}\"; then"
+    fatal_scan_needle="if grep -qaiE -- \"\${CRASH_LOG_PATTERNS_FATAL}\" 2>/dev/null <<< \"\${fatal_view}\"; then"
     corroborating_scan_needle="if grep -qaiE -- \"\${effective_patterns}\" 2>/dev/null <<< \"\${filtered}\"; then"
     filter_line=$(run_as_invoker grep -nFm1 \
         "${filter_needle}" "${runner_script}" || true)
@@ -2135,6 +2165,98 @@ function test_push_status_comparison {
     esac
 }
 
+# Runs the three shipped test-library self-tests as the invoking user and
+# requires each to exit 0. Output goes to per-test files; the workspace is
+# kept and its failed assertions are shown only when a self-test fails.
+function test_reporting_self_tests {
+    local step="$1"
+    local work=""
+    local name=""
+    local script=""
+    local output=""
+    local rc=0
+    local failed="false"
+    local -a names=(reporting record-validator reporting-counts)
+    local -a scripts=(test-reporting-self-test.bash test-record-validator-self-test.bash reporting-counts-self-test.bash)
+    local index=0
+
+    print_divider
+    _log "INFO" "STEP ${step}: Run Test Library Self-Tests"
+    print_sub_divider
+
+    work=$(run_as_invoker mktemp -d /tmp/ioc-runner-self-tests.XXXXXX)
+    for index in "${!names[@]}"; do
+        name="${names[index]}"
+        script="${SC_TOP}/lib/${scripts[index]}"
+        output="${work}/${name}.log"
+        rc=0
+        run_as_invoker bash "${script}" >"${output}" 2>&1 || rc=$?
+        if (( rc != 0 )); then
+            failed="true"
+            _log "WARN" "Self-test ${scripts[index]} exited ${rc}; output: ${output}"
+            sed 's/\x1b\[[0-9;]*m//g' "${output}" | grep -E '^\[ FAIL' >&2 || true
+        fi
+        verify_state "0" "${rc}" "${SUITE_ID}.S26.self-test.${name}"
+    done
+
+    if [[ "${failed}" == "true" ]]; then
+        _log "WARN" "Self-test workspace retained: ${work}"
+        return
+    fi
+    case "${work}" in
+        /tmp/ioc-runner-self-tests.*) rm -rf -- "${work}" ;;
+        *) _log "ERROR" "Refusing to remove unexpected S26 workspace: ${work}" ;;
+    esac
+}
+
+function test_setup_native_diagnostics {
+    local step="$1" ready=true tool resolved path check_id
+    local work exit_code=0 tag key state index=0
+    local helper="${SC_TOP}/lib/setup-diagnostic-native.bash"
+    local -a expected=()
+    print_divider
+    _log INFO "STEP ${step}: Native Setup Help and Failure Contract"
+    for tool in unshare mount tar runuser logrotate getfacl setfacl systemctl setsid; do
+        resolved=$(command -v "${tool}" || true)
+        [[ -n "${resolved}" && -x "${resolved}" ]] || ready=false
+    done
+    for path in "${helper}" "${REPO_TOP}/bin/setup-system-infra.bash" "${REPO_TOP}/bin/ioc-runner" "${REPO_TOP}/bin/ioc-runner-completion.bash"; do
+        [[ -f "${path}" && -r "${path}" ]] || ready=false
+    done
+    [[ "$(cat /proc/1/comm)" == systemd ]] || ready=false
+    getent passwd ioc-srv >/dev/null || ready=false
+    getent group ioc >/dev/null || ready=false
+    if [[ "${ready}" == true ]]; then
+        unshare --mount -- true || ready=false
+    fi
+    if [[ "${ready}" != true ]]; then
+        report_record "${SUITE_ID}.S27.native-prerequisites" SKIP "requires a prepared disposable systemd VM and native setup tools"
+        for check_id in "${SOURCE_CHECK_IDS[@]}"; do
+            [[ "${check_id}" == "${SUITE_ID}.S27."* && "${check_id}" != "${SUITE_ID}.S27.native-prerequisites" ]] || continue
+            report_record "${check_id}" SKIP "requires ${SUITE_ID}.S27.native-prerequisites"
+        done
+        return 0
+    fi
+    report_record "${SUITE_ID}.S27.native-prerequisites" PASS
+    for check_id in "${SOURCE_CHECK_IDS[@]}"; do
+        [[ "${check_id}" == "${SUITE_ID}.S27."* ]] || continue
+        [[ "${check_id}" != "${SUITE_ID}.S27.native-prerequisites" && "${check_id}" != "${SUITE_ID}.S27.execution-complete" ]] || continue
+        expected+=("${check_id#"${SUITE_ID}.S27."}")
+    done
+    work=$(mktemp -d /var/tmp/ioc-source-native-report.XXXXXX)
+    /bin/bash -p "${helper}" "${REPO_TOP}/bin/setup-system-infra.bash" "${INVOKING_USER}" \
+        > "${work}/checks.log" 2> "${work}/execution.log" || exit_code=$?
+    cat "${work}/execution.log"
+    while IFS='|' read -r tag key state; do
+        [[ "${tag}" == CHECK && "${key}" == "${expected[index]:-}" && ( "${state}" == PASS || "${state}" == FAIL ) ]] || return 1
+        verify_state PASS "${state}" "${SUITE_ID}.S27.${key}"
+        index=$((index + 1))
+    done < "${work}/checks.log"
+    (( index == ${#expected[@]} )) || exit_code=1
+    verify_state 0 "${exit_code}" "${SUITE_ID}.S27.execution-complete"
+    printf 'Native setup report retained: %s\n' "${work}"
+}
+
 function run_all_tests {
     initialize_reporting
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
@@ -2162,6 +2284,8 @@ function run_all_tests {
     test_setup_destination_parent "S23"
     test_staged_setup_launcher "S24"
     test_push_status_comparison "S25"
+    test_reporting_self_tests "S26"
+    test_setup_native_diagnostics "S27"
 }
 
 run_all_tests

@@ -6,15 +6,19 @@
 
 - [Installation](INSTALL.md)
 - [Uninstallation](UNINSTALL.md)
-- [User Guide (System Mode)](USER_GUIDE.md)
-- [User Guide (Local Mode)](USER_GUIDE_LOCAL.md)
-- [CLI Reference](CLI_REFERENCE.md)
+- [User guide (system mode)](USER_GUIDE.md)
+- [User guide (local mode)](USER_GUIDE_LOCAL.md)
 - [FAQ](FAQ.md)
+
+# Concepts
+
+- [Architecture](ARCHITECTURE.md)
+- [Permission model](PERMISSION_MODEL.md)
+- [Exit and signal handling](EXIT_SIGNAL_HANDLING.md)
 
 # Reference
 
-- [Architecture](ARCHITECTURE.md)
-- [Permission Model](PERMISSION_MODEL.md)
-- [Network Environment](NETWORK_ENV.md)
-- [Log Layout](LOG_LAYOUT.md)
-- [Exit and Signal Handling](EXIT_SIGNAL_HANDLING.md)
+- [CLI reference](CLI_REFERENCE.md)
+- [Network environment](NETWORK_ENV.md)
+- [Log layout](LOG_LAYOUT.md)
+- [Glossary](GLOSSARY.md)

@@ -37,7 +37,7 @@ S03, and S04 are setup-only STEPs and own no checks.
 - S26 softIoc availability governs all nineteen crash-detection and
   restart-supervision checks. The verified-child SIGKILL condition governs the
   seven recovery observations that follow it.
-- S27 softIoc and probe-user-name prerequisites govern its four behavior
+- S27 softIoc and probe-user-name prerequisites govern its five behavior
   checks.
 - S28 the installed policy, softIoc, and logrotate conditions govern its ten
   behavior checks.
@@ -128,11 +128,16 @@ and executable paths directly. No row uses hand-built-reproduction.
 | S26 | `system-lifecycle.S26.restart-probe-systemd-nrestarts-remains-unchanged` | `BEHAVIOR` | `real-path` | systemd `NRestarts` remains unchanged, proving that systemd did not replace procServ. |
 | S26 | `system-lifecycle.S26.restart-probe-recovery-remains-stable-for-three-seconds` | `BEHAVIOR` | `real-path` | The replacement child, unit state, procServ identity, `NRestarts`, and one-banner boundary remain stable for three seconds. |
 | S27 | `system-lifecycle.S27.softioc-available` | `PREREQUISITE` | `direct-inspection` | softIoc is executable. |
+| S27 | `system-lifecycle.S27.original-generated-fixture` | `REQUIRED` | `real-path` | The pinned original generator runs and its unchanged main builds. |
 | S27 | `system-lifecycle.S27.probe-user-name-available` | `PREREQUISITE` | `direct-inspection` | The journal-less probe user name is not already in use. |
 | S27 | `system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable` | `BEHAVIOR` | `real-path` | Operator is an ioc-group member (sudoers gate reachable) |
 | S27 | `system-lifecycle.S27.operator-is-not-in-systemd-journal` | `BEHAVIOR` | `real-path` | Operator is NOT in systemd-journal |
+| S27 | `system-lifecycle.S27.second-operator-takes-over-an-identical-conf-with-f-161` | `BEHAVIOR` | `real-path` | Second operator takes over an identical conf with -f (#161) |
 | S27 | `system-lifecycle.S27.journal-less-operator-crash-exit-1` | `BEHAVIOR` | `real-path` | Journal-less operator: crash -> exit 1 |
-| S27 | `system-lifecycle.S27.journal-less-operator-failed-to-initialize-verdict-reads-log-file-not-journal` | `BEHAVIOR` | `real-path` | Journal-less operator: failed-to-initialize verdict (reads log file, not journal) |
+| S27 | `system-lifecycle.S27.journal-less-operator-exit-code-verdict-reads-log-file-not-journal` | `BEHAVIOR` | `real-path` | Journal-less operator: genuine child exit 2 is reported from the log file |
+| S27 | `system-lifecycle.S27.continued-quote-exits-zero` | `BEHAVIOR` | `real-path` | A continued quote error returns runner exit 0. |
+| S27 | `system-lifecycle.S27.continued-quote-avoids-failure` | `BEHAVIOR` | `real-path` | The continued diagnostic does not produce a startup failure. |
+| S27 | `system-lifecycle.S27.continued-quote-ioc-responds` | `BEHAVIOR` | `real-path` | The IOC responds through its native console after the continued error. |
 | S28 | `system-lifecycle.S28.logrotate-policy-exists` | `REQUIRED` | `direct-inspection` | The installed procServ logrotate policy exists. |
 | S28 | `system-lifecycle.S28.softioc-available` | `PREREQUISITE` | `direct-inspection` | softIoc is executable. |
 | S28 | `system-lifecycle.S28.logrotate-available` | `PREREQUISITE` | `direct-inspection` | logrotate is executable. |
@@ -230,3 +235,80 @@ and executable paths directly. No row uses hand-built-reproduction.
 The mapping is complete only while every source assertion branch maps once,
 every early return maps to its governing identity, repeated functions retain
 their STEP-specific IDs, and the pipeline remains S01 through S34.
+
+
+## S36 - Original generated startup
+
+The shared `lib/test-startup-fixture.bash` exports the pinned original generator,
+runs it, and builds its unchanged main. The preparation contract is in
+[the test README](README.md#original-generated-startup-fixture).
+
+The step declares one required `original-generated-fixture` check, followed by
+five behavioral checks for each case below: `runner-exit`, `diagnostic`,
+`native-status`, `supervisor-state`, and `console-response`. Each identity is
+`system-lifecycle.S36.<case>-<check>`. Evidence comes from the complete
+selected runner and actual generated IOC; there is no internal-function mock.
+
+| Case | Expected startup behavior |
+| --- | --- |
+| `healthy` | Readiness, exit 0, and a live IOC response |
+| `main-before-undefined-break` | Genuine command failure before readiness, child exit 2 |
+| `main-after-undefined-break` | Genuine command failure after readiness, child exit 2 |
+| `main-before-quote-break` | Genuine parse failure, child exit 2 |
+| `loaded-before-quote-break-break` | Parent and loaded file break, child exit 2 |
+| `main-before-quote-continue` | Continued parse error before readiness, responsive IOC |
+| `main-after-quote-continue` | Continued parse error after readiness, responsive IOC |
+| `loaded-before-quote-break-continue` | Parent breaks and loaded file continues, responsive IOC |
+| `loaded-before-quote-continue-break` | Parent continues and loaded file breaks, responsive IOC |
+| `zero-before-init` | Real console exit yields native status 0; a surviving retry without readiness warns and returns 0 |
+| `signal-before-init` | Native SIGKILL, crash-loop fallback without a normal exit code |
+| `status-shaped-text` | IOC output naming an unrelated PID cannot create a numeric failure |
+
+The final `active-start`, `active-restart`, `stopped-restart`, and `cleanup`
+checks cover the healthy control and removal of registration and socket.
+All cases use the production 30-second initialization and 3-second confirmation
+bounds. Printed diagnostic text is separate from native termination evidence.
+
+### Retained native severity
+
+The shared helper adds one required `severity-fixture` check. Every combination
+of `pre-separated`, `pre-ordinary`, `post-marker` and `stopped-start`,
+`active-restart`, `stopped-restart` declares these eight BEHAVIOR checks:
+
+| Check suffix | Real-path observation |
+| --- | --- |
+| `runner-exit` | Qualified startup returns 0 |
+| `diagnostic` | Retained severity details, without unqualified success |
+| `conversion-error` | Actual StreamDevice DOUBLE-to-string failure |
+| `readiness-order` | Native error occurs at the selected readiness placement |
+| `record-state` | Failed record STAT/SEVR/NORD/PACT, independently of readiness |
+| `native-child` | Actual generated executable remains alive |
+| `supervisor-state` | Native systemd unit is active |
+| `console-response` | Original IOC answers its console |
+
+Identity shape: `system-lifecycle.S36.severity-<placement>-<state>-<check>`.
+Each placement also has `severity-<placement>-active-start` for the unchanged
+already-running path. `severity-child-exit-<check>` covers `runner-exit`,
+`diagnostic`, `conversion-error`, `native-status`, and `supervisor-state` when
+the original main exits 2 after severity/readiness. `severity-cleanup` checks
+removal of the task registration and socket. These native cases add 82 checks.
+
+### Controlled outer log input
+
+Each case below declares `runner-exit`, `diagnostic`, and `filesystem-input`,
+with identity `system-lifecycle.S36.log-input-<case>-<check>`:
+
+- Matching: `same-window`, `ansi`, `repeated`, `distinct-limit`, `uppercase`,
+  `mixed-case`, `leading-identifier`, `trailing-identifier`.
+- Independent failure: `separate-fatal`, `separate-segfault`, `separate-symbol`,
+  `separate-loader`.
+- Poll and file boundaries: `error-first`, `marker-first`, `history-excluded`,
+  `inode-replacement`, `copytruncate`, `regrowth`, `final-scan`.
+- Missing or partial evidence: `no-readiness`, `unreadable`, `partial-status`,
+  `completed-status`.
+
+`log-input-cleanup` checks final removal. These 70 checks execute the full CLI
+with its real IOC/service and control only the external log input. Saved native
+logs and inode/size traces distinguish them from genuine module faults. They
+use shortened test timing; they do not claim a native module emitted the
+controlled text. Source and installed selectors share this complete catalog.

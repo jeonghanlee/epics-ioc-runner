@@ -76,12 +76,6 @@ declare -g CONTAINER_SCAN_DIR="${IOC_RUNNER_SCAN_DIR:-/run/s6-procserv}"
 declare -g -a S6_REQUIRED_BINS=(s6-svscan s6-supervise s6-svc s6-svstat s6-svscanctl s6-setuidgid)
 declare -g PERM_SCAN_DIR="0755"
 
-if [[ $EUID -ne 0 ]]; then
-    printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
-    printf "%s\n" "Usage: sudo /bin/bash -p $(basename "$0")" >&2
-    exit 1
-fi
-
 # --- CLI Argument Parsing ---
 # Three invocation forms: no option updates the CLI wrapper only, --full
 # deploys the systemd-backed infrastructure, --container deploys the
@@ -115,6 +109,12 @@ done
 
 if [[ ${FULL_SETUP_MODE} -eq 1 && ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
     printf "Error: --full and --container are mutually exclusive.\n" >&2
+    exit 1
+fi
+
+if [[ $EUID -ne 0 ]]; then
+    printf "${RED}%s${NC}\n" "Error: This script must be run as root (or via sudo)." >&2
+    printf "%s\n" "Usage: sudo /bin/bash -p $(basename "$0")" >&2
     exit 1
 fi
 
@@ -563,19 +563,17 @@ if [[ ${FULL_SETUP_MODE} -eq 1 || ${CONTAINER_SETUP_MODE} -eq 1 ]]; then
                                       ${SYSTEMCTL_BIN} ^daemon-reload\$
 EOF
     else
-        # Glob-fallback form. fnmatch '*' is broader than the runner
-        # IOC-name model, but systemd unit-name escaping plus the
-        # template-only resolution rule prevents it from becoming an
-        # escalation path. See docs/PERMISSION_MODEL.md residual-risk
-        # subsection.
-        _log "WARN" "sudo < 1.9.10 detected; emitting glob-form sudoers policy (broader than the runner IOC-name model; not an escalation path; see docs/PERMISSION_MODEL.md)."
+        # Glob matching spans the complete command-argument string.
+        # '*' can match additional unit arguments, authorizing control
+        # of unrelated services. See docs/PERMISSION_MODEL.md.
+        _log "WARN" "Glob-form sudoers policy can authorize unrelated services; see docs/PERMISSION_MODEL.md."
         cat <<EOF > "${tmp_sudoers}"
 # /etc/sudoers.d/10-epics-ioc
 # Glob-fallback form: this host's sudo does not support regex command
-# arguments (introduced in sudo 1.9.10). Scope is broader than the
-# runner IOC-name model [A-Za-z0-9_][A-Za-z0-9_-]{0,63}, but systemd
-# unit-name escaping plus template-only resolution keep this off any
-# escalation path. See docs/PERMISSION_MODEL.md.
+# arguments (introduced in sudo 1.9.10). '*' can match whitespace and
+# additional unit arguments, authorizing control of unrelated services.
+# This policy does not restrict delegation to IOC instances.
+# See docs/PERMISSION_MODEL.md.
 %${SYSTEM_GROUP} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} start epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} stop epics-@*.service, \\
                                       ${SYSTEMCTL_BIN} restart epics-@*.service, \\
@@ -679,7 +677,7 @@ EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
 RuntimeDirectoryPreserve=restart
-ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${RESOLVED_PROCSERV_BIN} --foreground --logfile=${SYSTEM_LOG_DIR}/%i.log --name=%i --ignore=^D^C --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 Restart=always
 RestartSec=2
@@ -742,7 +740,7 @@ EOF
         verify_path "${LOGROTATE_FILE}" "${OWNER_SYSTEM}" "${PERM_LOGROTATE}" file \
             "Deployed logrotate policy to ${LOGROTATE_FILE} (${SYSTEM_LOG_DIR}/*.log, weekly x8)"
     else
-        _log "ERROR" "logrotate syntax validation failed. Skipping deployment."
+        _log "ERROR" "logrotate syntax validation failed. Setup aborted; logrotate policy not deployed."
         rm -f "${tmp_logrotate}"
         exit 1
     fi

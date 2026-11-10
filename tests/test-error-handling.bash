@@ -34,6 +34,13 @@ declare -g CURRENT_STEP_ID=""
 declare -g CURRENT_STEP_CHECK_INDEX=0
 declare -g MOCK_CON_BIN=""
 declare -g TEST_TMPDIR=""
+declare -g -a COMPLETION_CONTRACT_ROWS=()
+declare -g COMPLETION_CONTRACT_CATALOG
+COMPLETION_CONTRACT_CATALOG=$(bash "${SC_TOP}/lib/completion-contract.bash" --catalog)
+while IFS= read -r completion_key; do
+    COMPLETION_CONTRACT_ROWS+=("S23|error-handling.S23.contract.${completion_key}|BEHAVIOR|real-path")
+done <<< "${COMPLETION_CONTRACT_CATALOG}"
+unset completion_key COMPLETION_CONTRACT_CATALOG
 declare -g -a ERROR_CATALOG_ROWS=(
     "P00|error-handling.P00.runner-source-readable|REQUIRED|direct-inspection"
     "S02|error-handling.S02.help-exits-0|BEHAVIOR|real-path"
@@ -45,6 +52,12 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S02|error-handling.S02.v-start-exits-1-verbose-restricted-to-list|BEHAVIOR|real-path"
     "S02|error-handling.S02.vv-status-exits-1-verbose-restricted-to-list|BEHAVIOR|real-path"
     "S02|error-handling.S02.local-v-list-exits-0-verbose-valid-for-list|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.long|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.short|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.noargs|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.local|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.user|BEHAVIOR|real-path"
+    "S02|error-handling.S02.help-contract.container|BEHAVIOR|real-path"
     "S03|error-handling.S03.start-without-target-exits-1|BEHAVIOR|real-path"
     "S03|error-handling.S03.stop-without-target-exits-1|BEHAVIOR|real-path"
     "S03|error-handling.S03.restart-without-target-exits-1|BEHAVIOR|real-path"
@@ -56,9 +69,9 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S03|error-handling.S03.view-without-target-exits-1|BEHAVIOR|real-path"
     "S04|error-handling.S04.generate-native-dot-path-resolves-successfully|BEHAVIOR|real-path"
     "S04|error-handling.S04.configuration-artifact-created-dynamically|BEHAVIOR|real-path"
-    "S04|error-handling.S04.identical-artifact-natively-bypasses-overwrite-and-exits-0|BEHAVIOR|real-path"
-    "S04|error-handling.S04.identical-re-generate-takes-the-skip-path|BEHAVIOR|real-path"
-    "S04|error-handling.S04.identical-skip-reasserts-conf-mode-0600-123|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-re-generate-exits-0-without-a-question|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-re-generate-reports-unchanged-content|BEHAVIOR|real-path"
+    "S04|error-handling.S04.identical-re-generate-restores-conf-mode-0600-123|BEHAVIOR|real-path"
     "S04|error-handling.S04.differential-artifact-prompt-exits-1-on-eof|BEHAVIOR|real-path"
     "S04|error-handling.S04.differential-artifact-prompt-exits-1-on-user-decline|BEHAVIOR|real-path"
     "S04|error-handling.S04.forced-overwrite-ignores-diff-constraint-and-exits-0|BEHAVIOR|real-path"
@@ -116,6 +129,7 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S23|error-handling.S23.list-command-suggests-v-and-vv|BEHAVIOR|real-path"
     "S23|error-handling.S23.st-prefix-narrows-to-start-stop-status|BEHAVIOR|real-path"
     "S23|error-handling.S23.missing-conf-dir-yields-empty-compreply|BEHAVIOR|real-path"
+    "${COMPLETION_CONTRACT_ROWS[@]}"
     "S24|error-handling.S24.view-bad-name-whitespace-exits-1-via-name-validation|BEHAVIOR|real-path"
     "S24|error-handling.S24.view-bad-name-special-char-exits-1-via-name-validation|BEHAVIOR|real-path"
     "S24|error-handling.S24.view-bad-name-period-exits-1-via-name-validation|BEHAVIOR|real-path"
@@ -234,6 +248,56 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S40|error-handling.S40.reader-equivalence.double-quoted-whitespace-only|BEHAVIOR|real-path"
     "S40|error-handling.S40.reader-equivalence.quoted-empty-present|BEHAVIOR|real-path"
     "S40|error-handling.S40.reader-equivalence.missing-key-api-states|BEHAVIOR|real-path"
+    "S41|error-handling.S41.missing-value|BEHAVIOR|real-path"
+    "S41|error-handling.S41.empty-value|BEHAVIOR|real-path"
+    "S41|error-handling.S41.invalid-name|BEHAVIOR|real-path"
+    "S41|error-handling.S41.invalid-digit|BEHAVIOR|real-path"
+    "S41|error-handling.S41.invalid-length|BEHAVIOR|real-path"
+    "S41|error-handling.S41.reserved-key|BEHAVIOR|real-path"
+    "S41|error-handling.S41.reject-escape-byte|BEHAVIOR|real-path"
+    "S41|error-handling.S41.monitor-rejected|BEHAVIOR|real-path"
+    "S41|error-handling.S41.list-rejected|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-a|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-b|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-c|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-d|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-e|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-f|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-g|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-h|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-i|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-j|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-k|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-l|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-m|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-n|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-o|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-p|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-q|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-r|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-s|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-u|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-v|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-w|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-x|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-y|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-z|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-backslash|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-bracket-close|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-caret|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-underscore|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-uppercase|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-before-command|BEHAVIOR|real-path"
+    "S41|error-handling.S41.accept-quoted-backslash|BEHAVIOR|real-path"
+    "S41|error-handling.S41.help-contract|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-available|REQUIRED|direct-inspection"
+    "S41|error-handling.S41.completion-option|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-keys|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-prefix|BEHAVIOR|real-path"
+    "S41|error-handling.S41.completion-target|BEHAVIOR|real-path"
+    "S42|error-handling.S42.isolation-tools-available|REQUIRED|direct-inspection"
+    "S42|error-handling.S42.no-client-attach-rejected|BEHAVIOR|real-path"
+    "S42|error-handling.S42.no-client-monitor-rejected|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -301,7 +365,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 40; index += 1)); do
+    for ((index = 1; index <= 42; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -409,7 +473,7 @@ function verify_state {
         printf "%b[ FAIL ]%b %s\n" "${RED}" "${NC}" "${step_name}" >&2
         printf "  %bExpected : %s%b\n" "${YELLOW}" "${expected}" "${NC}" >&2
         printf "  %bActual   : %s%b\n" "${YELLOW}" "${actual}" "${NC}" >&2
-        reason="${step_name}: expected ${expected}, actual ${actual}"
+        reason=$(report_escape_reason "${step_name}: expected ${expected}, actual ${actual}")
         record_current_state FAIL "${reason}"
     fi
 }
@@ -506,6 +570,9 @@ function test_usage {
     print_sub_divider
 
     local exit_code
+    local form help_output commands contract_ok option
+    local expected_commands='generate install remove start stop restart status enable disable view log list attach monitor inspect'
+    local -a help_args=()
 
     exit_code=$(_run bash "${RUNNER_SCRIPT}" --help)
     verify_exit_code "0" "${exit_code}" "--help exits 0"
@@ -540,6 +607,31 @@ function test_usage {
 
     exit_code=$(IOC_RUNNER_LOCAL_RUN_DIR="${TEST_TMPDIR}/empty_run" _run bash "${RUNNER_SCRIPT}" --local -v list)
     verify_exit_code "0" "${exit_code}" "'--local -v list' exits 0 (verbose valid for list)"
+
+    for form in long short noargs local user container; do
+        case "${form}" in
+            long) help_args=(--help) ;;
+            short) help_args=(-h) ;;
+            noargs) help_args=() ;;
+            *) help_args=("--${form}" --help) ;;
+        esac
+        exit_code=0
+        /bin/bash -p "${RUNNER_SCRIPT}" "${help_args[@]}" \
+            > "${TEST_TMPDIR}/help-${form}.stdout" 2> "${TEST_TMPDIR}/help-${form}.stderr" || exit_code=$?
+        help_output=$(< "${TEST_TMPDIR}/help-${form}.stdout")
+        commands=$(awk '/^Commands:/{p=1; next} /^Examples:/{p=0} p && /^  [a-z]+ /{printf "%s%s", sep, $1; sep=" "}' \
+            "${TEST_TMPDIR}/help-${form}.stdout")
+        contract_ok=true
+        [[ ${exit_code} -eq 0 && ! -s "${TEST_TMPDIR}/help-${form}.stderr" &&
+           "${commands}" == "${expected_commands}" &&
+           "${help_output}" == *'-n <count>, --lines <count>'* &&
+           "${help_output}" == *'default 40'* &&
+           "${help_output}" == *'-f: follow the log until interrupted'* ]] || contract_ok=false
+        for option in --local --user --container -f --force -n --lines -v -vv --detach-key -V --version -h --help; do
+            [[ "${help_output}" == *"${option}"* ]] || contract_ok=false
+        done
+        verify_state true "${contract_ok}" "Complete runner help contract: ${form}"
+    done
 }
 
 function test_missing_target {
@@ -592,21 +684,24 @@ function test_generate_logic {
     if [[ -f "${conf_file}" ]]; then conf_exists="true"; fi
     verify_state "true" "${conf_exists}" "Configuration artifact created dynamically"
 
-    # Evaluates the internal cmp -s integration bypassing identical configuration files.
-    exit_code=$(cd "${test_dir}" && _run bash "${RUNNER_SCRIPT}" --local generate .)
-    verify_exit_code "0" "${exit_code}" "Identical artifact natively bypasses overwrite and exits 0"
+    # An identical re-generate by the file's owner rewrites the conf through
+    # the staged rename without asking (#161): with standard input closed, a
+    # question would end in exit 1.
+    exit_code=$(cd "${test_dir}" && _run bash -c "bash \"${RUNNER_SCRIPT}\" --local generate . < /dev/null")
+    verify_exit_code "0" "${exit_code}" "Identical re-generate exits 0 without a question"
 
-    # Issue #123: the identical-skip must still reassert the conf mode, or a
-    # hand-loosened permission survives the re-generate. Loosen to a different
-    # mode, re-generate identical content, and confirm both that the skip path
-    # actually ran (the "Identical" marker guards against a vacuous green from
-    # the write path) and that the mode is restored to the local-mode 0600.
+    # Issue #123: the identical re-generate must reassert the conf mode, or a
+    # hand-loosened permission survives it. Loosen to a different mode,
+    # re-generate identical content, and confirm both that the identical path
+    # ran (the "Identical" marker guards against a vacuous green from the
+    # differing-content path) and that the mode is restored to the local-mode
+    # 0600.
     chmod 0666 "${conf_file}"
-    local identical_out skip_ran="false"
-    identical_out=$(cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . 2>&1)
-    if printf "%s" "${identical_out}" | grep -q "already up-to-date (Identical)"; then skip_ran="true"; fi
-    verify_state "true" "${skip_ran}" "Identical re-generate takes the skip path"
-    verify_state "600" "$(stat -c %a "${conf_file}")" "Identical-skip reasserts conf mode 0600 (#123)"
+    local identical_out identical_ran="false"
+    identical_out=$(cd "${test_dir}" && bash "${RUNNER_SCRIPT}" --local generate . < /dev/null 2>&1)
+    if printf "%s" "${identical_out}" | grep -q "already up-to-date (Identical)"; then identical_ran="true"; fi
+    verify_state "true" "${identical_ran}" "Identical re-generate reports unchanged content"
+    verify_state "600" "$(stat -c %a "${conf_file}")" "Identical re-generate restores conf mode 0600 (#123)"
 
     # Evaluates the ANSI diff engine and interactive prompt behavior using a mocked non-interactive shell.
     printf "\n# Modified\n" >> "${conf_file}"
@@ -1012,6 +1107,8 @@ function test_completion {
     local step="$1"
     local comp_script="${SC_TOP}/../bin/ioc-runner-completion.bash"
     local completion_available="false"
+    local contract_exit=0 tag key state contract_index=0 expected_key
+    local contract_log="${TEST_TMPDIR}/completion-contract.log"
 
     print_divider
     _log "INFO" "STEP ${step}: Bash Completion Smoke Tests"
@@ -1139,6 +1236,27 @@ function test_completion {
         printf "%s" "${#COMPREPLY[@]}"
     )
     verify_state "0" "${got}" "Missing conf_dir yields empty COMPREPLY"
+
+    # Reuse the full public-interface contract for source and deployed copies.
+    bash "${SC_TOP}/lib/completion-contract.bash" "${comp_script}" \
+        "${TEST_TMPDIR}/completion-contract" > "${contract_log}" || contract_exit=$?
+    while IFS='|' read -r tag key state; do
+        expected_key="${COMPLETION_CONTRACT_ROWS[contract_index]:-}"
+        expected_key="${expected_key#S23|error-handling.S23.contract.}"
+        expected_key="${expected_key%%|*}"
+        [[ "${tag}" == CHECK && -n "${key}" && "${key}" == "${expected_key}" ]] || return 1
+        [[ "${state}" == PASS || "${state}" == FAIL || "${state}" == NA ]] || return 1
+        if [[ "${state}" == NA ]]; then
+            record_current_state NA "unreadable-directory boundary requires a non-root caller"
+        else
+            verify_state PASS "${state}" "Completion contract: ${key}"
+        fi
+        contract_index=$((contract_index + 1))
+    done < "${contract_log}"
+    (( contract_index == ${#COMPLETION_CONTRACT_ROWS[@]} )) || return 1
+    if (( contract_exit > 1 )); then
+        return "${contract_exit}"
+    fi
 }
 
 
@@ -2459,6 +2577,11 @@ function test_reader_equivalence {
 }
 
 
+# shellcheck source=lib/test-console-options.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-options.bash"
+# shellcheck source=lib/test-console-clients.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-clients.bash"
+
 function run_all_tests {
     local -a pipeline=(
         "_setup"
@@ -2501,6 +2624,8 @@ function run_all_tests {
         "test_conf_mode_mismatch_diagnosis"
         "test_conf_parser_contract"
         "test_reader_equivalence"
+        "test_console_options"
+        "test_console_clients"
     )
     local step=1
     local func

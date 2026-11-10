@@ -1,0 +1,7 @@
+bad_init {
+    out "%s";
+    @init { out "%s"; }
+}
+bad_process {
+    out "%s";
+}

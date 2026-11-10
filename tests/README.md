@@ -13,7 +13,7 @@ including the simulated `root_squash` deployment, is defined in
 is [System Tests on an NFS Home with `root_squash`](#3-system-tests-on-an-nfs-home-with-root_squash)
 below. Current implementation and verification
 status is tracked in
-[`docs/milestone-1.4.1.md`](../docs/milestone-1.4.1.md).
+[`docs/milestone-1.4.2.md`](../docs/milestone-1.4.2.md).
 
 ## Required Reading
 
@@ -22,6 +22,280 @@ full [`gate/RUNBOOK.md`](../gate/RUNBOOK.md) and
 [`docs/INSTALL.md`](../docs/INSTALL.md). The invocation account, `sudo` handling,
 binary origin, and path constraints are defined across these documents. Do not
 act from one section, a summary, or memory of an earlier run.
+
+## VM Preparation and Handoff
+
+Declare the exact test before requesting or reusing a VM. A raw OS guest for
+manual installation must retain the accounts and files that the test expects
+to be absent. An installed-conformance or lifecycle test requires its named
+infrastructure. A successful SSH connection or administrative `sudo` check
+does not establish either test's prerequisites.
+
+Each request and handoff records:
+
+| Field | Required Content |
+| --- | --- |
+| Purpose | Selected test, mode, binary origin, and expected evidence |
+| Guest state | OS/image provenance, resources, required present and absent assets |
+| Provider checks | Capacity, guest identity, pinned SSH key, boot completion, access, and agreed observations |
+| Requester prerequisites | Required packages, accounts, permissions, service state, and the person or session responsible for preparation |
+| Observed readiness | Dated checks and their actual results; pending preparation named separately |
+| Restoration and lifetime | Temporary changes to restore, approved corrections to retain, evidence location, and finished notice |
+
+Before each use window, including reuse of a retained VM, the requester checks
+the actual guest against the selected test's prerequisites. Record native tool
+versions, EPICS paths, account access, and the relevant system or user service
+state. Check journald persistence, lingering, timers, or SELinux only where the
+selected test depends on them. Do not infer preparation from another VM or an
+earlier handoff. If a prerequisite fails, stop dependent tests and record that
+failure separately from intentional error cases.
+
+Use a separate administrative connection for teardown. For an account created
+exclusively for the test, stop and remove its IOCs, disable its temporary linger,
+terminate its login sessions, and stop both `user@<uid>.service` and
+`user-runtime-dir@<uid>.service` before deleting the account. Verify that its
+processes and `/run/user/<uid>` are absent first. A stopped user manager does not
+by itself prove that the runtime unit has stopped; the runtime cleanup helper
+can require the account to exist. Preserve the run's evidence and restore the
+recorded account-file metadata after deleting only the task-created account.
+
+### Lifecycle IOC build prerequisites
+
+The Local and System lifecycle suites clone and build `ServiceTestIOC`.
+`EPICS_BASE` must name a built native EPICS Base installation, and
+`EPICS_HOST_ARCH` must match that build. EPICS Base alone is insufficient.
+The fixture resolves its support modules under `${EPICS_BASE}/../modules`;
+prepare `asyn`, `seq`, `std`, `recsync`, and `autosave` there before running
+the suite. Build `asyn` and `seq` before `std`, using the same EPICS Base.
+The fixture needs the asyn and std libraries and DBD files, the sequencer's
+`snc` compiler and libraries, `recsync/db/reccaster.db`, and
+`autosave/db/save_restoreStatus.db`.
+
+The native build also requires Make, C/C++ compilers, Perl, Python 3, and
+`re2c`. Install the RPC and SNMP development packages: `libtirpc-dev` and
+`libsnmp-dev` on Debian, or `libtirpc-devel` and `net-snmp-devel` on Rocky.
+On Rocky 8, `re2c` is available from the PowerTools repository. The suite
+writes `configure/RELEASE.local` for EPICS Base and builds the IOC; it does
+not build these support modules or install their OS dependencies. Check the
+fixture's build requirements again when its external revision changes.
+
+### Local log-storage fixture
+
+Every Local lifecycle invocation, including `run-all-tests.bash --local` and
+the dispatcher's default selection, requires a fresh writable, size-limited
+tmpfs for S37. Set `IOC_RUNNER_M10_LOG_FIXTURE` to its data directory. The
+suite runs without sudo, but an administrator must prepare this mount first.
+An absent or unsuitable fixture fails the prerequisite and skips dependent
+checks; it is not a passing Local run.
+
+In a separate administrator session on the verification VM, set
+`LOCAL_TEST_USER` to the existing account that will run the suite. Run each
+command only after the preceding command succeeds:
+
+```bash
+LOCAL_TEST_USER="test-account"
+LOCAL_TEST_UID=$(id -u "${LOCAL_TEST_USER}")
+LOCAL_TEST_GID=$(id -g "${LOCAL_TEST_USER}")
+LOCAL_TEST_TMPFS=$(mktemp -d /tmp/ioc-runner-local-log.XXXXXX)
+printf 'Local fixture mount: %s\n' "${LOCAL_TEST_TMPFS}"
+sudo -n mount -t tmpfs -o nodev,nosuid,noexec,size=4m,mode=0755 tmpfs "${LOCAL_TEST_TMPFS}"
+sudo -n install -d -o "${LOCAL_TEST_UID}" -g "${LOCAL_TEST_GID}" -m 0700 "${LOCAL_TEST_TMPFS}/data"
+```
+
+Record the exact mountpoint immediately, including partial preparation.
+In the test account's existing session, assign that recorded absolute path to
+`LOCAL_TEST_TMPFS`, then export and check the fixture before running the
+selected Local suite:
+
+```bash
+export IOC_RUNNER_M10_LOG_FIXTURE="${LOCAL_TEST_TMPFS:?}/data"
+test -d "${IOC_RUNNER_M10_LOG_FIXTURE}" && test -w "${IOC_RUNNER_M10_LOG_FIXTURE}"
+test "$(findmnt -n -o FSTYPE --target "${IOC_RUNNER_M10_LOG_FIXTURE}")" = tmpfs
+```
+
+Stop if either check fails. Exporting a variable in the administrator's shell
+does not transfer it to the test account's session. The EPICS and original
+generator prerequisites below remain required.
+
+After the suite stops and its cleanup finishes, preserve any required evidence
+outside the tmpfs. On success, failure, or interruption, use the separate
+administrator session to verify and remove only the recorded mount:
+
+```bash
+test "$(findmnt -n -o TARGET --target "${LOCAL_TEST_TMPFS:?}")" = "${LOCAL_TEST_TMPFS}"
+test "$(findmnt -n -o FSTYPE --target "${LOCAL_TEST_TMPFS:?}")" = tmpfs
+sudo -n umount -- "${LOCAL_TEST_TMPFS:?}"
+findmnt -rn -o TARGET,FSTYPE
+rmdir -- "${LOCAL_TEST_TMPFS:?}"
+```
+
+Both `test` commands and `umount` must exit 0. Require a successful `findmnt`
+read with the recorded mountpoint absent before running `rmdir`; a remaining
+mount or a tool error stops cleanup. Require `rmdir` to exit 0. If preparation failed
+before mounting, confirm the recorded directory is not a mountpoint and remove
+only that empty directory with `rmdir`. Never unmount another filesystem or
+report failed cleanup as successful. Prepare a new fixture for each invocation.
+
+The two-host Gate uses `gate/drivers/remote/run-local-lifecycle.bash`, which
+prepares and removes its own tmpfs through administrative sudo. That wrapper
+does not prepare fixtures for direct suite or dispatcher invocations.
+
+### Original generated startup fixture
+
+Both lifecycle suites also build the original generator at revision
+`ee214deedc5594bb93cd0a77d42615b99783bbd0`. Set
+`IOC_RUNNER_STARTUP_GENERATOR` to a trusted local Git repository containing
+that commit. The shared helper exports the commit into its own workspace,
+runs `generate_ioc_structure.bash`, and builds the generated main unchanged.
+It requires `makeBaseApp.pl`, Git, tar, make, timeout, and socat.
+
+The generator is supplied by the EPICS-env maintainer through the site's
+approved source-access channel; it is not included in this public repository.
+Request the `generate_ioc_structure.bash` repository at the exact revision
+above. If you lack direct access, request a self-contained Git bundle from
+that maintainer, clone it locally, and verify that it contains that commit
+before setting `IOC_RUNNER_STARTUP_GENERATOR` to the clone's absolute path.
+Record the source identity and bundle digest in the private VM handoff.
+The account running the suite must be able to read the repository and its
+parent directories. An unrelated generator or a reconstructed main does not
+satisfy this prerequisite.
+
+For an approved bundle, substitute its local path and the intended clone path:
+
+```bash
+git clone /path/to/generator.bundle /path/to/startup-generator
+export IOC_RUNNER_STARTUP_GENERATOR=/path/to/startup-generator
+git -C "$IOC_RUNNER_STARTUP_GENERATOR" cat-file -e 'ee214deedc5594bb93cd0a77d42615b99783bbd0^{commit}'
+```
+
+The final command must exit 0. Preserve this exported variable when invoking
+the System suite with `sudo -E`.
+
+The generated application additionally requires built `retools`, `caPutLog`,
+`iocStats`, `pvxs`, `seq`, `sscan`, `calc`, `asyn`, and `StreamDevice`
+modules. `asyn` and `StreamDevice` must provide `drvAsynIPPort.dbd`,
+`stream.dbd`, and `devaaoStream` support in the generated DBD. The generated application links a module only when its name is
+defined in `configure/RELEASE`, so supply `ASYN`, `SNCSEQ`, `SSCAN`, `CALC`,
+and `STREAM` assignments: `STREAM` needs `ASYN` and `CALC`, and `CALC` needs
+`SSCAN` and `SNCSEQ`. [`gate/startup-generator.release`](../gate/startup-generator.release)
+holds these five assignments for the template's `$(MODULES)` layout. Set
+`IOC_RUNNER_STARTUP_RELEASE` to it, or to a readable file with the same
+assignments when the module paths differ from that layout. The helper appends
+that trusted build input to the generated `configure/RELEASE.local` after
+setting `EPICS_BASE`; it does not change the original generator, main, or
+installed dependencies. A missing source or failed build records a
+required-check failure and skips dependent checks.
+
+System S27 keeps its operator outside `systemd-journal` and compares a genuine
+terminating quote error with a continued quote error. System S36 and Local S41
+exercise original generated startup scripts through the selected whole runner.
+They retain production startup timing, use task-owned output paths and ports,
+and capture runner output, native child records, unit state, and an IOC console
+response. Original startup files and task registrations are restored on exit
+and TERM; failed workspaces remain available. The suites pin ServiceTestIOC to
+`91d42b2ceadec81a065d4cdf35936dbb8d77e202` for their existing lifecycle fixture.
+
+### Native severity and controlled log inputs
+
+The same original generated IOC loads `fixtures/startup-severity.db` and
+`fixtures/startup-severity.proto`. An `aao` DOUBLE array with a `%s` output
+converter triggers a real StreamDevice error. The suite requires the actual
+conversion diagnostic, `STAT`/`SEVR`/`NORD`/`PACT`, readiness order, live child,
+unit state and console response. These observations distinguish a failed output
+function from a responsive, initialized IOC.
+
+Each of the three placements (separated pre-marker, ordinary initialization,
+and post-marker processing) runs under stopped start, active restart and
+stopped restart. Active start is a historical-log no-op control. A separate
+case terminates the original IOC after severity and readiness, checking that
+its native nonzero exit retains priority. Native cases use production timing.
+
+Supplementary cases keep the actual IOC, procServ, systemd and complete runner
+while controlling only the external log file read through `tail`. They cover
+exact matching, poll order, retained evidence across inode replacement,
+copytruncate and regrowth, missing readiness, unreadable logs and partial child
+status records. These cases use the existing test timing overrides; their
+supplied text is not native module-fault evidence. Their saved original log,
+actual child PID and file inode/size trace identify the boundary being controlled.
+
+### Local linger and logout verification
+
+Local S32 observes the invoking user's native linger state. It checks enable
+status and advice, unchanged linger and service activity, and enable/disable
+links. The suite does not change lingering or require sudo. To cover both
+states, prepare a disposable account on a verification VM and have a separate
+administrator set lingering off and on before separate whole-suite runs.
+Run each Local suite in that account's real SSH session with its own HOME and
+runtime directory; run privileged suites from the administrator account.
+
+Logout lifetime requires a separate native observation with the original IOC.
+Record the installed systemd version, effective logind/user-manager policy and
+supported stop delay. Identify two real SSH/PAM session IDs, close one and then
+the last, and observe the user manager and IOC from another account. Classify
+any remaining sessions: a separately verified manager-class session is not an
+SSH login. Keep process start times and cgroups with PIDs to detect PID reuse.
+Use a finite window covering the effective stop delay; infinite or unknown
+retention does not establish last-logout termination. Do not stop the manager
+manually or create a test-user login while measuring. Restore task-owned
+resources through the independent administrator after sealing the observation.
+
+### Full System Setup Prerequisite
+
+Before testing successful `setup-system-infra.bash --full` execution, inspect
+`/etc/sudoers` as well as administrative access. The required include must
+exist, with no active rule after it, as described in
+[Setup diagnostics and partial deployment](../docs/INSTALL.md#setup-diagnostics-and-partial-deployment).
+Valid syntax and passwordless administrative sudo alone do not prove this
+ordering condition. Tests deliberately exercising a failed condition preserve
+and identify that fixture instead of correcting it before execution.
+
+For VMs managed with `ansible-provision`, the existing correction is the
+common-role task `Ensure includedir is the final active directive in /etc/sudoers`,
+under `roles/common/tasks/main.yml`. Its entry point is
+`playbooks/operators/common.yml`, with the repository's group inventory and
+the provider-generated host inventory. When only ordering needs correction,
+limit execution to that guest and task with `--start-at-task` and `--step`;
+decline every other configuration task. Do not apply the complete common role
+or IOC setup to a raw manual-install fixture. The task requires
+`common_manage_sudo=true`; it leaves a file without the include unchanged,
+so an `unchanged` result cannot replace inspection.
+
+For an authorized ordering correction, use this sequence:
+
+1. Confirm that the required include exists exactly once. As root on the
+   selected guest, retain a backup of `/etc/sudoers` in a root-owned `0700`
+   directory outside `/etc/sudoers.d`, using `cp -a` to preserve metadata.
+   Set `SUDOERS_BACKUP` to that backup's absolute path. Record and compare
+   its bytes, ownership, mode and extended attributes with the original;
+   also record all drop-ins and effective administrative grants. Verify
+   `visudo -c` and retain root access for recovery before applying the task.
+2. Run only the selected Ansible task described above. If it replaces
+   `/etc/sudoers` on a guest with SELinux enabled, immediately run
+   `chcon --reference="$SUDOERS_BACKUP" /etc/sudoers` as root on that guest.
+   The reference is the original backup, not a copy of the replaced file.
+   Compare the complete original context, including its user component;
+   checking only the type does not establish preservation.
+3. Require unchanged rule text apart from the include's position, unchanged
+   drop-ins, original ownership, mode and extended attributes, and no active
+   rule after the include. Require full `visudo -c` success. From a fresh
+   SSH connection, check administrative sudo without cached credentials
+   and compare effective grants with the recorded original grants.
+4. Repeat the same selected task and require an `unchanged` result. Repeat
+   the metadata, syntax, ordering and fresh-access checks. Record the
+   corrected state as the baseline for subsequent tests; distinguish this
+   retained correction from temporary test assets restored afterward.
+
+If the task, context restoration or any validation fails, stop dependent
+tests and restore the original policy through the retained root access.
+First verify the backup against the recorded original bytes and metadata,
+and require `visudo -cf "$SUDOERS_BACKUP"` to succeed. Copy it with `cp -a`
+to a unique root-owned staging file under `/etc`, then atomically rename that
+file over `/etc/sudoers` on the same filesystem. Verify the restored bytes,
+ownership, mode and extended attributes, unchanged drop-ins, full `visudo -c`,
+and administrative access and grants from a fresh connection. A restored
+original can still have the ordering defect; it does not make the VM ready
+for successful full-setup tests. Retain the failed checks and restoration
+evidence before retrying the correction.
 
 ## Test Classification
 
@@ -92,6 +366,10 @@ one exclusive dispatcher selection, and error handling remains standalone.
 - The suite starts through `sudo bash`. Setup runs as root with only its outer
   write targets redirected to an isolated temporary directory; source and Git
   operations run as the invoking identity from `SUDO_USER`.
+- Native setup diagnostics (S27) require a disposable prepared systemd VM,
+  the existing `ioc-srv`/`ioc` identity, and native setup tools. The helper uses
+  a private copy of `/etc` and redirected destinations, then verifies original
+  files and manager state. It retains root-owned evidence under `/var/tmp`.
 
 **Standalone source-fixed suite** (not collected by the dispatcher):
 
@@ -99,6 +377,10 @@ one exclusive dispatcher selection, and error handling remains standalone.
   it parses the `ioc-runner` source for contract guards AND executes the
   source-tree binary against dummy inputs for the validation and error
   paths. It needs no EPICS environment or root privileges.
+  Run the complete suite as a dedicated non-root verification-VM account with
+  its own native user manager. Its Local install checks can reload that manager
+  and enable a rotation timer. Record the account's initial state, then stop and
+  disable task-created units and restore its files after the suite.
 
 **Container lifecycle suite** (not collected by the dispatcher):
 
@@ -111,6 +393,7 @@ one exclusive dispatcher selection, and error handling remains standalone.
 | :--- | :--- | :--- | :--- |
 | `test-container-lifecycle.bash` | `lifecycle-behavior` | source or installed | inside a container, via `run-container-tests.bash` |
 | `test-error-handling.bash` | `error-contract` | source only | `bash tests/test-error-handling.bash` |
+| `test-list-states.bash` | `lifecycle-behavior` | source or installed | standalone, root on a prepared verification host |
 | `test-local-lifecycle.bash` | `lifecycle-behavior` | source or installed | via `run-all-tests.bash --local` |
 | `test-source-regression.bash` | `source-regression` | source only | via `run-all-tests.bash --source-regression` |
 | `test-system-infra.bash` | `installed-conformance` | n/a | via `run-all-tests.bash --system` |
@@ -146,7 +429,7 @@ suite order; its own messages and child human output use standard error.
 
 ## Debugging and Workspace Retention
 
-By default, all lifecycle tests create a temporary workspace in shared memory under `/dev/shm/epics-ioc-test.*` and remove it automatically upon successful completion.
+The local and system lifecycle suites create a temporary workspace in shared memory under `/dev/shm/epics-ioc-test.*` and remove it automatically upon successful completion. The standalone list-state suite always retains its evidence under `/tmp/ioc-list-states.*`.
 
 ### Automatic Retention
 If a test fails or the script terminates unexpectedly, the workspace is **automatically retained** for inspection of generated files and logs.
@@ -196,13 +479,17 @@ Accounts with a non-interactive sudo route continue without a credential
 prompt; otherwise the dispatcher runs `sudo -v` before capture so any required
 authentication remains attached to the operator terminal.
 
+Before any selection that includes Local lifecycle, complete the
+[Local log-storage fixture](#local-log-storage-fixture) preparation and export
+its path in the invoking user's session. Clean it up after that invocation.
+
 ```bash
 # Default: both modes, source binary.
 # Requires EPICS_BASE, 'ioc' group membership, sudo access, and lsof.
 # A persistent user journal enables the monitor-isolation step; otherwise it SKIPs with a WARN (the same class covers absent logrotate, socat, or softIoc).
 bash tests/run-all-tests.bash
 
-# Local lifecycle, edited source (no sudo or 'ioc' group required).
+# Local lifecycle, edited source (prepared tmpfs; suite runs without sudo).
 bash tests/run-all-tests.bash --local --source
 
 # System lifecycle (infra + lifecycle), edited source.
@@ -222,6 +509,35 @@ bash tests/run-container-tests.bash
 bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
 ```
 
+The Container harness passes `IOC_RUNNER_SCAN_DIR` to setup, the supervisor,
+the suite, and the runner. If setup fails, that container exits with the setup
+status before starting the supervisor or suite; the harness records the
+failure and exits nonzero after processing the selected images.
+For a custom scan directory:
+
+```bash
+IOC_RUNNER_SCAN_DIR=/run/ioc-test bash tests/run-container-tests.bash --image jeonghanlee/debian13-epics:latest
+```
+
+The separate boot regression uses native `s6-svscan` as PID 1 and restarts
+the actual container. It checks absent and existing socket parents, disabled
+services, service identity and permissions, and failure before procServ when
+a regular file blocks directory creation. It also compares the IOC and
+supervisor `PATH`, resolves `caget` through the native IOC console, and
+checks that directory preparation ignores an `install` placed earlier in
+the inherited `PATH`:
+
+```bash
+bash tests/test-container-boot.bash <image>
+```
+
+Replace `<image>` with a locally available EPICS image or its immutable image
+ID. The boot test requires `socat`, `timeout`, `setpriv`, and native `softIoc`
+and `caget` binaries in that image. The test uses the installed runner, adds no capabilities, disables
+network access, and removes its own container on exit. Reports remain under
+`/tmp/ioc-runner-boot.*`. Set `IOC_RUNNER_BOOT_SOURCE_ROOT` to a separate
+checkout to run the same regression against an earlier implementation.
+
 The container harness needs `docker` on the host and images that already ship
 s6 (2.13 or later), procServ, con or socat, and an EPICS base providing
 `softIoc`. For each image it starts `s6-svscan` on the scan directory so the
@@ -237,6 +553,69 @@ develop and iterate with `--source`, validate a finished install with
 `--installed` around the install step (`setup-system-infra.bash` /
 `make install`), run `--source-regression` for source-tree setup and metadata
 changes, and run the error suite once per code change.
+
+#### Installation filesystem and mode boundaries
+
+`test-install-boundaries.bash` runs the complete install CLI with native
+procServ, logrotate, systemctl, and filesystem operations. Run it as root
+only inside a disposable EPICS container with the repository mounted at
+`/repo` and a writable `/evidence` directory. It requires `EPICS_BASE`,
+`softIoc`, `runuser`, and the `m16check` account. Each case uses a fresh
+`/case/<case>` directory and refuses an existing boot fixture. It installs
+configuration but does not start an IOC or claim a working user systemd bus.
+
+From the repository root on the host, start a disposable Debian EPICS
+container with a retained evidence directory and the bounded tmpfs:
+
+```bash
+install_evidence=$(mktemp -d /tmp/ioc-install-evidence.XXXXXX)
+printf "Evidence: %s\n" "${install_evidence}"
+docker_args=(--rm -it --tmpfs /case/write/ioc-runner:rw,size=4096)
+docker_args+=(-v "$PWD:/repo:ro" -v "${install_evidence}:/evidence")
+docker run "${docker_args[@]}" jeonghanlee/debian13-epics:latest bash
+```
+
+Inside that container, prepare the real tools and service directories:
+
+```bash
+apt-get update
+apt-get install -y --no-install-recommends logrotate systemd sudo acl
+useradd -m m16check
+mkdir -p /evidence
+bash /repo/bin/setup-system-infra.bash --full
+IOC_RUNNER_SCAN_DIR=/run/m16-install bash /repo/bin/setup-system-infra.bash --container
+s6-svscan /run/m16-install &
+s6-svscanctl -z /run/m16-install
+export IOC_RUNNER_DISPOSABLE_CONTAINER=1
+```
+
+Full setup must create the actual system unit template for `site-system`;
+an unavailable system manager may reject its final reload. Check that the
+template exists before proceeding. Wait until `s6-svscanctl -z` returns zero
+before running `site-container`.
+
+```bash
+test -s /etc/systemd/system/epics-@.service
+bash /repo/tests/test-install-boundaries.bash normal /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash write /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash replace /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash replace-existing-template /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash directory /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash site-local /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash site-system /repo/bin/ioc-runner /evidence
+bash /repo/tests/test-install-boundaries.bash site-container /repo/bin/ioc-runner /evidence
+```
+
+Each test must exit zero and report `failed=0`. Native write and replacement
+faults must appear in the captured CLI stderr while the install exits zero,
+warns, and removes its staging files. The existing-template case also traces
+the real CLI to prove a changed rotation unit still requests a reload after
+a later replacement failure. System and Local reject malformed `site.env`;
+Container preserves it and installs successfully. Raw CLI outputs and statuses
+and the outer test status (`<case>.test-status`) are saved in `/evidence`.
+Exit the container after the checks; Docker removes it and the host evidence
+directory remains. Selecting an earlier complete runner file as the
+second argument applies the same checks to that implementation.
 
 ### 2. Run Individual Test Suites
 To isolate one suite manually:
@@ -258,6 +637,50 @@ sudo bash tests/test-system-infra.bash
 # Container lifecycle directly, from inside a prepared container.
 IOC_RUNNER_TEST_MODE=source bash tests/test-container-lifecycle.bash
 ```
+
+### Native List-State Supplement
+
+`test-list-states.bash` exercises the full `list -vv` command with native
+systemd, procServ, softIoc, and UNIX sockets. It is an opt-in host suite and
+is not selected by `run-all-tests.bash`. Its detailed case definitions,
+check IDs, and observation limits are in
+[LIST_STATES_INVENTORY.md](LIST_STATES_INVENTORY.md).
+
+Use a prepared verification VM and a trusted, root-readable local checkout.
+The suite requires Python 3.6 or later at `/usr/bin/python3`, systemd tools,
+strace with `delay_enter` support, socat, util-linux (`unshare`, `nsenter`,
+`setpriv`), procps (`pgrep`), and iproute2 (`ss`). `/tmp` must permit IOC
+execution. `EPICS_BASE` must identify an existing native `softIoc` build;
+`EPICS_HOST_ARCH` defaults to `linux-x86_64`. No package or infrastructure
+installation is performed by this suite.
+
+Both modes start as root for network namespace and process control. With
+`--local-user`, IOC commands and user systemd commands run as the named
+existing non-root account, which must already have a running user manager
+and local IOC infrastructure with its rotation timer enabled and active.
+The suite creates no accounts and does not
+change lingering. System mode requires the default `ioc-srv` account, `ioc`
+group, and installed system template.
+
+```bash
+sudo -E bash -p tests/test-list-states.bash --system
+sudo -E bash -p tests/test-list-states.bash --local-user <account>
+sudo -E IOC_RUNNER_TEST_MODE=installed bash -p tests/test-list-states.bash --system
+REPORT_CATALOG_ONLY=1 bash -p tests/test-list-states.bash --system
+```
+
+`IOC_RUNNER_TEST_MODE` selects source (default) or installed for either mode.
+The suite uses a unique IOC, task-specific unit overrides, a private network
+namespace, and read-only socat clients. It temporarily pauses only its own
+procServ and delays its first `listen` syscall to make native states
+observable. Cleanup stops its processes and removes its configuration,
+runtime directory, and unit overrides. Generated fixture files, IOC logs,
+command results, and trace output remain as evidence.
+
+Machine output uses the shared reporting contract. `SKIP` for an unobserved
+numeric sentinel or `DISCONN` does not establish coverage, even if the suite
+exits 0. The suite makes no container-mode claim. Native execution status is
+recorded in the milestone document, separately from catalog validation.
 
 ### 3. System Tests on an NFS Home with `root_squash`
 
@@ -307,6 +730,7 @@ mechanism.
 
 ### 1. Zero-Config & Automation Pipeline
 * **Auto-Generation (`generate .`)**: Validates dynamic configuration creation by scanning native EPICS directory structures (`iocBoot/iocName/st.cmd`) without requiring manual file authoring.
+* **Re-generation**: An identical re-generate by the file's owner rewrites the configuration without a question and restores its mode (error-handling S04); a second `ioc` group operator takes over, with `-f`, an identical configuration that root generated, leaving mode 0660 and the operator as owner (system-lifecycle S27).
 * **Directory-based Routing (`install .`)**: Verifies that the runner can implicitly resolve and install configuration artifacts based on the current working directory's basename.
 * **2x2 Cross-Validation Matrix**: Ensures absolute routing stability by testing all four deployment combinations:
   1. Manual Gen $\rightarrow$ Explicit Install
@@ -320,10 +744,36 @@ Both `test-local-lifecycle.bash` and `test-system-lifecycle.bash` validate:
 * **Deployment**: Installs `.conf` and verifies systemd template generation (`@.service`).
 * **Service Control**: Verifies state transitions via `start`, `status`, `view`, `restart`, and `stop`.
 * **Monitoring**: Validates UNIX Domain Socket (UDS) creation and `list` outputs (PID, CPU, MEM, RQ/SQ queue columns).
-* **Connection & Isolation**: Validates `attach` (r/w access via `con`), `monitor` (read-only isolation securely blocking stdin).
+* **Connection & Isolation**: Runs real `ioc-runner attach` and `monitor`
+  sessions through `con` and `socat`, using `script(1)` and FIFO input.
+  Attach checks cover default Ctrl-A and custom Ctrl-] and Ctrl-B. Monitor
+  checks cover con/Ctrl-A and direct socat/Ctrl-C, actual IOC output, and
+  input isolation verified through an IOC environment value.
 * **Netlink Diagnostics**: Validates the `inspect` command in both modes (unprivileged local inspect included); system mode adds anonymous-peer mapping via Kernel Netlink under root.
 * **EPICS Functionality**: Live PV reads via `caget` ensuring actual Channel Access (CA) broadcasting.
 * **Teardown**: Verifies `enable`/`disable` persistence in systemd `.wants` and complete `remove` cleanup.
+
+The PTY checks run in local S27 and system S22 against the selected runner
+origin and the suite's running ServiceTestIOC. Each case checks the banner,
+actual client process name, key-driven exit, exact terminal restoration,
+unchanged procServ/IOC PIDs and socket identity, active service, and a command
+through a fresh attachment. Custom-key cases also execute an IOC command using
+Ctrl-A line editing and reconnect with the default key. A timeout or forced
+termination fails the case. Socat monitor's key-driven SIGINT returns 130;
+the other successful client exits return 0.
+
+Required test tools are Bash, util-linux `script`, `unshare`, and `mount`,
+core utilities, and both con and socat. Local socat checks require enabled
+unprivileged user and mount namespaces; system checks use the suite's existing
+root privilege. Private bind mounts hide all fixed con search paths for the
+socat cases, leaving host installation files unchanged. Local checks do not
+invoke sudo. No Python, bubblewrap, or strace dependency is added.
+
+PTY output, client PID/name, runner version, terminal attributes, exit status,
+and IOC snapshots are retained in the `/tmp/ioc-console-pty.*` directory named
+in the human report. Input FIFOs and client processes are cleaned up. These
+checks do not trace individual bytes between client, procServ, and IOC, exercise
+old con's fallback, or establish production behavior under heavy IOC output.
 
 The system lifecycle suite also installs a dedicated healthy `softIoc`, sends
 `SIGKILL` only to its verified child, and proves procServ recovery through a
@@ -342,6 +792,26 @@ no active unit or installed configuration.
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
 * **Configuration Parser**: Drives spaces, tabs, matching quotes, CRLF, empty values, embedded `=`, duplicates, and double-quoted escaped regex backslashes through real file-direct installs; unsupported multiline, continuation, and unmatched-quote forms must preserve the prior target. A separate logic-level STEP extracts the exact shipped parser and reader definitions, requires one valid definition of each, and verifies both reader APIs against independent whitespace, quote, empty, and missing-key expectations.
 * **Diff Engine**: Evaluates ANSI-colored diff output prompting and force-overwrite (`-f`) bypass mechanisms.
+* **Console Detach Options**: Executes the shipped CLI to reject missing,
+  empty, invalid, reserved Ctrl-T, Escape-byte `ctrl-[`, and non-attach option
+  forms. All 29 accepted control-key names, uppercase input, option placement,
+  and the documented single-quoted backslash form must reach client
+  resolution. An unavailable client path bounds these checks before
+  connection; they verify parsing, not actual detach.
+* **Console Help and Completion**: Checks the attach-only option and Ctrl-A
+  default in help, then invokes the shipped completion handler for the option,
+  suggested keys, a key prefix, and the IOC target after a supplied key.
+* **Complete Help and Completion**: Compares all 15 command names and 14 option
+  spellings, every IOC-target command across System/Local/user-alias/Container
+  forms, directory precedence and access, path/list suggestions, and numeric
+  value positions. The shared helper loads the complete registration script
+  in fresh Bash processes; installed-copy checks use a separately deployed file.
+* **Console Client Selection**: Runs the shipped attach and monitor commands
+  inside a private mount namespace that hides every fixed con search path,
+  with a mirrored PATH that omits socat. Both commands must exit 1 with the
+  installation hint before any connection. Without unprivileged user and mount
+  namespaces, the required isolation-tools check fails and the client checks
+  SKIP. Old con without read-only support is not exercised.
 
 ### 4. Source Regression (`test-source-regression.bash`)
 
@@ -365,6 +835,18 @@ no active unit or installed configuration.
 * **Candidate Transfer**: Runs the shipped push driver against a real Git
   repository, replacing only SSH transport, and verifies both identical and
   externally changed destination states.
+* **Test Library Self-Tests**: Runs the reporting, record-validator, and
+  reporting-counts self-tests under `tests/lib/` as the invoking user and
+  requires each to exit 0. The reporting self-test derives its catalog and
+  suite-dimension expectations from `tests/reporting-counts.csv` and its own
+  combination list.
+* **Native Setup Diagnostics**: Executes the whole setup with native tools and
+  real root/non-root callers. It verifies help/parser ordering, deployment
+  denials, a real invalid logrotate policy, preservation of the preceding
+  baseline, valid deployment, and temporary-file cleanup. The helper rejects
+  symlinks at write paths and their parents, clears inherited tool environment,
+  and checks original protected files and manager state after namespace exit.
+  See [the check inventory](SOURCE_REGRESSION_INVENTORY.md#native-setup-diagnostics).
 
 ### 5. Infrastructure State (`test-system-infra.bash`)
 

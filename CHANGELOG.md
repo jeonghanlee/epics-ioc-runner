@@ -1,5 +1,135 @@
 # Changelog
 
+## 1.4.2 - Console and Startup Reliability Release
+
+Make console access predictable on both supported clients, report IOC startup
+outcomes from what the IOC and procServ actually did, and correct the help,
+completion, container autostart, and local-mode lifetime guidance that
+disagreed with the runner's behavior.
+
+### Added
+
+- `ioc-runner attach <name> --detach-key <key>` selects the control key that
+  ends one console connection; the default stays `Ctrl-A`. Accepted names are
+  `ctrl-a` through `ctrl-z` except `ctrl-t`, plus `ctrl-\`, `ctrl-]`,
+  `ctrl-^`, and `ctrl-_`, in either case. `ctrl-[` is rejected before any
+  connection because it is the Escape byte that arrow and function keys begin
+  with. Completion offers the option and example keys. (#157, #160)
+
+### Fixes
+
+- Both supported console clients, `con` and `socat`, now detach on `Ctrl-A`
+  and consume the key, so it no longer reaches the IOC shell. The socat
+  fallback previously had no escape and could only be ended from outside.
+  (#157)
+- `attach` and `monitor` use only `con` or `socat`; `nc` is no longer
+  selected, and with neither client available both commands exit 1 with an
+  installation hint. `monitor` takes read-only support from the `con` help and
+  falls back to `socat` when `con` lacks it. (#157)
+- procServ now ignores only `^D^C` in the system unit, the local unit, and the
+  container `run` script. The former `^]` entry dropped the printable `^` and
+  `]` from console input and let `Ctrl-]` through. (#157)
+- `generate` no longer fails with `chmod: Operation not permitted` when the
+  generated configuration is identical to the existing one and the caller is
+  not its owner. It rewrites the file through the staged temporary file and a
+  rename, so any `ioc` group member corrects the mode. Because that transfers
+  ownership, it asks first when another user owns the file; `-f` skips the
+  question, and a closed standard input refuses with exit 1. (#161)
+- `start` and `restart` report the IOC child's observed nonzero exit code and
+  return 1 while procServ stays active, and a genuine continued iocsh quote
+  error no longer fails startup by itself. (#166)
+- `start` and `restart` no longer report an initialization failure only
+  because an IOC logged `sevr=fatal` and then initialized. They return 0 with a
+  warning that initialization completed with error-log lines and keep the
+  first three distinct severity lines; a child exit still takes priority.
+  (#165)
+- Local `enable` prints the linger advice that `install` already printed when
+  lingering is off. (#167)
+- Completion offers `log`, `-n`, and `--lines` and completes IOC names after
+  `log`. The help names both line-count forms, and Container user or group
+  mismatch messages name Container. (#163)
+- `setup-system-infra.bash --help` and argument errors work for an ordinary
+  user, because parsing runs before the root check. An invalid logrotate policy
+  now reports `Setup aborted; logrotate policy not deployed.` and exits 1
+  before the CLI is deployed. (#163)
+- A container that boots with an enabled IOC starts it without an earlier CLI
+  `start`: the generated s6 `run` script creates the socket parent directory
+  (mode `0770`, service user and group) before dropping privileges, and exits
+  1 before procServ if that fails. (#164)
+- Local `install` no longer aborts when its log-rotation files cannot be
+  written or replaced: it warns, keeps the IOC installation usable, and still
+  requests the reload for changed units.
+- `install` validates `site.env` only in System and Local modes; Container
+  mode does not load it and installs with a malformed file.
+
+### Documentation
+
+- The console guides, CLI reference, FAQ, install guide, and help name each
+  client's key and state that a typed detach key is consumed by the client. For
+  pasted text `con` forwards the key to the IOC shell, while `socat` detaches
+  at its escape byte wherever it appears. They give the `monitor` exit keys
+  (`Ctrl-A` with `con`, `Ctrl-C` with `socat`), prefer `con` for production,
+  and state that `socat` has not been validated for sustained heavy or burst
+  IOC output. (#157)
+- The FAQ entry "Why does IOC shell history report permission denied?"
+  documents `.iocsh_history` ownership across principals and the
+  per-principal `EPICS_IOCSH_HISTFILE` settings. (#162)
+- The local guide explains that a Local IOC ends when its user manager stops
+  under the host's logout policy, and that lingering keeps the manager after
+  logout and at boot. (#167)
+- The install guide gives the stop-and-reinstall procedure that re-renders an
+  existing container service's `run` script. (#164)
+- The twelve published pages were revised and supplemented against the
+  current code: `CLI_REFERENCE.md` covers every command and option, and a
+  glossary page was added.
+- The Rocky 8 sudoers example and `docs/PERMISSION_MODEL.md` state that the
+  wildcard policy used with sudo older than 1.9.10 can manage unrelated
+  services.
+
+### Tests
+
+- The local and system lifecycle suites attach and monitor through real `con`
+  and `socat` clients in a PTY with default and custom keys, and the
+  error-handling suite covers the option forms and the missing-client failure.
+  (#157, #160)
+- A failing check that compares multi-line values records `FAIL` with a
+  one-line reason and the suite continues; before, such a mismatch stopped the
+  suite as `SCRIPT_ERROR`. (#159)
+- The reporting self-test derives its expectations from
+  `tests/reporting-counts.csv`, and source regression runs the three
+  test-library self-tests. (#158)
+- The lifecycle suites run original generated IOC startup fixtures for
+  continued and terminating iocsh errors and for severity logs before and
+  after readiness. (#165, #166)
+- `tests/test-container-boot.bash` restarts a real container with s6 as PID 1
+  and checks autostart, and `tests/test-install-boundaries.bash` runs the
+  install under write, replacement, directory, and `site.env` faults in each
+  mode. (#164)
+- The multi-user Gate gains scenarios for the `log` command, the `site.env`
+  layer, two operators' consoles on one IOC with a custom detach key,
+  regeneration by a second operator, and an operator moving one IOC between
+  modes.
+- The release Gate stages the original startup generator and its module
+  assignments on each consumer and passes them to the suites it runs.
+
+### Migration
+
+No breaking changes apart from the `nc` change in step 4. After installing the
+1.4.2 runner (`make install` or the setup script):
+
+1. System mode: re-run `bin/run-setup-system-infra.bash --full` (or
+   `make setup`) so the system unit template carries the new procServ ignore
+   set `^D^C`; the setup reloads systemd itself. Then restart each running IOC
+   so procServ receives it.
+2. Local mode: reinstall each local IOC with
+   `ioc-runner --local --force install <ioc directory or conf>`, because a
+   non-forced install keeps a differing user template, then restart the IOC.
+3. Container mode: as root inside the container, stop each IOC and reinstall
+   it with `ioc-runner --container --force install /etc/procServ.d/<name>.conf`
+   to render the new `run` script, then start it.
+4. Hosts that relied on `nc` for `attach` or `monitor` need `con` (preferred)
+   or `socat`; without them both commands now exit 1 with an installation hint.
+
 ## 1.4.1 - Site Environment and Diagnostics Release
 
 Layer an optional site-wide environment file under the per-IOC configuration,
@@ -573,9 +703,20 @@ setup script). Existing deployed units keep running; to pick up the
 
 ### Migration
 
-Install the 1.1.0 runner, re-run `setup-system-infra.bash --full`, reload systemd
-and restart IOCs, verify the log file mode, and remove the now-unnecessary
-`systemd-journal` group from operator accounts. Step-by-step instructions
-are in the "Upgrading from 1.0.x" section of [`docs/README.md`](docs/README.md);
-the path, permission, and rotation reference is in
+Site administrators upgrading from 1.0.x:
+
+1. Install the 1.1.0 `ioc-runner` binary.
+2. Re-run `sudo ./bin/setup-system-infra.bash --full` to deploy the updated
+   system systemd template and the logrotate config.
+3. Run `sudo systemctl daemon-reload`, then restart each IOC; `procServ` begins
+   writing to `/var/log/procserv/<name>.log`.
+4. Verify the log file: `stat -c '%U:%G %a' /var/log/procserv/<name>.log`
+   returns `ioc-srv:ioc 644`.
+5. Remove the now-unnecessary `systemd-journal` group from IOC operator
+   accounts: `sudo gpasswd -d <operator> systemd-journal`, then confirm with
+   `id <operator>`.
+
+Verify the deployment: `systemctl cat epics-@<name>.service` shows
+`--logfile=`, and `logrotate -d /etc/logrotate.d/procserv` reports no errors.
+The path, permission, and rotation reference is in
 [`docs/LOG_LAYOUT.md`](docs/LOG_LAYOUT.md).

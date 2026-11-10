@@ -82,28 +82,40 @@ function generate_baseline {
     local record_file="$1"
     local human_file="$2"
     local report_workspace="$3"
+    local suite="${4:-system-infra}"
+    local scope="${5:-system}"
+    local runner="${6:-none}"
+    local category="${7:-installed-conformance}"
+    local check_count=0
+    local step_count=0
     local index=0
     local step_index=0
     local step_id=""
     local check_id=""
-    local -a step_ids=(P00 S01 S02 S03 S04 S05 S06 S07)
+    local -a step_ids=(P00)
     local -a check_ids=()
 
+    reporting_counts_load "${TEST_RECORD_COUNTS_FILE}"
+    reporting_counts_lookup "${suite}" check_count step_count
+    for ((index = 1; index < step_count; index++)); do
+        printf -v step_id 'S%02d' "${index}"
+        step_ids+=("${step_id}")
+    done
     mkdir -m 0700 -- "${report_workspace}"
     (
         export REPORT_MACHINE_OUTPUT=1
         # shellcheck source=tests/lib/test-reporting.bash
         source "${REPORTER}"
-        report_init system-infra validator-baseline system none test-host linux-x86_64 \
+        report_init "${suite}" validator-baseline "${scope}" "${runner}" test-host linux-x86_64 \
             "${report_workspace}"
         for step_id in "${step_ids[@]}"; do
             report_register_step "${step_id}" "Validator baseline STEP ${step_id}"
         done
-        for ((index = 1; index <= 40; index++)); do
-            step_index=$(((index - 1) / 5))
+        for ((index = 1; index <= check_count; index++)); do
+            step_index=$(((index - 1) * step_count / check_count))
             step_id="${step_ids[${step_index}]}"
-            printf -v check_id 'system-infra.%s.validator-%02d' "${step_id}" "${index}"
-            report_register_check "${check_id}" "${step_id}" installed-conformance \
+            printf -v check_id '%s.%s.validator-%02d' "${suite}" "${step_id}" "${index}"
+            report_register_check "${check_id}" "${step_id}" "${category}" \
                 REQUIRED direct-inspection "Validator baseline check ${index}"
             check_ids+=("${check_id}")
         done
@@ -119,19 +131,22 @@ function expect_accept {
     local name="$1"
     local record_file="$2"
     local producer_status="$3"
+    local suite="${4:-system-infra}"
+    local scope="${5:-system}"
+    local runner="${6:-none}"
     local stdout_file="${SELF_TEST_WORKSPACE}/${name}.stdout"
     local stderr_file="${SELF_TEST_WORKSPACE}/${name}.stderr"
     local validated_run=""
     local validated_suite=""
     local actual_status=0
 
-    test_record_validate_file "${record_file}" system-infra system none \
+    test_record_validate_file "${record_file}" "${suite}" "${scope}" "${runner}" \
         "${producer_status}" validated_run validated_suite \
         > "${stdout_file}" 2> "${stderr_file}" || actual_status=$?
     expect_status 0 "${actual_status}" "${name}: accepted"
     expect_status validator-baseline "${validated_run}" "${name}: returned run ID"
     expect_contains <(printf '%s\n' "${validated_suite}") \
-        "SUITE suite=system-infra run=validator-baseline" \
+        "SUITE suite=${suite} run=validator-baseline" \
         "${name}: returned SUITE record"
     expect_status 0 "$(wc -c < "${stdout_file}")" "${name}: validator standard output is empty"
 }
@@ -187,6 +202,32 @@ generate_baseline "${baseline}" "${SELF_TEST_WORKSPACE}/baseline.human" \
     "${SELF_TEST_WORKSPACE}/reporter"
 
 expect_accept valid "${baseline}" 0
+
+# Exercise the real reporter and validator together for each supported suite.
+# Synthetic PASS events validate serialization only, not product behavior.
+for suite in "${REPORTING_SUPPORTED_SUITES[@]}"; do
+    case "${suite}" in
+        container-lifecycle) scope=container; runners=(source installed); category=lifecycle-behavior ;;
+        error-handling) scope=none; runners=(source); category=error-contract ;;
+        list-states) scope=local; runners=(source installed); category=lifecycle-behavior ;;
+        local-lifecycle) scope=local; runners=(source installed); category=lifecycle-behavior ;;
+        source-regression) scope=system; runners=(source); category=source-regression ;;
+        system-infra) scope=system; runners=(none); category=installed-conformance ;;
+        system-lifecycle) scope=system; runners=(source installed); category=lifecycle-behavior ;;
+        *) fail "supported suite has a fixture" "known suite" "${suite}"; continue ;;
+    esac
+    scopes=("${scope}")
+    [[ "${suite}" != list-states ]] || scopes+=(system)
+    for scope in "${scopes[@]}"; do
+        for runner in "${runners[@]}"; do
+            name="${suite}-${scope}-${runner}"
+            records="${SELF_TEST_WORKSPACE}/${name}.records"
+            generate_baseline "${records}" "${SELF_TEST_WORKSPACE}/${name}.human" \
+                "${SELF_TEST_WORKSPACE}/${name}.reporter" "${suite}" "${scope}" "${runner}" "${category}"
+            expect_accept "${name}" "${records}" 0 "${suite}" "${scope}" "${runner}"
+        done
+    done
+done
 
 : > "${SELF_TEST_WORKSPACE}/empty.records"
 expect_reject empty "${SELF_TEST_WORKSPACE}/empty.records" 0 "record file is empty"

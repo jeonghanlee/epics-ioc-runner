@@ -137,17 +137,21 @@ state from this runbook.
 
 The Golden `P_testusers` operator provides the multi-user accounts, and
 `P_iocrunner` provides the shared IOC infrastructure. This runbook verifies the
-result and never creates or repairs it.
+result and never creates or repairs it. `opc` exists only in iocrunner bakes
+made at ansible-provision `32ea95f` or later; a consumer from an earlier bake
+reports `FIXTURES FAIL` until the provisioning side adds it, with
+`make op.testusers.<vacuum>` from an ansible-provision checkout at `32ea95f` or
+later, or a newer bake replaces the consumer.
 
 ```bash
-ssh vmadmin@<host> 'ok=1; for u in opa opb; do getent group ioc | grep -qw "$u" || ok=0; done; getent passwd obs >/dev/null || ok=0; id -nG obs | grep -qw ioc && ok=0; for u in usera userb; do [ -e /var/lib/systemd/linger/$u ] || ok=0; done; [ "$(stat -c "%U:%G %a" /opt/epics-iocs)" = "root:ioc 2775" ] || ok=0; [ $ok -eq 1 ] && echo "FIXTURES OK" || echo "FIXTURES FAIL"'
+ssh vmadmin@<host> 'ok=1; for u in opa opb opc; do getent group ioc | grep -qw "$u" || ok=0; done; getent passwd obs >/dev/null || ok=0; id -nG obs | grep -qw ioc && ok=0; for u in usera userb opc; do [ -e /var/lib/systemd/linger/$u ] || ok=0; done; [ "$(stat -c "%U:%G %a" /opt/epics-iocs)" = "root:ioc 2775" ] || ok=0; [ $ok -eq 1 ] && echo "FIXTURES OK" || echo "FIXTURES FAIL"'
 ```
 
 Required to continue:
 
-- `opa` and `opb` belong to `ioc`;
+- `opa`, `opb`, and `opc` belong to `ioc`;
 - `obs` exists and does not belong to `ioc`;
-- `usera` and `userb` have systemd linger enabled; and
+- `usera`, `userb`, and `opc` have systemd linger enabled; and
 - `/opt/epics-iocs` is `root:ioc` with mode `2775`.
 
 ### 3. Candidate tree and installed runner
@@ -202,15 +206,35 @@ record remains pending until that record is written.
 
 ### 2. Complete suite matrix
 
-Run the shipped control-side driver from the candidate repository root:
+Run the shipped control-side driver from the candidate repository root. Set
+`IOC_RUNNER_STARTUP_GENERATOR` to the control-host Git repository that holds
+the original startup generator revision required by
+[`../tests/README.md`](../tests/README.md#original-generated-startup-fixture):
 
 ```bash
 DEBIAN_HOST="vmadmin@<debian-host>"
 DEBIAN_EPICS_ENV="<absolute-debian-epics-env>"
 ROCKY_HOST="vmadmin@<rocky-host>"
 ROCKY_EPICS_ENV="<absolute-rocky-epics-env>"
+export IOC_RUNNER_STARTUP_GENERATOR="<absolute-control-host-generator-repository>"
 bash gate/drivers/control/suites.bash "$DEBIAN_HOST" "$DEBIAN_EPICS_ENV" "$ROCKY_HOST" "$ROCKY_EPICS_ENV"
 ```
+
+The generated startup IOC links a module only when its name is defined in its
+RELEASE, so the suites also need the module assignments in
+`gate/startup-generator.release`. Set `IOC_RUNNER_STARTUP_RELEASE` to another
+control-host file to replace them.
+
+Before any remote work, the driver stops when `IOC_RUNNER_STARTUP_GENERATOR`
+is unset, does not name a Git repository, or names one without that revision,
+and when the release file is not readable. It bundles only that revision,
+clones it on each consumer under `~/ioc-runner-gate-generator/<run-id>`,
+copies the release file to `~/ioc-runner-gate-generator/<run-id>.release`, and
+passes both to the lifecycle suites. Each host's `GENERATOR host=... path=...`
+line, also kept in `<run-dir>/<host>.generator`, records the consumer path
+`<generator-path>` and the bundle SHA-256. Its `RELEASE host=... path=...`
+line, kept in `<run-dir>/<host>.release`, records the consumer path
+`<release-path>` and the file's SHA-256. Both stay on the consumer for step 5.
 
 The driver runs six suites on each host:
 
@@ -399,7 +423,7 @@ bash gate/drivers/control/run-all.bash vmadmin@<host>
 Required result: each host reports Pass for every printed `P-*` prerequisite
 verdict, Pass for every scenario in the Multi-User Contract below, and a final
 `VERDICT RUN PASS`. Prerequisite verdicts, including `P-LEFTOVERS`, are not
-included in the fourteen-scenario tally and must be reviewed separately.
+included in the nineteen-scenario tally and must be reviewed separately.
 
 ### 5. root_squash suite execution
 
@@ -433,12 +457,14 @@ place.
 
 Confirm the installed runner still reports the candidate commit, then resolve
 the environment path as in precondition 4 and run the installed `--system`
-suites on each consumer from `<abs-toplevel>`, one control-host log per host:
+suites on each consumer from `<abs-toplevel>`, one control-host log per host.
+Set `<generator-path>` and `<release-path>` to the paths the host's step 2
+`GENERATOR` and `RELEASE` lines recorded:
 
 ```bash
 set -o pipefail
 ssh vmadmin@<host> '/usr/local/bin/ioc-runner -V'
-ssh vmadmin@<host> "cd <abs-toplevel> || exit 1; set +u; if [ -z \"\${EPICS_BASE:-}\" ]; then . <epics-env>; fi; set -u; bash tests/run-all-tests.bash --system --installed 2>&1" | tee <nfs-system-log>; printf 'SYSTEM_RC=%s\n' "$?" | tee -a <nfs-system-log>
+ssh vmadmin@<host> "cd <abs-toplevel> || exit 1; set +u; if [ -z \"\${EPICS_BASE:-}\" ]; then . <epics-env>; fi; set -u; export IOC_RUNNER_STARTUP_GENERATOR='<generator-path>' IOC_RUNNER_STARTUP_RELEASE='<release-path>'; bash tests/run-all-tests.bash --system --installed 2>&1" | tee <nfs-system-log>; printf 'SYSTEM_RC=%s\n' "$?" | tee -a <nfs-system-log>
 sha256sum <nfs-system-log>
 ```
 
@@ -465,6 +491,16 @@ Required result: no output. A remaining denial, in particular one naming
 `tests/lib/` or `run-all-tests.bash`, is the defect this step exists to catch
 and not an environment fault — the barrier and its source control above already
 established that the export squashes root and that a relative read succeeds.
+
+After step 5 has finished on both hosts, remove each host's staged generator
+clone and release copy. Remove only the recorded `<generator-path>` and
+`<release-path>`, never their parent or a glob:
+
+```bash
+ssh vmadmin@<host> "rm -rf -- '<generator-path>' '<release-path>'; test ! -e '<generator-path>' && test ! -e '<release-path>' && echo 'STARTUP INPUTS REMOVED'"
+```
+
+Required result: `STARTUP INPUTS REMOVED` on each host.
 
 ## Evidence
 
@@ -497,6 +533,11 @@ Also record:
   names and SHA-256 digests;
 - Golden acceptance results;
 - both full-setup logs and SHA-256 digests;
+- the startup generator revision, the bundle SHA-256 from
+  `<run-dir>/generator.meta`, each host's `<generator-path>` from
+  `<run-dir>/<host>.generator`, the release file's control-host path and
+  SHA-256 from `<run-dir>/release.meta`, each host's `<release-path>` from
+  `<run-dir>/<host>.release`, and each host's `STARTUP INPUTS REMOVED` result;
 - suite evidence directory and `cross-host.diff`;
 - both `P_nfs-sim` play recaps;
 - both `root_squash` barrier logs and SHA-256 digests;
@@ -507,7 +548,7 @@ Also record:
 - the baseline and three post-deployment configuration fingerprints, their
   SHA-256 digests, and all three successful comparisons; and
 - both complete multi-user `run-all.log` files and SHA-256 digests, including
-  every printed `P-*` verdict, all fourteen scenario verdicts, and the final
+  every printed `P-*` verdict, all nineteen scenario verdicts, and the final
   `VERDICT RUN`; and
 - both `root_squash` `--system --installed` suite logs, one per host, with their
   SHA-256 digests, their completion lines, and their appended `SYSTEM_RC`
@@ -568,9 +609,11 @@ consumers after they reach `iocrunner-nfs`.
 | `obs` | system | no | no | observer negative control |
 | `usera` | local | no | yes | local user A |
 | `userb` | local | no | yes | local user B |
+| `opc` | both | yes | yes | third operator, who moves one IOC between modes (L4) |
 
 `ioc-srv` is the non-login service account. System state changes require an
-operator in `ioc`; local mode remains per-user.
+operator in `ioc`; local mode remains per-user. `opc` is the one account that
+is both an `ioc` member and a lingering local user.
 
 ### Local-mode scenarios
 
@@ -579,6 +622,7 @@ operator in `ioc`; local mode remains per-user.
 | L1 | Session isolation | Both users may use the same IOC name, and each listing shows only the invoker's IOC. |
 | L2 | Cross-user interference | A peer cannot attach to or stop another user's IOC. |
 | L3 | Log isolation | A peer cannot stat or read another user's log; the owner observes mode `0640`. |
+| L4 | Mode carry-over | `opc` tests an IOC under `/opt/epics-iocs` in local mode and moves it to system mode, `opb` stops it, edits `st.cmd`, regenerates with `-f`, runs it by hand, and starts it, and `opc` moves it to local mode and back. Only one mode runs it at a time; each move's install of the other mode's configuration is refused with `Configuration mode mismatch` until `-f generate` rewrites it; every start is free of a crash warning, and the service ends active. |
 
 ### System-mode scenarios
 
@@ -595,6 +639,10 @@ operator in `ioc`; local mode remains per-user.
 | S9 | Working-directory conformance | An unwritable directory warns; a parent-reference path is rejected without override. |
 | S10 | Console access | Operators attach and monitor; observers and non-root inspect callers are denied at their defined gates. |
 | S11 | Sudo-version boundary | The emitted sudoers branch produces its documented malformed-name result. |
+| S12 | Log command | `opb`'s `ioc-runner log <ioc> -n 3` exits 0 with the IOC's last lines; `obs`'s exits 1 with `ioc group membership required`, while `obs` still reads the `ioc-srv:ioc 0644` log file directly. |
+| S13 | Site environment | `opa` writes a value into `/etc/procServ.d/site.env`, `opb` restarts the shared IOC and reads it with `epicsEnvShow`, `obs` cannot write the file, and `opa` returns it to its state before the scenario. |
+| S14 | Concurrent consoles | While `opb` monitors the shared IOC, `opa` attaches with `--detach-key ctrl-b`; a typed command's output reaches the monitor; `Ctrl-C` and `Ctrl-D` leave the procServ and IOC process IDs and the unit unchanged; the monitor survives the detach; `--detach-key ctrl-[` is refused before connecting. |
+| S15 | Regenerate by another operator | `opb` regenerates the shared IOC's payload that `opa` generated: without `-f` it names `opa`, exits 1, and leaves the file; with `-f` it exits 0 and leaves mode `0660`, group `ioc`, and `opb` as owner. |
 
 ### Driver contract
 
@@ -608,7 +656,7 @@ Every scenario prints:
 VERDICT <id> <PASS|FAIL> <detail>
 ```
 
-The final driver verdict must account for all fourteen scenario IDs. A missing
+The final driver verdict must account for all nineteen scenario IDs. A missing
 verdict is Fail, not an omitted result.
 
 Between Check-grade diagnostic reruns, use the shipped cleanup driver:
@@ -626,6 +674,15 @@ ssh vmadmin@<host> 'sudo -n rm -rf /opt/epics-iocs/<name>'
 ssh vmadmin@<host> 'sudo -n rm -rf /home/<user>/iocBoot/<name>'
 ```
 
+S13 writes a marked value into `/etc/procServ.d/site.env` and restores the
+file before the next scenario. A run cut off inside S13 can leave the line
+`GATE_S13_MARK=...`; remove that line, or the whole file when it holds nothing
+else, before the next run:
+
+```bash
+ssh vmadmin@<host> 'sudo -n sed -i "/^GATE_S13_MARK=/d" /etc/procServ.d/site.env'
+```
+
 Confirm the resulting state with the shipped reader:
 
 ```bash
@@ -633,7 +690,7 @@ bash gate/drivers/control/leftovers.bash vmadmin@<host>
 ```
 
 Required result: `P-LEFTOVERS PASS`. It requires successful reads and empty
-system, local, and payload state.
+system, local, and payload state, and no S13 value left in `site.env`.
 
 Gate-grade evidence always comes from the complete driver on the fresh pair,
 not from individual scenario reruns.

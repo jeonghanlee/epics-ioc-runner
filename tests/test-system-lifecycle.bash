@@ -89,6 +89,15 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S22|system-lifecycle.S22.uds-socket-has-correct-permissions-srw-rw|BEHAVIOR|direct-inspection"
     "S22|system-lifecycle.S22.con-available|REQUIRED|direct-inspection"
     "S22|system-lifecycle.S22.uds-socket-is-in-listening-state|BEHAVIOR|direct-inspection"
+    "S22|system-lifecycle.S22.pty-tools-available|REQUIRED|direct-inspection"
+    "S22|system-lifecycle.S22.con-default-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.con-custom-bracket-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.con-custom-b-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-default-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-custom-bracket-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-custom-b-detach|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.con-monitor-key-exit|BEHAVIOR|real-path"
+    "S22|system-lifecycle.S22.socat-monitor-key-exit|BEHAVIOR|real-path"
     "S23|system-lifecycle.S23.camonitor-available|REQUIRED|direct-inspection"
     "S23|system-lifecycle.S23.expected-updates-observed|BEHAVIOR|real-path"
     "S24|system-lifecycle.S24.inspect-command-successfully-retrieved-server-netlink-context|BEHAVIOR|real-path"
@@ -118,11 +127,16 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
     "S26|system-lifecycle.S26.restart-probe-systemd-nrestarts-remains-unchanged|BEHAVIOR|real-path"
     "S26|system-lifecycle.S26.restart-probe-recovery-remains-stable-for-three-seconds|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.softioc-available|PREREQUISITE|direct-inspection"
+    "S27|system-lifecycle.S27.original-generated-fixture|REQUIRED|real-path"
     "S27|system-lifecycle.S27.probe-user-name-available|PREREQUISITE|direct-inspection"
     "S27|system-lifecycle.S27.operator-is-an-ioc-group-member-sudoers-gate-reachable|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.operator-is-not-in-systemd-journal|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.second-operator-takes-over-an-identical-conf-with-f-161|BEHAVIOR|real-path"
     "S27|system-lifecycle.S27.journal-less-operator-crash-exit-1|BEHAVIOR|real-path"
-    "S27|system-lifecycle.S27.journal-less-operator-failed-to-initialize-verdict-reads-log-file-not-journal|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.journal-less-operator-exit-code-verdict-reads-log-file-not-journal|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.continued-quote-exits-zero|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.continued-quote-avoids-failure|BEHAVIOR|real-path"
+    "S27|system-lifecycle.S27.continued-quote-ioc-responds|BEHAVIOR|real-path"
     "S28|system-lifecycle.S28.logrotate-policy-exists|REQUIRED|direct-inspection"
     "S28|system-lifecycle.S28.softioc-available|PREREQUISITE|direct-inspection"
     "S28|system-lifecycle.S28.logrotate-available|PREREQUISITE|direct-inspection"
@@ -211,6 +225,11 @@ declare -g -a SYSTEM_CATALOG_ROWS=(
 declare -g -A SYSTEM_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
+# shellcheck source=tests/lib/test-console-pty.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-pty.bash"
+# shellcheck source=tests/lib/test-startup-fixture.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-startup-fixture.bash"
+startup_fixture_catalog S36 SYSTEM_CATALOG_ROWS
 
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
 # the binary origin; the unset default is the source tree, matching the
@@ -282,6 +301,7 @@ declare -g M10_OPERATOR_USER_CREATED=0
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
+declare -gr SERVICE_TEST_IOC_REVISION="91d42b2ceadec81a065d4cdf35936dbb8d77e202"
 # System test uses a specific suffix to avoid colliding with local tests
 declare -g IOC_NAME="iocServiceTestIOC-SYS"
 
@@ -340,7 +360,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 35; index += 1)); do
+    for ((index = 1; index <= 36; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -486,9 +506,15 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+    console_pty_close || final_status=1
 
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
         exit "${REPORT_FINAL_STATUS}"
+    fi
+
+    if ! startup_fixture_cleanup; then
+        final_status=1
+        _log "ERROR" "Failed to restore the original startup fixture; retaining its workspace."
     fi
 
     if ! _cleanup_m10_system; then
@@ -521,7 +547,7 @@ function _handle_exit {
     fi
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
-        if [[ ${exit_code} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
+        if [[ ${final_status} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
             print_divider
             _log "WARN" "DEBUG: Test workspace retained for inspection."
             _log "WARN" "Path: ${WORKSPACE}"
@@ -546,7 +572,7 @@ function _handle_exit {
 
 
 trap _handle_exit EXIT
-trap 'exit 1' SIGINT
+trap 'exit 1' SIGINT SIGTERM
 
 function _log {
     local level="$1"
@@ -588,7 +614,7 @@ function verify_state {
         printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
         SUITE_ASSERTION_FAILED=1
         report_record "${check_id}" FAIL \
-            "${step_name}: expected ${expected}, actual ${actual}"
+            "$(report_escape_reason "${step_name}: expected ${expected}, actual ${actual}")"
     fi
 }
 
@@ -751,6 +777,7 @@ function setup_environment {
         GIT_CONFIG_GLOBAL=/dev/null git clone -q "${IOC_REPO}" "${TOP_DIR}" >/dev/null 2>&1
     fi
 
+    git -C "${TOP_DIR}" checkout --detach "${SERVICE_TEST_IOC_REVISION}" >/dev/null 2>&1
     cd "${TOP_DIR}" || exit 1
     if [[ ! -d "bin" ]]; then
         _log "INFO" "Configuring EPICS environment..."
@@ -1052,6 +1079,7 @@ function test_console_attach {
         socket_listening="true"
     fi
     verify_state "true" "${socket_listening}" "UDS socket is in listening state"
+    test_console_pty
 }
 
 function test_channel_access {
@@ -1818,11 +1846,8 @@ EOF
     _run_restart_supervision_probe "${softioc_bin}"
 }
 
-# T1 (Phase E): crash detection without journal access. An operator who is an
-# ioc-group member (so the %ioc sudoers gate lets them start the service) but
-# is NOT in systemd-journal must still get the crash warning -- 1.1.0 scans the
-# dedicated log file, not the journal. On 1.0.8 the journal scan would hand this
-# operator empty output and a false success, so T1 is a natural baseline-fail.
+# An ioc-group operator without journal access observes genuine terminating and
+# continued iocsh errors through the dedicated procServ log and native console.
 function test_detection_without_journal {
     local step="$1"
     print_divider
@@ -1837,6 +1862,13 @@ function test_detection_without_journal {
         return 0
     fi
     record_current_state PASS
+
+    if ! startup_fixture_prepare; then
+        verify_state true false "Original generated fixture is available"
+        close_current_remaining SKIP "original generator or native build prerequisite failed"
+        return 0
+    fi
+    verify_state true true "Original generated fixture is available"
 
     local operator="epics-t1-operator"
     # Never touch a pre-existing account of this name: it may not be ours.
@@ -1858,46 +1890,54 @@ function test_detection_without_journal {
     verify_state "true" "${in_ioc}" "Operator is an ioc-group member (sudoers gate reachable)"
     verify_state "false" "${in_journal}" "Operator is NOT in systemd-journal"
 
-    local bad_ioc_name="JournalLessIOC-SYS"
-    local bad_ioc_dir="${WORKSPACE}/journalless_ioc"
-    mkdir -p "${bad_ioc_dir}"
-    chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}"
-    chmod 2775 "${bad_ioc_dir}"
+    # #161: a second ioc-group member regenerates an identical configuration
+    # that root generated. The runner rewrites it through the staged rename,
+    # which needs only directory write permission, so the operator takes the
+    # file over with -f instead of failing on chmod, which only the owner may
+    # run; the file ends with the system-mode 0660 and the operator as owner.
+    # The owner before the operator's run is part of the state, so a root
+    # generate that left no file cannot pass through the no-file path.
+    local regen_dir="${WORKSPACE}/regenerate_ioc"
+    local regen_conf="${regen_dir}/regenerate_ioc.conf"
+    local regen_rc=0 regen_before="" regen_state=""
+    mkdir -p "${regen_dir}"
+    chown "${OWNER_WORKSPACE}" "${regen_dir}"
+    chmod 2775 "${regen_dir}"
+    printf '#!%s\n' "${softioc_bin}" > "${regen_dir}/st.cmd"
+    chown "${OWNER_WORKSPACE}" "${regen_dir}/st.cmd"
+    chmod 0775 "${regen_dir}/st.cmd"
+    (cd "${regen_dir}" && bash "${RUNNER_SCRIPT}" generate .) >/dev/null 2>&1 || true
+    regen_before=$(stat -c '%U' "${regen_conf}" 2>/dev/null || printf 'missing')
+    runuser -u "${operator}" -- bash -c 'cd "$1" && bash "$2" -f generate .' _ "${regen_dir}" "${RUNNER_SCRIPT}" \
+        >/dev/null 2>&1 < /dev/null || regen_rc=$?
+    regen_state="${regen_before} ${regen_rc} $(stat -c '%a %U' "${regen_conf}" 2>/dev/null || printf 'missing')"
+    verify_state "root 0 660 ${operator}" "${regen_state}" "Second operator takes over an identical conf with -f (#161)"
+    rm -rf "${regen_dir}"
 
-    # Malformed st.cmd: an unbalanced quote drives an iocsh parse error whose
-    # crash pattern (Unbalanced quote) must land in the dedicated log file.
-    cat << EOF > "${bad_ioc_dir}/st.cmd"
-#!${softioc_bin}
-epicsEnvSet("BROKEN", "unterminated
-EOF
-    chown "${OWNER_WORKSPACE}" "${bad_ioc_dir}/st.cmd"
-    chmod 0750 "${bad_ioc_dir}/st.cmd"
+    startup_fixture_variant main-before-quote-break
+    startup_fixture_install
+    local output rc=0 msg_ok=false response
+    output=$(runuser -u "${operator}" -- bash "${RUNNER_SCRIPT}" start "${STARTUP_IOC}" 2>&1) || rc=$?
+    printf '%s\n' "${output}" > "${STARTUP_FIXTURE_ROOT}/journal-less-break.log"
+    [[ "${output}" == *"exited during startup (exit code 2)"* ]] && msg_ok=true
+    verify_state 1 "${rc}" "Journal-less operator: terminating startup exits 1"
+    verify_state true "${msg_ok}" "Journal-less operator: numeric status comes from the log file"
+    "${STARTUP_RUNNER[@]}" stop "${STARTUP_IOC}" >/dev/null
 
-    cat << EOF > "${WORKSPACE}/${bad_ioc_name}.conf"
-IOC_USER="${SYSTEM_USER}"
-IOC_GROUP="${SYSTEM_GROUP}"
-IOC_CHDIR="${bad_ioc_dir}"
-IOC_PORT=""
-IOC_CMD="./st.cmd"
-EOF
+    startup_fixture_variant main-before-quote-continue
+    rc=0
+    output=$(runuser -u "${operator}" -- bash "${RUNNER_SCRIPT}" start "${STARTUP_IOC}" 2>&1) || rc=$?
+    printf '%s\n' "${output}" > "${STARTUP_FIXTURE_ROOT}/journal-less-continue.log"
+    msg_ok=false
+    [[ "${output}" != *"Error: IOC"* ]] && msg_ok=true
+    verify_state 0 "${rc}" "Journal-less operator: continued quote error exits 0"
+    verify_state true "${msg_ok}" "Journal-less operator: continued quote error avoids failure"
+    response=$(startup_fixture_console)
+    msg_ok=false
+    [[ "${response}" == *"IOCNAME=${STARTUP_APP_NAME}"* ]] && msg_ok=true
+    verify_state true "${msg_ok}" "Journal-less operator: continued IOC responds"
+    startup_fixture_cleanup
 
-    bash "${RUNNER_SCRIPT}" -f install "${WORKSPACE}/${bad_ioc_name}.conf" >/dev/null
-
-    # The operator (no systemd-journal) starts the IOC; crash detection must
-    # still warn, proving it reads the log file rather than the journal.
-    local output rc=0
-    output=$(runuser -u "${operator}" -- bash "${RUNNER_SCRIPT}" start "${bad_ioc_name}" 2>&1) || rc=$?
-
-    # M11/#67: the unbalanced-quote parse error (Unbalanced quote, a FATAL token)
-    # before iocInit -> exit 1 failed-to-initialize, read from the dedicated log
-    # file (not the journal), proving journal-less detection still works.
-    local rc_ok="false" msg_ok="false"
-    if [[ "${rc}" == "1" ]]; then rc_ok="true"; fi
-    if printf "%s" "${output}" | grep -q "failed to initialize"; then msg_ok="true"; fi
-    verify_state "true" "${rc_ok}" "Journal-less operator: crash -> exit 1"
-    verify_state "true" "${msg_ok}" "Journal-less operator: failed-to-initialize verdict (reads log file, not journal)"
-
-    bash "${RUNNER_SCRIPT}" remove "${bad_ioc_name}" >/dev/null 2>&1 || true
     userdel "${operator}" 2>/dev/null || true
     T1_CREATED_USER=""
 }
@@ -2753,6 +2793,7 @@ function run_all_tests {
         "test_conf_parser_systemd_agreement"
         "test_m10_system_reliability"
         "test_site_env_layer"
+        "test_generated_startup"
     )
 
     local step=1

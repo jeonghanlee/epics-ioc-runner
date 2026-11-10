@@ -43,6 +43,14 @@ remains readable independently of any working session material.
 > the marker without initializing defeats readiness detection by design,
 > and no integrity check on the marker is planned.
 
+> **Correction note (2026-09-24, 1.4.2).** The ignore set is `^D^C`. procServ
+> converts `^` only when `A` through `Z` follows, so the original `^]` entry
+> registered the printable characters `^` and `]` instead of `Ctrl-]`:
+> console input lost those two characters while `Ctrl-]` reached the IOC.
+> Byte tracing at the console socket and the child's stdin confirmed this on
+> both reference platforms. `Ctrl-]` needs no filtering because the supported
+> clients use no telnet escape; the decision is otherwise unchanged.
+
 ---
 
 ## Context
@@ -105,10 +113,10 @@ structural, not an omission: the system unit orders against `network.target`,
   Restart=always               # forced (not on-failure); see "Why each value"
   RestartSec=2                 # pace the loop; the M11 poll (not RestartSec) owns the timing
   SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL   # unchanged under `always`
-  ExecStart= … procServ --ignore=^D^C^] --autorestartcmd='' …
+  ExecStart= … procServ --ignore=^D^C --autorestartcmd='' …
 ```
 
-- `--ignore=^D^C^]` filters `^C`/`^D`/`^]` out of the **child IOC's stdin**.
+- `--ignore=^D^C` filters `^C`/`^D` out of the **child IOC's stdin**.
 - `--autorestartcmd=''` (empty argument) **disables the `^T` autorestart-toggle
   key** by setting procServ's toggle character to 0; the inner autorestart
   itself stays ON.
@@ -123,7 +131,7 @@ structural, not an omission: the system unit orders against `network.target`,
 | `RestartSec=` | `2` | Above systemd's 100 ms default so a fast-failing supervisor does not spin. The timing invariant lives in the M11 poll (poll max-bound > RestartSec + readiness time), not in RestartSec being below the window. |
 | `StartLimitIntervalSec=` | `0` | Disabling the limiter keeps OP1 in-band — a unit never strands in the `reset-failed`-requiring start-limit-hit state. Honest trade: no automatic circuit breaker (a hopeless procServ retries forever). systemd surfaces only procServ death (`activating (auto-restart)`, `NRestarts`); a child crash loop is caught by the Layer-2 log scan, and a `=0` loop is invisible to `systemctl --failed`. Log growth is bounded by the U003 local rotation, not by `=0`. |
 | `StartLimitBurst=` / `StartLimitAction=` | `5` / `none` | Burst is inert while interval=0 (emitted for explicitness); a host-level action on an accelerator floor is never acceptable. |
-| `--ignore` | `^D^C^]` | Filters control characters out of the child IOC's stdin. `^T` is intentionally NOT here — `--ignore` does not disable procServ command keys (see "Mechanism note"). |
+| `--ignore` | `^D^C` | Filters control characters out of the child IOC's stdin. `^T` is intentionally NOT here — `--ignore` does not disable procServ command keys (see "Mechanism note"). |
 | `--autorestartcmd=` | `''` | The mechanism that actually disables the `^T` toggle, closing the silent dead-child/live-procServ trap. |
 | `--oneshot` | excluded | Breaks OP2 (drops the console socket on every child exit) and OP1 (its start-limit `failed` needs `reset-failed`). |
 | `OnFailure=` | excluded | New infrastructure (OP5); down-states are covered by Layer-3 revival and the Layer-2 crash scan (a silent hang is tracked as an out-of-cluster carry-forward, not an alarm-unit case), so an alarm unit adds deployment surface without closing a real gap. |
@@ -412,3 +420,56 @@ The full working record (scoring derivation, operating-intent grounding,
 ten-reviewer convergence, and the raw measurement campaign) was produced in
 review session `rs20260612_143435`. Key facts are inlined above so this ADR
 stands alone.
+
+
+## Addendum: normal child exit status (2026-10-15, #166)
+
+System and Local startup checks recognize complete native procServ normal-exit
+records associated with the supervised child PID. A current nonzero status
+returns runner exit 1 and prints `IOC '<name>' exited during startup (exit code
+<N>).` with the log hint. The code establishes termination, not its cause.
+Signal records remain distinct and never become a fabricated `128 + signal`
+normal status.
+
+A nonzero status within the invocation takes precedence over a readiness
+marker, including a later automatic retry's marker. The scanner preserves
+PID association across initialization and confirmation, excludes the old
+child's commanded restart teardown, and retains the existing file-offset,
+inode, and tail-hash boundaries. A status split between reads can finish
+within the existing 30-second initialization or 3-second confirmation bounds.
+When no complete associated status is available, fatal/death-banner handling
+provides the existing fallback. The active-start fast path requires a marked
+startup without subsequent child termination.
+
+`Unbalanced quote` belongs to the ambiguous set because a genuine iocsh parse
+error under `on error continue` can leave the original generated IOC alive.
+The normal-exit mapping comes from the generated executable's main; the
+runner does not infer it from a printed diagnostic or a global interpretation
+of per-file iocsh policy. A continued quote error alone cannot fail startup;
+a post-marker occurrence can produce the heuristic warning. Normal exit 0
+alone is not readiness. Markerless active-unit timeout and unreadable-log
+warnings remain available.
+
+The preceding decisions remain historical. This addendum changes startup
+classification and reporting, not procServ or systemd restart policy,
+Container behavior, or the separate `sevr=fatal` overlap tracked by #165.
+
+
+## M14 Addendum: Qualified Readiness (2026-10-16)
+
+The exact severity exception and retained evidence contract are defined in
+[ADR 0004](0004-severity-marker-corroboration.md#m14-addendum-retained-startup-severity-2026-10-16).
+System and Local start/restart observe severity before changing scan phases,
+retain up to three distinct lines through rotation/truncation, and return 0
+with qualified completion after readiness and confirmation. The report does
+not establish that the affected module or device function works.
+
+Independent pre-marker fatal text is checked in the first marker window.
+Native nonzero child status and termination keep their existing priority.
+When the initialization deadline expires without readiness, report the
+active-unit timeout or unreadable-log warning as applicable, alongside any
+retained severity. The 30-second initialization timeout,
+3-second confirmation, 0.2-second polling and procServ/systemd restart policies
+remain unchanged. Container diagnostics and the active-start no-op are outside
+this change. Earlier interpretation of pre-marker `sevr=fatal` is superseded
+by this addendum.

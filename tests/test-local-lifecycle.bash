@@ -133,6 +133,15 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S27|local-lifecycle.S27.socket-permission-valid|BEHAVIOR"
     "S27|local-lifecycle.S27.con-available|REQUIRED"
     "S27|local-lifecycle.S27.socket-listening|BEHAVIOR"
+    "S27|local-lifecycle.S27.pty-tools-available|REQUIRED"
+    "S27|local-lifecycle.S27.con-default-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.con-custom-bracket-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.con-custom-b-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-default-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-custom-bracket-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-custom-b-detach|BEHAVIOR"
+    "S27|local-lifecycle.S27.con-monitor-key-exit|BEHAVIOR"
+    "S27|local-lifecycle.S27.socat-monitor-key-exit|BEHAVIOR"
     "S28|local-lifecycle.S28.camonitor-available|REQUIRED"
     "S28|local-lifecycle.S28.expected-updates-observed|BEHAVIOR"
     "S29|local-lifecycle.S29.monitor-isolation-applicable|APPLICABILITY"
@@ -153,8 +162,8 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S30|local-lifecycle.S30.fatal-probe-verdict|BEHAVIOR"
     "S30|local-lifecycle.S30.silent-loop-exits-one|BEHAVIOR"
     "S30|local-lifecycle.S30.silent-loop-verdict|BEHAVIOR"
-    "S30|local-lifecycle.S30.parse-error-exits-one|BEHAVIOR"
-    "S30|local-lifecycle.S30.parse-error-verdict|BEHAVIOR"
+    "S30|local-lifecycle.S30.continued-parse-error-exits-zero|BEHAVIOR"
+    "S30|local-lifecycle.S30.continued-parse-error-markerless-warning|BEHAVIOR"
     "S30|local-lifecycle.S30.historical-fatal-exits-zero|BEHAVIOR"
     "S30|local-lifecycle.S30.historical-fatal-success-verdict|BEHAVIOR"
     "S30|local-lifecycle.S30.truncate-available|PREREQUISITE"
@@ -186,7 +195,12 @@ declare -g -a LOCAL_CATALOG_ROWS=(
     "S31|local-lifecycle.S31.spaced-does-not-corroborate|BEHAVIOR"
     "S31|local-lifecycle.S31.blank-start-succeeds|BEHAVIOR"
     "S31|local-lifecycle.S31.blank-not-warned|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-exits-zero|BEHAVIOR"
     "S32|local-lifecycle.S32.enable-creates-link|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-linger-advice|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-preserves-linger|BEHAVIOR"
+    "S32|local-lifecycle.S32.enable-preserves-runtime|BEHAVIOR"
+    "S32|local-lifecycle.S32.disable-exits-zero|BEHAVIOR"
     "S32|local-lifecycle.S32.disable-removes-link|BEHAVIOR"
     "S33|local-lifecycle.S33.configuration-removed|BEHAVIOR"
     "S33|local-lifecycle.S33.service-inactive|BEHAVIOR"
@@ -276,6 +290,11 @@ declare -g -a LOCAL_CATALOG_ROWS=(
 declare -g -A LOCAL_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-reporting.bash"
+# shellcheck source=tests/lib/test-console-pty.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-pty.bash"
+# shellcheck source=tests/lib/test-startup-fixture.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-startup-fixture.bash"
+startup_fixture_catalog S41 LOCAL_CATALOG_ROWS
 
 # --- Managed Architecture Paths ---
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
@@ -314,6 +333,7 @@ RUN_DIR="/run/user/$(id -u)/procserv"
 
 declare -g IOC_REPO="https://github.com/jeonghanlee/ServiceTestIOC.git"
 declare -g REPO_NAME="ServiceTestIOC"
+declare -gr SERVICE_TEST_IOC_REVISION="91d42b2ceadec81a065d4cdf35936dbb8d77e202"
 declare -g IOC_NAME="iocServiceTestIOC"
 
 declare -g WORKSPACE=""
@@ -428,7 +448,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 40; index += 1)); do
+    for ((index = 1; index <= 41; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -449,7 +469,7 @@ function initialize_reporting {
     done
     for row in "${LOCAL_CATALOG_ROWS[@]}"; do
         IFS='|' read -r step_id check_id check_kind <<< "${row}"
-        if [[ "${check_kind}" == "BEHAVIOR" ]]; then
+        if [[ "${check_kind}" == "BEHAVIOR" || "${check_id}" == "${SUITE_ID}.S41.original-generated-fixture" ]]; then
             test_method="real-path"
         else
             test_method="direct-inspection"
@@ -698,9 +718,15 @@ function _handle_exit {
 
     trap - EXIT
     set +e
+    console_pty_close || final_status=1
 
     if (( REPORT_CATALOG_ONLY_COMPLETED )); then
         exit "${REPORT_FINAL_STATUS}"
+    fi
+
+    if ! startup_fixture_cleanup; then
+        final_status=1
+        _log "ERROR" "Failed to restore the original startup fixture; retaining its workspace."
     fi
 
     if ! _cleanup_m10_local; then
@@ -732,7 +758,7 @@ function _handle_exit {
     fi
 
     if [[ -n "${WORKSPACE}" && "${WORKSPACE}" == */epics-ioc-test.* && -d "${WORKSPACE}" ]]; then
-        if [[ ${exit_code} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
+        if [[ ${final_status} -ne 0 || ${SUITE_ASSERTION_FAILED} -ne 0 || "${KEEP_WORKSPACE}" == "1" ]]; then
             print_divider
             _log "WARN" "DEBUG: Test workspace retained for inspection."
             _log "WARN" "Path: ${WORKSPACE}"
@@ -755,7 +781,7 @@ function _handle_exit {
 }
 
 trap _handle_exit EXIT
-trap 'exit 1' SIGINT
+trap 'exit 1' SIGINT SIGTERM
 
 function _log {
     local level="$1"
@@ -797,7 +823,7 @@ function verify_state {
         printf "  ${YELLOW}Actual   : %s${NC}\n" "${actual}" >&2
         SUITE_ASSERTION_FAILED=1
         report_record "${check_id}" FAIL \
-            "${step_name}: expected ${expected}, actual ${actual}"
+            "$(report_escape_reason "${step_name}: expected ${expected}, actual ${actual}")"
     fi
 }
 
@@ -902,6 +928,7 @@ function setup_environment {
     fi
 
     # Compile the application at the top-level directory.
+    git -C "${TOP_DIR}" checkout --detach "${SERVICE_TEST_IOC_REVISION}" >/dev/null 2>&1
     cd "${TOP_DIR}" || exit 1
     if [[ ! -d "bin" ]]; then
         _log "INFO" "Configuring and compiling EPICS application..."
@@ -1314,6 +1341,7 @@ function test_console_attach {
     local socket_listening="false"
     if ss -lx 2>/dev/null | grep -q "${UDS_PATH}"; then socket_listening="true"; fi
     verify_state "true" "${socket_listening}" "UDS socket is in listening state"
+    test_console_pty
 }
 
 function test_channel_access {
@@ -1453,17 +1481,15 @@ function _remove_crash_probe {
 
 function _run_crash_probe {
     local ioc_name="$1"
-    local expected_kind="$2"   # "fatal" -> exit 1 failed-to-init; "healthy" -> exit 0 success
+    local expected_kind="$2"
     local assertion_name="$3"
     local output
     local exit_code=0
     local rc_ok="false"
     local msg_ok="false"
 
-    # M11/#67: a pre-iocInit FATAL-subset token is now a hard failure (exit 1 with
-    # the "failed to initialize" verdict), not the old active-IOC Warning. A healthy
-    # IOC reaches the marker and reports success (exit 0); pre-offset / benign noise
-    # is correctly ignored.
+    # Fatal evidence and repeated deaths fail startup. A surviving IOC without
+    # readiness warns; a healthy IOC confirms readiness. Historical text is ignored.
     output=$(bash "${RUNNER_SCRIPT}" --local start "${ioc_name}" 2>&1) || exit_code=$?
     _remove_crash_probe "${ioc_name}"
 
@@ -1480,6 +1506,14 @@ function _run_crash_probe {
         verify_state "true" "${rc_ok}" "${assertion_name}: exit 1"
         if printf "%s" "${output}" | grep -q "crash-looping"; then msg_ok="true"; fi
         verify_state "true" "${msg_ok}" "${assertion_name}: crash-looping verdict"
+    elif [[ "${expected_kind}" == "markerless" ]]; then
+        if [[ "${exit_code}" == "0" ]]; then rc_ok="true"; fi
+        verify_state "true" "${rc_ok}" "${assertion_name}: exit 0"
+        if [[ "${output}" == *"did not report initialization complete"* &&
+              "${output}" != *"successfully started"* && "${output}" != *"Error: IOC"* ]]; then
+            msg_ok="true"
+        fi
+        verify_state "true" "${msg_ok}" "${assertion_name}: markerless warning"
     else
         if [[ "${exit_code}" == "0" ]]; then rc_ok="true"; fi
         verify_state "true" "${rc_ok}" "${assertion_name}: exit 0 (healthy)"
@@ -1712,7 +1746,7 @@ dbLoadRecords("missing.db
 EOF
     chmod +x "${parse_ioc_dir}/st.cmd"
     _install_crash_probe "${parse_ioc_name}" "${parse_ioc_dir}"
-    _run_crash_probe "${parse_ioc_name}" "fatal" "Crash detection: iocsh parse error -> exit 1"
+    _run_crash_probe "${parse_ioc_name}" "markerless" "Continued iocsh parse error without readiness"
 
     local history_ioc_name="CrashTestHistory"
     local history_ioc_dir="${WORKSPACE}/crash_history_ioc"
@@ -1815,17 +1849,46 @@ EOF
 
 function test_persistence {
     local step="$1"
+    local enable_rc=0 disable_rc=0 runtime_before_rc=0 runtime_after_rc=0
+    local linger_before linger_after runtime_before runtime_after advice advice_count
+    local advice_ok="false" linger_ok="false" runtime_ok="false" link_exist="false"
+
     print_divider
     _log "INFO" "STEP ${step}: Test Enable and Disable (Persistence)"
     print_sub_divider
 
-    bash "${RUNNER_SCRIPT}" --local enable "${IOC_NAME}"
+    linger_before=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
+    runtime_before=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p ActiveState -p MainPID) || runtime_before_rc=$?
+    printf -v advice "Note: user lingering is off; 'loginctl enable-linger %s' to run IOCs and log rotation while logged out." "$(id -un)"
+    bash "${RUNNER_SCRIPT}" --local enable "${IOC_NAME}" > "${WORKSPACE}/persistence-enable.stdout" 2> "${WORKSPACE}/persistence-enable.stderr" || enable_rc=$?
+    linger_after=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
+    runtime_after=$("${SYSTEMCTL_CMD[@]}" show "epics-@${IOC_NAME}.service" -p ActiveState -p MainPID) || runtime_after_rc=$?
+    verify_state "0" "${enable_rc}" "Enable succeeds with non-fatal linger advice"
 
-    local link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
     verify_state "true" "${link_exist}" "Symlink created in default.target.wants (Enable)"
 
-    bash "${RUNNER_SCRIPT}" --local disable "${IOC_NAME}"
+    advice_count=$(grep -Fxc -- "${advice}" "${WORKSPACE}/persistence-enable.stderr" || true)
+    if [[ "${linger_before}" == "no" && "${advice_count}" == "1" ]] ||
+       [[ "${linger_before}" == "yes" && "${advice_count}" == "0" ]]; then
+        advice_ok="true"
+    fi
+    verify_state "true" "${advice_ok}" "Enable advice matches the native linger state"
+
+    if [[ "${linger_before}" == "yes" || "${linger_before}" == "no" ]] &&
+       [[ "${linger_before}" == "${linger_after}" ]]; then
+        linger_ok="true"
+    fi
+    verify_state "true" "${linger_ok}" "Enable preserves the native linger state"
+
+    if (( runtime_before_rc == 0 && runtime_after_rc == 0 )) &&
+       [[ -n "${runtime_before}" && "${runtime_before}" == "${runtime_after}" ]]; then
+        runtime_ok="true"
+    fi
+    verify_state "true" "${runtime_ok}" "Enable preserves service activity and supervisor PID"
+
+    bash "${RUNNER_SCRIPT}" --local disable "${IOC_NAME}" || disable_rc=$?
+    verify_state "0" "${disable_rc}" "Disable succeeds"
 
     link_exist="false"
     if [[ -L "${SYSTEMD_WANTS_DIR}/epics-@${IOC_NAME}.service" ]]; then link_exist="true"; fi
@@ -2490,10 +2553,10 @@ function test_post_init_error_marker {
         'system "echo polls sent replies errors  OID name"') || rc=$?
     ok="false"; [[ "${rc}" == "0" ]] && ok="true"
     verify_state "true" "${ok}" "Post-init report lines: start succeeds (exit 0)"
-    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    warn="false"; printf "%s" "${output}" | grep -qE "matching an error pattern|initialization completed with error logs" && warn="true"
     verify_state "false" "${warn}" "Post-init report lines: no warning"
 
-    # T2: a genuine uppercase ERROR severity line after the marker raises the
+    # T2: controlled uppercase ERROR log input after the marker raises the
     # warning on a start that still exits 0 (D027: corroboration never fails a
     # live IOC — the rc pin is what catches an errexit leak in the warn path),
     # and the matched line is shown beneath it.
@@ -2502,10 +2565,10 @@ function test_post_init_error_marker {
         'system "echo ERROR: iocInit reported a device problem"') || rc=$?
     ok="false"; [[ "${rc}" == "0" ]] && ok="true"
     verify_state "true" "${ok}" "Post-init ERROR marker: start exits 0"
-    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    warn="false"; printf "%s" "${output}" | grep -qE "matching an error pattern|initialization completed with error logs" && warn="true"
     verify_state "true" "${warn}" "Post-init ERROR marker: warning raised"
     shows="false"
-    if printf "%s" "${output}" | grep -q "matched line(s):" \
+    if printf "%s" "${output}" | grep -qE "matched line\(s\):|observed startup error log line\(s\):" \
         && printf "%s" "${output}" | grep -q "ERROR: iocInit reported a device problem"; then
         shows="true"
     fi
@@ -2519,7 +2582,7 @@ function test_post_init_error_marker {
     output=$(_run_post_init_probe "PostInitAnsi" "${softioc_bin}" "${ansi_cmd}") || rc=$?
     ok="false"; [[ "${rc}" == "0" ]] && ok="true"
     verify_state "true" "${ok}" "Post-init ANSI ERROR marker: start exits 0"
-    warn="false"; printf "%s" "${output}" | grep -q "matching an error pattern" && warn="true"
+    warn="false"; printf "%s" "${output}" | grep -qE "matching an error pattern|initialization completed with error logs" && warn="true"
     verify_state "true" "${warn}" "Post-init ANSI ERROR marker: warning raised"
 }
 
@@ -2639,6 +2702,7 @@ function run_all_tests {
         "test_site_env_layer"
         "test_post_init_error_marker"
         "test_log_command"
+        "test_generated_startup"
     )
 
     local step=1

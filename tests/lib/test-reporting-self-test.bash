@@ -8,6 +8,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
 readonly REPORTER="${SCRIPT_DIR}/test-reporting.bash"
+# shellcheck source=tests/lib/reporting-counts.bash
+source "${SCRIPT_DIR}/reporting-counts.bash"
+
+# Suite-dimension combinations the reporter accepts; the matrix scenario
+# finalizes one run per entry and the assertion counts the entries.
+declare -g -a SELF_TEST_DIMENSIONS=(
+    "container-lifecycle container source lifecycle-behavior"
+    "container-lifecycle container installed lifecycle-behavior"
+    "error-handling none source error-contract"
+    "list-states local source lifecycle-behavior"
+    "list-states local installed lifecycle-behavior"
+    "list-states system source lifecycle-behavior"
+    "list-states system installed lifecycle-behavior"
+    "local-lifecycle local source lifecycle-behavior"
+    "local-lifecycle local installed lifecycle-behavior"
+    "source-regression system source source-regression"
+    "system-infra system none installed-conformance"
+    "system-lifecycle system source lifecycle-behavior"
+    "system-lifecycle system installed lifecycle-behavior"
+)
 
 SELF_TEST_TOTAL=0
 SELF_TEST_PASSED=0
@@ -273,21 +293,10 @@ function scenario_suite_dimension_matrix {
     local scenario_workspace=""
     local check_id=""
     local index=0
-    local -a dimensions=(
-        "container-lifecycle container source lifecycle-behavior"
-        "container-lifecycle container installed lifecycle-behavior"
-        "error-handling none source error-contract"
-        "local-lifecycle local source lifecycle-behavior"
-        "local-lifecycle local installed lifecycle-behavior"
-        "source-regression system source source-regression"
-        "system-infra system none installed-conformance"
-        "system-lifecycle system source lifecycle-behavior"
-        "system-lifecycle system installed lifecycle-behavior"
-    )
 
     # shellcheck source=tests/lib/test-reporting.bash
     source "${REPORTER}"
-    for specification in "${dimensions[@]}"; do
+    for specification in "${SELF_TEST_DIMENSIONS[@]}"; do
         read -r suite scope runner category <<< "${specification}"
         scenario_workspace="${workspace}/accepted-${index}"
         check_id="${suite}.P00.dimension-${index}"
@@ -540,6 +549,48 @@ function scenario_concurrent_duplicate {
     report_finalize 0
 }
 
+# A multi-line reason passed directly to report_record is still rejected.
+function scenario_multiline_reason {
+    local workspace="$1"
+
+    # shellcheck source=tests/lib/test-reporting.bash
+    source "${REPORTER}"
+    report_init source-regression multiline system source debian-13 linux-x86_64 "${workspace}"
+    register_step_and_check source-regression.P00.multiline INTEGRITY direct-inspection "Multi-line reason"
+    report_record source-regression.P00.multiline FAIL $'first line\nsecond line' || true
+    report_finalize 0
+}
+
+# Checks the reason escaping used by every suite's verify_state.
+function check_escape_reason {
+    local escaped=""
+
+    escaped=$(
+        # Machine-output mode moves standard output away while the reporter loads.
+        unset REPORT_MACHINE_OUTPUT
+        # shellcheck source=tests/lib/test-reporting.bash
+        source "${REPORTER}"
+        report_escape_reason $'a\\b\nc\rd\te'
+    )
+    if [[ "${escaped}" == 'a\\b\nc\rd\te' ]]; then
+        pass "escape: backslash, line feed, carriage return, and tab"
+    else
+        fail "escape: backslash, line feed, carriage return, and tab" 'a\\b\nc\rd\te' "${escaped}"
+    fi
+    escaped=$(
+        # Machine-output mode moves standard output away while the reporter loads.
+        unset REPORT_MACHINE_OUTPUT
+        # shellcheck source=tests/lib/test-reporting.bash
+        source "${REPORTER}"
+        report_escape_reason "expected agree, actual differ"
+    )
+    if [[ "${escaped}" == "expected agree, actual differ" ]]; then
+        pass "escape: one-line reason unchanged"
+    else
+        fail "escape: one-line reason unchanged" "expected agree, actual differ" "${escaped}"
+    fi
+}
+
 function run_scenario {
     local name="$1"
     local expected_status="$2"
@@ -562,6 +613,7 @@ function run_scenario {
             duplicate) scenario_duplicate_state "${scenario_workspace}" ;;
             unknown) scenario_unknown_id "${scenario_workspace}" ;;
             reason) scenario_missing_reason "${scenario_workspace}" ;;
+            multiline-reason) scenario_multiline_reason "${scenario_workspace}" ;;
             malformed) scenario_malformed_catalog "${scenario_workspace}" ;;
             subshell) scenario_subshell_ledger "${scenario_workspace}" ;;
             cleanup-failure) scenario_reporter_cleanup_failure "${scenario_workspace}" ;;
@@ -658,8 +710,12 @@ expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^CATALOG ' 1 \
     "catalog precedence: exactly one catalog record"
 expect_count "${SELF_TEST_WORKSPACE}/catalog-precedence.out" '^(TEST|STEP|SUITE) ' 0 \
     "catalog precedence: no execution records"
+catalog_checks=""
+catalog_steps=""
+reporting_counts_load "${SCRIPT_DIR}/../reporting-counts.csv"
+reporting_counts_lookup source-regression catalog_checks catalog_steps
 expect_last_line "${SELF_TEST_WORKSPACE}/catalog-precedence.out" \
-    "CATALOG suite=source-regression checks=132 steps=20 state=PASS" \
+    "CATALOG suite=source-regression checks=${catalog_checks} steps=${catalog_steps} state=PASS" \
     "catalog precedence: exact standard-output contract"
 
 run_scenario clean 0
@@ -698,7 +754,7 @@ expect_contains "${SELF_TEST_WORKSPACE}/independent-axes.out" "kind=BEHAVIOR met
 expect_contains "${SELF_TEST_WORKSPACE}/independent-axes.out" "SUITE suite=system-infra run=independent-axes scope=system runner=none os=debian-13 arch=linux-x86_64 total=1 pass=1 fail=0 skip=0 na=0 err=0 state=PASS" "independent-axes: complete suite vector"
 
 run_scenario dimension-matrix 0
-expect_count "${SELF_TEST_WORKSPACE}/dimension-matrix.out" '^SUITE ' 7 "dimension-matrix: all accepted combinations finalize"
+expect_count "${SELF_TEST_WORKSPACE}/dimension-matrix.out" '^SUITE ' "${#SELF_TEST_DIMENSIONS[@]}" "dimension-matrix: all accepted combinations finalize"
 expect_contains "${SELF_TEST_WORKSPACE}/dimension-matrix.out" \
     "unsupported scope/runner combination for error-handling: scope=system runner=installed" \
     "dimension-matrix: invalid error-handling combination rejected"
@@ -738,6 +794,12 @@ expect_not_contains "${SELF_TEST_WORKSPACE}/unknown.out" "SUITE suite=" "unknown
 run_scenario reason 1
 expect_contains "${SELF_TEST_WORKSPACE}/reason.out" "state=SCRIPT_ERROR" "reason: known identity becomes SCRIPT_ERROR"
 expect_contains "${SELF_TEST_WORKSPACE}/reason.out" "FAIL requires a one-line reason" "reason: human detail names defect"
+
+run_scenario multiline-reason 1
+expect_contains "${SELF_TEST_WORKSPACE}/multiline-reason.out" "state=SCRIPT_ERROR" "multiline reason: known identity becomes SCRIPT_ERROR"
+expect_contains "${SELF_TEST_WORKSPACE}/multiline-reason.out" "FAIL requires a one-line reason" "multiline reason: human detail names defect"
+
+check_escape_reason
 
 run_scenario malformed 1
 expect_contains "${SELF_TEST_WORKSPACE}/malformed.out" "REPORTING ERROR: no valid projection was produced" "catalog: invalid metadata diagnostic"

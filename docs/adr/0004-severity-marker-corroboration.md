@@ -121,8 +121,37 @@ nothing.
   vocabulary fixtures; S21's positive control is evaluated on the
   ANSI-normalized form, as the scan sees it.
 - The pre-marker fatal subset and the death-banner verdicts are unchanged
-  (ADR 0001); `sevr=fatal` also matches the fatal subset's `fatal` token
-  before the marker, which is the intended severity reading.
+  (ADR 0001) in the original decision. The M14 addendum below supersedes
+  that decision for exact lowercase bounded `sevr=fatal`.
 - The survey is repeatable: grep the module sources' error-emission format
   literals and the three renderers above; re-run the healthy-log tally
   against any suspect log before adding a token.
+
+## M14 Addendum: Retained Startup Severity (2026-10-16)
+
+Exact lowercase `sevr=fatal` with non-identifier boundaries is excluded only
+from the fatal scan. The severity scan retains the original normalized line.
+Mask every such marker without removing adjacent text: a separate fatal token
+on the same line remains effective. Case variants and identifier fragments
+receive no new exemption. Evaluate independent fatal evidence before the raw
+readiness marker even when both first arrive in one poll.
+
+Keep the first three distinct normalized severity lines and an observed flag
+for the current invocation. Capture them before advancing past readiness and
+through the final confirmation scan. Rotation or truncation does not erase
+already observed evidence; bytes never read are outside that guarantee.
+
+Readiness plus confirmation with severity returns 0 and reports initialization
+completed with error logs, shows the retained lines and requests a check of
+affected functions. Component failure and IOC readiness are separate facts.
+Without readiness, retain the explicit timeout or unreadable-log outcome and
+show observed severity without claiming completion. Associated nonzero child
+status, independent pre-marker fatal evidence and death-banner failures keep
+priority and return 1. Other post-marker message phrases retain the heuristic
+warning. Timing, supervision and active-start no-op behavior are unchanged.
+
+The native regression input is a StreamDevice `aao` DOUBLE-to-string conversion
+failure in the original generated IOC. Its failed record function, readiness,
+console response and child records are separate observations. Controlled outer
+log inputs supplement this native case for deterministic scan boundaries;
+they do not establish that a module emitted the supplied text.

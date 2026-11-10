@@ -14,7 +14,9 @@ closed catalog with that CSV before environment preflight.
 
 | Suite | Script | Scope | Runner | Category | Inventory |
 | --- | --- | --- | --- | --- | --- |
+| container-lifecycle | test-container-lifecycle.bash | container | source or installed | lifecycle-behavior | CONTAINER_LIFECYCLE_INVENTORY.md |
 | error-handling | test-error-handling.bash | none | source | error-contract | ERROR_HANDLING_INVENTORY.md |
+| list-states | test-list-states.bash | local or system | source or installed | lifecycle-behavior | [LIST_STATES_INVENTORY.md](LIST_STATES_INVENTORY.md) |
 | local-lifecycle | test-local-lifecycle.bash | local | source or installed | lifecycle-behavior | LOCAL_LIFECYCLE_INVENTORY.md |
 | source-regression | test-source-regression.bash | system | source | source-regression | SOURCE_REGRESSION_INVENTORY.md |
 | system-infra | test-system-infra.bash | system | none | installed-conformance | SYSTEM_INFRA_INVENTORY.md |
@@ -26,6 +28,11 @@ complete machine-record file validated against the producer exit status and
 keeps child human output outside that validation boundary.
 
 ## Fixed-Vector Rules
+
+Standalone installation boundary regressions in `test-install-boundaries.bash`
+report per-case assertion totals and native CLI evidence as described in
+`tests/README.md`. They do not emit shared `TEST`/`STEP`/`SUITE` records and
+are outside the suite counts in `reporting-counts.csv`.
 
 - Every suite declares its complete ordered identity set before the first
   environment probe or behavior check.
@@ -56,3 +63,14 @@ transport replaced by a local outer-boundary helper.
 Step 1 is complete when every source assertion and conditional result branch
 has one mapping, each real suite catalog matches its `reporting-counts.csv`
 row, and no moved S07-S14 source-regression identity remains in system-infra.
+
+
+## Shared Startup Extension
+
+Local S41 and System S36 share the original generated IOC catalog. The native
+severity extension contributes 82 checks per suite, and the outer filesystem
+log inputs contribute 70. The lifecycle inventories define their identities
+and evidence boundaries; the runtime catalog and `reporting-counts.csv` remain
+the count authority. New regression checks intentionally fail when the same
+test tree selects the unchanged baseline executable. Those baseline results
+are distinct from candidate acceptance and from a complete Gate verdict.

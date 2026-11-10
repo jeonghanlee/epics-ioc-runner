@@ -285,7 +285,7 @@ EOF
 User=${M10_SERVICE_USER}
 Group=${SYSTEM_GROUP}
 ExecStart=
-ExecStart=${procserv_copy} --foreground --logfile=${log_dir}/%i.log --name=%i --ignore=^D^C^] --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${procserv_copy} --foreground --logfile=${log_dir}/%i.log --name=%i --ignore=^D^C --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
 EOF
     systemctl daemon-reload
     result="false"

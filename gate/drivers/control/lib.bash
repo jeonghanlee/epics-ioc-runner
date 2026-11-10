@@ -118,8 +118,8 @@ function capture {   # $1 label  $2... the command to run
 #
 #     VERDICT <id> <PASS|FAIL> <detail>
 #
-# The fourteen scenario verdicts of a run are exactly the lines matching
-#     VERDICT (L[1-3]|S[1-9]|S1[01]) (PASS|FAIL)
+# The nineteen scenario verdicts of a run are exactly the lines matching
+#     VERDICT (L[1-4]|S[1-9]|S1[0-5]) (PASS|FAIL)
 # and nothing else does: halves carry "<ID>-<HALF>" and preconditions "P-<WHAT>".
 #
 # Matched UNANCHORED everywhere. Where `script` closes a killed session with
@@ -168,7 +168,7 @@ function hasline {   # $1 label  $2 literal whole line
 
 function tally {   # $1 a log holding a whole run's verdicts
     local log="$1" id line pass=0 fail=0 missing=""
-    for id in L1 L2 L3 S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 S11; do
+    for id in L1 L2 L3 L4 S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 S11 S12 S13 S14 S15; do
         line="$(grep -aoE "VERDICT ${id} (PASS|FAIL)" "${log}" 2>/dev/null | tail -1)"
         case "${line}" in
             *PASS) pass=$((pass + 1));;
@@ -176,6 +176,6 @@ function tally {   # $1 a log holding a whole run's verdicts
             *)     missing="${missing} ${id}";;
         esac
     done
-    [ "${pass}" -eq 14 ]
-    verdict RUN "$?" "14 scenarios: pass=${pass} fail=${fail} missing=${missing:-none}"
+    [ "${pass}" -eq 19 ]
+    verdict RUN "$?" "19 scenarios: pass=${pass} fail=${fail} missing=${missing:-none}"
 }

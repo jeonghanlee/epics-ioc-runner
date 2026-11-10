@@ -35,6 +35,7 @@ function listing_rows {   # $1 capture label
 
 ua="$(gate_uid "${GATE_USER_A}")"
 ub="$(gate_uid "${GATE_USER_B}")"
+uc="$(gate_uid "${GATE_OP_C}")"
 
 # --- system mode, as the operator that installs the shared IOC ----------------
 capture leftovers-system timeout 60 "${GATE_SSH[@]}" "${GATE_HOST}" \
@@ -55,10 +56,17 @@ capture leftovers-userb timeout 60 "${GATE_SSH[@]}" "${GATE_HOST}" \
 rc_ub=$?
 cat "${GATE_LOG_DIR}/leftovers-userb.txt"
 
+# The third operator is a local-mode user as well, for L4.
+capture leftovers-opc timeout 60 "${GATE_SSH[@]}" "${GATE_HOST}" \
+    "sudo -niu ${GATE_OP_C} env XDG_RUNTIME_DIR=/run/user/${uc} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${uc}/bus ioc-runner --local list"
+rc_uc=$?
+cat "${GATE_LOG_DIR}/leftovers-opc.txt"
+
 rs="$(listing_rows leftovers-system)"
 ra="$(listing_rows leftovers-usera)"
 rb="$(listing_rows leftovers-userb)"
-printf '%s\n' "### leftover-rows ${GATE_OP_A}=${rs} ${GATE_USER_A}=${ra} ${GATE_USER_B}=${rb}"
+rc="$(listing_rows leftovers-opc)"
+printf '%s\n' "### leftover-rows ${GATE_OP_A}=${rs} ${GATE_USER_A}=${ra} ${GATE_USER_B}=${rb} ${GATE_OP_C}=${rc}"
 
 # --- the payload directories the runner does not reach ------------------------
 # One line per entry so the count is a command and not a reading. An absent
@@ -77,6 +85,18 @@ cat "${GATE_LOG_DIR}/leftovers-payloads.txt"
 np="$(grep -ac '^### payload ' "${GATE_LOG_DIR}/leftovers-payloads.clean")"
 printf '%s\n' "### leftover-payload-entries ${np}"
 
+# --- a site.env value S13 left behind -----------------------------------------
+# S13 writes a marked value into /etc/procServ.d/site.env and restores the file
+# afterwards. A run cut off inside S13 leaves the value, and it reaches every IOC
+# on the host at its next start, so its presence fails this read. An absent file
+# is the normal state and counts zero.
+capture leftovers-site timeout 60 "${GATE_SSH[@]}" "${GATE_HOST}" \
+    "sudo -n sh -c 'if [ -e /etc/procServ.d/site.env ]; then grep -c GATE_S13_MARK /etc/procServ.d/site.env || true; else echo 0; fi'"
+rc_site=$?
+ns="$(tail -1 "${GATE_LOG_DIR}/leftovers-site.clean" 2>/dev/null)"
+case "${ns}" in ''|*[!0-9]*) ns=1;; esac
+printf '%s\n' "### leftover-site-env-marks ${ns}"
+
 # Every read must have SUCCEEDED before a count of zero may be believed. A
 # capture that is missing altogether already fails: awk never reaches its END and
 # the comparison below errors out. But a read that connected and then failed -
@@ -84,6 +104,7 @@ printf '%s\n' "### leftover-payload-entries ${np}"
 # leaves an error message in the capture, and both counts read zero from it. That
 # would report a consumer clear because the reading broke, which is the exact
 # false green this driver exists to prevent.
-if [ "${rc_sys}" -eq 0 ] && [ "${rc_ua}" -eq 0 ] && [ "${rc_ub}" -eq 0 ] && [ "${rc_pay}" -eq 0 ] \
-    && [ "${rs}" -eq 0 ] && [ "${ra}" -eq 0 ] && [ "${rb}" -eq 0 ] && [ "${np}" -eq 0 ]; then vrc=0; else vrc=1; fi
-verdict P-LEFTOVERS "${vrc}" "consumer before the run: ${GATE_OP_A} system rows=${rs}, ${GATE_USER_A} local rows=${ra}, ${GATE_USER_B} local rows=${rb}, payload entries=${np}; read exit codes system=${rc_sys} ${GATE_USER_A}=${rc_ua} ${GATE_USER_B}=${rc_ub} payloads=${rc_pay}, all four must be 0 or a count of zero means the read broke; this driver reads and removes nothing, and clearing what it names is the runbook's step"
+if [ "${rc_sys}" -eq 0 ] && [ "${rc_ua}" -eq 0 ] && [ "${rc_ub}" -eq 0 ] && [ "${rc_uc}" -eq 0 ] && [ "${rc_pay}" -eq 0 ] \
+    && [ "${rc_site}" -eq 0 ] && [ "${rs}" -eq 0 ] && [ "${ra}" -eq 0 ] && [ "${rb}" -eq 0 ] && [ "${rc}" -eq 0 ] \
+    && [ "${np}" -eq 0 ] && [ "${ns}" -eq 0 ]; then vrc=0; else vrc=1; fi
+verdict P-LEFTOVERS "${vrc}" "consumer before the run: ${GATE_OP_A} system rows=${rs}, ${GATE_USER_A} local rows=${ra}, ${GATE_USER_B} local rows=${rb}, ${GATE_OP_C} local rows=${rc}, payload entries=${np}, site.env S13 marks=${ns}; read exit codes system=${rc_sys} ${GATE_USER_A}=${rc_ua} ${GATE_USER_B}=${rc_ub} ${GATE_OP_C}=${rc_uc} payloads=${rc_pay} site.env=${rc_site}, all six must be 0 or a count of zero means the read broke; this driver reads and removes nothing, and clearing what it names is the runbook's step"

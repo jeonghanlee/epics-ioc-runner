@@ -71,12 +71,13 @@ mkdir -p "${REPORT_ROOT}"
 # with setup-system-infra.bash --container, then start s6-svscan on the scan
 # directory with its stdout on the container stdout (the IOC log
 # destination), then run the suite from the mounted source tree. The suite's
-# own exit status is the container's exit status.
+# own exit status is the container's exit status. A setup failure exits before
+# supervisor or suite startup and preserves the setup exit status.
 declare -g CONTAINER_SCRIPT
 printf -v CONTAINER_SCRIPT '%s' \
-    "bash /repo/bin/setup-system-infra.bash --container; " \
-    "mkdir -p '${SCAN_DIR}' && s6-svscan '${SCAN_DIR}' & sleep 1; " \
-    "cd /repo && env EPICS_HOST_ARCH=\"\${EPICS_HOST_ARCH:-linux-x86_64}\" bash tests/test-container-lifecycle.bash"
+    'bash /repo/bin/setup-system-infra.bash --container || exit $?; ' \
+    'mkdir -p "${IOC_RUNNER_SCAN_DIR}" && s6-svscan "${IOC_RUNNER_SCAN_DIR}" & sleep 1; ' \
+    'cd /repo && env EPICS_HOST_ARCH="${EPICS_HOST_ARCH:-linux-x86_64}" bash tests/test-container-lifecycle.bash'
 
 for image in "${IMAGES[@]}"; do
     log_file="${REPORT_ROOT}/${image//[\/:]/_}.log"
@@ -87,12 +88,13 @@ for image in "${IMAGES[@]}"; do
     "${DOCKER_BIN}" run --rm --cap-add SYS_PTRACE \
         -v "${REPO_TOP}:/repo:ro" \
         -e IOC_RUNNER_TEST_MODE=source \
+        -e "IOC_RUNNER_SCAN_DIR=${SCAN_DIR}" \
         "${image}" bash -c "${CONTAINER_SCRIPT}" > "${log_file}" 2>&1 || status=$?
     if (( status == 0 )); then
         printf "%b[SUCCESS] %s: suite PASS%b\n" "${GREEN}" "${image}" "${NC}"
     else
         FAILED=1
-        printf "%b[ERROR  ] %s: suite exit %s (see %s)%b\n" "${RED}" "${image}" "${status}" "${log_file}" "${NC}"
+        printf "%b[ERROR  ] %s: container exit %s (see %s)%b\n" "${RED}" "${image}" "${status}" "${log_file}" "${NC}"
     fi
 done
 
