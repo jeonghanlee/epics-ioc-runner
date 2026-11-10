@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 Gate baseline ref: `1.4.1` (D16)
 
-Next session entry point: `docs/milestone-1.4.2.md`, confirm G2's production golden bake and its `opc` fixture before planning release Gate execution. All 16 assigned milestones are Complete; no milestone row is Ready. M15 remains Deferred in Backlog.
+Next session entry point: `docs/milestone-1.4.2.md`, plan the release cycle: add the changelog and final release milestones, then run the release Gate on the fresh golden pair requested from cloud-provision. All 16 assigned milestones and both external gates are Complete; no milestone row is Ready. M15 remains Deferred in Backlog.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -25,7 +25,7 @@ support M8 closure. The two internal guards retain their accepted source-only
 treatment. G2 remains the independent release-bake gate.
 
 Current milestone totals: 16 Complete, 0 In progress and 0 Not started.
-External gates: G1 Complete and G2 Open. Backlog: one Deferred item, M15,
+External gates: G1 and G2 Complete. Backlog: one Deferred item, M15,
 excluded from the release tally. The M8 completion record is committed in
 `2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16's implementation and verification
 records are committed and pushed through `c5cf323ebd5862cc21835b9a314b16cb0f2d801d`;
@@ -214,7 +214,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
 | Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Complete | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
-| Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
+| Gate | G2 | iocrunner bake carrying `opc` | External gate | Complete | — | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 | Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | Complete | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass, temporary containers are removed, and changes are landed through c5cf323; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
 | Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Complete | No | none | The suite driver stages the pinned generator and the module assignment file on both consumers, both lifecycle suites and the step 5 command receive them, a missing or wrong input stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
 
@@ -15702,7 +15702,7 @@ Observed on 2026-09-28 (UTC):
 Origin: 1.4.2 / G2
 Identity History: split from G1 on 2026-09-28
 GitHub Issue: none
-Status: Open
+Status: Complete
 
 ##### Summary
 
@@ -15739,13 +15739,39 @@ Observed on 2026-09-28 (UTC):
   Gate. The condition therefore stays open for that bake, which the release
   Gate's own fixture check verifies.
 
+Observed on 2026-11-10 (UTC), reported by the cloud-provision session and
+rechecked here:
+
+- The pair `iocrunner-rocky8-20261109T221317Z-3fa25a56de02` (bake date
+  2026-11-09T22:13:44Z) and `iocrunner-debian13-20261109T221623Z-98b788f2383b`
+  (bake date 2026-11-09T22:16:42Z) was baked from clean scratch clones of the
+  suppliers' `origin/master`, rocky8 then debian13 in one sequence with
+  `-r 1.4.1` and no inventory override. Both clones had an empty
+  `git status --porcelain` before the run and after it, and neither manifest
+  carries a `-dirty` stamp.
+- Both manifests record cloud-provision `0a2e070e3695`, ansible-provision
+  `d5b941b686a045c6c5e68c7aaf7d789762cb70fa`, EPICS environment 1.5.0, and
+  `app_ioc_runner` at tag `1.4.1`, clean-tagged. ansible-provision `d5b941b`
+  contains `32ea95f` (`git merge-base --is-ancestor`, read here).
+- Two consumers created from the pair passed the runbook fixture check on both
+  hosts (`FIXTURES OK`): `opa`, `opb`, and `opc` in `ioc`, `obs` outside it,
+  linger for `usera`, `userb`, and `opc`, and `/opt/epics-iocs` as
+  `root:ioc 2775`.
+- ansible-provision `origin/master` has since moved three commits, all dated
+  2026-11-09, that change only `docs/milestone-38560eb.md` and files under
+  `tests/archiver-soak`; cloud-provision `origin/master` is unchanged.
+
 | Observed At | Result | Evidence |
 | --- | --- | --- |
 | 2026-09-28T04:38:07Z | Partial | Work-branch bakes carry `opc`; the production bake for the release Gate is pending |
+| 2026-11-10T16:24:26Z | Pass | The production pair above meets the condition: made at ansible-provision `d5b941b`, which contains `32ea95f`, reported with identifier and date, and its consumers carry `opc` |
 
 ##### Closure Evidence
 
-None.
+- The condition is met by the pair reported on 2026-11-10. This pair is not
+  the release Gate's pair: the Gate runbook bakes a fresh pair at the
+  baseline ref (D16) when the Gate runs, and a supplier change between the two
+  image builds invalidates that pair.
 
 #### M16 - Align policy examples, reporting, and mode-specific installation
 
