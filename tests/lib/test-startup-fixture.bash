@@ -16,6 +16,14 @@ declare -g STARTUP_PENDING_PID=0
 declare -g STARTUP_SEVERITY_PREFIX=""
 declare -g STARTUP_SEVERITY_PORT=""
 declare -g -a STARTUP_RUNNER=()
+# The severity fixture inputs are read here, from the working directory the
+# suite inherited, through a path relative to this library. A root-run suite on
+# an NFS root_squash tree can read the tree only that way; an absolute path
+# through SC_TOP is refused, and later steps run in a different directory.
+declare -g STARTUP_SEVERITY_DB_TEXT=""
+declare -g STARTUP_SEVERITY_PROTO_TEXT=""
+STARTUP_SEVERITY_DB_TEXT=$(cat "$(dirname "${BASH_SOURCE[0]}")/../fixtures/startup-severity.db" 2>/dev/null) || true
+STARTUP_SEVERITY_PROTO_TEXT=$(cat "$(dirname "${BASH_SOURCE[0]}")/../fixtures/startup-severity.proto" 2>/dev/null) || true
 declare -gra STARTUP_SEVERITY_PLACEMENTS=(pre-separated pre-ordinary post-marker)
 declare -gra STARTUP_SEVERITY_STATES=(stopped-start active-restart stopped-restart)
 declare -gra STARTUP_LOG_CASES=(
@@ -87,6 +95,10 @@ function startup_fixture_prepare {
     done
     [[ -x "${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/makeBaseApp.pl" ]] || return 1
     [[ -z "${release}" || -r "${release}" ]] || return 1
+    [[ -n "${STARTUP_SEVERITY_DB_TEXT}" && -n "${STARTUP_SEVERITY_PROTO_TEXT}" ]] || {
+        _log ERROR "The severity fixture inputs under tests/fixtures could not be read."
+        return 1
+    }
     git -c safe.directory="${generator}" -C "${generator}" cat-file -e "${STARTUP_GENERATOR_REVISION}^{commit}" || return 1
     STARTUP_FIXTURE_ROOT="${WORKSPACE}/original-startup"
     [[ ! -e "${STARTUP_FIXTURE_ROOT}" ]] || return 1
@@ -193,8 +205,8 @@ function startup_fixture_severity_variant {
     (( STARTUP_FIXTURE_READY )) || return 1
     STARTUP_SEVERITY_PREFIX="StartupSeverity:${SUITE_SCOPE}:${BASHPID}:"
     STARTUP_SEVERITY_PORT=$(pick_free_ca_port "$((TEST_CA_PORT + 40))") || return 1
-    cp "${SC_TOP}/fixtures/startup-severity.db" "${STARTUP_BOOT}/startup-severity.db" || return 1
-    cp "${SC_TOP}/fixtures/startup-severity.proto" "${STARTUP_BOOT}/startup-severity.proto" || return 1
+    printf '%s\n' "${STARTUP_SEVERITY_DB_TEXT}" > "${STARTUP_BOOT}/startup-severity.db" || return 1
+    printf '%s\n' "${STARTUP_SEVERITY_PROTO_TEXT}" > "${STARTUP_BOOT}/startup-severity.proto" || return 1
     if [[ "${SUITE_SCOPE}" == system ]]; then
         chgrp "${SYSTEM_GROUP}" "${STARTUP_BOOT}/startup-severity.db" \
             "${STARTUP_BOOT}/startup-severity.proto" || return 1
