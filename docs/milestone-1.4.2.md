@@ -5,10 +5,10 @@ Milestone index: 1.4.2
 Canonical path: `docs/milestone-1.4.2.md`
 Canonical branch or ref: `release-1.4.2`
 Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'`)
-Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
+Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #167 are closed under it
 Gate baseline ref: `1.4.1` (D16)
 
-Next session entry point: `docs/milestone-1.4.2.md`, plan the release cycle: add the changelog and final release milestones, then run the release Gate on the fresh golden pair requested from cloud-provision. All 16 assigned milestones and both external gates are Complete; no milestone row is Ready. M15 remains Deferred in Backlog.
+Next session entry point: `docs/milestone-1.4.2.md`, complete M18 (changelog entry and upgrade notes), then record implementation authority for the accepted M19 plan and open release readiness; the release Gate runs on the fresh golden pair baked by cloud-provision. 16 of 18 assigned milestones and both external gates are Complete; M18 is In progress and M19 waits on M18. M15 remains Deferred in Backlog.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -24,7 +24,7 @@ T1/T2/T4/T5/T6 acceptance, reconciled T3 evidence and landed public documents
 support M8 closure. The two internal guards retain their accepted source-only
 treatment. G2 remains the independent release-bake gate.
 
-Current milestone totals: 16 Complete, 0 In progress and 0 Not started.
+Current milestone totals: 16 Complete, 1 In progress and 1 Not started.
 External gates: G1 and G2 Complete. Backlog: one Deferred item, M15,
 excluded from the release tally. The M8 completion record is committed in
 `2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16's implementation and verification
@@ -212,11 +212,13 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Startup | M11 | Report IOC startup exits and respect continued IOC shell errors (#166) | Milestone | Complete | — | none | Real continued IOC shell errors do not produce a false IOC failure; failed startup reports the observed nonzero child exit code; native regressions and operator documentation agree; [detail](#m11---report-ioc-startup-exits-and-respect-continued-ioc-shell-errors) |
 | Local mode | M12 | Explain local IOC lifetime and advise lingering on enable (#167) | Milestone | Complete | No | none | The local guide explains last-logout user-manager shutdown under the verified policy, and local enable gives the existing non-fatal linger advice without changing linger or enable semantics; [detail](#m12---explain-local-ioc-lifetime-and-advise-lingering-on-enable) |
 | Container | M13 | Prepare socket directories during native container startup (#164) | Milestone | Complete | — | none | Enabled IOCs boot without an earlier CLI start and retain the supervisor PATH; disabled IOCs remain down; native failure and regression checks pass; [detail](#m13---prepare-socket-directories-during-native-container-startup) |
-| Startup | M14 | Separate fatal severity logs from IOC initialization failure | Milestone | Complete | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
+| Startup | M14 | Separate fatal severity logs from IOC initialization failure (#165) | Milestone | Complete | No | none | A genuine module severity error remains visible while startup waits for readiness; completed initialization returns 0 with qualified error details, independent fatal/termination failures remain failures, and native tests and documentation agree; [detail](#m14---separate-fatal-severity-logs-from-ioc-initialization-failure) |
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Complete | — | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 | Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | Complete | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass, temporary containers are removed, and changes are landed through c5cf323; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
 | Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Complete | No | none | The suite driver stages the pinned generator and the module assignment file on both consumers, both lifecycle suites and the step 5 command receive them, a missing or wrong input stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
+| Release | M18 | Add the 1.4.2 changelog entry and upgrade notes | Milestone | In progress | No | D8, D17, D18 | `CHANGELOG.md` carries a 1.4.2 section above 1.4.1 with every observable change of #157 through #167 and the four D8 upgrade actions, each statement checked against the code, and the section passes its document review; [detail](#m18---add-the-142-changelog-entry-and-upgrade-notes) |
+| Release | M19 | Release 1.4.2 | Milestone | Not started | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M16, M17, M18, G1, G2, D8, D16, D18, D19 | Version stamped `1.4.2`, the Gate passes on the version commit with the container and documentation checks, `release-1.4.2` is merged to master, tag `1.4.2` and the GitHub release are published, and milestone `1.4.2` is closed; [detail](#m19---release-142) |
 
 ### Decisions
 
@@ -238,6 +240,9 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D14 | Narrow D13 on mixed sections: the Manual Setup Reference section of `INSTALL.md` and the Verification section of `PERMISSION_MODEL.md` stay on their pages as their own headed sections, because each checks the subject of its page directly (the setup script, the permission model). The troubleshooting table of `LOG_LAYOUT.md` is the section that moves. | 2026-09-28 |
 | D15 | Complete M8 using its accepted documentation checks and actual whole-CLI recorded-input St04 results. Exclude live same-invocation St04 observation from current M8 acceptance and retain it as Deferred Backlog M15. Preserve original native Partial observations and historical counts; authorize no retry or release Gate completion. | 2026-10-18 |
 | D16 | The 1.4.2 release Gate bakes its golden pair at the `epics-ioc-runner` ref `1.4.1`, the previous release tag, and that value is this register's recorded baseline ref. The Gate preconditions require clean tagged runner provenance, which only a tag satisfies, and the candidate under test reaches the consumers through the push and deployment steps rather than through the image. | 2026-11-09 |
+| D17 | The 1.4.2 changelog is its own milestone, M18, ordered before the final release milestone M19, so its content and its document review are accepted before the Gate runs on the candidate that carries it. | 2026-11-10 |
+| D18 | The 1.4.2 release moniker is "Console and Startup Reliability Release". It names the changelog heading, the merge commit subject, and the release notes lead. | 2026-11-10 |
+| D19 | As in the 1.4.1 cycle, the installed `--system` suite also runs in place on the production host used for the 1.4.1 release, as a pre-release check of the 1.4.2 candidate. The host needs the startup generator repository at its pinned revision, and the owner places it. | 2026-11-10 |
 
 ### Assignment History
 
@@ -16133,6 +16138,294 @@ Gate's step 5.
   before remote work (T2), the run evidence records the revision, consumer
   paths, and digests (T3), and the runbook, test guide, and drivers pass their
   checks (T1 and the documentation passes).
+
+#### M18 - Add the 1.4.2 changelog entry and upgrade notes
+
+Origin: 1.4.2 / M18
+Identity History: none
+GitHub Issue: none
+Status: In progress
+
+##### Summary
+
+Add the 1.4.2 section to `CHANGELOG.md`, newest first, in the form of the
+1.4.1 and 1.4.0 entries: a one-paragraph description under a heading that
+carries a short moniker, then the Added, Fixes, Documentation, and Tests
+subsections that cite the closed issues #157 through #167, and a Migration
+subsection with the upgrade actions D8 requires. The changelog is part of the
+release candidate, so it lands before the version change and before the Gate.
+
+##### Scope
+
+- One new `## 1.4.2 - Console and Startup Reliability Release` section at
+  the top of `CHANGELOG.md` (D18). The moniker names the two largest themes,
+  the console detach keys and the IOC startup reporting, and later names the
+  merge commit subject and the release notes lead.
+- Content comes from the eleven closed issues #157 through #167 (live
+  tracker) and the Summary, Scope, and Closure Evidence of M1 through M17.
+- Only behavior a user or operator can observe is listed, under the
+  subsection headings the 1.4.1 entry uses. Internal-only refactors with no
+  behavior change stay out, and an issue with no observable change is
+  recorded as excluded with its reason.
+- The Migration subsection states the four D8 actions: rerun system setup,
+  reinstall local IOCs with `--force`, reinstall container IOCs to re-render
+  the run script, and restart running IOCs so procServ receives the new
+  ignore set. Earlier entries that carry upgrade steps use the same
+  `### Migration` heading.
+
+Out of scope: the version change, the release notes file, and the GitHub
+release (M19); edits to README or the published pages, unless a changelog
+statement exposes a wrong sentence there, which is then a separate owner
+decision.
+
+##### Completion Criteria
+
+- `CHANGELOG.md` has `## 1.4.2 - Console and Startup Reliability Release`
+  as its first section,
+  above 1.4.1, with the subsection set of the 1.4.1 entry plus `### Migration`.
+- Every closed issue #157 through #167 is cited by a statement, or the
+  Verification Results record why it is not.
+- The four D8 actions appear under Migration, and every command and option
+  that section names exists in the current runner or setup help.
+- Every behavior statement was checked against the shipped code or an
+  executed result recorded in this register, not copied from a summary.
+- The section passes a second-person pass with no finding above the floor.
+
+##### Dependencies And Decisions
+
+- D8 requires the upgrade actions to appear in the release notes; D17 makes
+  this its own milestone; D18 fixes the moniker. M1 through M17 are Complete
+  and are the content source; no ordering constraint beyond that.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: accepted by the owner on 2026-11-10 after three review passes of the M18 and M19 drafts ended with no finding above the floor
+Implementation Authorization: authorized by the owner on 2026-11-10 for the accepted plan
+Superseded Plan Artifacts: none
+
+1. Read the structure of the 1.4.1 and 1.4.0 entries and the earlier
+   `### Migration` subsections for headings, tense, and issue-citation form.
+2. For each of #157 through #167, read the issue and the matching milestone's
+   Summary and Closure Evidence, and list the observable behavior change or
+   record that there is none.
+3. Write the section: cite issues in parentheses as the 1.4.1 entry does and
+   place the four D8 actions under Migration.
+4. Check each behavior statement against the code or a recorded executed
+   result, check each command in Migration against `bin/ioc-runner --help`
+   and `bin/setup-system-infra.bash --help`, and run `git diff --check`.
+5. Run a second-person pass on the changed text and correct what it finds.
+6. Record the results in this register and commit under `git-workflow`
+   authority.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Static | `grep -n '^## ' CHANGELOG.md` and the subsection headings of the new section, then `git diff --check` | control host | The 1.4.2 section is first, above 1.4.1; its subsection set equals the 1.4.1 entry's plus Migration; no whitespace error |
+| T2 | Issue coverage | Extract the `#<number>` citations of the new section and compare them with the eleven numbers `gh issue list --milestone 1.4.2 --state all` prints | control host | Every number is cited, or is listed as excluded with a reason |
+| T3 | Claim verification | For every behavior statement, run or read the real code path its source milestone recorded; run `bin/ioc-runner --help` and `bin/setup-system-infra.bash --help` for every command and option the section names | control host, source tree | Every statement matches the observed output; a mismatch is corrected before the section is accepted |
+| T4 | Document review | Second-person pass from the seat of an operator upgrading from 1.4.1, following the Migration steps on the changed text | control host | No finding above the floor |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-11-10T17:04:52Z | control host | Pass | The 1.4.2 section is first, at line 3 above 1.4.1; its subsections are Added, Fixes, Documentation, Tests, and Migration, which is the 1.4.1 set plus Migration; `git diff --check` is clean; the section has no non-ASCII character and no line over 80 columns |
+| T2 | 2026-11-10T17:04:52Z | control host | Pass | The section cites #157 through #167, equal to the eleven numbers `gh issue list --milestone 1.4.2 --state all` prints; no issue is excluded |
+| T3 | 2026-11-10T17:04:52Z | control host, source tree | Pass | Every behavior statement was checked against the code, the document it names, or its source milestone's recorded result. Run here: `attach --detach-key` accepts `ctrl-a`, `CTRL-Z`, `ctrl-\\`, `ctrl-]`, `ctrl-^`, and `ctrl-_`, reserves `ctrl-t`, and rejects `ctrl-[` and `ctrl-1` before any connection; the completion handler offers `log`, `-n`, `--lines`, IOC names after `log`, and example detach keys; the help names `--lines`; `setup-system-infra.bash --help` exits 0 as an ordinary user; the Migration command forms parse and `make setup`, `make install`, and `bin/run-setup-system-infra.bash` exist. Read in the code: `--ignore=^D^C` in the system unit, the local unit, and the container `run` script; the container `run` script runs `install -d -m 0770` and exits 1 before `exec s6-setuidgid`; the exit-code message, the `sevr=fatal` expression, and the completed-with-error-logs warning; `site.env` validation skipped in Container mode; the `advise_local_linger` call in `enable`; the logrotate abort message; the `generate` table in `docs/CLI_REFERENCE.md`. Corrected while checking: the FAQ entry is named by its title, Container reinstall is stated as root, and Migration step 1 says the setup reloads systemd, confirmed at its `daemon-reload` call after the template deploy |
+| T4 | 2026-11-10T17:04:52Z | control host | Pass | Second-person pass from the seat of an operator upgrading from 1.4.1, reading the section first line to last and following Migration; no finding above the floor |
+
+##### Closure Evidence
+
+- none
+
+#### M19 - Release 1.4.2
+
+Origin: 1.4.2 / M19
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+Close the 1.4.2 cycle: stamp the release version, prove the combined candidate
+on a fresh golden pair, merge `release-1.4.2` into master, publish the
+annotated tag `1.4.2` and its GitHub release from the CHANGELOG section, and
+close the `1.4.2` milestone. Carries the eleven shipped changes #157 through
+#167 with the work behind them (M1 through M14, M16, M17) and the changelog
+(M18).
+
+##### Scope
+
+Version change to the release value, integrated re-runs on the version
+commit, the five-step Gate on a fresh image pair baked at the baseline ref
+`1.4.1` (D16), the container and documentation checks the Gate does not cover,
+a production host check if the owner includes it, the release execution
+actions, final Release Verification, and cycle close. cloud-provision baked
+the golden pair on 2026-11-10 from fresh clones of the suppliers'
+`origin/master` at the baseline ref: `iocrunner-rocky8-20261110T162517Z-5125fb823be5`
+and `iocrunner-debian13-20261110T162816Z-6a5676ce65b1`, with cloud-provision
+`0a2e070e3695` and ansible-provision `7af9050a4b92`. Both manifests record the
+runner at tag `1.4.1`, clean-tagged, with no dirty record, and both sidecar
+hashes matched the reported values when read here. No consumer exists from the
+pair yet, and neither supplier `origin/master` had moved at that reading; the
+Gate repeats the supplier check and the fresh-consumer acceptance.
+Every git and GitHub action is separately authorized under `git-workflow`.
+
+Out of scope: any work item M1 through M18 itself; new features; creating or
+replacing consumers before the Gate starts, which is the cloud-provision
+owner's decision.
+
+##### Completion Criteria
+
+- `RUNNER_VERSION` is `1.4.2` and the `CHANGELOG.md` section from M18 is
+  present.
+- The Gate reaches Gate grade on the version commit, and the container and
+  documentation checks pass on the same commit.
+- Tag `1.4.2` and the GitHub release exist and resolve to the merge commit;
+  milestone `1.4.2` is closed.
+- The documented installation, the changelog Migration steps, and the quick
+  start work on a fresh consumer from the published tag.
+
+##### Dependencies And Decisions
+
+- M1 through M14, M16, M17, M18, G1, and G2 are Complete before release
+  readiness (phase 9). M15 is Deferred and is not a dependency.
+- D16: the Gate pair is baked at the `1.4.1` tag. D8: the release notes carry
+  the upgrade actions of the changelog.
+- D19: the installed `--system` suite also runs in place on the production
+  host used for the 1.4.1 release (Release Verification 10). That host needs
+  the startup generator repository at its pinned revision (`tests/README.md`);
+  placing it is the owner's action, and if it is not in place when release
+  readiness reaches that check, the work becomes Blocked behind a new external
+  gate. The version of the next development line is chosen by the owner at
+  cycle close (Release Execution 8).
+- Release Verification 13 needs a fresh consumer created from the Gate's
+  golden image, not one of the used Gate consumers. The cloud-provision
+  session creates it when asked under its VM request protocol.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: accepted by the owner on 2026-11-10 after three review passes of the M18 and M19 drafts ended with no finding above the floor
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Confirm M18 is Complete and the branch tip is its commit. Run Release
+   Verification 1, record it, and create the pre-change evidence commit.
+2. Apply the one accepted version change in `bin/ioc-runner` as a
+   version-only commit and run Release Verification 2 against it.
+3. Run the Gate on the version commit as Release Verification 3 to 7, in
+   order, on the fresh golden pair. The cloud-provision session removes and
+   recreates the deterministic consumers from that pair under its owner's
+   approval. Any tree change after this point restarts the Gate, except a
+   commit that changes only this register.
+4. Run Release Verification 8 and 9 against the same version commit, and
+   Release Verification 10 on the production host (D19).
+5. Record the results, run the register checks, and create the
+   readiness-evidence commit; it is the release candidate.
+6. Phase 10: execute Release Execution 1 to 6 in order, each under its own
+   authorization after a verbatim preview, recording the object identifier and
+   committing a checkpoint before the next dependent action.
+7. Phase 11 and 12: run Release Verification 11 to 14 against the released
+   objects, then execute Release Execution 7 and 8 and close the cycle.
+
+##### Integrated Verification
+
+| Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
+| --- | --- | --- | --- | --- | --- |
+| M1 / T1 | Any later change to `bin/ioc-runner`: ten work items changed it (M1, M4, M5, M6, M10, M11, M12, M13, M14, M16), and the version change does too | console attach path in `bin/ioc-runner` | Release Verification 4 | Local S27 and system S22 console cases pass in the suite matrix | Pending |
+| M1 / T7 | Any later change to `bin/ioc-runner` or `bin/ioc-runner-completion.bash` | option parser and completion handler | Release Verification 4 | The error-handling suite passes | Pending |
+| M3 / T4 | A later change to the check list; seven work items changed `tests/reporting-counts.csv` (M1, M3, M6, M10, M11, M12, M14) | `tests/reporting-counts.csv` and the Gate identity pin | Release Verification 4 | The identity pin matches and both hosts report `SUITES OK` | Pending |
+| M4 / T3 | A later change to the check list | `tests/reporting-counts.csv` and the Gate identity pin | Release Verification 4 | The identity pin matches and both hosts report `SUITES OK` | Pending |
+| M6 / T1 | Any later change to `bin/ioc-runner` | `generate` path in `bin/ioc-runner` | Release Verification 4 | Error-handling S04 and system-lifecycle S27 pass | Pending |
+| M6 / T3 | A later change to the check list | `tests/reporting-counts.csv` and the Gate identity pin | Release Verification 4 | The identity pin matches and both hosts report `SUITES OK` | Pending |
+| M8 / T1 | Later changes to the published pages and to `book.toml` | `docs/` and the book build | Release Verification 9 | The mdBook build and the relative-link check pass | Pending |
+| M9 / T1 | Any later change to `bin/ioc-runner`, the unit templates, or `bin/setup-system-infra.bash` | multi-user permission boundaries | Release Verification 6 | All nineteen scenarios Pass and the final verdict is `VERDICT RUN PASS` | Pending |
+| M10 / T5 | Any later change to `bin/ioc-runner` | help text and option parser | Release Verification 4 | The error-handling suite passes | Pending |
+| M10 / T6 | Any later change to the Container backend in `bin/ioc-runner` | Container lifecycle and diagnostics | Release Verification 8 | The Container lifecycle suite passes on the default images | Pending |
+| M11 / T1 | Any later change to startup readiness and exit handling in `bin/ioc-runner` | startup monitor | Release Verification 4 | Local S41 and system S36 pass | Pending |
+| M12 / T1 | Any later change to the local install and enable path in `bin/ioc-runner` | local install and enable | Release Verification 4 | Local S32 passes | Pending |
+| M13 / T2 | Any later change to the Container run script rendering in `bin/ioc-runner` | Container service definition | Release Verification 8 | The boot regression passes on the Container image | Pending |
+| M14 / T1 | Any later change to startup severity handling or to the startup fixture | startup monitor and `tests/lib/test-startup-fixture.bash` | Release Verification 4 | The severity fixture checks of S36 and S41 pass | Pending |
+| M16 / T3 | The version change touches `bin/ioc-runner` | `bin/ioc-runner` | Release Verification 8 | The full Container run passes on the default images | Pending |
+| M16 / T4 | The version change touches `bin/ioc-runner` | install paths and mode boundaries | Release Verification 8 | The install boundary cases pass | Pending |
+
+##### Production Environment Tests
+
+| Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Release Verification 3 | post-change | Rocky 8 and Debian 13 iocrunner consumers, a fresh pair baked at the baseline ref | 1.4.2 | x86_64 | push of the version commit and `bin/run-setup-system-infra.bash --full` | Gate preconditions 1 to 4 of `gate/RUNBOOK.md` | Both manifests record `1.4.1` clean-tagged with no dirty record, `FIXTURES OK`, and the installed runner reports the version commit | Pending |
+| Release Verification 4 | post-change | the same fresh pair | 1.4.2 | x86_64 | installed runner and source tree, from the pushed candidate | Gate step 2, `gate/drivers/control/suites.bash` with the startup generator | `GATE SUITES PASS hosts=2`, every NA examined | Pending |
+| Release Verification 5 | post-change | the same pair composed to `iocrunner-nfs` | 1.4.2 | x86_64 | three deployment entry points onto the simulated `root_squash` export | Gate step 3 of `gate/RUNBOOK.md` | `SQUASH REPRODUCED`, `SOURCE CONTROL OK`, no layout or unknown stamp, configuration fingerprint unchanged | Pending |
+| Release Verification 6 | post-change | the same `iocrunner-nfs` pair | 1.4.2 | x86_64 | installed runner | Gate step 4, `gate/drivers/control/run-all.bash` | Nineteen scenarios Pass and `VERDICT RUN PASS` on both hosts | Pending |
+| Release Verification 7 | post-change | the same `iocrunner-nfs` pair | 1.4.2 | x86_64 | installed `--system` suites in place on the export | Gate step 5, then the cleanup instruction | `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.`, `SYSTEM_RC=0`, no denial naming a suite library, `STARTUP INPUTS REMOVED` | Pending |
+| Release Verification 8 | post-change | Docker images `jeonghanlee/debian13-epics`, `ubuntu24-epics`, `rocky8-epics`, `rocky10-epics` on the control host | 1.4.2 | x86_64 | source and installed runner inside the Container | `tests/run-container-tests.bash` on the four default images, `tests/test-container-boot.bash <image>` on the Debian 13 image, and the `tests/test-install-boundaries.bash` cases in a disposable Debian 13 container as `tests/README.md` describes | Every run passes with its report retained | Pending |
+| Release Verification 10 | post-change | the production host used for the 1.4.1 release (Rocky 8.10, NFS `root_squash`, `0700` home) | 1.4.2 | x86_64 | `make install` or `make setup`, then the installed suite in place with the startup generator and `gate/startup-generator.release` supplied | `bash tests/run-all-tests.bash --system --installed` per `tests/README.md` | `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` and exit status 0 | Pending |
+| Release Verification 13 | post-release | a fresh consumer created from the Gate's golden image, not a used Gate consumer; it carries procServ, con, and EPICS-env with the 1.4.1 runner | 1.4.2 | x86_64 | fresh clone of tag `1.4.2`, README Installation, then the changelog Migration steps | `make setup`, the Migration steps, then `generate`, `install`, `start`, and `list` for a small `softIoc` test IOC | `ioc-runner -V` reports `1.4.2` and the tag commit, setup reports no verification failure, and the Migration and quick start commands exit 0 | Pending |
+
+##### Version Changes
+
+| Field | File | Before | Planned After | Pre-check | Pre-check Label | Post-check | Post-check Label |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `RUNNER_VERSION` | `bin/ioc-runner` | 1.4.2-dev | 1.4.2 | `grep RUNNER_VERSION= bin/ioc-runner` | Release Verification 1 | `grep RUNNER_VERSION= bin/ioc-runner` and `ioc-runner -V` on both Gate consumers | Release Verification 2 |
+| CHANGELOG section | `CHANGELOG.md` | `## 1.4.2` section present from M18 | unchanged | `grep -n '^## 1.4.2' CHANGELOG.md` | Release Verification 1 | `grep -n '^## 1.4.2' CHANGELOG.md` | Release Verification 2 |
+
+##### Release Execution
+
+| Step | Action | Authorization | Expected Result | Evidence |
+| --- | --- | --- | --- | --- |
+| 1 | After Release Verification 10 reads Pass, merge `release-1.4.2` into master with `--no-ff`, message `Merge release-1.4.2: console and startup reliability release` | `override release`, previewed verbatim | Merge commit on master whose parents are the master tip and the release tip | Pending |
+| 2 | Annotated tag `1.4.2` on the merge commit, message `epics-ioc-runner 1.4.2` | `override release`, previewed verbatim | Tag object that peels to the merge commit | Pending |
+| 3 | Push master and the tag with `git push origin master 1.4.2` | `override release` when previewed verbatim, otherwise user-run | `origin/master` and `refs/tags/1.4.2` updated | Pending |
+| 4 | Publish the GitHub release with `gh release create 1.4.2 --title 1.4.2 --notes-file work/release-notes-1.4.2.md`, the notes reflowed from the CHANGELOG section | `override release`, previewed verbatim | Release published, not a draft or prerelease, marked latest | Pending |
+| 5 | Close GitHub milestone `1.4.2` (19) with `gh api -X PATCH` | `override release`, previewed verbatim | Milestone state closed | Pending |
+| 6 | After Release Verification 13 reads Pass, commit the register close-out on master: the release gate row, the release date, and the next entry point | `git-workflow` Commit authority | Close-out commit on master | Pending |
+| 7 | Delete the stale release branches, local and origin; the targets are named at execution (`release-1.3.0` is still present) | user-run | The named branches are absent | Pending |
+| 8 | Open the next development cycle: branch, register restart, and development version, the version chosen by the owner at that time | owner decision and `git-workflow` authority | The next line's register path and entry point exist | Pending |
+
+##### Release Verification Plan
+
+| Label | Layer | Timing | Method | Environment | Expected Result | Evidence Target |
+| --- | --- | --- | --- | --- | --- | --- |
+| Release Verification 1 | Version | pre-change | `grep RUNNER_VERSION= bin/ioc-runner` and `grep -n '^## 1.4.2' CHANGELOG.md` on the changelog commit | working tree | `1.4.2-dev` and the 1.4.2 section present | command output |
+| Release Verification 2 | Version | post-change | The same greps on the version commit, and `/usr/local/bin/ioc-runner -V` on both Gate consumers | version commit and Gate consumers | `1.4.2` with the version commit identity | command output |
+| Release Verification 3 | System | post-change | Gate preconditions 1 to 4 of `gate/RUNBOOK.md`: new pair at the baseline ref, fresh consumers, fixture check, candidate deployment | fresh golden pair | Every required condition of the preconditions holds | Golden acceptance logs and full-setup logs |
+| Release Verification 4 | System | post-change | Gate step 2: `gate/drivers/control/suites.bash` with `IOC_RUNNER_STARTUP_GENERATOR` set | fresh golden pair | `GATE SUITES PASS hosts=2` | run directory |
+| Release Verification 5 | System | post-change | Gate step 3: compose `P_nfs-sim`, barrier, source control, and the three deployment entry points | fresh pair composed to `iocrunner-nfs` | `SQUASH REPRODUCED`, `SOURCE CONTROL OK`, unchanged fingerprints | barrier, source-control, and deployment logs |
+| Release Verification 6 | Multi-user | post-change | Gate step 4: `gate/drivers/control/run-all.bash` | `iocrunner-nfs` consumers | Nineteen scenarios Pass and `VERDICT RUN PASS` | `run-all.log` per host |
+| Release Verification 7 | System | post-change | Gate step 5: installed `--system` suites in place, then the cleanup instruction | `iocrunner-nfs` consumers | Completion line, `SYSTEM_RC=0`, `STARTUP INPUTS REMOVED` | suite log per host |
+| Release Verification 8 | Container | post-change | `bash tests/run-container-tests.bash` on the four default images, `bash tests/test-container-boot.bash <image>` on the Debian 13 image, and the `tests/test-install-boundaries.bash` cases in a disposable Debian 13 container | control host with Docker | Every run passes | retained reports |
+| Release Verification 9 | Documentation | post-change | The destination CI image's `mdbook build` over the repository top and the relative-link check recorded in M8 | control host | The build and every link pass | build log |
+| Release Verification 10 | Production | post-change | `bash tests/run-all-tests.bash --system --installed` in place on the production host, with the startup generator and release file supplied | production host | Completion line and exit status 0 | suite log |
+| Release Verification 11 | Release object | post-release | Once Release Execution 4 is finished, `git ls-remote --tags origin 1.4.2` and `gh release view 1.4.2 --json isDraft,isPrerelease,isLatest` | GitHub | The tag peels to the merge commit; the release is not a draft or prerelease and is latest | tag and release URL |
+| Release Verification 12 | Tracker | post-release | Once Release Execution 5 is finished, read milestone 19 and the state of #157 through #167 | GitHub | Milestone closed with no open issue; all eleven issues closed | milestone URL |
+| Release Verification 13 | Production | post-release | Once Release Execution 3 is finished, follow README Installation, the changelog Migration steps, and Quick Start from a fresh clone of tag `1.4.2` | fresh consumer from the golden image | `ioc-runner -V` reports `1.4.2`; every step exits 0 | session log |
+| Release Verification 14 | Next line | post-release | Once Release Execution 8 is finished, read the next line's register path, entry point, and the master register close-out | repository | The next line exists and master reads RELEASED | commit identifiers |
+
+##### Release Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| Release Verification 1 | Not run | working tree | Pending | none |
+| Release Verification 2 | Not run | version commit and Gate consumers | Pending | none |
+| Release Verification 3 | Not run | fresh golden pair | Pending | none |
+| Release Verification 4 | Not run | fresh golden pair | Pending | none |
+| Release Verification 5 | Not run | fresh pair composed to `iocrunner-nfs` | Pending | none |
+| Release Verification 6 | Not run | `iocrunner-nfs` consumers | Pending | none |
+| Release Verification 7 | Not run | `iocrunner-nfs` consumers | Pending | none |
+| Release Verification 8 | Not run | control host with Docker | Pending | none |
+| Release Verification 9 | Not run | control host | Pending | none |
+| Release Verification 10 | Not run | production host | Pending | none |
+| Release Verification 11 | Not run | GitHub | Pending | none |
+| Release Verification 12 | Not run | GitHub | Pending | none |
+| Release Verification 13 | Not run | fresh consumer from the golden image | Pending | none |
+| Release Verification 14 | Not run | repository | Pending | none |
+
+##### Closure Evidence
+
+- none
 
 ## Backlog
 
