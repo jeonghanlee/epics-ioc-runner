@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #162 are closed under it
 Gate baseline ref: `1.4.1` (D16)
 
-Next session entry point: `docs/milestone-1.4.2.md`, implement M17 (startup generator for the Gate suite matrix) once its accepted plan is authorized, then confirm G2's production golden bake and its `opc` fixture before planning release Gate execution. 15 of 16 assigned milestones are Complete; M17 is Ready. M15 remains Deferred in Backlog.
+Next session entry point: `docs/milestone-1.4.2.md`, review and accept the revised M17 plan (startup generator and module assignments for the Gate suite matrix), then confirm G2's production golden bake and its `opc` fixture before planning release Gate execution. 15 of 16 assigned milestones are Complete; M17 is Ready. M15 remains Deferred in Backlog.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -215,7 +215,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Gate | G1 | Test fixture account `opc` in `ioc` with linger | External gate | Complete | — | none | The `testusers` role of ansible-provision creates `opc` in the `ioc` group with systemd linger, and both test consumers carry it; [detail](#g1---test-fixture-account-opc-in-ioc-with-linger) |
 | Gate | G2 | iocrunner bake carrying `opc` | External gate | Open | No | G1 | cloud-provision reports an iocrunner bake made at ansible-provision `32ea95f` or later, from which the 1.4.2 release Gate creates its fresh consumers; [detail](#g2---iocrunner-bake-carrying-opc) |
 | Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | Complete | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass, temporary containers are removed, and changes are landed through c5cf323; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
-| Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Not started | Yes | none | The suite driver stages the pinned generator on both consumers, both lifecycle suites and the step 5 command receive it, a missing or wrong generator stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
+| Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Not started | Yes | none | The suite driver stages the pinned generator and the module assignment file on both consumers, both lifecycle suites and the step 5 command receive them, a missing or wrong input stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
 
 ### Decisions
 
@@ -15918,15 +15918,29 @@ the System lifecycle suite again through `tests/run-all-tests.bash --system
 generator, so step 5 fails for the same reason. This milestone makes the
 driver supply the generator and the step 5 command use it.
 
-The rest of the fixture's build input comes from the consumer's EPICS
-environment. The driver sources `setEpicsEnv.bash` before each suite, which
-puts `makeBaseApp.pl`, `softIoc`, and `caget` on `PATH`. Observed on
-2026-11-10 on both `iocrunner` consumers (EPICS-env 1.5.0, Base 7.0.10), the
-fixture's modules `asyn`, `StreamDevice`, `retools`, `caPutLog`, `iocStats`,
-`pvxs`, `seq`, `std`, `recsync`, and `autosave` are present under
-`$EPICS_BASE/../modules`; recheck with
-`ls -l "$EPICS_BASE/../modules" | grep -- '->'` after sourcing the
-environment. The generator is not part of that environment.
+The tools and modules come from the consumer's EPICS environment, which the
+driver sources before each suite: `makeBaseApp.pl`, `softIoc`, and `caget`
+are on `PATH`, and `asyn`, `seq`, `sscan`, `calc`, `StreamDevice`, `retools`,
+`caPutLog`, `iocStats`, `pvxs`, and `autosave` are present under
+`$EPICS_BASE/../modules` (observed 2026-11-10 on both `iocrunner` consumers,
+EPICS-env 1.5.0, Base 7.0.10; recheck with
+`ls -l "$EPICS_BASE/../modules" | grep -- '->'`). The generator is not part
+of that environment, and neither are the module assignments the generated
+IOC needs.
+
+The generator's `configure/RELEASE` leaves `ASYN`, `SNCSEQ`, `SSCAN`, `CALC`,
+and `STREAM` commented out, and its `iocApp/src/Makefile` adds a module's
+dbd and library only when that name is defined. Without `STREAM`,
+`stream.dbd`, which carries `device(aao,INST_IO,devaaoStream,"stream")`, is
+absent from the generated DBD. The suites then fail `severity-fixture` and
+skip 453 dependent checks per host (T3, 2026-11-10). The chain of names
+follows the installed modules, observed 2026-11-10 on the Debian 13
+consumer: `libstream.so` needs `libasyn.so`; the installed StreamDevice was
+built with `ASYN` and `CALC` and its `stream.dbd` declares a `scalcout`
+device; `libcalc.so` needs `libsscan.so`, `libseq.so`, and `libpv.so`. The
+generator's own RELEASE comments state the same order. The template sets
+`CHECK_RELEASE = NO`, so the module paths of the relocated tree do not fail a
+consistency check.
 
 ##### Scope
 
@@ -15946,36 +15960,50 @@ environment. The generator is not part of that environment.
 - The Local lifecycle (source and installed) and System lifecycle commands
   receive the consumer path as `IOC_RUNNER_STARTUP_GENERATOR` across the
   local-lifecycle wrapper and `sudo -nE`.
-- The driver leaves the staged clone in place. `gate/RUNBOOK.md` step 5
-  exports the recorded consumer path as `IOC_RUNNER_STARTUP_GENERATOR` in its
-  suite command, and a closing instruction after step 5 removes only that
-  recorded path.
-- `gate/RUNBOOK.md` step 2 names the control-host input, and step 5 and the
-  Evidence section name the consumer path and bundle digest.
+- The repository carries `gate/startup-generator.release` with the five
+  module assignments `ASYN`, `SNCSEQ`, `SSCAN`, `CALC`, and `STREAM`, each
+  `$(MODULES)/<module directory>` as in the generator's own
+  `configure/RELEASE`. The driver reads the control-host release file from the
+  environment variable `IOC_RUNNER_STARTUP_RELEASE`, the same name the suites
+  use, and uses this repository file when the variable is unset or empty. It
+  verifies before any remote work that the chosen file is readable, copies it
+  to `~/ioc-runner-gate-generator/<run-id>.release` on each consumer, records
+  its control-host path, SHA-256, and consumer path in the run evidence, and
+  passes the consumer path as `IOC_RUNNER_STARTUP_RELEASE` to the same three
+  suite commands. `tests/README.md` names the repository file as the default
+  input.
+- The driver leaves the staged clone and release file in place.
+  `gate/RUNBOOK.md` step 5 exports both recorded consumer paths in its suite
+  command, and a closing instruction after step 5 removes only those two
+  recorded paths.
+- `gate/RUNBOOK.md` step 2 names the control-host inputs, and step 5 and the
+  Evidence section name the consumer paths and digests.
 - When the check-identity list changes, the pin is updated as the RUNBOOK
   Check-identity pin procedure states.
 
-Out of scope: the startup fixture and the lifecycle suites themselves; the
-multi-user driver (`run-all.bash`); distribution of the generator outside the
-Gate run, including the production host's in-place suite run; image bake and
-consumer provisioning; an `IOC_RUNNER_STARTUP_RELEASE` input, because the
-consumer's EPICS environment provides the modules at the layout the fixture
-resolves. If T3 shows that the generated build cannot resolve a module there,
-the plan returns for revision before any RELEASE input is added.
+Out of scope: the startup fixture and the lifecycle suites themselves, which
+already read `IOC_RUNNER_STARTUP_RELEASE`; the multi-user driver
+(`run-all.bash`); distribution of the generator outside the Gate run,
+including the production host's in-place suite run; image bake and consumer
+provisioning; building or changing any EPICS module.
 
 ##### Completion Criteria
 
 - A two-host suite matrix on a consumer pair reports `GATE SUITES PASS`, with
-  every Local S41 and System S36 check present and PASS on both hosts.
+  every Local S41 and System S36 check present and PASS on both hosts, and no
+  `severity-fixture` FAIL or SKIP.
 - The driver exits nonzero before any remote suite runs when the generator
-  input is absent, is not a Git repository, or lacks the pinned revision.
-- The run evidence records the generator revision, the consumer path, and the
-  transferred bundle's SHA-256 for each host.
-- The RUNBOOK step 5 suite command, run with the recorded consumer path on a
+  input is absent, is not a Git repository, or lacks the pinned revision, or
+  when the release file it would use, the path in
+  `IOC_RUNNER_STARTUP_RELEASE` or else the repository file, is unreadable.
+- The run evidence records the generator revision, the consumer paths, and the
+  SHA-256 of the transferred bundle and release file for each host.
+- The RUNBOOK step 5 suite command, run with the recorded consumer paths on a
   consumer, ends with `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` and
   every System S36 check PASS.
-- `gate/RUNBOOK.md` documents the input, the step 5 export, and the cleanup,
-  and the changed drivers pass Bash syntax and ShellCheck checks.
+- `gate/RUNBOOK.md` and `tests/README.md` document the inputs, the step 5
+  exports, and the cleanup, and the changed drivers pass Bash syntax and
+  ShellCheck checks.
 
 ##### Dependencies And Decisions
 
@@ -15983,30 +16011,43 @@ the plan returns for revision before any RELEASE input is added.
 
 ##### Implementation Plan
 
-Plan Status: accepted
-Plan Acceptance: accepted by the owner on 2026-11-09 after the fifth review of this plan (no finding above the floor)
+Plan Status: draft
+Plan Acceptance: none
 Implementation Authorization: none
-Superseded Plan Artifacts: none
+Superseded Plan Artifacts: the plan accepted on 2026-11-09 without a module assignment input, committed in `e9d7101`
 
 1. In `gate/drivers/control/suites.bash`, read `IOC_RUNNER_STARTUP_GENERATOR`
    and validate it before the host preflight: the path is a Git repository
-   and contains the pinned revision.
-2. Build the bundle in a run-specific scratch directory under the driver's
+   and contains the pinned revision. Read `IOC_RUNNER_STARTUP_RELEASE`
+   (default `gate/startup-generator.release` under the repository root) and
+   validate in the same place that the chosen file is readable.
+2. Add `gate/startup-generator.release` with the five assignments
+   (`ASYN = $(MODULES)/asyn`, `SNCSEQ = $(MODULES)/seq`,
+   `SSCAN = $(MODULES)/sscan`, `CALC = $(MODULES)/calc`,
+   `STREAM = $(MODULES)/StreamDevice`), in the dependency order the
+   generator's RELEASE comments and the installed module libraries state.
+3. Build the bundle in a run-specific scratch directory under the driver's
    `work/` run directory, leaving the source repository unchanged: clone the
    source without a checkout, create a ref there that resolves to the pinned
    revision, and bundle that ref. `git bundle create` refuses a raw commit
    ID with no ref (`fatal: Refusing to create empty bundle.`, observed
    2026-11-10). Record the bundle SHA-256.
-3. Copy the bundle to each consumer, clone it into
-   `~/ioc-runner-gate-generator/<run-id>`, verify the revision and the
-   bundle SHA-256 there, and record the consumer path.
-4. Export that path as `IOC_RUNNER_STARTUP_GENERATOR` in the three lifecycle
-   suite commands, which already source the consumer's EPICS environment.
-5. Update `gate/RUNBOOK.md`: the control-host input in step 2, the export of
-   the recorded consumer path in the step 5 command, a cleanup instruction
-   after step 5 that removes only the recorded path, and the new evidence
-   items.
-6. Run the checks in the Test Plan and update the identity pin only if the
+4. Copy the bundle to each consumer, clone it into
+   `~/ioc-runner-gate-generator/<run-id>`, and verify the revision and that
+   the consumer's bundle SHA-256 equals the control-host digest. Copy the
+   release file to `~/ioc-runner-gate-generator/<run-id>.release` and verify
+   that its SHA-256 on the consumer equals the control-host file's. Record
+   both consumer paths.
+5. Export the two paths as `IOC_RUNNER_STARTUP_GENERATOR` and
+   `IOC_RUNNER_STARTUP_RELEASE` in the three lifecycle suite commands, which
+   already source the consumer's EPICS environment.
+6. Update `gate/RUNBOOK.md` and `tests/README.md`: the control-host inputs in
+   step 2 (the generator, and the release file that defaults to the
+   repository file), the export of both recorded consumer paths in the step 5
+   command, a cleanup instruction after step 5 that removes only those two
+   recorded paths, the new evidence items, and the repository release file as
+   the default `IOC_RUNNER_STARTUP_RELEASE` input.
+7. Run the checks in the Test Plan and update the identity pin only if the
    check list changed.
 
 ##### Test Plan
@@ -16014,9 +16055,9 @@ Superseded Plan Artifacts: none
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
 | T1 | Static | `bash -n` and ShellCheck on every changed driver | control host | No error or warning |
-| T2 | Driver input | Run the shipped driver with an absent generator, a non-repository path, and a repository lacking the pinned revision | control host and one consumer | Each run exits nonzero before any `RUN suite=` line |
-| T3 | Suite matrix | Run the shipped driver against the Rocky 8 and Debian 13 consumers with the generator supplied | consumer pair | `GATE SUITES PASS`; S41 and S36 checks PASS on both hosts; evidence names the revision, consumer path, and bundle SHA-256 |
-| T4 | Step 5 command | Run the RUNBOOK step 5 suite command with the consumer path T3 recorded, then the cleanup instruction | the T3 consumers | `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.`, `SYSTEM_RC=0`, S36 checks PASS; afterwards the recorded path is absent |
+| T2 | Driver input | Run the shipped driver with an absent generator, a non-repository path, a repository lacking the pinned revision, and a nonexistent `IOC_RUNNER_STARTUP_RELEASE` path run with a valid generator | control host and one consumer | Each run exits nonzero before any `RUN suite=` line, with an error that names its own input: the generator for the first three cases, the release path for the last |
+| T3 | Suite matrix | Run the shipped driver against the Rocky 8 and Debian 13 consumers with the generator supplied and the repository release file as the default | consumer pair | `GATE SUITES PASS`; S41 and S36 checks PASS on both hosts with no `severity-fixture` FAIL or SKIP; evidence names the revision, consumer paths, and digests |
+| T4 | Step 5 command | Run the RUNBOOK step 5 suite command with the consumer paths T3 recorded, then the cleanup instruction | the T3 consumers | `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.`, `SYSTEM_RC=0`, S36 checks PASS; afterwards the recorded paths are absent |
 
 T3 and T4 run on the existing consumers, not on a fresh pair, so under
 `gate/RUNBOOK.md` Result Grades they are Check grade. They verify this
@@ -16029,9 +16070,9 @@ Gate's step 5.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | control host | Pending | none |
-| T2 | Not run | control host and one consumer | Pending | none |
-| T3 | Not run | consumer pair | Pending | none |
+| T1 | 2026-11-10T02:03Z | control host | Pass | `bash -n` and `shellcheck -x gate/drivers/control/suites.bash` print no error or warning; observed against the plan accepted 2026-11-09, repeat for the revised plan |
+| T2 | 2026-11-10T02:05:06Z | control host; consumer pair named on the command line | Pass | Absent, non-repository, and wrong-revision inputs each exit 1 with the matching error and no `PREFLIGHT`, `EVIDENCE`, `GENERATOR`, or `RUN suite=` line; no run directory is created; `work/m17-generator-20261110/t2.log`; observed against the plan accepted 2026-11-09, so the nonexistent release path case has not run and the checks repeat for the revised plan |
+| T3 | 2026-11-10T03:07Z | Debian 13 and Rocky 8 iocrunner test consumers from the 2026-11-09 golden pair; candidate `e9d7101` with the uncommitted driver change | Fail | `GATE SUITES FAIL`. Generator staging passed on both hosts (bundle SHA-256 `c1a02d04d604bd144b99587ca0430770e0aadbb8dead18eba8c1f51f111b3b35`, revision `ee214dee`) and every `original-generated-fixture` REQUIRED check passed. Each lifecycle run then failed `severity-fixture` (`Original IOC includes native StreamDevice array support: expected true, actual false`) and skipped 453 dependent checks per host: the generated DBD lacks `devaaoStream` because the generator's `configure/RELEASE` leaves `STREAM` commented out. `work/m17-generator-20261110/t3.log`, `work/gate-suites-20261110T025131Z-359501/`; observed against the plan accepted 2026-11-09, repeat for the revised plan |
 | T4 | Not run | the T3 consumers | Pending | none |
 
 ##### Closure Evidence
