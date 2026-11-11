@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.4.2` (observed 2026-09-24; recheck with `git rev
 Remote tracker: `jeonghanlee/epics-ioc-runner`; GitHub milestone `1.4.2` (19); issues #157 through #167 are closed under it
 Gate baseline ref: `1.4.1` (D16)
 
-Next session entry point: `docs/milestone-1.4.2.md`, RELEASED 2026-11-10: tag `1.4.2` and the GitHub release are published, milestone `1.4.2` is closed, and the stale release branches are deleted. Remaining: the owner chooses the next development version (Release Execution 8 waits for that choice), then open the next development cycle, read Release Verification 14, and close M19. 17 of 18 assigned milestones and both external gates are Complete; M19 stays In progress until then. M15 remains Deferred in Backlog.
+Next session entry point: `docs/milestone-1.4.2.md`, closed on 2026-11-11 after the release of 2026-11-10: tag `1.4.2` and the GitHub release are published, milestone `1.4.2` is closed, and no next development cycle is open (D23). To start one, the owner chooses the next version; open it with a new register for that line as the first commit on its branch, and carry over Backlog M15 (Deferred) and M20 (Open, issue #168) from this register. 18 of 18 assigned milestones and both external gates are Complete.
 
 Decision Date: 2026-10-18. M8 is Complete. The accepted whole-CLI tests
 verify classification and display of recorded St04 input as DISCONN on
@@ -24,7 +24,7 @@ T1/T2/T4/T5/T6 acceptance, reconciled T3 evidence and landed public documents
 support M8 closure. The two internal guards retain their accepted source-only
 treatment. G2 remains the independent release-bake gate.
 
-Current milestone totals: 17 Complete, 1 In progress and 0 Not started.
+Current milestone totals: 18 Complete, 0 In progress and 0 Not started.
 External gates: G1 and G2 Complete. Backlog: one Deferred item, M15,
 excluded from the release tally. The M8 completion record is committed in
 `2fa8e083ab6ddd6f52663bdef4a72e3df58fbe03`; M16's implementation and verification
@@ -219,7 +219,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | Coherence | M16 | Align policy examples, reporting, and mode-specific installation | Milestone | Complete | No | none | Five reviewed agreement points and the lint warning are corrected; T1-T6 pass, temporary containers are removed, and changes are landed through c5cf323; [detail](#m16---align-policy-examples-reporting-and-mode-specific-installation) |
 | Gate | M17 | Supply the original startup generator to the Gate suite matrix | Milestone | Complete | No | none | The suite driver stages the pinned generator and the module assignment file on both consumers, both lifecycle suites and the step 5 command receive them, a missing or wrong input stops the driver before remote work, and a two-host suite matrix and the step 5 command pass with S36 and S41 green; [detail](#m17---supply-the-original-startup-generator-to-the-gate-suite-matrix) |
 | Release | M18 | Add the 1.4.2 changelog entry and upgrade notes | Milestone | Complete | No | D8, D17, D18 | `CHANGELOG.md` carries a 1.4.2 section above 1.4.1 with every observable change of #157 through #167 and the four D8 upgrade actions, each statement checked against the code, and the section passes its document review; [detail](#m18---add-the-142-changelog-entry-and-upgrade-notes) |
-| Release | M19 | Release 1.4.2 | Milestone | In progress | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M16, M17, M18, G1, G2, D8, D16, D18, D19, D20 | Version stamped `1.4.2`, the Gate passes on the version commit with the container and documentation checks, `release-1.4.2` is merged to master, tag `1.4.2` and the GitHub release are published, and milestone `1.4.2` is closed; [detail](#m19---release-142) |
+| Release | M19 | Release 1.4.2 | Milestone | Complete | No | M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M16, M17, M18, G1, G2, D8, D16, D18, D19, D20 | Version stamped `1.4.2`, the Gate passes on the version commit with the container and documentation checks, `release-1.4.2` is merged to master, tag `1.4.2` and the GitHub release are published, and milestone `1.4.2` is closed; [detail](#m19---release-142) |
 
 ### Decisions
 
@@ -247,6 +247,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D20 | The Gate on candidate `a536d9945825ce1605d3447b7b64a17231d83bf3` is not carried forward. On a fresh pair its steps 2 to 4 passed (step 2 `GATE SUITES PASS hosts=2`; step 3 `SQUASH REPRODUCED` and `SOURCE CONTROL OK` with every installed stamp `1.4.2 (a536d99)`; step 4 nineteen of nineteen on both hosts) and step 5 failed on both hosts: the system lifecycle suite aborted in S36 with 151 `SCRIPT_ERROR` because `tests/lib/test-startup-fixture.bash` copied the severity fixture through an absolute `SC_TOP` path, which root cannot read on a `root_squash` export. It is the class #156 closed in 1.4.1, and it is handled as in 1.4.1 (D7, D9): a fix commit and this decision, not a work item. The fix is `5c5888a802ab03922dc4c62d101bcd0c2f1ac04a`, the new candidate; `gate/RUNBOOK.md` invalidates every completed Gate step on a candidate tree change, so the Gate restarts at precondition 1 on a fresh pair and the earlier results are history. A check on a reused consumer with the fixed tree ended `SYSTEM_RC=0` and 389 of 389 PASS in system-lifecycle; it is Check grade and not Gate evidence. Two earlier runs were discarded and repeated: a step 3 push that carried uncommitted register text and stamped `-dirty`, and a step 4 start of both hosts in one second whose run directories collided. Release Verification 2 reads the gated commit identity, which is now the fix commit. | 2026-11-10 |
 | D21 | Two defects of `gate/RUNBOOK.md` found while running the 1.4.2 Gate are fixed in the runbook, as D20 was handled: a runbook change and this decision, not a work item. The candidate push now starts from a clean clone of the gated commit, because the push driver sends the source tree as it stands and result text written into this register stamped the installed runner `1.4.2 (a536d99-dirty)`. Step 4 now runs one host at a time, because the driver names its run directory from the second it starts and two hosts started together shared one directory and overwrote each other's captures and tally (`missing= S9`). A third suspected defect, the `SYSTEM_RC` line of step 5, was withdrawn: its block sets `pipefail`, so the line reports the pipeline status. The change lands on master after the tag `1.4.2`, so it applies from the next Gate. | 2026-11-10 |
 | D22 | The silent exit of `generate` and `install` when the caller cannot return to its starting directory is recorded as unassigned backlog work and a GitHub issue, and is not fixed on master after the tag `1.4.2`. The same lines exist unchanged in 1.4.0 and 1.4.1, the Gate and the released behavior are unaffected, and assigning it to a release line is the owner's choice with the next cycle. | 2026-11-10 |
+| D23 | The owner decided on 2026-11-11 not to open a next development cycle with the 1.4.2 release. Release Execution 8 and Release Verification 14 are removed from the final release plan by this revision, because they exist only to open and read a next line, and the release closes with no next line, as the cycle close rules allow when the owner decides not to open one. A later cycle starts when the owner chooses its version, with a new register for that line. | 2026-11-11 |
 
 ### Assignment History
 
@@ -16262,7 +16263,7 @@ Superseded Plan Artifacts: none
 Origin: 1.4.2 / M19
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -16316,8 +16317,7 @@ owner's decision.
   the startup generator repository at its pinned revision (`tests/README.md`);
   placing it is the owner's action, and if it is not in place when release
   readiness reaches that check, the work becomes Blocked behind a new external
-  gate. The version of the next development line is chosen by the owner at
-  cycle close (Release Execution 8).
+  gate. Opening a next development line is not part of this release (D23).
 - Release Verification 13 needs a fresh consumer created from the Gate's
   golden image, not one of the used Gate consumers. The cloud-provision
   session creates it when asked under its VM request protocol.
@@ -16325,9 +16325,9 @@ owner's decision.
 ##### Implementation Plan
 
 Plan Status: accepted
-Plan Acceptance: accepted by the owner on 2026-11-10 after three review passes of the M18 and M19 drafts ended with no finding above the floor
+Plan Acceptance: accepted by the owner on 2026-11-10 after three review passes of the M18 and M19 drafts ended with no finding above the floor; revised by the owner's decision D23 on 2026-11-11
 Implementation Authorization: authorized by the owner on 2026-11-10 for the accepted plan; the owner runs the production host check (Release Verification 10) and each release execution step needs its own authorization
-Superseded Plan Artifacts: none
+Superseded Plan Artifacts: the last release action and the last Release Verification check of the plan accepted on 2026-11-10, which only opened and read a next development line, removed on 2026-11-11 by D23
 
 1. Confirm M18 is Complete and the branch tip is its commit. Run Release
    Verification 1, record it, and create the pre-change evidence commit.
@@ -16345,8 +16345,8 @@ Superseded Plan Artifacts: none
 6. Phase 10: execute Release Execution 1 to 6 in order, each under its own
    authorization after a verbatim preview, recording the object identifier and
    committing a checkpoint before the next dependent action.
-7. Phase 11 and 12: run Release Verification 11 to 14 against the released
-   objects, then execute Release Execution 7 and 8 and close the cycle.
+7. Phase 11 and 12: run Release Verification 11 to 13 against the released
+   objects, then execute Release Execution 7 and close the cycle.
 
 ##### Integrated Verification
 
@@ -16400,7 +16400,6 @@ Superseded Plan Artifacts: none
 | 5 | Close GitHub milestone `1.4.2` (19) with `gh api -X PATCH` | `override release`, previewed verbatim | Milestone state closed | Milestone 19 reads closed at 2026-11-10T22:28:31Z with open 0 and closed 11. Run 2026-11-10 |
 | 6 | After Release Verification 13 reads Pass, commit the register close-out on master: the release gate row, the release date, and the next entry point | `git-workflow` Commit authority | Close-out commit on master | Close-out commit `4d49d94d6225032549769b795dc5c4e5d81afc3a` on master, pushed; `origin/master` reads it and the tag still peels to `8b1aa9e`. Run 2026-11-10 |
 | 7 | Delete the stale release branches, local and origin; the targets are named at execution (`release-1.3.0` is still present) | user-run | The named branches are absent | Owner-run on 2026-11-10: the local branch `release-1.3.0` (`-d`, was `97a1795`) and the origin branches `release-1.2.3`, `release-1.2.4`, and `release-1.3.0`, each fully merged into master, were deleted. Read back here: local `release-1.4.1` and `release-1.4.2` and the same two on origin remain, and tags `1.2.3`, `1.2.4`, and `1.3.0` still resolve to their commits |
-| 8 | Open the next development cycle: branch, register restart, and development version, the version chosen by the owner at that time | owner decision and `git-workflow` authority | The next line's register path and entry point exist | Pending the owner's choice of the next development version, which was undecided on 2026-11-10 |
 
 ##### Release Verification Plan
 
@@ -16419,7 +16418,6 @@ Superseded Plan Artifacts: none
 | Release Verification 11 | Release object | post-release | Once Release Execution 4 is finished, `git ls-remote --tags origin 1.4.2` and `gh release view 1.4.2 --json isDraft,isPrerelease,isLatest` | GitHub | The tag peels to the merge commit; the release is not a draft or prerelease and is latest | tag and release URL |
 | Release Verification 12 | Tracker | post-release | Once Release Execution 5 is finished, read milestone 19 and the state of #157 through #167 | GitHub | Milestone closed with no open issue; all eleven issues closed | milestone URL |
 | Release Verification 13 | Production | post-release | Once Release Execution 3 is finished, follow README Installation, the changelog Migration steps, and Quick Start from a fresh clone of tag `1.4.2` | fresh consumer from the golden image | `ioc-runner -V` reports `1.4.2`; every step exits 0 | session log |
-| Release Verification 14 | Next line | post-release | Once Release Execution 8 is finished, read the next line's register path, entry point, and the master register close-out | repository | The next line exists and master reads RELEASED | commit identifiers |
 
 ##### Release Verification Results
 
@@ -16438,11 +16436,28 @@ Superseded Plan Artifacts: none
 | Release Verification 11 | 2026-11-10T22:29:53Z | GitHub | Pass | `git ls-remote --tags origin 1.4.2` shows the annotated tag object `cd249ebd3c024a6b3d1b57165804deb372ed812d`, which peels to the merge commit `8b1aa9e8fc769ae19a02086ac9c8f258c90d21f3`. `gh release view 1.4.2` reads draft false and prerelease false, published 2026-11-10T22:27:09Z; the installed `gh` has no latest field, so the latest-release endpoint of the API was read and returns `1.4.2`. Release https://github.com/jeonghanlee/epics-ioc-runner/releases/tag/1.4.2 |
 | Release Verification 12 | 2026-11-10T22:29:53Z | GitHub | Pass | Milestone 19 reads closed at 2026-11-10T22:28:31Z with open 0 and closed 11, and issues #157 through #167 each read CLOSED. https://github.com/jeonghanlee/epics-ioc-runner/milestone/19 |
 | Release Verification 13 | 2026-11-10T22:38Z to 2026-11-10T22:41:16Z | fresh Rocky 8 consumer created from the Gate's golden image for this check, never used by the Gate, carrying procServ, `con`, EPICS-env, and the 1.4.1 runner (`4ced3f3`) | Pass | A fresh `git clone --branch 1.4.2` of the published tag: `git describe --tags --exact-match` prints `1.4.2`, HEAD `8b1aa9e8fc769ae19a02086ac9c8f258c90d21f3`, tree clean, `RUNNER_VERSION="1.4.2"`. README Installation `make setup`: exit 0, verification 12 of 12 passed. `ioc-runner -V` reads `epics-ioc-runner version 1.4.2 (8b1aa9e)`, and the installed system unit carries `--ignore=^D^C`, the new procServ ignore set that Migration step 1 describes. Quick Start as the `ioc` group operator `opa` on a small `softIoc` IOC under `/opt/epics-iocs`: `generate`, `install`, `start`, `list`, `status`, and `stop` all exit 0, `list` shows the IOC active with its socket, and `systemctl is-active` reads `active`; the running procServ command line shows `--ignore=^D^C`. Migration steps 2 to 4 have nothing to act on this consumer, which holds no Local or Container IOC and does not use `nc`; those paths are covered by the Gate and Release Verification 8. A first Quick Start attempt was discarded because I started it from a working directory the operator cannot enter, and `generate` then exited 1 without a message; the repeat ran from the operator's home. Evidence in `work/rv13-20261110` |
-| Release Verification 14 | Not run | repository | Pending | none |
 
 ##### Closure Evidence
 
-- none
+- The plan was accepted by the owner on 2026-11-10 and implementation was
+  authorized the same day; the owner revised it on 2026-11-11 by D23. The
+  version commit is `a536d9945825ce1605d3447b7b64a17231d83bf3`, the gated
+  commit with the severity fixture fix is
+  `5c5888a802ab03922dc4c62d101bcd0c2f1ac04a`, and the readiness-evidence commit
+  is `ae445222b85e7dd57993d9f9025d219e36ae2a24`.
+- The release objects are the merge commit `8b1aa9e8fc769ae19a02086ac9c8f258c90d21f3`, the
+  annotated tag object `cd249ebd3c024a6b3d1b57165804deb372ed812d` on it, the
+  GitHub release at https://github.com/jeonghanlee/epics-ioc-runner/releases/tag/1.4.2,
+  and milestone 19, closed with its eleven issues #157 through #167 closed.
+  Release Execution 1 to 7 and Release Verification 1 to 13 are recorded above;
+  Release Verification 10 is the production host result, run by the owner.
+- No next development line was opened, by the owner's decision D23. The master
+  register records the release, and the register changes made after the tag
+  are on `origin/master` at `fa98cc36ab41e752e335b85d49c3e95bac3e8ae2`, read back after
+  the push on 2026-11-10. This closure commit is the last change of the cycle
+  and carries its own landing in the next fetch of `origin/master`.
+- Two items stay open outside the release: Backlog M15, Deferred, and Backlog
+  M20, Open, tracked as issue #168.
 
 ## Backlog
 
