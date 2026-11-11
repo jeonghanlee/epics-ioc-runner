@@ -707,13 +707,22 @@ bash bin/run-setup-system-infra.bash --full
 
 # 2. Set EPICS_BASE by sourcing the EPICS environment script of the host.
 #    Example: /opt/epics/<env-version>/<os>-<os-version>/<base-version>/
-source /opt/epics/1.3.0/rocky-8.10/7.0.10/setEpicsEnv.bash
+source /opt/epics/1.5.0/rocky-8.10/7.0.10/setEpicsEnv.bash
 
-# 3. Run the system phases against the installed binary.
+# 3. Name the original startup generator and its release file, both on a local disk.
+export IOC_RUNNER_STARTUP_GENERATOR=<local clone of the startup generator>
+export IOC_RUNNER_STARTUP_RELEASE=<local copy of gate/startup-generator.release>
+
+# 4. Run the system phases against the installed binary.
 bash tests/run-all-tests.bash --system --installed
 ```
 
-`ioc-runner -V` must report the candidate commit before step 3. The dispatcher
+Keep the generator clone and the release file outside the `root_squash` home.
+The system suite reads them as root, which cannot enter a `0700` NFS home.
+The generator revision and the module assignments are described under
+[Original generated startup fixture](#original-generated-startup-fixture).
+
+`ioc-runner -V` must report the candidate commit before step 4. The dispatcher
 asks for the `sudo` password itself when the account has no non-interactive
 route. The run passes when it ends with
 `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` and exit status 0.
