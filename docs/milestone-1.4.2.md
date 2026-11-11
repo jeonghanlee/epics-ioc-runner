@@ -246,6 +246,7 @@ evidence. The released 1.4.1 record remains in `docs/milestone-1.4.1.md`.
 | D19 | As in the 1.4.1 cycle, the installed `--system` suite also runs in place on the production host used for the 1.4.1 release, as a pre-release check of the 1.4.2 candidate. The host needs the startup generator repository at its pinned revision, and the owner places it. | 2026-11-10 |
 | D20 | The Gate on candidate `a536d9945825ce1605d3447b7b64a17231d83bf3` is not carried forward. On a fresh pair its steps 2 to 4 passed (step 2 `GATE SUITES PASS hosts=2`; step 3 `SQUASH REPRODUCED` and `SOURCE CONTROL OK` with every installed stamp `1.4.2 (a536d99)`; step 4 nineteen of nineteen on both hosts) and step 5 failed on both hosts: the system lifecycle suite aborted in S36 with 151 `SCRIPT_ERROR` because `tests/lib/test-startup-fixture.bash` copied the severity fixture through an absolute `SC_TOP` path, which root cannot read on a `root_squash` export. It is the class #156 closed in 1.4.1, and it is handled as in 1.4.1 (D7, D9): a fix commit and this decision, not a work item. The fix is `5c5888a802ab03922dc4c62d101bcd0c2f1ac04a`, the new candidate; `gate/RUNBOOK.md` invalidates every completed Gate step on a candidate tree change, so the Gate restarts at precondition 1 on a fresh pair and the earlier results are history. A check on a reused consumer with the fixed tree ended `SYSTEM_RC=0` and 389 of 389 PASS in system-lifecycle; it is Check grade and not Gate evidence. Two earlier runs were discarded and repeated: a step 3 push that carried uncommitted register text and stamped `-dirty`, and a step 4 start of both hosts in one second whose run directories collided. Release Verification 2 reads the gated commit identity, which is now the fix commit. | 2026-11-10 |
 | D21 | Two defects of `gate/RUNBOOK.md` found while running the 1.4.2 Gate are fixed in the runbook, as D20 was handled: a runbook change and this decision, not a work item. The candidate push now starts from a clean clone of the gated commit, because the push driver sends the source tree as it stands and result text written into this register stamped the installed runner `1.4.2 (a536d99-dirty)`. Step 4 now runs one host at a time, because the driver names its run directory from the second it starts and two hosts started together shared one directory and overwrote each other's captures and tally (`missing= S9`). A third suspected defect, the `SYSTEM_RC` line of step 5, was withdrawn: its block sets `pipefail`, so the line reports the pipeline status. The change lands on master after the tag `1.4.2`, so it applies from the next Gate. | 2026-11-10 |
+| D22 | The silent exit of `generate` and `install` when the caller cannot return to its starting directory is recorded as unassigned backlog work and a GitHub issue, and is not fixed on master after the tag `1.4.2`. The same lines exist unchanged in 1.4.0 and 1.4.1, the Gate and the released behavior are unaffected, and assigning it to a release line is the owner's choice with the next cycle. | 2026-11-10 |
 
 ### Assignment History
 
@@ -16450,6 +16451,7 @@ Superseded Plan Artifacts: none
 | Group | ID | Work unit | Type | Status | Ready | Deps | Done when / Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Verification | M15 | Observe live St04 input and DISCONN output in one list invocation | Carry-forward | Deferred | No | D15 | A bounded native full-CLI run reads the target live St04 row and prints DISCONN in that same invocation on each OS; [detail](#m15---observe-live-st04-input-and-disconn-output-in-one-list-invocation) |
+| Install | M20 | Stop `generate` and `install` from exiting silently on an unreachable working directory | Carry-forward | Open | No | D22 | A caller who cannot enter its own starting directory gets the same result from `generate <dir>` and `install <dir>` as one who can, or a stated reason, and the lifecycle matrix still passes; [detail](#m20---stop-generate-and-install-from-exiting-silently-on-an-unreachable-working-directory) |
 
 M15 is excluded from current release execution and the milestone tally.
 Its Deferred state authorizes no retry. Unrelated GitHub Backlog is not
@@ -16543,3 +16545,75 @@ scope and does not satisfy M15 / T1. No new experiment ran for this assignment.
 ##### Closure Evidence
 
 None. Deferred by D15 on 2026-10-18; no current execution is authorized.
+
+#### M20 - Stop generate and install from exiting silently on an unreachable working directory
+
+Origin: 1.4.2 / M20
+Identity History: created 2026-11-10 from an observation during the post-release install check of 1.4.2
+GitHub Issue: [#168](https://github.com/jeonghanlee/epics-ioc-runner/issues/168)
+Status: Open
+
+##### Summary
+
+`generate` and `install` save the caller's working directory, enter the target
+directory to resolve its absolute path, and return with
+`cd "${saved_pwd}" >/dev/null 2>&1 || exit 1`. When the caller cannot enter the
+directory it started from, for example a service account started through
+`sudo -u` from another user's `0700` home, the return fails and the command
+exits 1 without any message, although the absolute path is already known.
+The same lines exist unchanged in 1.4.0 and 1.4.1; in 1.4.2 they are
+`bin/ioc-runner:2150-2153` and `bin/ioc-runner:2401-2404`.
+
+##### Scope
+
+- The two return-to-directory steps in `generate` and `install`.
+- A real-path observation of both commands from a starting directory the caller
+  cannot enter, before and after the change.
+
+Out of scope: other uses of `cd`, the handling of a missing target directory,
+which already reports an error, and any change to where the commands read or
+write their files.
+
+##### Completion Criteria
+
+- `generate <dir>` and `install <dir>` give the same result whether or not the
+  caller can enter its starting directory, or fail with a stated reason.
+- Behavior from an ordinary starting directory is unchanged.
+- The release Gate suite matrix passes on the changed tree.
+
+##### Dependencies And Decisions
+
+- D22, Decision Date: 2026-11-10. Backlog work; assigning it to a release line
+  is the owner's choice. No dependency on another work row or external gate.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Read both return steps and decide whether the return may be dropped, because
+   the absolute path is already resolved, or must report why it failed.
+2. Observe both commands on the real path from an unenterable starting
+   directory before the change, then apply the accepted change and observe
+   again.
+3. Run the release Gate suite matrix on the changed tree.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | real path | As an `ioc` group operator started through `sudo -u` from a directory that operator cannot enter, run `generate` and `install` on an IOC directory | Fresh Rocky 8 and Debian 13 consumers | Before the change: exit 1 without a message; after: the same result as from an enterable directory, or a stated reason |
+| T2 | regression | The release Gate suite matrix on the changed tree | Fresh golden pair | Every suite passes as in the previous release |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Future plan | Pending | none; the 2026-11-10 observation is recorded in Release Verification 13 and is not a verification of a change |
+| T2 | Not run | Future plan | Pending | none |
+
+##### Closure Evidence
+
+- none
