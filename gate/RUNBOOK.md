@@ -156,8 +156,21 @@ Required to continue:
 
 ### 3. Candidate tree and installed runner
 
-Push the candidate with the shipped driver. It preserves `.git`, excludes the
-source tree's ignored paths, and requires identical source and remote status.
+Make `<repo-root>` a clean clone of the gated commit, the commit every Gate
+step runs against, and run every `gate/drivers` command of this runbook from
+it. The push driver sends the source tree as it stands, so an uncommitted
+change in any other tree, including result text written into the release
+register, reaches the consumer and stamps the installed runner `-dirty`.
+
+```bash
+git clone --no-hardlinks <repo> <repo-root>
+git -C <repo-root> checkout --detach <gated-commit>
+git -C <repo-root> status --porcelain
+```
+
+The last command must print nothing. Push the candidate with the shipped
+driver. It preserves `.git`, excludes the source tree's ignored paths, and
+requires identical source and remote status.
 
 ```bash
 bash gate/drivers/push.bash vmadmin@<host> <repo-root> '~/gitsrc'
@@ -206,7 +219,7 @@ record remains pending until that record is written.
 
 ### 2. Complete suite matrix
 
-Run the shipped control-side driver from the candidate repository root. Set
+Run the shipped control-side driver from `<repo-root>`. Set
 `IOC_RUNNER_STARTUP_GENERATOR` to the control-host Git repository that holds
 the original startup generator revision required by
 [`../tests/README.md`](../tests/README.md#original-generated-startup-fixture):
@@ -413,12 +426,16 @@ Required result for each entry point:
 ### 4. Multi-user verification
 
 Confirm that the installed runner still reports the candidate commit, then run
-the complete driver on both `iocrunner-nfs` consumers:
+the complete driver on each `iocrunner-nfs` consumer, one host at a time:
 
 ```bash
 ssh vmadmin@<host> '/usr/local/bin/ioc-runner -V'
 bash gate/drivers/control/run-all.bash vmadmin@<host>
 ```
+
+Start the second host only after the first has printed its final verdict. The
+driver names its run directory from the second it starts, so two hosts started
+together share one directory and overwrite each other's captures and tally.
 
 Required result: each host reports Pass for every printed `P-*` prerequisite
 verdict, Pass for every scenario in the Multi-User Contract below, and a final
