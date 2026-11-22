@@ -298,6 +298,12 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S42|error-handling.S42.isolation-tools-available|REQUIRED|direct-inspection"
     "S42|error-handling.S42.no-client-attach-rejected|BEHAVIOR|real-path"
     "S42|error-handling.S42.no-client-monitor-rejected|BEHAVIOR|real-path"
+    "S43|error-handling.S43.nonroot-permission-probes-applicable|APPLICABILITY|direct-inspection"
+    "S43|error-handling.S43.start-barrier-blocks-the-starting-path|REQUIRED|direct-inspection"
+    "S43|error-handling.S43.generate-from-an-unenterable-start-dir-exits-0|BEHAVIOR|real-path"
+    "S43|error-handling.S43.generate-from-an-unenterable-start-dir-writes-the-conf|BEHAVIOR|real-path"
+    "S43|error-handling.S43.install-from-an-unenterable-start-dir-exits-0|BEHAVIOR|real-path"
+    "S43|error-handling.S43.install-from-an-unenterable-start-dir-deploys-the-conf|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -365,7 +371,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 42; index += 1)); do
+    for ((index = 1; index <= 43; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2576,6 +2582,71 @@ function test_reader_equivalence {
         "Both readers preserve their intentional missing-key API states"
 }
 
+# Issue #168: generate and install enter the target directory to resolve its
+# absolute path and must not return to the starting directory afterward, which
+# the caller may be unable to enter again. chmod 0 on an ancestor of the
+# starting directory makes the starting path untraversable by name. It cannot
+# deny root, so the cases are NA under EUID 0.
+function test_start_directory_barrier {
+    local step="$1"
+    local applicability_reason="requires a non-root effective user"
+    print_divider
+    _log "INFO" "STEP ${step}: Unenterable Starting Directory (#168)"
+    print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the starting-directory cases (chmod 0 cannot deny root)."
+        record_current_state NA "${applicability_reason}"
+        close_current_remaining NA "${applicability_reason}"
+        return 0
+    fi
+    record_current_state PASS
+
+    local base="${TEST_TMPDIR}/start_barrier"
+    local barrier="${base}/outer"
+    local start_dir="${barrier}/inner"
+    local ioc_dir="${base}/iocBoot/barrier_ioc"
+    local mock_conf_dir="${base}/mock_etc"
+    local mock_sysd_dir="${base}/mock_sysd"
+    local conf_file="${ioc_dir}/barrier_ioc.conf"
+    local installed_conf="${mock_conf_dir}/barrier_ioc.conf"
+    local barrier_holds="false" conf_generated="false" conf_installed="false"
+    local gen_ec=0 inst_ec=0
+
+    mkdir -p "${start_dir}" "${ioc_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    touch "${ioc_dir}/st.cmd"
+    chmod +x "${ioc_dir}/st.cmd"
+
+    # Positive control: from inside the starting directory, with its parent
+    # closed, returning to the starting path by name must fail. Without it the
+    # cases below could pass against a barrier that never existed.
+    if ( cd "${start_dir}" && chmod 0 "${barrier}" && ! cd -- "${start_dir}" ) 2>/dev/null; then
+        barrier_holds="true"
+    fi
+    chmod 0700 "${barrier}"
+    verify_state "true" "${barrier_holds}" "Closing the parent makes the starting path unenterable by name"
+    if [[ "${barrier_holds}" != "true" ]]; then
+        close_current_remaining SKIP "requires an unenterable starting directory"
+        return 0
+    fi
+
+    ( cd "${start_dir}" && chmod 0 "${barrier}" \
+        && bash "${RUNNER_SCRIPT}" --local generate "${ioc_dir}" >/dev/null 2>&1 ) || gen_ec=$?
+    chmod 0700 "${barrier}"
+    verify_exit_code "0" "${gen_ec}" "Generate from an unenterable starting directory exits 0"
+
+    if [[ -f "${conf_file}" ]]; then conf_generated="true"; fi
+    verify_state "true" "${conf_generated}" "Generate from an unenterable starting directory writes the conf"
+
+    ( cd "${start_dir}" && chmod 0 "${barrier}" \
+        && IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+            bash "${RUNNER_SCRIPT}" --local -f install "${ioc_dir}" >/dev/null 2>&1 ) || inst_ec=$?
+    chmod 0700 "${barrier}"
+    verify_exit_code "0" "${inst_ec}" "Install from an unenterable starting directory exits 0"
+
+    if [[ -f "${installed_conf}" ]]; then conf_installed="true"; fi
+    verify_state "true" "${conf_installed}" "Install from an unenterable starting directory deploys the conf"
+}
 
 # shellcheck source=lib/test-console-options.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-options.bash"
@@ -2626,6 +2697,7 @@ function run_all_tests {
         "test_reader_equivalence"
         "test_console_options"
         "test_console_clients"
+        "test_start_directory_barrier"
     )
     local step=1
     local func

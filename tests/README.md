@@ -821,6 +821,11 @@ no active unit or installed configuration.
   installation hint before any connection. Without unprivileged user and mount
   namespaces, the required isolation-tools check fails and the client checks
   SKIP. Old con without read-only support is not exercised.
+* **Unenterable Starting Directory**: Executes the shipped Local-mode `generate`
+  and `install` from a working directory whose parent is closed to the caller, so
+  the starting path cannot be entered by name, and requires both to complete
+  as from an ordinary directory. A positive control first proves that the
+  starting path is unenterable. Under effective UID 0 the group is NA.
 
 ### 4. Source Regression (`test-source-regression.bash`)
 

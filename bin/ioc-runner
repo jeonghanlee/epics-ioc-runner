@@ -2126,7 +2126,6 @@ function do_generate {
     local tmp_conf=""
     local confirm=""
     local abs_dir=""
-    local saved_pwd=""
     local cmd_file=""
     local ioc_user=""
     local ioc_group=""
@@ -2147,10 +2146,10 @@ function do_generate {
     fi
 
     # Resolves absolute path natively via Bash built-ins to avoid subshell forks and external binaries.
-    saved_pwd="${PWD}"
+    # The starting directory is not restored: no later path depends on it, and the caller
+    # may not be able to enter its own starting directory again.
     cd "${target_dir}" >/dev/null 2>&1 || exit 1
     abs_dir="${PWD}"
-    cd "${saved_pwd}" >/dev/null 2>&1 || exit 1
 
     # Extracts the base name from the absolute path if the target is unspecified or passed as a relative dot.
     if [[ -z "${IOC_NAME}" || "${IOC_NAME}" == "${target_dir}" || "${IOC_NAME}" == "." ]]; then
@@ -2388,7 +2387,6 @@ function do_install {
     local source_target="${TARGET_ARG}"
     local source_conf="${source_target}"
     local abs_dir=""
-    local saved_pwd=""
     local resolved_ioc_name=""
     local -A install_conf=()
     # read_conf_all populates this nameref target only to validate site.env syntax.
@@ -2398,10 +2396,10 @@ function do_install {
     # Resolves the target configuration file natively. If a directory is provided,
     # it locates the previously generated .conf file inside it to streamline the installation workflow.
     if [[ -d "${source_target}" ]]; then
-        saved_pwd="${PWD}"
+        # The starting directory is not restored: no later path depends on it, and the
+        # caller may not be able to enter its own starting directory again.
         cd "${source_target}" >/dev/null 2>&1 || exit 1
         abs_dir="${PWD}"
-        cd "${saved_pwd}" >/dev/null 2>&1 || exit 1
 
         resolved_ioc_name="${abs_dir##*/}"
         source_conf="${abs_dir}/${resolved_ioc_name}.conf"
