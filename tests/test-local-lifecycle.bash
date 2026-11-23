@@ -295,6 +295,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-pty.bash"
 # shellcheck source=tests/lib/test-startup-fixture.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-startup-fixture.bash"
 startup_fixture_catalog S41 LOCAL_CATALOG_ROWS
+# shellcheck source=tests/lib/test-loader-lines.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-loader-lines.bash"
+loader_lines_catalog S42 LOCAL_CATALOG_ROWS
 
 # --- Managed Architecture Paths ---
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
@@ -448,7 +451,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 41; index += 1)); do
+    for ((index = 1; index <= 42; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2703,6 +2706,7 @@ function run_all_tests {
         "test_post_init_error_marker"
         "test_log_command"
         "test_generated_startup"
+        "test_loader_lines"
     )
 
     local step=1

@@ -170,6 +170,10 @@ declare -g MAX_INIT_TIMEOUT="${IOC_RUNNER_TEST_MAX_INIT_TIMEOUT:-30}"
 declare -g CONFIRM_DWELL="${IOC_RUNNER_TEST_CONFIRM_DWELL:-3}"
 declare -g POLL_INTERVAL="${IOC_RUNNER_TEST_POLL_INTERVAL:-0.2}"
 
+# A child that exits nonzero during startup is reported with the log lines of
+# that start that open with the name of an EPICS-env loader script (#169).
+declare -gr LOADER_LINE_PATTERN='^iocsh(_elf)?[.]bash: '
+declare -gr LOADER_LINE_LIMIT=10
 
 function print_divider {
     printf "%s\n" "===================================================================================================="
@@ -1553,13 +1557,33 @@ function print_startup_severity {
 }
 
 # Normal child status is evidence of termination, not of its underlying cause.
+# The loader lines of the start window name the cause when the loader refused.
 function check_startup_child_exit {
-    local log_file="$1" exit_code="$2"
+    local log_file="$1" exit_code="$2" scan_offset="$3"
 
     if (( exit_code > 0 )); then
         printf "\nError: IOC '%s' exited during startup (exit code %s).\n" "${IOC_NAME}" "${exit_code}" >&2
+        print_loader_lines "${log_file}" "${scan_offset}"
         print_log_file_hint "${log_file}"
         exit 1
+    fi
+}
+
+# Prints the log lines from scan_offset that open with a loader script name,
+# at most LOADER_LINE_LIMIT, then the number of further such lines. procServ
+# ends each log line with a carriage return, removed before matching. The
+# selection does not depend on the word ERROR, which a refusal line may lack.
+function print_loader_lines {
+    local log_file="$1" scan_offset="$2" lines
+
+    lines=$(tail -c "+$((scan_offset + 1))" "${log_file}" 2>/dev/null |
+        awk -v pattern="${LOADER_LINE_PATTERN}" -v limit="${LOADER_LINE_LIMIT}" '
+            { sub(/\r$/, "") }
+            $0 ~ pattern { if (++count <= limit) print "    " $0 }
+            END { if (count > limit) printf "    (%d further loader line(s) in the log)\n", count - limit }
+        ' || true)
+    if [[ -n "${lines}" ]]; then
+        printf '  loader log line(s):\n%s\n' "${lines}" >&2
     fi
 }
 
@@ -3648,7 +3672,7 @@ function do_start_restart {
             "${scan_child_pid}" "${ignored_child_pid}")
         read -r marker_rel banner_count fatal_present corro_present scan_child_pid \
             _ child_exit_code child_ended <<< "${signals}"
-        check_startup_child_exit "${log_file}" "${child_exit_code}"
+        check_startup_child_exit "${log_file}" "${child_exit_code}" "${scan_offset}"
         retain_startup_severity "${signals}" severity_seen severity_lines
         if [[ "${fatal_present}" == "1" ]]; then
             fatal_seen=1
@@ -3731,7 +3755,7 @@ function do_start_restart {
         p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}" \
             "${scan_child_pid}" "${ignored_child_pid}")
         read -r _ p_banner _ p_corro scan_child_pid _ child_exit_code child_ended <<< "${p_sig}"
-        check_startup_child_exit "${log_file}" "${child_exit_code}"
+        check_startup_child_exit "${log_file}" "${child_exit_code}" "${scan_offset}"
         retain_startup_severity "${p_sig}" severity_seen severity_lines
         if (( p_banner >= 1 )); then
             dwell_death_seen=1
@@ -3751,7 +3775,7 @@ function do_start_restart {
     p_sig=$(read_startup_signals "${log_file}" "${p_off}" "${effective_patterns}" \
         "${scan_child_pid}" "${ignored_child_pid}")
     read -r _ p_banner _ p_corro scan_child_pid _ child_exit_code child_ended <<< "${p_sig}"
-    check_startup_child_exit "${log_file}" "${child_exit_code}"
+    check_startup_child_exit "${log_file}" "${child_exit_code}" "${scan_offset}"
     retain_startup_severity "${p_sig}" severity_seen severity_lines
     # A death banner landing between the last dwell pass and this
     # final scan is still a failure (#108) — success must not be

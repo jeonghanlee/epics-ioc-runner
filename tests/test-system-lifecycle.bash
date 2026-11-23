@@ -230,6 +230,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-pty.bash"
 # shellcheck source=tests/lib/test-startup-fixture.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-startup-fixture.bash"
 startup_fixture_catalog S36 SYSTEM_CATALOG_ROWS
+# shellcheck source=tests/lib/test-loader-lines.bash
+source "$(dirname "${BASH_SOURCE[0]}")/lib/test-loader-lines.bash"
+loader_lines_catalog S37 SYSTEM_CATALOG_ROWS
 
 # Resolve the ioc-runner binary under test. IOC_RUNNER_TEST_MODE selects
 # the binary origin; the unset default is the source tree, matching the
@@ -360,7 +363,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 36; index += 1)); do
+    for ((index = 1; index <= 37; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2794,6 +2797,7 @@ function run_all_tests {
         "test_m10_system_reliability"
         "test_site_env_layer"
         "test_generated_startup"
+        "test_loader_lines"
     )
 
     local step=1
