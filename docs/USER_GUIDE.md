@@ -107,6 +107,28 @@ EOF
 
 `install` fills an empty `IOC_PORT` with the standard socket path.
 
+To start the IOC through the EPICS-env loader `iocsh.bash`, name the loader's
+absolute path in `IOC_CMD` and its arguments in `IOC_ARGS`. Every EPICS-env
+1.5.0 tree holds the loader at `<tree>/base/bin/linux-x86_64/iocsh.bash`:
+
+```bash
+cat <<EOF > <ioc_boot_dir>.conf
+IOC_USER="ioc-srv"
+IOC_GROUP="ioc"
+IOC_CHDIR="$(pwd)"
+IOC_PORT=""
+IOC_CMD="<tree>/base/bin/linux-x86_64/iocsh.bash"
+IOC_ARGS="-e <tree> st.cmd"
+EOF
+```
+
+`<tree>` is the absolute path of the EPICS-env tree, such as
+`/opt/epics/1.5.0/debian-13/7.0.10`. Each whitespace-separated part of
+`IOC_ARGS` becomes one argument, so an argument cannot contain whitespace or a
+quote character. When the loader refuses to start the IOC, `start` prints the
+loader's lines; see
+[the `start` and `restart` commands](CLI_REFERENCE.md#the-start-and-restart-commands).
+
 ### Configuration file syntax
 
 The runner accepts a bounded, single-line subset of systemd

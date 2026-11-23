@@ -131,7 +131,10 @@ Configuration validation collects field errors and prints
 stop at the first invalid field.
 
 1. The IOC name matches the name rule, and the configuration sets `IOC_USER`,
-   `IOC_GROUP`, `IOC_CHDIR`, and `IOC_CMD` with no illegal characters.
+   `IOC_GROUP`, `IOC_CHDIR`, and `IOC_CMD` with no illegal characters. These
+   keys, `IOC_PORT`, and `IOC_ARGS` when set accept only ASCII letters,
+   digits, spaces, `_`, `.`, `/`, `:`, and `-`, so `IOC_ARGS` cannot contain
+   a quote character inside its outer pair of quotes.
    `IOC_USER` and `IOC_GROUP` must be `ioc-srv` and `ioc` in system and
    container mode, and the invoking user and primary group in local mode; a
    configuration generated for another mode fails validation. The aggregate
@@ -153,7 +156,8 @@ stop at the first invalid field.
 6. The configuration directory exists and is writable. System and container
    mode require an administrator-created directory; local mode creates it.
 7. System and Local modes: `site.env` in the configuration directory, when
-   present, passes the same grammar check as a configuration. Container mode
+   present, passes the same grammar check as a configuration and does not set
+   `IOC_ARGS`, which belongs in each IOC's configuration. Container mode
    neither reads nor validates this systemd environment file.
 8. An existing `<name>.conf` is overwritten only after `Do you want to
    overwrite it? [y/N]`; `-f` answers yes. Refusal or closed input aborts
@@ -161,8 +165,11 @@ stop at the first invalid field.
 
 An invalid or missing `IOC_CHDIR` is a validation error. `IOC_CMD` must be
 one executable name or path without whitespace: systemd expands it as one
-argument. Put required arguments in an executable launcher script that uses
-`exec`, and name that script in `IOC_CMD`.
+argument. Put the arguments of `IOC_CMD` in the optional `IOC_ARGS` key. The
+unit templates pass `${IOC_CMD} $IOC_ARGS`, so systemd splits `IOC_ARGS` at
+whitespace into separate arguments, and an absent `IOC_ARGS` adds none. The
+container `run` script passes the same words. An argument cannot contain
+whitespace. `generate` does not write `IOC_ARGS`.
 
 The installed file is written through a temporary file and a rename, mode
 `0660` in system and container mode and `0600` in local mode. The invoking
@@ -280,6 +287,22 @@ its child PID in this invocation's log window. `<N>` is the child status;
 the runner returns 1. A nonzero status takes precedence over readiness,
 including when a later automatic retry reaches the marker. The log hint
 identifies where to inspect the cause; the status alone does not establish it.
+
+With a nonzero child status, the runner also prints the log lines of this
+start that begin with `iocsh.bash: ` or `iocsh_elf.bash: `, the names of the
+EPICS-env loader scripts. It prints at most 10 such lines under
+`loader log line(s):`, then `(<count> further loader line(s) in the log)` when
+more exist. The selection does not depend on the word `ERROR`, which a loader
+refusal line can lack. A 1.5.0 loader that refuses a module that is not
+installed produces this output:
+
+```text
+Error: IOC '<name>' exited during startup (exit code 1).
+  loader log line(s):
+    iocsh.bash: Module <module> has no installed default link: <tree>/modules/<module> (st.cmd:1)
+  -> Check logs: ioc-runner log <name>
+     (log file: /var/log/procserv/<name>.log)
+```
 
 An iocsh `Unbalanced quote` message can occur under `on error continue` while
 the IOC remains alive. That message alone does not fail startup. After the

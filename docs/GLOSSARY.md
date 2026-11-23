@@ -44,8 +44,8 @@ The linked pages give configuration values, command syntax, and procedures.
 - **Working directory:** The directory selected by `IOC_CHDIR` before
   procServ starts `IOC_CMD`.
 - **Per-IOC configuration:** The `<name>.conf` file containing operational
-  keys such as `IOC_USER`, `IOC_GROUP`, `IOC_CHDIR`, `IOC_CMD`, and
-  `IOC_PORT`, together with environment values for that IOC.
+  keys such as `IOC_USER`, `IOC_GROUP`, `IOC_CHDIR`, `IOC_CMD`, `IOC_ARGS`,
+  and `IOC_PORT`, together with environment values for that IOC.
 - **Site environment:** The optional `site.env` file in the configuration
   directory. It supplies shared environment values; the per-IOC
   configuration overrides matching keys. See

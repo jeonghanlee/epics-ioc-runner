@@ -84,6 +84,11 @@ IOC_CMD="./st.cmd"
 EOF
 ```
 
+To start the IOC through the EPICS-env loader `iocsh.bash`, set `IOC_CMD` and
+`IOC_ARGS` as in
+[Write a configuration by hand](USER_GUIDE.md#write-a-configuration-by-hand),
+with your user and primary group as above.
+
 The configuration syntax is the same in both modes; see
 [Configuration file syntax](USER_GUIDE.md#configuration-file-syntax). A file
 with multiline values, continuations, or unsupported quote and escape forms is
