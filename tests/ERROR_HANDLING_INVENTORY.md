@@ -22,6 +22,9 @@ conditions that currently disappear from the counters:
 - one S40 required exact-function extraction check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
+S41 through S44 extend the pipeline after this basis; their identities are
+listed in the mapping table below and counted in `reporting-counts.csv`.
+
 The current expected check and STEP counts are owned by
 [`reporting-counts.csv`](reporting-counts.csv). S01, S12, S13, S14, S15, S16,
 S18, S20, S22, S33, and S34 are setup-only and own no check. Each loop case has its own semantic key. The 30
@@ -43,6 +46,16 @@ are not separate catalog identities.
 - `error-handling.S40.reader-equivalence.exact-function-extraction` governs the
   eight direct reader fixtures. If exact extraction fails, the required check
   is FAIL and the dependent checks are SKIP.
+- `error-handling.S41.completion-available` governs the four S41 completion
+  checks. If the completion script is unreadable, the required check is FAIL
+  and the dependent checks are SKIP.
+- `error-handling.S42.isolation-tools-available` governs both S42 rejection
+  checks. Without `unshare`, `mount`, `ln`, or a private mount namespace, the
+  required check is FAIL and the dependent checks are SKIP.
+- `error-handling.S43.nonroot-permission-probes-applicable` governs all S43
+  checks; under effective UID 0 they are NA. Inside the branch,
+  `error-handling.S43.start-barrier-blocks-the-starting-path` governs the four
+  behavior checks; if the starting path stays enterable they are SKIP.
 - An unexpected abort preserves closed states and closes every remaining open
   identity as SCRIPT_ERROR.
 
@@ -403,6 +416,71 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S40 | `error-handling.S40.reader-equivalence.double-quoted-whitespace-only` | `BEHAVIOR` | `real-path` | Both shipped reader APIs preserve a double-quoted whitespace-only value. |
 | S40 | `error-handling.S40.reader-equivalence.quoted-empty-present` | `BEHAVIOR` | `real-path` | Both shipped reader APIs retain a quoted empty value as present. |
 | S40 | `error-handling.S40.reader-equivalence.missing-key-api-states` | `BEHAVIOR` | `real-path` | Full-file parsing leaves a missing key absent while the single-key reader returns 1. |
+| S41 | `error-handling.S41.missing-value` | `BEHAVIOR` | `real-path` | `attach --detach-key` without a value exits 1 with `--detach-key requires a key`. |
+| S41 | `error-handling.S41.empty-value` | `BEHAVIOR` | `real-path` | An empty `--detach-key` value exits 1 with `--detach-key requires a key`. |
+| S41 | `error-handling.S41.invalid-name` | `BEHAVIOR` | `real-path` | `escape` is rejected as not a control key. |
+| S41 | `error-handling.S41.invalid-digit` | `BEHAVIOR` | `real-path` | `ctrl-1` is rejected as an invalid detach key. |
+| S41 | `error-handling.S41.invalid-length` | `BEHAVIOR` | `real-path` | `ctrl-aa` is rejected as not a control key. |
+| S41 | `error-handling.S41.reserved-key` | `BEHAVIOR` | `real-path` | `ctrl-t` is rejected as reserved. |
+| S41 | `error-handling.S41.reject-escape-byte` | `BEHAVIOR` | `real-path` | `ctrl-[` is rejected as an invalid detach key. |
+| S41 | `error-handling.S41.monitor-rejected` | `BEHAVIOR` | `real-path` | `monitor --detach-key` exits 1 because the option is attach-only. |
+| S41 | `error-handling.S41.list-rejected` | `BEHAVIOR` | `real-path` | `list --detach-key` exits 1 because the option is attach-only. |
+| S41 | `error-handling.S41.accept-a` | `BEHAVIOR` | `real-path` | `ctrl-a` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-b` | `BEHAVIOR` | `real-path` | `ctrl-b` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-c` | `BEHAVIOR` | `real-path` | `ctrl-c` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-d` | `BEHAVIOR` | `real-path` | `ctrl-d` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-e` | `BEHAVIOR` | `real-path` | `ctrl-e` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-f` | `BEHAVIOR` | `real-path` | `ctrl-f` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-g` | `BEHAVIOR` | `real-path` | `ctrl-g` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-h` | `BEHAVIOR` | `real-path` | `ctrl-h` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-i` | `BEHAVIOR` | `real-path` | `ctrl-i` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-j` | `BEHAVIOR` | `real-path` | `ctrl-j` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-k` | `BEHAVIOR` | `real-path` | `ctrl-k` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-l` | `BEHAVIOR` | `real-path` | `ctrl-l` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-m` | `BEHAVIOR` | `real-path` | `ctrl-m` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-n` | `BEHAVIOR` | `real-path` | `ctrl-n` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-o` | `BEHAVIOR` | `real-path` | `ctrl-o` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-p` | `BEHAVIOR` | `real-path` | `ctrl-p` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-q` | `BEHAVIOR` | `real-path` | `ctrl-q` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-r` | `BEHAVIOR` | `real-path` | `ctrl-r` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-s` | `BEHAVIOR` | `real-path` | `ctrl-s` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-u` | `BEHAVIOR` | `real-path` | `ctrl-u` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-v` | `BEHAVIOR` | `real-path` | `ctrl-v` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-w` | `BEHAVIOR` | `real-path` | `ctrl-w` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-x` | `BEHAVIOR` | `real-path` | `ctrl-x` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-y` | `BEHAVIOR` | `real-path` | `ctrl-y` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-z` | `BEHAVIOR` | `real-path` | `ctrl-z` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-backslash` | `BEHAVIOR` | `real-path` | `ctrl-\` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-bracket-close` | `BEHAVIOR` | `real-path` | `ctrl-]` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-caret` | `BEHAVIOR` | `real-path` | `ctrl-^` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-underscore` | `BEHAVIOR` | `real-path` | `ctrl-_` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-uppercase` | `BEHAVIOR` | `real-path` | `CTRL-B` passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-before-command` | `BEHAVIOR` | `real-path` | `--detach-key` before the command passes option parsing and stops at client resolution. |
+| S41 | `error-handling.S41.accept-quoted-backslash` | `BEHAVIOR` | `real-path` | The documented single-quoted backslash spelling passes option parsing through Bash. |
+| S41 | `error-handling.S41.help-contract` | `BEHAVIOR` | `real-path` | `--help` describes `--detach-key KEY` as attach-only with the default `ctrl-a`. |
+| S41 | `error-handling.S41.completion-available` | `REQUIRED` | `direct-inspection` | The shipped completion script is readable. |
+| S41 | `error-handling.S41.completion-option` | `BEHAVIOR` | `real-path` | Completion offers `--detach-key` after `attach`. |
+| S41 | `error-handling.S41.completion-keys` | `BEHAVIOR` | `real-path` | Completion offers the example keys `ctrl-a`, `ctrl-b`, and `ctrl-]`. |
+| S41 | `error-handling.S41.completion-prefix` | `BEHAVIOR` | `real-path` | Completion filters the keys by the typed prefix. |
+| S41 | `error-handling.S41.completion-target` | `BEHAVIOR` | `real-path` | Completion offers IOC targets again after the detach value. |
+| S42 | `error-handling.S42.isolation-tools-available` | `REQUIRED` | `direct-inspection` | `unshare`, `mount`, and `ln` are available and a private mount namespace can be created. |
+| S42 | `error-handling.S42.no-client-attach-rejected` | `BEHAVIOR` | `real-path` | With `con` hidden and `socat` absent, `attach` exits 1 with the installation hint before any connection. |
+| S42 | `error-handling.S42.no-client-monitor-rejected` | `BEHAVIOR` | `real-path` | With `con` hidden and `socat` absent, `monitor` exits 1 with the installation hint before any connection. |
+| S43 | `error-handling.S43.nonroot-permission-probes-applicable` | `APPLICABILITY` | `direct-inspection` | The effective user is not root, so `chmod 0` can close the starting path. |
+| S43 | `error-handling.S43.start-barrier-blocks-the-starting-path` | `REQUIRED` | `direct-inspection` | With its parent closed, the starting directory cannot be entered by name. |
+| S43 | `error-handling.S43.generate-from-an-unenterable-start-dir-exits-0` | `BEHAVIOR` | `real-path` | `generate <absolute path>` from the unenterable starting directory exits 0. |
+| S43 | `error-handling.S43.generate-from-an-unenterable-start-dir-writes-the-conf` | `BEHAVIOR` | `real-path` | That `generate` writes the configuration. |
+| S43 | `error-handling.S43.install-from-an-unenterable-start-dir-exits-0` | `BEHAVIOR` | `real-path` | `install <directory>` from the unenterable starting directory exits 0. |
+| S43 | `error-handling.S43.install-from-an-unenterable-start-dir-deploys-the-conf` | `BEHAVIOR` | `real-path` | That `install` deploys the configuration. |
+| S44 | `error-handling.S44.ioc-args.outer-double-quotes-accepted` | `BEHAVIOR` | `real-path` | `IOC_ARGS` in one outer pair of double quotes is accepted. |
+| S44 | `error-handling.S44.ioc-args.unquoted-accepted` | `BEHAVIOR` | `real-path` | `IOC_ARGS` without quotes is accepted. |
+| S44 | `error-handling.S44.ioc-args.local-template-passes-ioc-args` | `BEHAVIOR` | `real-path` | The deployed local unit template passes `${IOC_CMD} $IOC_ARGS`. |
+| S44 | `error-handling.S44.ioc-args.inner-single-quote-rejected` | `BEHAVIOR` | `real-path` | A single quote inside the `IOC_ARGS` value is rejected. |
+| S44 | `error-handling.S44.ioc-args.inner-double-quote-rejected` | `BEHAVIOR` | `real-path` | A double quote inside the `IOC_ARGS` value is rejected. |
+| S44 | `error-handling.S44.ioc-args.rejection-names-ioc-args` | `BEHAVIOR` | `real-path` | Both rejections name `IOC_ARGS`. |
+| S44 | `error-handling.S44.ioc-args.rejection-preserves-the-installed-conf` | `BEHAVIOR` | `real-path` | A rejected `IOC_ARGS` leaves the installed configuration byte-identical. |
+| S44 | `error-handling.S44.ioc-args.site-env-ioc-args-rejected` | `BEHAVIOR` | `real-path` | `IOC_ARGS` in `site.env` is rejected at install. |
+| S44 | `error-handling.S44.ioc-args.site-env-rejection-names-site-env-and-ioc-args` | `BEHAVIOR` | `real-path` | That rejection names `site.env` and `IOC_ARGS`. |
 
 ## Completeness Cross-check
 
@@ -416,7 +494,8 @@ Owner accepted all S34 dispositions on 2026-08-07.
 
 The mapping is complete only while all 190 current behavior identities map
 once, the eight added conditions map once, no STEP-local key is duplicated,
-and the source pipeline remains S01 through S40.
+and the source pipeline remains S01 through S44, with the S41 through S44
+identities listed in the mapping table outside that basis.
 
 ## Complete Completion Contract
 

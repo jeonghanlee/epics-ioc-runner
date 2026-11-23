@@ -548,6 +548,15 @@ IOC output lands on the container stdout, adds `CAP_SYS_PTRACE` for the deep
 the suite) so the accounts, the configuration directory, and the scan
 directory exist.
 
+Container step S16 installs `softIoc` with its arguments in `IOC_ARGS` and
+requires the rendered `run` script to quote each word separately and the IOC
+to serve the record its database argument names. When the image tree holds
+`iocsh.bash`, it starts an IOC through the loader with
+`IOC_ARGS="-e <tree> st.cmd"` and requires the procServ child to be
+`softIocPVX` and the record of the startup file to be served; the loader's
+`All initialization complete` appears on the container stdout in the image
+report.
+
 The development-to-production flow maps directly onto these commands:
 develop and iterate with `--source`, validate a finished install with
 `--installed` around the install step (`setup-system-infra.bash` /
@@ -796,6 +805,17 @@ single and double quotes, CRLF, empty values, embedded `=`, later duplicate
 values, and escaped regular-expression backslashes. Probe removal must leave
 no active unit or installed configuration.
 
+Both suites end with the loader-line step (local S42, system S37) from
+`lib/test-loader-lines.bash`. A fixture child prints twelve lines that begin
+with `iocsh.bash: ` or `iocsh_elf.bash: `, an indented prefix, and an ordinary
+line, then exits 78. `start` must exit 1 and print the first ten loader lines
+in order, the count of the two further lines, no other line, no carriage
+return, and the log hint. When the tree of `EPICS_BASE` holds `iocsh.bash`,
+the real loader is started with `IOC_ARGS="-e <tree> st.cmd"` and a startup
+file naming a module that is not installed; `start` must exit 1 and print the
+refusal line of the log, which has no `ERROR` word. When that tree lacks
+`iocsh.bash` or `setEpicsEnv.bash`, those checks are SKIP.
+
 ### 3. Error Handling (`test-error-handling.bash`)
 * **Interactive Protections**: Verifies safe aborts and infinite-loop prevention (EOF handling) during non-interactive piping (`< /dev/null`).
 * **Validation & Syntax**: Rejects illegal characters, missing executables, and improper directory permissions before taking any native action.
@@ -826,6 +846,12 @@ no active unit or installed configuration.
   the starting path cannot be entered by name, and requires both to complete
   as from an ordinary directory. A positive control first proves that the
   starting path is unenterable. Under effective UID 0 the group is NA.
+* **IOC_ARGS Configuration Contract**: Installs Local-mode configurations
+  whose `IOC_ARGS` has one outer pair of double quotes or none, and requires
+  both to succeed and the deployed unit template to pass `${IOC_CMD} $IOC_ARGS`.
+  A single or double quote inside the value must be rejected with a message
+  naming `IOC_ARGS`, leaving the installed configuration byte-identical, and
+  `IOC_ARGS` in `site.env` must be rejected naming both.
 
 ### 4. Source Regression (`test-source-regression.bash`)
 
