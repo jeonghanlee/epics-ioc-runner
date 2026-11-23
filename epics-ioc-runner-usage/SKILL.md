@@ -84,6 +84,10 @@ ioc-runner status <ioc_boot_dir>
 - `generate` writes `<ioc_boot_dir>.conf`; `install` accepts the directory or
   the `.conf` file and asks before overwriting (`-f` answers yes).
 - `start` reports whether the IOC reached `All initialization complete`.
+  In system and local mode, when the IOC process exits nonzero during
+  startup, `start` exits 1 and prints its exit code, the log lines that
+  begin with `iocsh.bash: ` or `iocsh_elf.bash: ` (at most 10), and the log
+  hint; see `docs/CLI_REFERENCE.md`.
 - In system mode the IOC directory lives under `/opt/epics-iocs`, and
   `IOC_CHDIR` must be writable by `ioc-srv`; see `docs/USER_GUIDE.md`.
 - `install` does not enable boot start; `enable` and `disable` do. Local
@@ -119,6 +123,13 @@ syntax. Prefer `generate` over a hand-written file. The accepted syntax,
 rejected forms, and the optional site-wide `site.env` layer are in
 `docs/USER_GUIDE.md` and `docs/NETWORK_ENV.md`. Path and tool overrides
 (`IOC_RUNNER_*` variables) are in `docs/USER_GUIDE_LOCAL.md`.
+
+`IOC_CMD` is one word; its arguments go in `IOC_ARGS`, which `generate` does
+not write. To start through the EPICS-env loader, set `IOC_CMD` to
+`<tree>/base/bin/linux-x86_64/iocsh.bash` and `IOC_ARGS` to
+`-e <tree> st.cmd`, as in "Write a configuration by hand" in
+`docs/USER_GUIDE.md`. An argument cannot contain whitespace or a quote
+character, and `site.env` cannot set `IOC_ARGS`.
 
 ## Answer Questions
 
