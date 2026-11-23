@@ -304,6 +304,15 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S43|error-handling.S43.generate-from-an-unenterable-start-dir-writes-the-conf|BEHAVIOR|real-path"
     "S43|error-handling.S43.install-from-an-unenterable-start-dir-exits-0|BEHAVIOR|real-path"
     "S43|error-handling.S43.install-from-an-unenterable-start-dir-deploys-the-conf|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.outer-double-quotes-accepted|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.unquoted-accepted|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.local-template-passes-ioc-args|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.inner-single-quote-rejected|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.inner-double-quote-rejected|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.rejection-names-ioc-args|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.rejection-preserves-the-installed-conf|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.site-env-ioc-args-rejected|BEHAVIOR|real-path"
+    "S44|error-handling.S44.ioc-args.site-env-rejection-names-site-env-and-ioc-args|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -371,7 +380,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 43; index += 1)); do
+    for ((index = 1; index <= 44; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2648,6 +2657,114 @@ function test_start_directory_barrier {
     verify_state "true" "${conf_installed}" "Install from an unenterable starting directory deploys the conf"
 }
 
+# Writes a local-mode configuration whose last line is the given IOC_ARGS
+# assignment, exactly as an operator would write it by hand.
+function write_ioc_args_conf {
+    local conf_file="$1"
+    local chdir="$2"
+    local user="$3"
+    local group="$4"
+    local args_line="$5"
+
+    printf 'IOC_USER="%s"\nIOC_GROUP="%s"\nIOC_CHDIR="%s"\nIOC_PORT=""\nIOC_CMD="./st.cmd"\n%s\n' \
+        "${user}" "${group}" "${chdir}" "${args_line}" > "${conf_file}"
+}
+
+# Issue #169: IOC_ARGS carries the arguments of IOC_CMD. install accepts the
+# value with or without the one outer pair of quotes that the configuration
+# syntax removes, rejects a quote character inside the remaining value while
+# preserving the installed configuration, deploys a local unit template that
+# passes ${IOC_CMD} $IOC_ARGS to procServ, and rejects IOC_ARGS in site.env.
+function test_ioc_args_contract {
+    local step="$1"
+    local test_dir="${TEST_TMPDIR}/ioc_args_ioc"
+    local mock_conf_dir="${TEST_TMPDIR}/ioc_args_etc"
+    local mock_sysd_dir="${TEST_TMPDIR}/ioc_args_sysd"
+    local conf_file="${test_dir}/ioc_args_ioc.conf"
+    local target_conf="${mock_conf_dir}/ioc_args_ioc.conf"
+    local template_file="${mock_sysd_dir}/epics-@.service"
+    local single_err="${TEST_TMPDIR}/ioc_args_single_err"
+    local double_err="${TEST_TMPDIR}/ioc_args_double_err"
+    local site_err="${TEST_TMPDIR}/ioc_args_site_err"
+    local site_names="false"
+    local current_user=""
+    local current_group=""
+    local exit_code=0
+    local passes_args="false"
+    local names_variable="false"
+    local preserved="false"
+    local before_hash=""
+    local after_hash=""
+
+    print_divider
+    _log "INFO" "STEP ${step}: IOC_ARGS Configuration Contract (#169)"
+    print_sub_divider
+
+    current_user=$(id -un)
+    current_group=$(id -gn)
+    mkdir -p "${test_dir}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${test_dir}/st.cmd"
+    chmod +x "${test_dir}/st.cmd"
+
+    write_ioc_args_conf "${conf_file}" "${test_dir}" "${current_user}" "${current_group}" \
+        'IOC_ARGS="-e /opt/tree st.cmd"'
+    exit_code=0
+    IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" </dev/null >/dev/null 2>&1 || exit_code=$?
+    verify_exit_code "0" "${exit_code}" "IOC_ARGS in one outer pair of double quotes is accepted"
+
+    write_ioc_args_conf "${conf_file}" "${test_dir}" "${current_user}" "${current_group}" \
+        'IOC_ARGS=-e /opt/tree st.cmd'
+    exit_code=0
+    IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" </dev/null >/dev/null 2>&1 || exit_code=$?
+    verify_exit_code "0" "${exit_code}" "IOC_ARGS without quotes is accepted"
+
+    # shellcheck disable=SC2016  # The literal unit-file text is the expected value.
+    if grep -qF -- '${IOC_CMD} $IOC_ARGS' "${template_file}" 2>/dev/null; then passes_args="true"; fi
+    verify_state "true" "${passes_args}" "Local unit template passes \${IOC_CMD} \$IOC_ARGS"
+
+    before_hash=$(sha256sum "${target_conf}" 2>/dev/null || true)
+
+    write_ioc_args_conf "${conf_file}" "${test_dir}" "${current_user}" "${current_group}" \
+        "IOC_ARGS=\"-e '/opt/tree' st.cmd\""
+    exit_code=0
+    IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" </dev/null >/dev/null 2>"${single_err}" || exit_code=$?
+    verify_exit_code "1" "${exit_code}" "IOC_ARGS with a single quote inside the value is rejected"
+
+    write_ioc_args_conf "${conf_file}" "${test_dir}" "${current_user}" "${current_group}" \
+        "IOC_ARGS='-e \"/opt/tree\" st.cmd'"
+    exit_code=0
+    IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" </dev/null >/dev/null 2>"${double_err}" || exit_code=$?
+    verify_exit_code "1" "${exit_code}" "IOC_ARGS with a double quote inside the value is rejected"
+
+    if grep -q "IOC_ARGS" "${single_err}" 2>/dev/null && grep -q "IOC_ARGS" "${double_err}" 2>/dev/null; then
+        names_variable="true"
+    fi
+    verify_state "true" "${names_variable}" "IOC_ARGS rejection names the variable"
+
+    after_hash=$(sha256sum "${target_conf}" 2>/dev/null || true)
+    if [[ -n "${before_hash}" && "${before_hash}" == "${after_hash}" ]]; then preserved="true"; fi
+    verify_state "true" "${preserved}" "Rejected IOC_ARGS leaves the installed configuration unchanged"
+
+    # IOC_ARGS is per-IOC: a site-wide value would reach systemd IOCs only,
+    # because the container backend does not read site.env.
+    printf 'IOC_ARGS="-e /opt/tree st.cmd"\n' > "${mock_conf_dir}/site.env"
+    write_ioc_args_conf "${conf_file}" "${test_dir}" "${current_user}" "${current_group}" \
+        'IOC_ARGS=-e /opt/tree st.cmd'
+    exit_code=0
+    IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${conf_file}" </dev/null >/dev/null 2>"${site_err}" || exit_code=$?
+    verify_exit_code "1" "${exit_code}" "IOC_ARGS in site.env is rejected at install"
+
+    if grep -q "site.env" "${site_err}" 2>/dev/null && grep -q "IOC_ARGS" "${site_err}" 2>/dev/null; then
+        site_names="true"
+    fi
+    verify_state "true" "${site_names}" "site.env IOC_ARGS rejection names site.env and IOC_ARGS"
+}
+
 # shellcheck source=lib/test-console-options.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-options.bash"
 # shellcheck source=lib/test-console-clients.bash
@@ -2698,6 +2815,7 @@ function run_all_tests {
         "test_console_options"
         "test_console_clients"
         "test_start_directory_barrier"
+        "test_ioc_args_contract"
     )
     local step=1
     local func

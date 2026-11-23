@@ -610,14 +610,17 @@ function sh_quote {
 
 # Renders the s6 service directory for an installed IOC from its conf: the
 # "run" script carries the same procServ argument list as the systemd unit
-# template with the log sent to stdout, and a fresh directory starts disabled
-# ("down") so install never starts an IOC, matching the systemd backends.
+# template, with each IOC_ARGS word quoted separately after IOC_CMD and the log
+# sent to stdout, and a fresh directory starts disabled ("down") so install
+# never starts an IOC, matching the systemd backends.
 function render_s6_service {
     local ioc_name="$1"
     local conf_file="$2"
     local svc_dir=""
     local tmp_run=""
     local ioc_user="" ioc_group="" ioc_chdir="" ioc_port="" ioc_cmd=""
+    local ioc_args="" ioc_arg="" quoted_args=""
+    local -a ioc_arg_words=()
     local sock_path="" sock_dir=""
     local new_service=0
 
@@ -631,6 +634,11 @@ function render_s6_service {
         printf "Error: %s lacks IOC_CHDIR, IOC_PORT, or IOC_CMD; cannot render the s6 service.\n" "${conf_file}" >&2
         exit 1
     fi
+    ioc_args=$(read_conf_var "${conf_file}" "IOC_ARGS") || ioc_args=""
+    read -r -a ioc_arg_words <<< "${ioc_args}"
+    for ioc_arg in "${ioc_arg_words[@]}"; do
+        quoted_args+=" $(sh_quote "${ioc_arg}")"
+    done
 
     sock_path="${ioc_port##*:}"
     sock_dir="${sock_path%/*}"
@@ -657,9 +665,10 @@ function render_s6_service {
             "$(sh_quote "${ioc_user}")" "$(sh_quote "${ioc_group}")" "$(sh_quote "${sock_dir}")"
         printf '%s\n' "    printf '%s\n' $(sh_quote "Error: IOC '${ioc_name}' cannot prepare socket directory '${sock_dir}'.") >&2"
         printf "    exit 1\nfi\n"
-        printf "exec s6-setuidgid %s %s --foreground --logfile=- --name=%s --ignore=%s --autorestartcmd=%s --chdir=%s --port=%s %s\n" \
+        printf "exec s6-setuidgid %s %s --foreground --logfile=- --name=%s --ignore=%s --autorestartcmd=%s --chdir=%s --port=%s %s%s\n" \
             "$(sh_quote "${ioc_user}")" "$(sh_quote "${PROCSERV_TOOL_PATH}")" "$(sh_quote "${ioc_name}")" \
-            "$(sh_quote '^D^C')" "''" "$(sh_quote "${ioc_chdir}")" "$(sh_quote "${ioc_port}")" "$(sh_quote "${ioc_cmd}")"
+            "$(sh_quote '^D^C')" "''" "$(sh_quote "${ioc_chdir}")" "$(sh_quote "${ioc_port}")" "$(sh_quote "${ioc_cmd}")" \
+            "${quoted_args}"
     } > "${tmp_run}"
     chmod 0755 "${tmp_run}"
     mv -f "${tmp_run}" "${svc_dir}/run"
@@ -922,7 +931,7 @@ EnvironmentFile=${CONF_DIR}/%i.conf
 RuntimeDirectory=procserv/%i
 RuntimeDirectoryMode=0770
 RuntimeDirectoryPreserve=restart
-ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD}
+ExecStart=${procserv_bin} --foreground --logfile=${LOG_DIR}/%i.log --name=%i --ignore=^D^C --autorestartcmd='' --chdir=\${IOC_CHDIR} --port=\${IOC_PORT} \${IOC_CMD} \$IOC_ARGS
 SuccessExitStatus=0 1 2 15 143 SIGTERM SIGKILL
 Restart=always
 RestartSec=2
@@ -1790,7 +1799,7 @@ function validate_conf {
 
     # Whitelist security checks for critical variables
     local key val
-    for key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_PORT" "IOC_CMD"; do
+    for key in "IOC_USER" "IOC_GROUP" "IOC_CHDIR" "IOC_PORT" "IOC_CMD" "IOC_ARGS"; do
         val="${conf_vars[${key}]:-}"
         if [[ -n "${val}" && ! "${val}" =~ ^[a-zA-Z0-9_./:\ -]+$ ]]; then
             printf "Error: Illegal characters detected in variable %s\n" "${key}" >&2
@@ -1945,7 +1954,7 @@ function validate_conf {
         non-writable|ready)
             if [[ -n "${cmd}" && "${cmd}" == *[[:space:]]* ]]; then
                 printf "Error: IOC_CMD must be a single word: '%s'\n" "${cmd}" >&2
-                printf "  Hint: systemd expands \${IOC_CMD} as ONE argument; put arguments in a launcher script (e.g. st.cmd).\n" >&2
+                printf "  Hint: systemd expands \${IOC_CMD} as ONE argument; put the arguments in IOC_ARGS.\n" >&2
                 error_count=$((error_count + 1))
             elif [[ -n "${cmd}" ]]; then
                 read -r exec_bin _ <<< "${cmd}"
@@ -2389,7 +2398,8 @@ function do_install {
     local abs_dir=""
     local resolved_ioc_name=""
     local -A install_conf=()
-    # read_conf_all populates this nameref target only to validate site.env syntax.
+    # read_conf_all populates this nameref target to validate site.env syntax and
+    # to detect a site-wide IOC_ARGS.
     # shellcheck disable=SC2034
     local -A site_env_map=()
 
@@ -2560,11 +2570,18 @@ function do_install {
     # a conf -- it carries EPICS environment variables, not the IOC_* keys -- so
     # only the bounded parser must accept it; validate_conf's required-key check
     # would reject a legitimate site file. The unit template layers it under
-    # %i.conf, so per-IOC keys still override it.
+    # %i.conf, so per-IOC keys still override it. IOC_ARGS is rejected there: it
+    # belongs to one IOC, and the container backend does not read site.env, so a
+    # site-wide value would reach the systemd IOCs only.
     local site_env_file="${CONF_DIR}/site.env"
     if [[ "${EXEC_MODE}" != "container" && -f "${site_env_file}" ]]; then
         if ! read_conf_all "${site_env_file}" site_env_map "${site_env_file}"; then
             printf "Error: Site environment file %s failed the grammar check.\n" "${site_env_file}" >&2
+            exit 1
+        fi
+        if [[ -v 'site_env_map[IOC_ARGS]' ]]; then
+            printf "Error: Site environment file %s sets IOC_ARGS; set IOC_ARGS in each IOC's configuration instead.\n" \
+                "${site_env_file}" >&2
             exit 1
         fi
     fi
