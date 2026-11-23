@@ -47,6 +47,8 @@ the `CAP_SYS_PTRACE` capability; the harness adds it.
 - `S01` infrastructure governs `S03` onward: a missing configuration
   directory, scan directory, or service account closes them as `SKIP`.
 - `S10.console-tool-available` governs the monitor-isolation check.
+- `S16.loader-available` governs the four loader checks of S16: a tree without
+  `iocsh.bash` or `setEpicsEnv.bash` closes them as `SKIP`.
 - An unexpected abort preserves closed states and closes every remaining open
   identity as `SCRIPT_ERROR`.
 
@@ -124,6 +126,16 @@ selected shipped runner. No row uses `hand-built-reproduction`.
 | S15 | `container-lifecycle.S15.service-directory-removed` | `BEHAVIOR` | `real-path` | The s6 service directory is removed. |
 | S15 | `container-lifecycle.S15.socket-directory-removed` | `BEHAVIOR` | `real-path` | The socket directory is removed. |
 | S15 | `container-lifecycle.S15.no-orphan-supervisor-remains` | `BEHAVIOR` | `real-path` | No orphan supervisor survives the removal. |
+| S16 | `container-lifecycle.S16.args-install-exits-zero` | `BEHAVIOR` | `real-path` | `install` of a configuration with `IOC_ARGS` exits zero and renders an executable run script. |
+| S16 | `container-lifecycle.S16.args-run-script-passes-each-word` | `BEHAVIOR` | `direct-inspection` | The run script passes each `IOC_ARGS` word as its own quoted argument after `IOC_CMD`. |
+| S16 | `container-lifecycle.S16.args-start-exits-zero` | `BEHAVIOR` | `real-path` | The `IOC_ARGS` IOC starts. |
+| S16 | `container-lifecycle.S16.args-ioc-serves-record` | `BEHAVIOR` | `real-path` | `softIoc` loads the database named in `IOC_ARGS` and serves its record over Channel Access. |
+| S16 | `container-lifecycle.S16.args-cleanup` | `BEHAVIOR` | `real-path` | The `IOC_ARGS` IOC leaves no configuration and no service directory. |
+| S16 | `container-lifecycle.S16.loader-available` | `PREREQUISITE` | `direct-inspection` | `iocsh.bash` and `setEpicsEnv.bash` exist in the tree of `EPICS_BASE`. |
+| S16 | `container-lifecycle.S16.loader-start-exits-zero` | `BEHAVIOR` | `real-path` | An IOC with `IOC_CMD` naming `iocsh.bash` and `IOC_ARGS="-e <tree> st.cmd"` installs and starts. |
+| S16 | `container-lifecycle.S16.loader-child-is-softiocpvx` | `BEHAVIOR` | `direct-inspection` | The loader replaces itself with `softIocPVX` under procServ. |
+| S16 | `container-lifecycle.S16.loader-ioc-serves-record` | `BEHAVIOR` | `real-path` | The loader IOC serves the record of its startup file over Channel Access. |
+| S16 | `container-lifecycle.S16.loader-cleanup` | `BEHAVIOR` | `real-path` | The loader IOC leaves no configuration and no service directory. |
 
 ## Container Identity and Inspect Diagnostics
 

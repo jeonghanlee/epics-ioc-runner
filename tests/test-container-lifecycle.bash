@@ -110,6 +110,16 @@ declare -g -a CONTAINER_CATALOG_ROWS=(
     "S15|container-lifecycle.S15.service-directory-removed|BEHAVIOR|real-path"
     "S15|container-lifecycle.S15.socket-directory-removed|BEHAVIOR|real-path"
     "S15|container-lifecycle.S15.no-orphan-supervisor-remains|BEHAVIOR|real-path"
+    "S16|container-lifecycle.S16.args-install-exits-zero|BEHAVIOR|real-path"
+    "S16|container-lifecycle.S16.args-run-script-passes-each-word|BEHAVIOR|direct-inspection"
+    "S16|container-lifecycle.S16.args-start-exits-zero|BEHAVIOR|real-path"
+    "S16|container-lifecycle.S16.args-ioc-serves-record|BEHAVIOR|real-path"
+    "S16|container-lifecycle.S16.args-cleanup|BEHAVIOR|real-path"
+    "S16|container-lifecycle.S16.loader-available|PREREQUISITE|direct-inspection"
+    "S16|container-lifecycle.S16.loader-start-exits-zero|BEHAVIOR|real-path"
+    "S16|container-lifecycle.S16.loader-child-is-softiocpvx|BEHAVIOR|direct-inspection"
+    "S16|container-lifecycle.S16.loader-ioc-serves-record|BEHAVIOR|real-path"
+    "S16|container-lifecycle.S16.loader-cleanup|BEHAVIOR|real-path"
 )
 declare -g -A CONTAINER_STEP_CHECK_IDS=()
 # shellcheck source=lib/test-reporting.bash
@@ -209,7 +219,7 @@ function initialize_reporting {
     local -a step_ids=(P00)
     local index=0
 
-    for ((index = 1; index <= 15; index += 1)); do
+    for ((index = 1; index <= 16; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -913,6 +923,120 @@ function test_remove {
     verify_state "true" "${no_orphan}" "No orphan supervisor remains"
 }
 
+# Writes and installs a probe IOC whose IOC_CMD takes its arguments from
+# IOC_ARGS; prints the install exit code.
+function _ioc_args_probe_install {
+    local name="$1" dir="$2" cmd="$3" args="$4"
+    local rc=0
+
+    {
+        printf 'IOC_USER="%s"\nIOC_GROUP="%s"\nIOC_CHDIR="%s"\nIOC_PORT=""\n' \
+            "${SYSTEM_USER}" "${SYSTEM_GROUP}" "${dir}"
+        printf 'IOC_CMD="%s"\nIOC_ARGS="%s"\n' "${cmd}" "${args}"
+    } > "${dir}/${name}.conf"
+    run_runner install "${dir}/${name}.conf" >/dev/null 2>&1 || rc=$?
+    printf '%s' "${rc}"
+}
+
+# Starts one probe IOC; prints the start exit code.
+function _ioc_args_probe_start {
+    local name="$1" rc=0
+
+    run_runner start "${name}" >/dev/null 2>&1 || rc=$?
+    printf '%s' "${rc}"
+}
+
+# Reads one record over Channel Access, retrying while the IOC initializes;
+# prints its value or nothing.
+function _ioc_args_probe_read {
+    local pv="$1" attempt=0 value=""
+
+    while (( attempt < 15 )); do
+        value=$(EPICS_CA_ADDR_LIST=127.0.0.1 EPICS_CA_AUTO_ADDR_LIST=NO \
+            "${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/caget" -t -w 2 "${pv}" 2>/dev/null || true)
+        if [[ -n "${value}" ]]; then
+            printf '%s' "${value}"
+            return 0
+        fi
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+}
+
+# Removes one probe IOC; prints "true" when its configuration and s6 service
+# directory are gone.
+function _ioc_args_probe_remove {
+    local name="$1"
+
+    run_runner remove "${name}" >/dev/null 2>&1 || true
+    if [[ ! -e "${CONF_DIR}/${name}.conf" && ! -d "${SCAN_DIR}/${name}" ]]; then
+        printf 'true'
+    else
+        printf 'false'
+    fi
+}
+
+# (#169) IOC_ARGS carries the arguments of IOC_CMD: the s6 run script passes
+# each word as its own argument, softIoc receives them, and an IOC starts
+# through the EPICS-env loader iocsh.bash with IOC_ARGS="-e <tree> st.cmd".
+# Each IOC is verified by a record it serves over Channel Access.
+function test_ioc_args {
+    local step="$1"
+    local args_ioc="iocContainerArgs" loader_ioc="iocContainerLoader"
+    local args_dir="${WORKSPACE}/${args_ioc}" loader_dir="${WORKSPACE}/${loader_ioc}"
+    local loader="${EPICS_BASE}/bin/${EPICS_HOST_ARCH}/iocsh.bash"
+    local tree="${EPICS_BASE%/base}"
+    local rc ok pid child check_id attempt=0
+
+    print_divider
+    _log "INFO" "STEP ${step}: IOC_ARGS in Container Mode (#169)"
+    print_sub_divider
+
+    install -d -m 2775 -o root -g "${SYSTEM_GROUP}" "${args_dir}" "${loader_dir}"
+    printf 'record(ai, "ContainerArgs:value") { field(VAL, "42") }\n' > "${args_dir}/probe.db"
+    printf 'record(ai, "ContainerLoader:value") { field(VAL, "42") }\n' > "${loader_dir}/probe.db"
+    printf 'dbLoadRecords("probe.db")\niocInit()\n' > "${loader_dir}/st.cmd"
+    chgrp "${SYSTEM_GROUP}" "${args_dir}/probe.db" "${loader_dir}/probe.db" "${loader_dir}/st.cmd"
+
+    rc=$(_ioc_args_probe_install "${args_ioc}" "${args_dir}" "${SOFTIOC_BIN}" "-d probe.db")
+    ok=false
+    [[ "${rc}" == 0 && -x "${SCAN_DIR}/${args_ioc}/run" ]] && ok=true
+    verify_state true "${ok}" "IOC_ARGS configuration installs and renders an executable run script"
+    ok=false
+    if grep -qF -- "'${SOFTIOC_BIN}' '-d' 'probe.db'" "${SCAN_DIR}/${args_ioc}/run" 2>/dev/null; then
+        ok=true
+    fi
+    verify_state true "${ok}" "Run script passes each IOC_ARGS word as its own argument"
+    verify_state 0 "$(_ioc_args_probe_start "${args_ioc}")" "IOC_ARGS IOC starts"
+    verify_state 42 "$(_ioc_args_probe_read ContainerArgs:value)" "softIoc loads the database named in IOC_ARGS"
+    verify_state true "$(_ioc_args_probe_remove "${args_ioc}")" "IOC_ARGS IOC cleanup is complete"
+
+    next_current_check_id check_id
+    if [[ ! -x "${loader}" || ! -r "${tree}/setEpicsEnv.bash" ]]; then
+        report_record "${check_id}" SKIP "the EPICS tree has no iocsh.bash loader or no setEpicsEnv.bash"
+        close_current_remaining SKIP "requires ${SUITE_ID}.${CURRENT_STEP_ID}.loader-available"
+        return 0
+    fi
+    report_record "${check_id}" PASS
+
+    rc=$(_ioc_args_probe_install "${loader_ioc}" "${loader_dir}" "${loader}" "-e ${tree} st.cmd")
+    rc="${rc} $(_ioc_args_probe_start "${loader_ioc}")"
+    verify_state "0 0" "${rc}" "Loader IOC installs and starts (install and start exit codes)"
+    # The loader execs softIocPVX in place, so the procServ child keeps its PID
+    # and its command name changes once the loader has finished its checks.
+    child=""
+    pid=$(s6-svstat -o pid "${SCAN_DIR}/${loader_ioc}" 2>/dev/null || true)
+    attempt=0
+    while [[ "${pid}" =~ ^[1-9][0-9]*$ && "${child}" != softIocPVX ]] && (( attempt < 15 )); do
+        sleep 1
+        child=$(ps -o comm= --ppid "${pid}" 2>/dev/null | head -n 1 | tr -d ' ')
+        attempt=$((attempt + 1))
+    done
+    verify_state softIocPVX "${child}" "The loader replaces itself with softIocPVX under procServ"
+    verify_state 42 "$(_ioc_args_probe_read ContainerLoader:value)" "The loader IOC serves its record"
+    verify_state true "$(_ioc_args_probe_remove "${loader_ioc}")" "Loader IOC cleanup is complete"
+}
+
 function run_all_tests {
     local -a pipeline=(
         "verify_infrastructure"
@@ -930,6 +1054,7 @@ function run_all_tests {
         "test_persistence"
         "test_error_contract"
         "test_remove"
+        "test_ioc_args"
     )
     local step=1
     local func=""

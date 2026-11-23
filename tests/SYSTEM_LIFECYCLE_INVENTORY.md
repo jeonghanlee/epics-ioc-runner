@@ -312,3 +312,28 @@ with its real IOC/service and control only the external log input. Saved native
 logs and inode/size traces distinguish them from genuine module faults. They
 use shortened test timing; they do not claim a native module emitted the
 controlled text. Source and installed selectors share this complete catalog.
+
+## S37 - Loader lines on a refused start (#169)
+
+The shared `lib/test-loader-lines.bash` runs two children under the complete
+selected runner. The fixture child is a shell script that prints twelve
+loader-prefixed lines, one of them from `iocsh_elf.bash`, with an ordinary
+line and an indented prefix between them, and exits 78. The real loader is
+the `iocsh.bash` of the tree that `EPICS_BASE` names, started with
+`IOC_ARGS="-e <tree> st.cmd"` and a startup file that names a module that
+is not installed. A tree without the loader closes the loader checks as
+SKIP. These 13 checks are:
+
+- `system-lifecycle.S37.fixture-start-exits-1` | `BEHAVIOR` | `real-path` | `start` exits 1 when the fixture child exits 78.
+- `system-lifecycle.S37.fixture-reports-exit-code` | `BEHAVIOR` | `real-path` | The output names exit code 78.
+- `system-lifecycle.S37.fixture-prints-first-ten-loader-lines` | `BEHAVIOR` | `real-path` | The first ten loader-prefixed lines are printed in log order.
+- `system-lifecycle.S37.fixture-prints-further-line-count` | `BEHAVIOR` | `real-path` | The number of further loader lines, 2, is printed.
+- `system-lifecycle.S37.fixture-omits-lines-beyond-ten` | `BEHAVIOR` | `real-path` | The tenth line is printed and the eleventh and twelfth are not.
+- `system-lifecycle.S37.fixture-omits-other-lines` | `BEHAVIOR` | `real-path` | An ordinary line and an indented prefix are not printed.
+- `system-lifecycle.S37.fixture-output-has-no-carriage-return` | `BEHAVIOR` | `real-path` | The printed lines carry no carriage return.
+- `system-lifecycle.S37.fixture-keeps-log-hint` | `BEHAVIOR` | `real-path` | The log command and log file hint follow the lines.
+- `system-lifecycle.S37.fixture-cleanup` | `BEHAVIOR` | `real-path` | The fixture IOC leaves no configuration and no active unit.
+- `system-lifecycle.S37.loader-available` | `PREREQUISITE` | `direct-inspection` | `iocsh.bash` and `setEpicsEnv.bash` exist in the tree of `EPICS_BASE`.
+- `system-lifecycle.S37.loader-refusal-prints-log-loader-line` | `BEHAVIOR` | `real-path` | A real loader refusal exits 1 and prints the loader line of the log.
+- `system-lifecycle.S37.loader-refusal-line-has-no-error-word` | `BEHAVIOR` | `real-path` | The printed refusal line has no `ERROR` word.
+- `system-lifecycle.S37.loader-cleanup` | `BEHAVIOR` | `real-path` | The loader IOC leaves no configuration and no active unit.

@@ -1,5 +1,5 @@
 suite,checks,steps
-container-lifecycle,75,16
+container-lifecycle,85,17
 error-handling,551,45
 list-states,23,9
 local-lifecycle,449,43

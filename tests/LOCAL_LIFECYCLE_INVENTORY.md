@@ -469,3 +469,28 @@ with its real IOC/service and control only the external log input. Saved native
 logs and inode/size traces distinguish them from genuine module faults. They
 use shortened test timing; they do not claim a native module emitted the
 controlled text. Source and installed selectors share this complete catalog.
+
+## S42 - Loader lines on a refused start (#169)
+
+The shared `lib/test-loader-lines.bash` runs two children under the complete
+selected runner. The fixture child is a shell script that prints twelve
+loader-prefixed lines, one of them from `iocsh_elf.bash`, with an ordinary
+line and an indented prefix between them, and exits 78. The real loader is
+the `iocsh.bash` of the tree that `EPICS_BASE` names, started with
+`IOC_ARGS="-e <tree> st.cmd"` and a startup file that names a module that
+is not installed. A tree without the loader closes the loader checks as
+SKIP. These 13 checks are:
+
+- `local-lifecycle.S42.fixture-start-exits-1` | `BEHAVIOR` | `start` exits 1 when the fixture child exits 78.
+- `local-lifecycle.S42.fixture-reports-exit-code` | `BEHAVIOR` | The output names exit code 78.
+- `local-lifecycle.S42.fixture-prints-first-ten-loader-lines` | `BEHAVIOR` | The first ten loader-prefixed lines are printed in log order.
+- `local-lifecycle.S42.fixture-prints-further-line-count` | `BEHAVIOR` | The number of further loader lines, 2, is printed.
+- `local-lifecycle.S42.fixture-omits-lines-beyond-ten` | `BEHAVIOR` | The tenth line is printed and the eleventh and twelfth are not.
+- `local-lifecycle.S42.fixture-omits-other-lines` | `BEHAVIOR` | An ordinary line and an indented prefix are not printed.
+- `local-lifecycle.S42.fixture-output-has-no-carriage-return` | `BEHAVIOR` | The printed lines carry no carriage return.
+- `local-lifecycle.S42.fixture-keeps-log-hint` | `BEHAVIOR` | The log command and log file hint follow the lines.
+- `local-lifecycle.S42.fixture-cleanup` | `BEHAVIOR` | The fixture IOC leaves no configuration and no active unit.
+- `local-lifecycle.S42.loader-available` | `PREREQUISITE` | `iocsh.bash` and `setEpicsEnv.bash` exist in the tree of `EPICS_BASE`.
+- `local-lifecycle.S42.loader-refusal-prints-log-loader-line` | `BEHAVIOR` | A real loader refusal exits 1 and prints the loader line of the log.
+- `local-lifecycle.S42.loader-refusal-line-has-no-error-word` | `BEHAVIOR` | The printed refusal line has no `ERROR` word.
+- `local-lifecycle.S42.loader-cleanup` | `BEHAVIOR` | The loader IOC leaves no configuration and no active unit.
