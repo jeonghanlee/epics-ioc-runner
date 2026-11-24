@@ -80,6 +80,7 @@ declare -g -a SOURCE_CHECK_IDS=(
     "${SUITE_ID}.S16.runtime-directory-preserve.present"
     "${SUITE_ID}.S16.launch-arguments.extracted"
     "${SUITE_ID}.S16.launch-arguments.must-agree"
+    "${SUITE_ID}.S16.launch-arguments.command-tail-agree"
     "${SUITE_ID}.S16.s6-render.fixed-values"
     "${SUITE_ID}.S16.unit.ignore-set"
     "${SUITE_ID}.S16.completion.mode-options-agree"
@@ -1210,6 +1211,7 @@ function _launch_arguments_contract {
     local runner_seq="" setup_seq="" render_seq=""
     local extracted="empty"
     local agreement="differ"
+    local render_tail="" render_args_line="" command_tail="agree"
     local fixed_values="present"
     local unit_ignore="present"
     local completion_opts=""
@@ -1237,6 +1239,34 @@ function _launch_arguments_contract {
     fi
     verify_state "agree" "${agreement}" \
         "${SUITE_ID}.S16.launch-arguments.must-agree"
+
+    # The IOC command follows the options in every rendering: both units end
+    # with ${IOC_CMD} as one word and $IOC_ARGS split into words, and the s6
+    # render ends with the quoted IOC_CMD followed by each IOC_ARGS word that
+    # render_s6_service reads from the configuration and quotes separately.
+    # shellcheck disable=SC2016,SC1003  # The literal source text is the expected value.
+    render_tail=$(run_as_invoker grep -A1 -F -- '"$(sh_quote "${ioc_cmd}")" \' "${runner_script}" || true)
+    # The argument line that follows the quoted IOC_CMD, compared without its
+    # indentation.
+    if [[ "${render_tail}" == *$'\n'* ]]; then
+        render_args_line="${render_tail#*$'\n'}"
+        render_args_line="${render_args_line#"${render_args_line%%[![:space:]]*}"}"
+    fi
+    # shellcheck disable=SC2016,SC1003  # The literal source text is the expected value.
+    if [[ "${runner_exec}" != *' \${IOC_CMD} \$IOC_ARGS' ]]; then
+        command_tail="differ:runner-unit"
+    elif [[ "${setup_exec}" != *' \${IOC_CMD} \$IOC_ARGS' ]]; then
+        command_tail="differ:setup-unit"
+    elif [[ "${render_format}" != *' --port=%s %s%s\n" \' ]]; then
+        command_tail="differ:s6-render-format"
+    elif [[ "${render_args_line}" != '"${quoted_args}"' ]]; then
+        command_tail="differ:s6-render-arguments"
+    elif ! run_as_invoker grep -qF -- 'read_conf_var "${conf_file}" "IOC_ARGS"' "${runner_script}" \
+        || ! run_as_invoker grep -qF -- 'quoted_args+=" $(sh_quote "${ioc_arg}")"' "${runner_script}"; then
+        command_tail="differ:s6-render-words"
+    fi
+    verify_state "agree" "${command_tail}" \
+        "${SUITE_ID}.S16.launch-arguments.command-tail-agree"
 
     if [[ "${render_format}" != *"--logfile=- "* ]]; then
         fixed_values="missing:logfile-stdout"
