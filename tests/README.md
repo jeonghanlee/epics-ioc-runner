@@ -852,6 +852,11 @@ refusal line of the log, which has no `ERROR` word. When that tree lacks
   A single or double quote inside the value must be rejected with a message
   naming `IOC_ARGS`, leaving the installed configuration byte-identical, and
   `IOC_ARGS` in `site.env` must be rejected naming both.
+* **Unenterable Target Directory**: Runs the shipped Local-mode `generate` and
+  `install` on a target directory of mode `0600`, which the caller can see but
+  not enter, and requires both to exit 1 with an error naming the directory.
+  A positive control first proves that the target cannot be entered. Under
+  effective UID 0 the group is NA.
 
 ### 4. Source Regression (`test-source-regression.bash`)
 

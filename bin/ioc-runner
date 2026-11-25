@@ -2180,8 +2180,12 @@ function do_generate {
 
     # Resolves absolute path natively via Bash built-ins to avoid subshell forks and external binaries.
     # The starting directory is not restored: no later path depends on it, and the caller
-    # may not be able to enter its own starting directory again.
-    cd "${target_dir}" >/dev/null 2>&1 || exit 1
+    # may not be able to enter its own starting directory again. A target the caller
+    # cannot enter ends the command with an error that names it.
+    if ! cd "${target_dir}" >/dev/null 2>&1; then
+        printf "Error: Cannot enter target directory '%s'.\n" "${target_dir}" >&2
+        exit 1
+    fi
     abs_dir="${PWD}"
 
     # Extracts the base name from the absolute path if the target is unspecified or passed as a relative dot.
@@ -2431,8 +2435,12 @@ function do_install {
     # it locates the previously generated .conf file inside it to streamline the installation workflow.
     if [[ -d "${source_target}" ]]; then
         # The starting directory is not restored: no later path depends on it, and the
-        # caller may not be able to enter its own starting directory again.
-        cd "${source_target}" >/dev/null 2>&1 || exit 1
+        # caller may not be able to enter its own starting directory again. A target
+        # the caller cannot enter ends the command with an error that names it.
+        if ! cd "${source_target}" >/dev/null 2>&1; then
+            printf "Error: Cannot enter target directory '%s'.\n" "${source_target}" >&2
+            exit 1
+        fi
         abs_dir="${PWD}"
 
         resolved_ioc_name="${abs_dir##*/}"

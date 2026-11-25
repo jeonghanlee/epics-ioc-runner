@@ -22,7 +22,7 @@ conditions that currently disappear from the counters:
 - one S40 required exact-function extraction check;
 - one applicability check in each of S27, S29, S30, S31, and S32.
 
-S41 through S44 extend the pipeline after this basis; their identities are
+S41 through S45 extend the pipeline after this basis; their identities are
 listed in the mapping table below and counted in `reporting-counts.csv`.
 
 The current expected check and STEP counts are owned by
@@ -56,6 +56,10 @@ are not separate catalog identities.
   checks; under effective UID 0 they are NA. Inside the branch,
   `error-handling.S43.start-barrier-blocks-the-starting-path` governs the four
   behavior checks; if the starting path stays enterable they are SKIP.
+- `error-handling.S45.nonroot-permission-probes-applicable` governs all S45
+  checks; under effective UID 0 they are NA. Inside the branch,
+  `error-handling.S45.target-barrier-blocks-the-target` governs the four
+  behavior checks; if the target stays enterable they are SKIP.
 - An unexpected abort preserves closed states and closes every remaining open
   identity as SCRIPT_ERROR.
 
@@ -481,6 +485,12 @@ Owner accepted all S34 dispositions on 2026-08-07.
 | S44 | `error-handling.S44.ioc-args.rejection-preserves-the-installed-conf` | `BEHAVIOR` | `real-path` | A rejected `IOC_ARGS` leaves the installed configuration byte-identical. |
 | S44 | `error-handling.S44.ioc-args.site-env-ioc-args-rejected` | `BEHAVIOR` | `real-path` | `IOC_ARGS` in `site.env` is rejected at install. |
 | S44 | `error-handling.S44.ioc-args.site-env-rejection-names-site-env-and-ioc-args` | `BEHAVIOR` | `real-path` | That rejection names `site.env` and `IOC_ARGS`. |
+| S45 | `error-handling.S45.nonroot-permission-probes-applicable` | `APPLICABILITY` | `direct-inspection` | The effective user is not root, so mode `0600` can close the target directory. |
+| S45 | `error-handling.S45.target-barrier-blocks-the-target` | `REQUIRED` | `direct-inspection` | The mode `0600` target is still a directory and cannot be entered. |
+| S45 | `error-handling.S45.generate-unenterable-target-exits-1` | `BEHAVIOR` | `real-path` | `generate <dir>` on the unenterable target exits 1. |
+| S45 | `error-handling.S45.generate-unenterable-target-names-the-directory` | `BEHAVIOR` | `real-path` | That `generate` prints an error naming the target directory. |
+| S45 | `error-handling.S45.install-unenterable-target-exits-1` | `BEHAVIOR` | `real-path` | `install <dir>` on the unenterable target exits 1. |
+| S45 | `error-handling.S45.install-unenterable-target-names-the-directory` | `BEHAVIOR` | `real-path` | That `install` prints an error naming the target directory. |
 
 ## Completeness Cross-check
 
@@ -494,7 +504,7 @@ Owner accepted all S34 dispositions on 2026-08-07.
 
 The mapping is complete only while all 190 current behavior identities map
 once, the eight added conditions map once, no STEP-local key is duplicated,
-and the source pipeline remains S01 through S44, with the S41 through S44
+and the source pipeline remains S01 through S45, with the S41 through S45
 identities listed in the mapping table outside that basis.
 
 ## Complete Completion Contract

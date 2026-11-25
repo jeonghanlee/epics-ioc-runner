@@ -313,6 +313,12 @@ declare -g -a ERROR_CATALOG_ROWS=(
     "S44|error-handling.S44.ioc-args.rejection-preserves-the-installed-conf|BEHAVIOR|real-path"
     "S44|error-handling.S44.ioc-args.site-env-ioc-args-rejected|BEHAVIOR|real-path"
     "S44|error-handling.S44.ioc-args.site-env-rejection-names-site-env-and-ioc-args|BEHAVIOR|real-path"
+    "S45|error-handling.S45.nonroot-permission-probes-applicable|APPLICABILITY|direct-inspection"
+    "S45|error-handling.S45.target-barrier-blocks-the-target|REQUIRED|direct-inspection"
+    "S45|error-handling.S45.generate-unenterable-target-exits-1|BEHAVIOR|real-path"
+    "S45|error-handling.S45.generate-unenterable-target-names-the-directory|BEHAVIOR|real-path"
+    "S45|error-handling.S45.install-unenterable-target-exits-1|BEHAVIOR|real-path"
+    "S45|error-handling.S45.install-unenterable-target-names-the-directory|BEHAVIOR|real-path"
 )
 declare -g -A ERROR_STEP_CHECK_IDS=()
 
@@ -380,7 +386,7 @@ function initialize_reporting {
     local index=0
     local -a step_ids=(P00)
 
-    for ((index = 1; index <= 44; index += 1)); do
+    for ((index = 1; index <= 45; index += 1)); do
         printf -v step_id 'S%02d' "${index}"
         step_ids+=("${step_id}")
     done
@@ -2765,6 +2771,66 @@ function test_ioc_args_contract {
     verify_state "true" "${site_names}" "site.env IOC_ARGS rejection names site.env and IOC_ARGS"
 }
 
+# Issue #170: generate and install enter the target directory to resolve its
+# absolute path. A target the caller can see but not enter (mode 0600) must
+# end the command with exit 1 and an error naming that directory, never a
+# silent exit. chmod cannot deny root, so the cases are NA under EUID 0.
+function test_target_directory_barrier {
+    local step="$1"
+    local applicability_reason="requires a non-root effective user"
+    print_divider
+    _log "INFO" "STEP ${step}: Unenterable Target Directory (#170)"
+    print_sub_divider
+
+    if [[ ${EUID} -eq 0 ]]; then
+        _log "WARN" "Running as root: skipping the target-directory cases (chmod cannot deny root)."
+        record_current_state NA "${applicability_reason}"
+        close_current_remaining NA "${applicability_reason}"
+        return 0
+    fi
+    record_current_state PASS
+
+    local base="${TEST_TMPDIR}/target_barrier"
+    local target="${base}/barrier_ioc"
+    local mock_conf_dir="${base}/mock_etc"
+    local mock_sysd_dir="${base}/mock_sysd"
+    local gen_out="${base}/generate.out"
+    local inst_out="${base}/install.out"
+    local barrier_holds="false" names="false"
+    local gen_ec=0 inst_ec=0
+
+    mkdir -p "${target}" "${mock_conf_dir}" "${mock_sysd_dir}"
+    touch "${target}/st.cmd"
+    chmod +x "${target}/st.cmd"
+    chmod 0600 "${target}"
+
+    # Positive control: the target stays visible as a directory but cannot be
+    # entered. Without it the cases below could pass against an open target.
+    if [[ -d "${target}" ]] && ! ( cd -- "${target}" ) 2>/dev/null; then
+        barrier_holds="true"
+    fi
+    verify_state "true" "${barrier_holds}" "Mode 0600 makes the target visible but unenterable"
+    if [[ "${barrier_holds}" != "true" ]]; then
+        chmod 0700 "${target}"
+        close_current_remaining SKIP "requires an unenterable target directory"
+        return 0
+    fi
+
+    bash "${RUNNER_SCRIPT}" --local generate "${target}" </dev/null >"${gen_out}" 2>&1 || gen_ec=$?
+    verify_exit_code "1" "${gen_ec}" "Generate on an unenterable target exits 1"
+    if grep -qF -- "${target}" "${gen_out}" 2>/dev/null; then names="true"; fi
+    verify_state "true" "${names}" "Generate on an unenterable target names the directory"
+
+    IOC_RUNNER_CONF_DIR="${mock_conf_dir}" IOC_RUNNER_SYSTEMD_DIR="${mock_sysd_dir}" \
+        bash "${RUNNER_SCRIPT}" --local -f install "${target}" </dev/null >"${inst_out}" 2>&1 || inst_ec=$?
+    verify_exit_code "1" "${inst_ec}" "Install on an unenterable target exits 1"
+    names="false"
+    if grep -qF -- "${target}" "${inst_out}" 2>/dev/null; then names="true"; fi
+    verify_state "true" "${names}" "Install on an unenterable target names the directory"
+
+    chmod 0700 "${target}"
+}
+
 # shellcheck source=lib/test-console-options.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/test-console-options.bash"
 # shellcheck source=lib/test-console-clients.bash
@@ -2816,6 +2882,7 @@ function run_all_tests {
         "test_console_clients"
         "test_start_directory_barrier"
         "test_ioc_args_contract"
+        "test_target_directory_barrier"
     )
     local step=1
     local func

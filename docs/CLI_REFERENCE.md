@@ -86,8 +86,10 @@ be writable by the invoking user; system and container mode write mode `0660`,
 local mode `0600`.
 
 A missing or invalid target directory, or no executable `*.cmd` candidate,
-produces an error and exit 1. With several candidates, an invalid selection
-prints the allowed numeric range and asks again; closed input aborts with
+produces an error and exit 1. A target directory the caller cannot enter
+prints `Error: Cannot enter target directory '<dir>'.` and exits 1. With
+several candidates, an invalid selection prints the allowed numeric range and
+asks again; closed input aborts with
 exit 1. If `diff` is unavailable, an overwrite still asks for confirmation
 after warning that it cannot display changes. A successful write prints
 `Configuration successfully generated and validated at: <path>`.
@@ -123,7 +125,9 @@ actions during `generate`; iocsh's history-save behavior is described in the
 `ioc-runner [--local|--container] [-f] install <target>` copies an IOC
 configuration into the configuration directory of the mode. `<target>` is a
 `.conf` file, or a directory that holds `<name>.conf` where `<name>` is the
-directory's basename; the IOC name is the file name without `.conf`.
+directory's basename; the IOC name is the file name without `.conf`. A target
+directory the caller cannot enter prints `Error: Cannot enter target directory
+'<dir>'.` and exits 1.
 
 The runner checks these stages in order and exits 1 when a stage fails.
 Configuration validation collects field errors and prints
