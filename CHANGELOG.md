@@ -1,5 +1,65 @@
 # Changelog
 
+## 1.5.0 - EPICS-env Loader Start Release
+
+Start an IOC through the EPICS-env loader `iocsh.bash` by giving `IOC_CMD`
+its arguments, show the loader's own lines when it refuses a start, and stop
+`generate` and `install` from failing without a message when the caller
+cannot enter its starting directory.
+
+### Added
+
+- The optional configuration key `IOC_ARGS` carries the arguments of
+  `IOC_CMD`, which stays one word. The system and local unit templates pass
+  `${IOC_CMD} $IOC_ARGS`, and the container `run` script quotes each word
+  separately. `install` rejects a quote character inside the value and
+  `IOC_ARGS` in `site.env`; `generate` does not write it. (#169)
+- When the IOC process exits nonzero during startup, `start` and `restart`
+  print the log lines of that start that begin with `iocsh.bash: ` or
+  `iocsh_elf.bash: `, at most 10, and the number of further such lines,
+  before the log hint. The selection does not depend on the word `ERROR`,
+  which a loader refusal line can lack. (#169)
+
+### Fixes
+
+- `generate` and `install` no longer exit 1 without a message when the caller
+  cannot enter the directory it started from. They resolve the target's
+  absolute path and no longer return to the starting directory. (#168)
+- `generate` and `install` exit 1 and name the target directory when the
+  caller cannot enter it. (#170)
+
+### Documentation
+
+- The CLI reference, the system and local guides, the install guide's manual
+  unit template, and the glossary describe `IOC_ARGS`, a hand-written loader
+  configuration, and the output of a refused start. (#169)
+
+### Tests
+
+- The error-handling suite runs `generate` and `install` from an unenterable
+  starting directory (#168) and checks the `IOC_ARGS` quote rules, the local
+  template, and the `site.env` rejection (#169).
+- Error-handling S45 checks that both commands exit 1 and name the
+  unenterable target directory. (#170)
+- The local and system lifecycle suites check the loader lines with a child
+  that prints twelve of them and with a real loader refusing a module that is
+  not installed. The container suite starts `softIoc` with `IOC_ARGS` and an
+  IOC through the loader. (#169)
+
+### Migration
+
+No breaking changes. Configurations without `IOC_ARGS` behave as before.
+Before an IOC uses `IOC_ARGS`, after installing the 1.5.0 runner:
+
+1. System mode: re-run `bin/run-setup-system-infra.bash --full` (or
+   `make setup`) so the system unit template passes `$IOC_ARGS`. Without it,
+   the IOC does not receive the `IOC_ARGS` value.
+2. Local mode: reinstall the IOC with
+   `ioc-runner --local --force install <ioc directory or conf>`, because a
+   non-forced install keeps a differing user template.
+3. Container mode: install the IOC with the 1.5.0 runner, which renders its
+   `run` script with the `IOC_ARGS` words.
+
 ## 1.4.2 - Console and Startup Reliability Release
 
 Make console access predictable on both supported clients, report IOC startup
