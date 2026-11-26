@@ -8,7 +8,7 @@ Git upstream: `origin/master`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.5.0` (20)
 Gate baseline ref: `1.4.2` (D1)
 
-Next session entry point: Select the Debian 13 and Rocky 8 test hosts for the M4 check-identity run.
+Next session entry point: Commit the reviewed pre-change verification record on `master`, then create `release-1.5.0` from the commit that first records Release Verification 1 and 2 as Pass.
 
 ## Milestone
 
@@ -20,7 +20,7 @@ Next session entry point: Select the Debian 13 and Rocky 8 test hosts for the M4
 | M2 | Start an IOC through the EPICS-env loader | Milestone | Complete | No | | Loader start and refusal checks and issue #169 acceptance. [Detail](#m2---start-an-ioc-through-the-epics-env-loader) |
 | M3 | Report an unenterable target directory | Milestone | Complete | No | | Error-handling S45 and issue #170 acceptance at `b3442f4`. [Detail](#m3---report-an-unenterable-target-directory) |
 | G1 | Startup generator available for the Gate | External gate | Complete | No | | The control host verified the pinned revision from the 1.4.2 Gate bundle. [Detail](#g1---startup-generator-available-for-the-gate) |
-| M4 | Release 1.5.0 | Milestone | Not started | Yes | M1, M2, M3, G1, D1, D2 | The complete Gate passes on the final candidate and the published release is verified. [Detail](#m4---release-150) |
+| M4 | Release 1.5.0 | Milestone | In progress | No | M1, M2, M3, G1, D1, D2 | The complete Gate passes on the final candidate and the published release is verified. [Detail](#m4---release-150) |
 
 ### Decisions
 
@@ -227,7 +227,7 @@ The startup generator maintainer supplies the original generator revision used b
 Origin: 1.5.0 / M4
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -254,12 +254,12 @@ Out of scope: Startup generator changes and assigning work to a subsequent cycle
 
 Plan Status: accepted
 Plan Acceptance: 2026-11-24
-Implementation Authorization: none
+Implementation Authorization: 2026-11-25 for Release Verification 1 and the Check-grade suite run in Release Verification 2 using the retained test VMs
 Superseded Plan Artifacts: none
 
 1. Confirm the issues and version in Release Verification 1. Complete G1 before running Release Verification 2.
 2. Run Release Verification 2 at Check grade to obtain the identity SHA-256. Select one clean development commit. On each selected non-NFS test VM, deploy that commit and run full setup as in Gate precondition 3. Resolve each EPICS environment as in precondition 4. Check both source HEADs and installed runner stamps against the selected commit before running the six-suite matrix. Read the underlying suite records and cross-host diff as well as both verdicts. The driver stops at identity mismatch before its final matrix validation. Require six complete runs per host, no FAIL, SKIP, or SCRIPT_ERROR, and only explained OS applicability differences before repinning. Record pre-change evidence and commit the repin under separate authorization.
-3. Confirm the changelog title and the #170 and S45 entries, then commit the changelog on master. Cut the release branch at the reviewed tip and record the planned version change in a version-only commit. Apply separate authorization for the changelog commit, branch creation, and version commit. Verify the version-only commit in Release Verification 3.
+3. Confirm the changelog title and the #170 and S45 entries, then commit the changelog on `master`. Commit the reviewed pre-change verification record on `master`. Create `release-1.5.0` from the commit that first records Release Verification 1 and 2 as Pass. Record the planned version change on that branch in a version-only commit. Obtain separate authorization for the changelog commit, the pre-change verification commit, branch creation, and the version commit. Verify the version-only commit in Release Verification 3.
 4. Run Release Verification 4 to 7 against the clean versioned candidate. Run the container checks as the separate change-specific work in Gate step 1. The checks mapped to the matrix run once in Gate step 2. Record the results and confirm that the readiness evidence commit meets the register-only exception before publication.
 5. Execute Release Execution 1 to 7 in order. For each action, preview the exact command and object, complete the applicable preflight, and obtain its stated authorization. Read back the result and record the immutable object or remote state in this register. Run the repository checks and record a separately authorized checkpoint commit before starting the next dependent action. Use the recorded explicit target for later actions, including the tag target. Stop on any failed action, readback, check, or checkpoint. Complete Release Verification 8 to 10 against the released objects.
 6. Record release verification and tracker evidence in the canonical document before closing the cycle. After Release Verification 8 to 10, record closure in a separately authorized commit and compare the committed register with the checked document. Resolve next-cycle scope separately with the owner.
@@ -352,8 +352,8 @@ follow the recovery procedure in the same reference.
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| Release Verification 1 | Not run | Clean development commit | Pending | None |
-| Release Verification 2 | Not run | Debian 13 and Rocky 8 | Pending | None |
+| Release Verification 1 | 2026-11-25T08:05Z | Clean development checkout at `33da261a07cc1ae9813b62983d40c3ac44ccc9cd` and GitHub | Pass | The source declaration and `bin/ioc-runner -V` both reported 1.4.2. The runner identified commit `33da261`. GitHub milestone 20 was open with zero open and three closed issues. The issue readback confirmed #168, #169, and #170 were closed. |
+| Release Verification 2 | 2026-11-25T16:34Z | Retained Debian 13 and Rocky 8.10 VMs, EPICS-env 1.5.0, clean candidate `33da261` | Pass | Check-grade run `20261125T161113Z-1188025`. Both setups passed and source and installed provenance matched `33da261`. Each host completed six suites and 2,087 checks. Debian recorded 2,082 PASS and 5 NA. Rocky recorded 2,075 PASS and 12 NA. Both had zero FAIL, SKIP, or SCRIPT_ERROR. The 88-line cross-host diff is limited to expected OS applicability in local S29, source-regression S23, and system-infra S06 and S07. Both verdicts reported identity SHA-256 `761dff47fdfc626d934e4c89f0bd961cd1c1112a682fc524c67c37dbe1edcd87`. The driver exited 1 because the digest differed from the previous pin. Commit `ba90030` on `master` sets the pin to the observed digest. The original control-host checkout retains both `*.verdict` files and `cross-host.diff` under its local `work/check-identity-1.5.0/work/gate-suites-20261125T161113Z-1188025/` directory. From another checkout, request the evidence by run ID from the control-host operator. |
 | Release Verification 3 | Not run | Clean version commit | Pending | None |
 | Release Verification 4 | Not run | Fresh Gate pair | Pending | None |
 | Release Verification 5 | Not run | Four EPICS images | Pending | None |
@@ -362,6 +362,9 @@ follow the recovery procedure in the same reference.
 | Release Verification 8 | Not run | Git and GitHub | Pending | None |
 | Release Verification 9 | Not run | GitHub | Pending | None |
 | Release Verification 10 | Not run | Fresh baseline consumer | Pending | None |
+
+The 1.5.0 changelog, titled EPICS-env Loader Start Release, landed on `master`
+in `26f44b8` with the #170 fix and S45 test entries.
 
 ##### Closure Evidence
 
