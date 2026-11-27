@@ -3,12 +3,12 @@
 Release line: 1.5.0
 Milestone index: 1.5.0
 Canonical path: `docs/milestone-1.5.0.md`
-Canonical branch or ref: `master` until the release branch is cut (D2)
-Git upstream: `origin/master`
+Canonical branch or ref: `release-1.5.0`, created from `0d99ca7` on `master` (D2)
+Git upstream: `origin/release-1.5.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.5.0` (20)
 Gate baseline ref: `1.4.2` (D1)
 
-Next session entry point: Commit the reviewed pre-change verification record on `master`, then create `release-1.5.0` from the commit that first records Release Verification 1 and 2 as Pass.
+Next session entry point: Complete readiness review of the Release Verification 3 to 7 evidence at candidate `5c7d442`, then prepare the separately authorized readiness-evidence commit. Release Execution requires its recorded separate authorizations.
 
 ## Milestone
 
@@ -268,24 +268,24 @@ Superseded Plan Artifacts: none
 
 | Source Check | Re-run Trigger | Shared Surface | Release Verification Label | Expected Result | Result Evidence |
 | --- | --- | --- | --- | --- | --- |
-| M1 / T1 | Target-directory fix and version change | `generate` and `install` | Release Verification 6 | Error-handling S43 passes. | Pending |
-| M1 / T2 | Final candidate | Ordinary generate and install | Release Verification 6 | Both error-handling suites pass. | Pending |
-| M2 / T1 | Final candidate | Argument validation and local rendering | Release Verification 6 | Error-handling S44 passes. | Pending |
-| M2 / T2 | Final candidate | Local and system launch and startup reporting | Release Verification 6 | Local S42 and system S37 pass. | Pending |
-| M2 / T3 | Final candidate | Container launch rendering and operation | Release Verification 5 | Container S16 passes in all four images. | Pending |
-| M2 / T4 | Final candidate | Command tail in all three launch renderings | Release Verification 6 | Source-regression S16 passes. | Pending |
-| M2 / T5 | Final candidate | Local and system startup and supervision | Release Verification 6 | Both lifecycle suites pass, including generated-startup coverage. | Pending |
-| M3 / T1 | Final candidate | Target-entry error handling | Release Verification 6 | Error-handling S45 passes. | Pending |
-| M3 / T2 | Final candidate | Ordinary target cases | Release Verification 6 | Both error-handling suites pass. | Pending |
+| M1 / T1 | Target-directory fix and version change | `generate` and `install` | Release Verification 6 | Error-handling S43 passes. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
+| M1 / T2 | Final candidate | Ordinary generate and install | Release Verification 6 | Both error-handling suites pass. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
+| M2 / T1 | Final candidate | Argument validation and local rendering | Release Verification 6 | Error-handling S44 passes. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
+| M2 / T2 | Final candidate | Local and system launch and startup reporting | Release Verification 6 | Local S42 and system S37 pass. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
+| M2 / T3 | Final candidate | Container launch rendering and operation | Release Verification 5 | Container S16 passes in all four images. | Pass on all four images. See Release Verification 5. |
+| M2 / T4 | Final candidate | Command tail in all three launch renderings | Release Verification 6 | Source-regression S16 passes. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
+| M2 / T5 | Final candidate | Local and system startup and supervision | Release Verification 6 | Both lifecycle suites pass, including generated-startup coverage. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
+| M3 / T1 | Final candidate | Target-entry error handling | Release Verification 6 | Error-handling S45 passes. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
+| M3 / T2 | Final candidate | Ordinary target cases | Release Verification 6 | Both error-handling suites pass. | Pass on both hosts. See [suite results](#gate-step-2-suite-results). |
 
 ##### Production Environment Tests
 
 | Release Verification Label | Timing | System | Version | Architecture | Deployment Path | Method | Expected Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Release Verification 4 | post-change | Fresh Debian 13 and Rocky 8 consumers | 1.5.0 candidate | x86_64 | Candidate push and full setup | Gate preconditions 1 to 4 | Clean tagged 1.4.2 provenance, accepted consumers, fixtures ready, and correct installed stamp. | Pending |
-| Release Verification 5 | post-change | Four pinned EPICS container images listed below | 1.5.0 candidate | x86_64 | Container suite launcher | Gate step 1 across the four EPICS 1.5.0 images | All four suites pass, including S16. | Pending |
-| Release Verification 6 | post-change | Same consumers | 1.5.0 candidate | x86_64 | Source and installed runner | Gate step 2 | Both six-suite matrices pass with matching identity pin. | Pending |
-| Release Verification 7 | post-change | Same consumers with simulated NFS root_squash | 1.5.0 candidate | x86_64 | Installed runner and NFS source tree | Gate steps 3 to 5 | Deployment, multi-user scenarios, and installed system suites pass. | Pending |
+| Release Verification 4 | post-change | Fresh Debian 13 and Rocky 8 consumers | 1.5.0 candidate | x86_64 | Candidate push and full setup | Gate preconditions 1 to 4 | Clean tagged 1.4.2 provenance, accepted consumers, fixtures ready, and correct installed stamp. | [Provisioning evidence](#provisioning-evidence) |
+| Release Verification 5 | post-change | Four pinned EPICS container images listed below | 1.5.0 candidate | x86_64 | Container suite launcher | Gate step 1 across the four EPICS 1.5.0 images | All four suites pass, including S16. | Four per-image logs under `work/gate-release-1.5.0-5c7d442/rv5-containers/`. |
+| Release Verification 6 | post-change | Same consumers | 1.5.0 candidate | x86_64 | Source and installed runner | Gate step 2 | Both six-suite matrices pass with matching identity pin. | [Gate step 2 suite results](#gate-step-2-suite-results) |
+| Release Verification 7 | post-change | Same consumers with simulated NFS root_squash | 1.5.0 candidate | x86_64 | Installed runner and NFS source tree | Gate steps 3 to 5 | Deployment, multi-user scenarios, and installed system suites pass. | [NFS and multi-user evidence](#nfs-and-multi-user-evidence) |
 | Release Verification 10 | post-release | Fresh baseline consumer | Published 1.5.0 | x86_64 | Clean release checkout and documented system install | Released-object storage preflight below, then the [Installation guide](INSTALL.md) and IOC generate, install, and start | Both storage checks pass, the installed stamp matches the release, and the IOC initializes. | Pending |
 
 For Release Verification 5, run the container suite from the clean candidate
@@ -354,11 +354,11 @@ follow the recovery procedure in the same reference.
 | --- | --- | --- | --- | --- |
 | Release Verification 1 | 2026-11-25T08:05Z | Clean development checkout at `33da261a07cc1ae9813b62983d40c3ac44ccc9cd` and GitHub | Pass | The source declaration and `bin/ioc-runner -V` both reported 1.4.2. The runner identified commit `33da261`. GitHub milestone 20 was open with zero open and three closed issues. The issue readback confirmed #168, #169, and #170 were closed. |
 | Release Verification 2 | 2026-11-25T16:34Z | Retained Debian 13 and Rocky 8.10 VMs, EPICS-env 1.5.0, clean candidate `33da261` | Pass | Check-grade run `20261125T161113Z-1188025`. Both setups passed and source and installed provenance matched `33da261`. Each host completed six suites and 2,087 checks. Debian recorded 2,082 PASS and 5 NA. Rocky recorded 2,075 PASS and 12 NA. Both had zero FAIL, SKIP, or SCRIPT_ERROR. The 88-line cross-host diff is limited to expected OS applicability in local S29, source-regression S23, and system-infra S06 and S07. Both verdicts reported identity SHA-256 `761dff47fdfc626d934e4c89f0bd961cd1c1112a682fc524c67c37dbe1edcd87`. The driver exited 1 because the digest differed from the previous pin. Commit `ba90030` on `master` sets the pin to the observed digest. The original control-host checkout retains both `*.verdict` files and `cross-host.diff` under its local `work/check-identity-1.5.0/work/gate-suites-20261125T161113Z-1188025/` directory. From another checkout, request the evidence by run ID from the control-host operator. |
-| Release Verification 3 | Not run | Clean version commit | Pending | None |
-| Release Verification 4 | Not run | Fresh Gate pair | Pending | None |
-| Release Verification 5 | Not run | Four EPICS images | Pending | None |
-| Release Verification 6 | Not run | Fresh Gate pair | Pending | None |
-| Release Verification 7 | Not run | Gate pair in NFS mode | Pending | None |
+| Release Verification 3 | 2026-11-26T08:16:37Z | Clean checkout of `5c7d442e8d71934a326d56e2293170d36b4b1f73` | Pass | The only change from `0d99ca7` is `RUNNER_VERSION` in `bin/ioc-runner`, from 1.4.2 to 1.5.0. The source command `bin/ioc-runner -V` printed `epics-ioc-runner version 1.5.0 (5c7d442 (live))`. The control-host checkout retains the diff and output in `work/gate-release-1.5.0-5c7d442/version.txt`. |
+| Release Verification 4 | 2026-11-26T09:17:30Z | Fresh non-NFS Debian 13 and Rocky 8.10 consumers | Pass | Both consumers passed Golden acceptance on tag `1.4.2` and reported `FIXTURES OK`. Full setup passed 9/9 checks on Debian and 12/12 on Rocky. Both clean checkouts and installed runners matched `5c7d442`. Each host had one readable EPICS environment file. [Provisioning evidence](#provisioning-evidence) |
+| Release Verification 5 | 2026-11-26T20:42:24Z | Clean candidate `5c7d442` on Debian 13, Ubuntu 24, Rocky 8 and Rocky 10 EPICS images tagged `1.5.0` | Pass | Each image passed 85/85 assertions with zero failures, skips, not-applicable results or script errors. All nine S16 behavior checks passed on each image, including loader startup, the supervised `softIocPVX` child and the IOC record readback. The control-host checkout retains one `jeonghanlee_<platform>-epics_1.5.0.log` per image under `work/gate-release-1.5.0-5c7d442/rv5-containers/`. |
+| Release Verification 6 | 2026-11-26T21:10:11Z | Debian 13 and Rocky 8.10 non-NFS consumers at `5c7d442` | Pass | Each host completed six suites and 2,087 checks. Debian had 2,082 PASS and 5 NA. Rocky had 2,075 PASS and 12 NA. Both source and installed runners matched the candidate, and both hosts matched the pinned check-identity SHA-256. The driver returned 0 with `GATE SUITES PASS`. [Suite results](#gate-step-2-suite-results) |
+| Release Verification 7 | 2026-11-27T00:08:32Z | Same Debian 13 and Rocky 8.10 consumers, loopback NFSv4.2 with `root_squash`, candidate `5c7d442` | Pass | Both hosts reported `SOURCE CONTROL OK`. All three deployment entry points changed the installed timestamp, retained the candidate stamp, and preserved the configuration fingerprint. Each host passed nineteen multi-user scenarios and all fifteen prerequisite verdicts. The installed system suites completed successfully with `SYSTEM_RC=0`, 438 PASS and 4 examined NA per host, and zero FAIL, SKIP or SCRIPT_ERROR. No unexpected permission denial remained. Both hosts reported `STARTUP INPUTS REMOVED`. [Evidence](#nfs-and-multi-user-evidence) |
 | Release Verification 8 | Not run | Git and GitHub | Pending | None |
 | Release Verification 9 | Not run | GitHub | Pending | None |
 | Release Verification 10 | Not run | Fresh baseline consumer | Pending | None |
@@ -366,9 +366,63 @@ follow the recovery procedure in the same reference.
 The 1.5.0 changelog, titled EPICS-env Loader Start Release, landed on `master`
 in `26f44b8` with the #170 fix and S45 test entries.
 
+###### Provisioning evidence
+
+The provisioner recorded both builds in `cloud-provision/work/tmp/rv4-150-20261126T084836Z/run.json`. The clean supplier checkouts stayed at `cloud-provision` commit `0a2e070` and `ansible-provision` commit `23a701e`. Each image has an adjacent `.creation-record` and `.manifest`. The provisioner's `SHA256SUMS` records their digests.
+
+| Platform | Bake date (UTC) | Baseline ref | Image | Image SHA-256 | Manifest SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| Debian 13 | 2026-11-26T08:54:43Z | `1.4.2` | `iocrunner-debian13-20261126T085424Z-120158178bf1.qcow2` | `6aafb2fb4a66d2f1fecd5b48f30d1e0f64a08dfb38194e61852b7788b8435df7` | `b6c05d3be4ac4c901949b7f6fd18ad1635f0d1795ceaebb4e4e9733379888bf7` |
+| Rocky 8.10 | 2026-11-26T08:51:12Z | `1.4.2` | `iocrunner-rocky8-20261126T085047Z-effff8a894a0.qcow2` | `0c6d7829f50be12a8d08060f75778567cfecad8a26c381df9344f91faceaa98f` | `dd2b8ae798025a3bb8ad3568332415f3a86702fe44bafdfed964ca15ea9fad94` |
+
+Acceptance captures are beside `run.json`. The control-host checkout retains the setup logs, `full-setup.sha256`, and per-host `fixtures-*`, `push-*`, `installed-*`, and `epics-env-*` logs under `work/gate-release-1.5.0-5c7d442/`.
+
+| Host | Baseline commit / state / tag | Acceptance | Capture | Capture SHA-256 | Full setup log | Full setup SHA-256 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Debian 13 | `8b1aa9e` / clean-tagged / `1.4.2` | Pass | `golden-acceptance-debian13.log` | `f7f8901ee39484bfb8f35523c6d887d88ac41d91183229917ea68c2ff79745ac` | `full-setup-debian13.log` | `fc2420d27413bd69f8023e530027a915a495c319accfac8c3d0250db321d26e5` |
+| Rocky 8.10 | `8b1aa9e` / clean-tagged / `1.4.2` | Pass | `golden-acceptance-rocky8.log` | `e5fa7e8a86244e4edc70252f1b0022ae9909c5639acfa952d6771490ecadecd2` | `full-setup-rocky8.log` | `969aab3c85ffe91b231fff6a23482aa407708c3177c8f99881f8d5f98a92de53` |
+
+###### Gate step 2 suite results
+
+Run `20261126T204647Z-2158644` used clean candidate `5c7d442`. The control-host checkout retains the driver output in `work/gate-release-1.5.0-5c7d442/rv6-suites.log` and the suite records, host verdicts, and `cross-host.diff` under `work/gate-release-1.5.0-5c7d442/epics-ioc-runner/work/gate-suites-20261126T204647Z-2158644/`.
+
+| Host | Suite | Scope | Runner | PASS | FAIL | SKIP | NA | SCRIPT_ERROR | State | Elapsed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Debian 13 | error-handling | none | source | 557 | 0 | 0 | 0 | 0 | PASS | 9s |
+| Debian 13 | source-regression | system | source | 189 | 0 | 0 | 1 | 0 | PASS | 13s |
+| Debian 13 | local-lifecycle | local | source | 449 | 0 | 0 | 0 | 0 | PASS | 474s |
+| Debian 13 | local-lifecycle | local | installed | 449 | 0 | 0 | 0 | 0 | PASS | 473s |
+| Debian 13 | system-infra | system | none | 36 | 0 | 0 | 4 | 0 | PASS | 1s |
+| Debian 13 | system-lifecycle | system | installed | 402 | 0 | 0 | 0 | 0 | PASS | 433s |
+| Rocky 8.10 | error-handling | none | source | 557 | 0 | 0 | 0 | 0 | PASS | 9s |
+| Rocky 8.10 | source-regression | system | source | 190 | 0 | 0 | 0 | 0 | PASS | 14s |
+| Rocky 8.10 | local-lifecycle | local | source | 445 | 0 | 0 | 4 | 0 | PASS | 454s |
+| Rocky 8.10 | local-lifecycle | local | installed | 445 | 0 | 0 | 4 | 0 | PASS | 467s |
+| Rocky 8.10 | system-infra | system | none | 36 | 0 | 0 | 4 | 0 | PASS | 0s |
+| Rocky 8.10 | system-lifecycle | system | installed | 402 | 0 | 0 | 0 | 0 | PASS | 430s |
+
+The 88-line host comparison contains four OS-dependent differences. On Rocky, ordinary-user journal access excludes the S29 monitor checks in both local runs, and the deployed sudoers policy uses globs, so the S06 regex checks are NA. On Debian, the RHEL-specific S23 symlink check is NA, and inactive SELinux makes the S07 context checks NA.
+
+Both hosts matched the check-identity pin `761dff47fdfc626d934e4c89f0bd961cd1c1112a682fc524c67c37dbe1edcd87`. For step 5, `generator.meta` and `release.meta` record the generator revision, bundle and release-file hashes. Each host's `*.generator` and `*.release` records identify its staged inputs.
+
+###### NFS and multi-user evidence
+
+The control host retains Gate steps 3 to 5 under `work/gate-release-1.5.0-5c7d442/rv7-nfs/`. The NFS operator used the recorded supplier checkouts at `cloud-provision 0a2e070` and `ansible-provision 23a701e`. Each operator recap recorded `unreachable=0 failed=0`.
+
+| Evidence | Files under the evidence directory | Observed result |
+| --- | --- | --- |
+| NFS and source controls | `<platform>-operator.log`, `<platform>-mount.log`, `<platform>-barrier.log`, `<platform>-source-control.log` | NFSv4.2, root traversal denied, owner traversal allowed, relative source allowed and absolute source denied |
+| Deployment | `<platform>-setup.log`, `<platform>-install.log`, `<platform>-make-setup.log` | All entry points exited 0. Each layout, missing-Git and unknown count was 0. |
+| Configuration and stamps | `<platform>-config-baseline.log`, `<platform>-stamp-baseline.log`, and corresponding `*-after-<entry>.log` files | All three configuration comparisons per host matched. Each installed file timestamp changed, and each stamp remained `1.5.0 (5c7d442)` with commit date `2026-11-26T08:12:14Z`. |
+| Multi-user | `multiuser-debian13/run-all.log`, `multiuser-rocky8/run-all.log` | Each reported `VERDICT RUN PASS 19 scenarios: pass=19 fail=0 missing=none` and fifteen passing `P-*` verdicts. |
+| Installed system suites | `debian13-nfs-system.log`, `rocky8-nfs-system.log` | Each passed system infrastructure with 36 PASS and 4 NA and system lifecycle with 402 PASS. Each ended with `ALL SELECTED TEST SUITES COMPLETED SUCCESSFULLY.` and `SYSTEM_RC=0`. |
+| Startup inputs | `<platform>-startup-cleanup.log` | Both recorded `STARTUP INPUTS REMOVED` for the exact generator and release paths staged by step 2, followed by the clean candidate commit and installed stamp. |
+
+Here `<platform>` is `debian13` or `rocky8`. Debian's four infrastructure NA results are the SELinux applicability branch. Rocky's four are the sudoers regex-policy applicability branch. The permission-denial filter excluding `st.cmd line` returned no output on either host. `SHA256SUMS` records all retained deployment, fingerprint, stamp, control, multi-user, system-suite and cleanup log digests. `hash-check.log` records successful verification of every listed digest.
+
 ##### Closure Evidence
 
-- Pending final candidate, Gate evidence, publication, and released-object verification.
+- Candidate `5c7d442` passed Release Verification 3 to 7. Readiness review, publication, and released-object verification remain pending.
 
 ## Backlog
 
