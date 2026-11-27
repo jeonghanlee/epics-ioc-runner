@@ -1,48 +1,31 @@
 # EPICS IOC Runner
 
-`epics-ioc-runner` deploys and runs EPICS IOCs under procServ with the
-service manager the host already has. In system mode, systemd runs each IOC
-from one template unit as the `ioc-srv` service account, and operators in the
-`ioc` group manage the IOCs without a root password. In local mode, an
-engineer runs IOCs under their own account with the user instance of systemd.
-In container mode, s6 supervises the IOCs inside a container image without
-systemd. One command, `ioc-runner`, generates, installs, starts, observes, and
-removes IOCs in all three modes.
+This operator book covers host setup and the deployment, operation, and
+removal of EPICS Input/Output Controllers (IOCs) managed by procServ.
+It assumes familiarity with EPICS and Linux services; the task guides serve
+as the worked procedures rather than a separate tutorial.
 
-This book is for the administrator who sets up a host and the operator who
-deploys and runs IOCs on it.
+## Choose an execution mode
 
-## Guides
+| Mode | Service manager | IOC identity | Start here |
+| --- | --- | --- | --- |
+| System | System systemd | Shared account, default `ioc-srv` | [Install](INSTALL.md), then [operate](USER_GUIDE.md) |
+| Local | User systemd | Your account | [Run locally](USER_GUIDE_LOCAL.md) |
+| Container | s6 | Service account; root manages | [Prepare the image](INSTALL.md#container-images---container), then [operate](USER_GUIDE.md#run-iocs-in-container-mode) |
 
-- [INSTALL.md](INSTALL.md): set up a host for system mode or a container
-  image for container mode, including the accounts, directories, sudoers
-  policy, unit template, and log rotation.
-- [UNINSTALL.md](UNINSTALL.md): remove the system-mode installation from a
-  host.
-- [USER_GUIDE.md](USER_GUIDE.md): deploy, run, observe, and remove IOCs in
-  system mode, and use the console, listing, and version commands that all
-  modes share.
-- [USER_GUIDE_LOCAL.md](USER_GUIDE_LOCAL.md): run and test IOCs under your
-  own account in local mode.
-- [FAQ.md](FAQ.md): answers to operational questions, from restarting an IOC
-  without a root password to reading logs and history files.
+To remove infrastructure, follow [Uninstall EPICS IOC Runner](UNINSTALL.md).
+For operational symptoms, use the [FAQ](FAQ.md).
 
-## Concepts
+## Find detailed behavior
 
-- [ARCHITECTURE.md](ARCHITECTURE.md): the components, the template unit, the
-  sudoers delegation, and the s6 service layout of container mode.
-- [PERMISSION_MODEL.md](PERMISSION_MODEL.md): ownership, modes, ACLs, and
-  principal access for managed configuration, service, socket, log, and backup
-  paths, together with site-provisioned dependency requirements.
-- [EXIT_SIGNAL_HANDLING.md](EXIT_SIGNAL_HANDLING.md): how systemd and
-  procServ exit codes map to a clean stop.
+Each reference owns one topic; the guides link to it when a task needs detail.
 
-## Reference
-
-- [CLI_REFERENCE.md](CLI_REFERENCE.md): every command and option, with mode
-  restrictions and the main checks, outputs, and exit statuses.
-- [NETWORK_ENV.md](NETWORK_ENV.md): the Channel Access and PV Access network
-  variables an IOC reads, and which belong in the shared `site.env`.
-- [LOG_LAYOUT.md](LOG_LAYOUT.md): log paths and rotation in system and local
-  mode.
-- [GLOSSARY.md](GLOSSARY.md): the terms this book uses.
+| Topic | Page |
+| --- | --- |
+| Components and supervision | [Architecture](ARCHITECTURE.md) |
+| Ownership, modes, ACLs, and sudo | [Permission model](PERMISSION_MODEL.md) |
+| Stop signals and automatic restart | [Exit and signal handling](EXIT_SIGNAL_HANDLING.md) |
+| Commands, options, output, and exit status | [CLI reference](CLI_REFERENCE.md) |
+| Shared and per-IOC network environment | [Network environment](NETWORK_ENV.md) |
+| Log paths and rotation | [Log layout](LOG_LAYOUT.md) |
+| Terms used in this book | [Glossary](GLOSSARY.md) |

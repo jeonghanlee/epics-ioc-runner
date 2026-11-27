@@ -340,6 +340,36 @@ Before either transition, a missing executable `run` script exits 1 and
 directs you to rerun container `install`. A missing `IOC_PORT` or a value
 whose socket component is not an absolute path also exits 1.
 
+### Startup error patterns
+
+The built-in sets distinguish termination evidence from diagnostic messages:
+
+| Set | Matches | Effect |
+| --- | --- | --- |
+| Fatal | Bounded `FATAL`, `Segmentation fault`, `undefined symbol`, `error while loading` | Failure before readiness |
+| Message phrases | `Can't open`, `cannot open`, `No such file or directory`, `Invalid directory path`, `Unbalanced quote` | Corroboration; warning after readiness |
+| Framework severity | Bounded uppercase `ERROR`, PVXS ` ERR ` / ` CRIT `, `sevr=major` / `sevr=fatal` | Retained severity; qualified completion if the IOC stays alive |
+
+`FATAL` requires non-identifier boundaries on both sides; identifier fragments
+such as `device_nonfatal` do not qualify. Exact lowercase bounded `sevr=fatal`
+is severity, not standalone termination evidence. ANSI color sequences are
+removed before matching. Ordinary vocabulary such as `Error count : 0`,
+`errors`, `failed`, and `Timeout` is outside the built-in set. History-file
+permission messages are excluded from crash matching.
+
+`CRASH_LOG_PATTERNS_EXTRA` in a per-IOC conf adds module-specific warning
+phrases. Phrase matching, including this extension, is case-insensitive;
+framework severity is case-sensitive. Extra phrases never establish a
+standalone startup failure.
+
+Installation allows alphanumerics and `_ . / : space - | ( ) \` in the extra
+pattern. It rejects illegal characters, invalid regex syntax, empty
+alternations, and patterns matching ordinary healthy log text, such as `.`.
+Each `start`/`restart` repeats the regex, alternation, and healthy-text checks,
+but not the character whitelist. A failed runtime check warns and ignores
+the extra value while retaining built-in checks. Correct the value and repeat
+`install` to validate an edited configuration.
+
 ## The `stop`, `enable`, and `disable` commands
 
 `ioc-runner [--local|--container] stop|enable|disable <name>` exits 1 when no
@@ -392,7 +422,9 @@ container's standard output, and exits 1.
 
 ## The `list` command
 
-The `list` command provides a real-time dashboard of all active EPICS IOCs managed by `epics-ioc-runner`. It supports three verbosity levels, each adding progressively deeper system and kernel-level diagnostic data.
+`list` reports discovered IOC console sockets and service state. `-v` adds
+resource usage; `-vv` adds kernel socket details. Installed IOCs without a
+discoverable socket do not appear.
 
 When its scan finds no active IOC sockets, it prints
 `No active IOC sockets found in <run_dir>`.
@@ -449,21 +481,8 @@ Adds six diagnostic columns and keeps `UDS PATH` last:
 
 ### Kernel socket state mapping
 
-The `K-STATE` column maps the `St` and `Flags` fields in `/proc/net/unix`. Linux derives `St` from internal socket fields using the `socket_state` values below; `__SO_ACCEPTCON` identifies a listener.
-
-**Source: `include/uapi/linux/net.h`**
-```c
-typedef enum {
-    SS_FREE = 0,            /* not allocated               */
-    SS_UNCONNECTED,         /* 1: unconnected to any socket   */
-    SS_CONNECTING,          /* 2: in process of connecting    */
-    SS_CONNECTED,           /* 3: connected to socket         */
-    SS_DISCONNECTING        /* 4: in process of disconnecting */
-} socket_state;
-```
-
-**State Resolution Logic:**
-The listener socket is identified first by checking the `__SO_ACCEPTCON` flag, which takes priority over the `St` field:
+`K-STATE` maps `St` and `Flags` from `/proc/net/unix`. The listener flag
+`__SO_ACCEPTCON` takes precedence over the state field:
 
 | Condition | K-STATE | Description |
 |-----------|---------|-------------|
@@ -477,23 +496,12 @@ When the procServ listener is visible in the caller's network namespace, the run
 
 ### How `list` collects its data
 
-In system and local modes, data is collected once per source:
+System/local listing reads socket metadata, systemd unit state, and optional
+resource properties in batches. Container mode queries each s6 service and
+sums procServ and descendant CPU/memory values from `/proc`.
 
-1. `find -printf`: socket paths, timestamps, permissions
-2. `systemctl list-units`: service active states
-3. `ss -lx`: queue depths (only if `-vv`)
-4. `/proc/net/unix`: ref count, kernel state, inode (only if `-vv`)
-5. `systemctl show`: PID, CPU, memory (only if `-v` or `-vv`)
-
-Container mode queries each IOC's s6 service for its state. With `-v` or
-`-vv`, it also queries the supervised PID and collects CPU and memory over
-procServ and its descendants from `/proc`.
-
-At `-vv`, `ss` (iproute2) is required: a missing or failing `ss` is a
-named exit-1 error. Plain and `-v` list do not use `ss` at all.
-
-In system and local modes, the bulk results populate associative arrays.
-All modes format the final rows from stored values.
+`-vv` requires `ss` from iproute2; a missing or failing command is a named
+exit-1 error. Plain and `-v` listing do not use `ss`.
 
 ## Console access with `attach` and `monitor`
 
@@ -512,38 +520,54 @@ a path that is not a UNIX socket exits 1.
 | Feature | `attach` | `monitor` |
 |---------|----------|-----------|
 | **Data Flow** | Bi-directional (TX / RX) | Uni-directional (RX only) |
-| **Input Mapping** | TTY `stdin` to socket | Disconnected / Read-only |
 | **Primary Use Case** | Debugging, issuing IOC shell commands | Safe observation, live log tailing |
-| **Interleaving Risk** | High (if multiple active clients) | Zero |
 | **UDS Tooling** | `con`, `socat` | `con -r`, `socat -u UNIX-CONNECT:<socket> STDOUT` |
 
-**Supported clients**: Both `attach` and `monitor` use only `con` or `socat`; `nc` is not supported. If neither supported client is available, the command fails with an installation hint. For `monitor`, `con` must support `-r`; otherwise `socat` is required.
+**Clients:** Both commands use only `con` or `socat`; `nc` is unsupported.
+Without a suitable client, the command fails with an installation hint.
+`monitor` requires `con -r` support or `socat`.
 
-**Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
+**Production use:** Prefer `con`. The `socat` fallback supports ordinary
+console use but is not validated for sustained heavy output or sudden bursts
+in production. This limitation applies to both `attach` and `monitor`.
 
 ### `attach` (read/write mode)
 
-The `attach` command establishes a standard, bi-directional terminal session with the IOC.
+`attach` sends terminal input to the IOC and displays its output.
 
 - **Usage**: `ioc-runner attach <ioc_name> [--detach-key <key>]`
-- **Tool Selection**: Uses `con` when available, otherwise `socat`. If neither is installed, the command fails with an installation hint, even if `nc` is available.
-- **Detach**: Press the key shown in the attach banner to detach from the console while leaving the IOC running. The default is `Ctrl-A`. Both `con` and `socat` consume the selected key when it is typed, so it does not reach the IOC shell. Inside pasted text, `con` forwards it to the IOC shell, while `socat` detaches at it. With the default key, `Ctrl-A` cannot move the cursor to the beginning of the input line. The runner passes the same byte value through `con -x` and `socat`'s `escape` option.
-- **Custom Key**: `--detach-key ctrl-]` selects `Ctrl-]` for that connection only; it does not change the default for later connections or direct `con` invocations. Names are case-insensitive: `ctrl-a` through `ctrl-z`, plus `ctrl-\`, `ctrl-]`, `ctrl-^`, and `ctrl-_`. `ctrl-t` is rejected because `con` reserves it for diagnostics, and `ctrl-[` because it is the Escape byte that arrow and function keys begin with. Quote the backslash form as `'ctrl-\'` in the shell. Missing or invalid values, or using the option with a command other than `attach`, fail before connection.
-- **Ignored Input**: The runner's procServ configuration uses `--ignore=^D^C`, so `Ctrl-C` and `Ctrl-D` are discarded before reaching the IOC. procServ handles reserved control bytes such as `Ctrl-X` itself. In `--ignore`, `^A` through `^Z` denote control characters; `^]` instead denotes the printable `^` and `]` characters. If `Ctrl-C` or `Ctrl-D` is selected as the detach key, the client handles it locally and detaches first.
-- **Functional Specification**: Routes both standard input (`stdin`) and standard output (`stdout`) between the user's current TTY and the target UNIX Domain Socket.
-- **Architecture Constraints**: If multiple users `attach` to the same IOC simultaneously, procServ forwards input from those clients to the same IOC terminal, so their input can interleave before reaching the IOC shell. This can lead to malformed commands and hardware misoperation.
+- **Selection**: Uses `con` when available, otherwise `socat`.
+- **Detach**: Press the banner's key, default `Ctrl-A`, to leave the IOC
+  running. Typed keys are consumed locally. In pasted text, `con` forwards
+  the key while `socat` detaches. The selected key cannot serve its IOC-shell
+  editing function, such as `Ctrl-A` moving to the line start.
+- **Custom key**: `--detach-key ctrl-]` changes only this connection. Names
+  are case-insensitive: `ctrl-a` through `ctrl-z`, plus `ctrl-\`, `ctrl-]`,
+  `ctrl-^`, and `ctrl-_`. Quote the backslash form as `'ctrl-\'`. The runner
+  rejects `ctrl-t` (con diagnostics) and `ctrl-[` (terminal Escape byte).
+  Missing or invalid values fail before connection. The runner passes the
+  byte to `con -x` or socat's `escape` option.
+- **Ignored input**: `--ignore=^D^C` discards `Ctrl-C` and `Ctrl-D` before
+  they reach the IOC. Selecting either as the detach key handles it locally
+  first. procServ handles its reserved keys, including `Ctrl-X`, itself.
+  In `--ignore`, `^A` through `^Z` mean control bytes; `^]` means the two
+  printable characters.
+- **Concurrent input**: Multiple attached clients share one IOC terminal. Their
+  input can interleave into malformed commands and cause hardware misoperation.
+- **Child restart**: `--autorestartcmd=''` disables procServ's `Ctrl-T`
+  autorestart toggle. Use `stop` to stop the managed service.
 
 ### `monitor` (read-only mode)
 
-The `monitor` command establishes a strictly uni-directional session, designed for observing IOC outputs without the risk of accidental input injection.
+`monitor` displays socket output without sending terminal input:
 
 - **Usage**: `ioc-runner monitor <ioc_name>`
-- **Exit**: Press `Ctrl-A` with `con`, or `Ctrl-C` with `socat`. The `--detach-key` option applies only to `attach`.
-- **Functional Specification**: Captures and displays the `stdout` from the UNIX Domain Socket while explicitly detaching or blocking the client's `stdin`.
-- **Data Flow & Implementation**:
-  - Uses the native `-r` (read-only) flag if the primary `con` client supports it.
-  - **Fallback Architecture**: If `con` is unavailable or lacks `-r`, the runner uses `socat`. A `con` without `-r` produces a warning when falling back to `socat`. If no read-only client is available, the command fails with an installation hint.
-    - **socat**: Executes `socat -u UNIX-CONNECT:<path> STDOUT`. The `-u` (unidirectional) flag transfers data only from the socket to standard output; nothing is read from the terminal.
+- **Exit**: `Ctrl-A` with `con`, or `Ctrl-C` with `socat`.
+  `--detach-key` applies only to `attach`.
+- **Selection**: Uses `con -r` when supported; otherwise uses
+  `socat -u UNIX-CONNECT:<path> STDOUT`. A `con` lacking `-r` produces a
+  fallback warning. Without either read-only client, the command fails with
+  an installation hint.
 
 ## The `inspect` command
 

@@ -1,10 +1,8 @@
 # Network environment reference
 
-This document is the topic reference for the Channel Access (CA) and PV Access
-(PVA) network environment variables an IOC managed by `epics-ioc-runner` reads.
-It states where each variable belongs - a value shared by every IOC on a host,
-or a value specific to one IOC - and documents the CA/PVA asymmetries that most
-often lead to a wrong placement.
+This reference places Channel Access (CA) and PV Access (PVA) environment
+variables in either the shared `site.env` or a per-IOC configuration. It also
+explains how client discovery settings affect server binding and beacons.
 
 It carries no site addresses. Every address below is drawn from the RFC 5737
 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`).
@@ -35,8 +33,7 @@ no conf environment (see ADR 0003, Consequences).
 
 ## Usage scenarios
 
-The three scenarios below cover the placements a site actually meets. Each names
-the variables it needs and the file they belong in.
+Choose placement by whether the value is shared or specific to an IOC.
 
 ### One shared discovery network
 
@@ -44,9 +41,7 @@ Every IOC on the host reads PVs from the same CA/PVA network, and no IOC needs a
 non-default server binding. This is the common case and the reason the site
 layer exists.
 
-Place the client discovery lists in `site.env` once. They are identical for
-every IOC on the network, so a single shared value removes the per-conf
-duplication that ADR 0003 (Context) describes.
+Place shared client discovery lists in `site.env`:
 
 ```bash
 # ${CONF_DIR}/site.env
@@ -61,34 +56,14 @@ variable at all.
 
 ### A multi-homed IOC
 
-The host has more than one interface, and an IOC's server must be reachable on a
-specific one - the client discovery network stays shared, but the server binding
-is particular to the IOC.
-
-Client discovery stays in `site.env` (see [One shared discovery network](#one-shared-discovery-network)). The server interface binding
-is a per-IOC value, so it belongs in that IOC's conf:
-
-```bash
-# ${CONF_DIR}/multihomed-ioc.conf
-IOC_USER="ioc-srv"
-IOC_GROUP="ioc"
-IOC_CHDIR="/opt/epics-iocs/multihomed-ioc/iocBoot/iocMultihomed"
-IOC_CMD="./st.cmd"
-EPICS_CAS_INTF_ADDR_LIST="198.51.100.5"
-EPICS_PVAS_INTF_ADDR_LIST="198.51.100.5"
-```
-
-The full worked form of this scenario, including the beacon consequences of the
-binding, is in [Worked example](#worked-example-a-multi-homed-ioc) below.
+Keep shared client discovery in `site.env`; put IOC-specific server bindings
+in that IOC's conf. The [worked example](#worked-example-a-multi-homed-ioc)
+shows both files and their beacon consequences.
 
 ### A per-IOC exception
 
-Most IOCs share the discovery network from `site.env`, but one IOC must search a
-different network (a test subnet, a segregated device network).
-
-Set the exception in that IOC's conf. Because the conf is read after `site.env`,
-its value overrides the shared one for that IOC only; every other IOC keeps the
-`site.env` value.
+For an IOC that searches a different network, override only its discovery
+lists in its conf. Other IOCs retain the shared values:
 
 ```bash
 # ${CONF_DIR}/test-ioc.conf - overrides the shared discovery list
@@ -153,8 +128,6 @@ A PVA server prefers the `EPICS_PVAS_*` variable and falls back to the paired
 
 ### Client address lists and server beacons
 
-This is the asymmetry that most often places a value wrongly.
-
 - **PVA.** The server beacon destination list is `EPICS_PVAS_BEACON_ADDR_LIST`
   or, when that is unset, `EPICS_PVA_ADDR_LIST` - the client discovery list
   (`server.rst`, configuration list: "`EPICS_PVA_ADDR_LIST` is only checked if
@@ -165,8 +138,8 @@ This is the asymmetry that most often places a value wrongly.
   using `EPICS_CA_ADDR_LIST`. The CA reference
   (`modules/ca/src/client/CAref.html`) describes these beacon settings.
 
-The consequence: the same client discovery list in `site.env` reaches PVA
-server beacons but not CA server beacons.
+A shared client discovery list therefore steers PVA server beacons, but not
+CA server beacons.
 
 ### `EPICS_CA_SERVER_PORT` plays two roles
 

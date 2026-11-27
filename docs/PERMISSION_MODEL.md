@@ -49,16 +49,11 @@ responsible for owner and mode at provisioning time (typically via
 | `/opt/epics-iocs/epics/<base-suite>/<distro>/<base-ver>/base` | site | site-defined | site provisioning | unused by the runner - IOC `.conf` references it via environment |
 | `/usr/local/bin/procServ` or `/usr/bin/procServ` | site | site-defined | package or site build | discovered via `PROCSERV_SEARCH_PATHS` |
 
-The runner's `IOC_CHDIR` writability check is satisfied by directory
-group ownership and mode, not by an ACL. The `ioc-srv` account is in
-the `ioc` group, so the shared payload permissions listed above let it create
-runtime artifacts such as `.iocsh_history`, autosave files, and
-save/restore state directly. This is the directory group-write bit
-acting on the directory itself. It is distinct from the default ACL on
-the log directory (see [Why the log directory carries default ACLs](#why-the-log-directory-carries-default-acls)), which governs
-the ACL permissions and mask inherited by newly created entries, not
-write access to the parent directory. `IOC_CHDIR` needs the group-write
-model, not a default ACL.
+`IOC_CHDIR` must grant the service account group write and traversal access.
+The runner checks directory metadata, not effective ACL access. Default ACLs
+on the payload tree preserve permissions on newly created checkout entries;
+see [deployment setup](INSTALL.md#shared-deployment-directory-setup-optepics-iocs).
+The log directory has a separate default ACL and creation-mode contract below.
 
 The service identity itself is configurable from a single source:
 both `bin/ioc-runner` and `bin/setup-system-infra.bash` resolve
@@ -229,10 +224,8 @@ Result by principal on a procServ-created `<ioc>.log`:
 | `ioc` group (engineer) | `r--` | read via `cat`, `tail`, `grep`, crash detection scan |
 | other | `r--` | read at the file-mode layer; state-changing IOC management through `ioc-runner` remains sudoers-gated |
 
-procServ uses `open(O_CREAT, 0644)` internally (`procServ.cc:924`,
-`S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH`). No upstream change is made;
-the system unit carries no `UMask=` directive so the default system
-umask `0022` preserves the file permissions listed above.
+procServ creates logs with mode `0644`, limiting the inherited ACL mask to
+group read. The system unit leaves `UMask=` unset.
 
 ### Local mode log directory and files
 
@@ -271,100 +264,47 @@ boundary sits behind it.
 
 ## Permissions through the IOC lifecycle
 
-The lifecycle of every log object covers three operational phases:
-Create, Manage, and Track (read).
+Ownership is established at setup or installation and used during operation:
 
-### System mode
+| Mode | Create and configure | Operate | Read and inspect |
+| --- | --- | --- | --- |
+| System | Root sets shared paths; operators install IOC confs | `ioc-srv` writes logs; operators control units through sudo | Logs are readable by default; full `inspect` requires root |
+| Local | Invoking user creates configuration, units, and logs | Same user controls user units and rotation timer | Same user reads logs and runs `inspect` |
+| Container | Root creates confs and s6 service directories | s6 starts procServ as `ioc-srv`; root controls services | Runtime log readers see stdout; full `inspect` needs `CAP_SYS_PTRACE` |
 
-| Phase | Action | Principal | Object | Mechanism | Resulting state / Gate |
-| --- | --- | --- | --- | --- | --- |
-| Create | install log directory | `root` (via sudo) | `${SYSTEM_LOG_DIR}/` | `setup-system-infra.bash`: `install -d -o root -g ioc -m 2775` + `setfacl -d` | [System log permissions](#system-mode-log-directory-and-files) |
-| Create | open log file | `ioc-srv` | `${SYSTEM_LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` at IOC start; system unit umask `0022` | [System log permissions](#system-mode-log-directory-and-files) |
-| Create | adhoc file (probe, manual archive) | engineer in `ioc` | `${SYSTEM_LOG_DIR}/<adhoc>` | shell `touch` (setgid + default ACL applied) | [System log permissions](#system-mode-log-directory-and-files) |
-| Manage | preflight log-path probe for `start` / `restart` | engineer in `ioc` | effective `--logfile` directory | `ioc-runner` create-write-sync-delete transaction before systemd | shared-filesystem capacity and group-write availability; failure blocks the transition |
-| Manage | append log records | `ioc-srv` | `<ioc>.log` | procServ `write(logFileFD, ...)` during IOC runtime | owner `w` bit |
-| Manage | start / stop / restart IOC | engineer in `ioc` (sudo) | `epics-@<ioc>.service` | `ioc-runner` -> `sudo /usr/bin/systemctl ...` | sudoers gate `%ioc ALL=(root) NOPASSWD: ...` against `epics-@<name>.service` (regex form on sudo >= 1.9.10, glob fallback otherwise) |
-| Manage | rotate (system mode, deployed) | `root` (the distribution's logrotate schedule) | `<ioc>.log` | `logrotate` with `/etc/logrotate.d/procserv` and `copytruncate` | mode and owner preserved; archives `<ioc>.log.N.gz` |
-| Track | crash detection scan | engineer in `ioc` | `<ioc>.log` | `ioc-runner` byte-offset scan (no sudo, engineer's UID) | group `r--` grants read |
-| Track | manual read | engineer in `ioc` | `<ioc>.log` | `cat` / `tail` / `grep` | group `r--` grants read |
-| Track | read-only inspection | engineer outside `ioc` | `<ioc>.log` | direct shell read | dir `o+rx` traversal + file `o+r` |
-| Track | `inspect` log-path and executable identity | `root`; probe changes to effective unit `User=` and `Group=` | effective log directory, `MainPID`, UDS, procServ executable | fixed `/usr/sbin/runuser -u <User> -g <Group>` probe plus read-only `/proc` and systemd queries | warnings only; no service-state change or nested sudoers rule |
-| Track | directory listing | any user | `${SYSTEM_LOG_DIR}/` | `ls` | dir `o+rx` |
-| Track | `ioc-runner status` | any user | service state | systemd query (no sudo) | systemd query ACL (permissive) |
+System/local `start` and `restart` probe the effective log directory as the
+invoking operator before changing service state. System `inspect` instead
+probes as the effective unit user/group; local inspection uses its owner.
+Inspection warnings do not themselves change service state or fail the command.
+See [startup checks](CLI_REFERENCE.md#the-start-and-restart-commands) and
+[inspection checks](CLI_REFERENCE.md#procserv-executable-identity-check).
 
-### Local mode
-
-| Phase | Action | Principal | Object | Mechanism | Resulting state |
-| --- | --- | --- | --- | --- | --- |
-| Create | install log directory | `<user>` | `${LOG_DIR}/` (local mode; default `${LOCAL_LOG_DIR}`) | `ioc-runner --local install`: `install -d -m 0750` | [Local log permissions](#local-mode-log-directory-and-files) |
-| Create | open log file | `<user>` (via `systemd --user`) | `${LOG_DIR}/<ioc>.log` | procServ `open(O_CREAT, 0644)` + user unit `UMask=0027` | [Local log permissions](#local-mode-log-directory-and-files) |
-| Manage | preflight log-path probe for `start` / `restart` | `<user>` | effective `--logfile` directory | create-write-sync-delete transaction before `systemctl --user` | failure blocks the transition |
-| Manage | append / IOC lifecycle | `<user>` | log file, user unit | `systemctl --user ...` (no sudo) | self-managed |
-| Track | crash scan / shell read | `<user>` | `<ioc>.log` | `ioc-runner --local`, `cat`, `tail` | owner `r` |
-| Track | `--local inspect` log-path and executable identity | `<user>` | effective log directory, `MainPID`, UDS, procServ executable | unprivileged probe plus read-only `/proc` and user-systemd queries | warnings only; no service-state change |
-
-### Container mode
-
-| Phase | Action | Principal | Object | Mechanism | Resulting state |
-| --- | --- | --- | --- | --- | --- |
-| Create | scan directory | `root` (entrypoint) | `/run/s6-procserv/` | `mkdir` before `s6-svscan` starts as PID 1 | [Container paths](#container-mode-paths) |
-| Create | service directory | `root` | `/run/s6-procserv/<ioc>/` | `ioc-runner --container install` renders `run`, `timeout-kill`, `down`, then `s6-svscanctl -a` | [Container paths](#container-mode-paths) |
-| Create | socket directory | `root` | `/run/procserv/<ioc>/` | generated `run` script and CLI `start`/`restart`: `install -d -m 0770 -o ioc-srv -g ioc` | [Console socket permissions](#console-socket-permissions) |
-| Create | control socket | `ioc-srv` | `/run/procserv/<ioc>/control` | procServ `--port=unix:ioc-srv:ioc:0660:...` | [Console socket permissions](#console-socket-permissions) |
-| Manage | start / stop / restart | `root` | s6 service | `s6-svc -u -wu` / `-d -wd` / `-r -wr` with a bounded wait; readiness is the socket appearing | no sudoers gate; root-only |
-| Manage | enable / disable | `root` | `down` file | remove / create `down` | starts or stays down at `s6-svscan` boot; the running IOC is untouched |
-| Manage | restart of a dead procServ | `s6-supervise` | `run` | fixed one-second delay | stands in for `Restart=always` |
-| Track | IOC output | any reader of the container stdout | `s6-svscan` stdout | procServ `--logfile=-` | `docker logs` or the runtime's log driver; no log file |
-| Track | `status` / `list` | `root` | s6 state | `s6-svstat`, `/proc` | read-only |
-| Track | `inspect` executable identity | `root` | supervised PID, UDS, procServ executable | `s6-svstat -o pid` plus read-only `/proc`; needs `CAP_SYS_PTRACE` in the container | warnings only |
+Rotation runs as root in system mode and as the user in local mode;
+[log layout](LOG_LAYOUT.md) defines scheduling and retention. Container mode
+has no runner-managed log file or rotation policy.
 
 ## Why the log directory carries default ACLs
 
-procServ's fixed `open(0644)` mode restricts the access ACL mask of the files
-it creates to `r--` (no group write). The default ACLs serve two other
-purposes:
+setgid makes created entries inherit group `ioc`. The directory default ACL
+gives group write access to files created with a permissive creation mode,
+such as an operator's `touch` under `umask 0022`.
 
-1. **Engineer-created files in the log directory** (manual probe
-   files, rotated archive copies created by an engineer) inherit
-   group `ioc` with `rw` access. Without the default ACL, an
-   engineer-created file under `umask 0022` would grant the group read access
-   only. setgid supplies the group identity, while the default ACL supplies
-   group write access. The resulting permissions are in the
-   [system log table](#system-mode-log-directory-and-files).
-2. **Cross-creator consistency** of group membership. setgid on the
-   directory enforces the `ioc` group on every newly created entry
-   regardless of the creator's primary group; the default ACL
-   reinforces the same with explicit mask handling.
+procServ explicitly creates logs with `0644`, which limits their inherited ACL
+mask to group read. The default ACL cannot add group write beyond that
+creation mode. Both results are listed in the
+[system log table](#system-mode-log-directory-and-files).
 
 ## How the model is set up
 
-System mode setup is performed once at install time by
-`setup-system-infra.bash`, running as `root` via `sudo`:
+System setup creates the shared log directory and its default ACL;
+[manual setup](INSTALL.md#log-directory-and-rotation) shows the commands.
+The system template does not use `LogsDirectory=`, which would change
+directory ownership on activation. Directory metadata remains under setup
+control.
 
-```bash
-install -d -o root -g ioc -m 2775 "${SYSTEM_LOG_DIR}"
-setfacl -d -m g:ioc:rw "${SYSTEM_LOG_DIR}"
-setfacl -d -m o::r-- "${SYSTEM_LOG_DIR}"
-setfacl -d -m m::rw "${SYSTEM_LOG_DIR}"
-```
-
-The system unit (`/etc/systemd/system/epics-@.service`) does NOT
-set `UMask=`. systemd's default for system units is `0022`, which
-preserves procServ's creation mode through to the resulting file.
-`LogsDirectory=procserv` is intentionally NOT used in the unit -
-the directive would chown the log directory to the unit's `User=`
-/ `Group=` on every activation, overriding the log-directory ownership
-specified in [System log permissions](#system-mode-log-directory-and-files).
-
-Local mode setup is performed by `ioc-runner --local install` under
-the invoking user:
-
-```bash
-install -d -m 0750 "${LOG_DIR}"
-```
-
-The local user systemd template carries `UMask=0027` so that
-procServ-created logs have the [local log permissions](#local-mode-log-directory-and-files).
+Local `install` creates a `0750` log directory and deploys a user template with
+`UMask=0027`. Its resulting log permissions are in the
+[local log table](#local-mode-log-directory-and-files).
 
 ## Verification
 
@@ -434,14 +374,10 @@ membership in the `systemd-journal` group.
 
 ### No journal-group re-grant
 
-The `systemd-journal` group reads the entire host journal - sshd
-authentication, kernel events, sudo usage, and every unrelated service -
-not only IOC logs. Granting it to IOC operators exposes far more than their
-role needs, so operators are not members of that group, and no procedure
-adds them: the membership would reopen the same broad exposure. Crash
-detection reads the dedicated log file as the single source of truth,
-with no journal dependency to restore, so the supported recovery is to
-fix the log-file path - not to widen operator privilege.
+The `systemd-journal` group grants access to unrelated host events as well as
+IOC diagnostics. Do not grant it to repair startup detection: the runner reads
+the dedicated IOC logfile. Restore the logfile's path and read permissions
+instead.
 
 ## Related permission documentation
 

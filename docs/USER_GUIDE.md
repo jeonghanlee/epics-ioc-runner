@@ -7,7 +7,7 @@ runs IOCs under your own user account, has its own guide in
 and version sections of this page. The command reference, with every option
 and exit status, is [CLI_REFERENCE.md](CLI_REFERENCE.md).
 
-Prerequisites:
+## Prerequisites
 
 - An administrator has run the system setup and prepared the shared
   deployment directory `/opt/epics-iocs`; see [INSTALL.md](INSTALL.md).
@@ -75,15 +75,10 @@ Also check that `ioc-srv` can write to each
 [configured runtime-file destination](FAQ.md#can-i-deploy-iocs-from-personal-directories),
 which can differ from `IOC_CHDIR`.
 
-The shared `/opt/epics-iocs` tree carries a default ACL, described in
-[INSTALL.md](INSTALL.md#shared-deployment-directory-setup-optepics-iocs),
-so that `IOC_CHDIR` is writable by `ioc-srv`. The setgid bit of the
-`root:ioc 2775` parent alone is not enough: it passes the `ioc` group to a
-directory that `git clone` creates, but the mode bits follow the creating
-user's `umask`, so a clone made under `umask 022` is `2755` and `ioc-srv`
-cannot write to it. The default ACL gives the group `rwx` on new directories
-regardless of `umask`. Without it, clone under `umask 002`, or correct the
-clone with `chmod -R g+w /opt/epics-iocs/<clone>`. For deployments in home directories or on NFS, check that `ioc-srv` can traverse the path and write to `IOC_CHDIR`. Missing permissions can prevent startup or runtime file creation under procServ.
+Use the shared tree prepared by
+[deployment directory setup](INSTALL.md#shared-deployment-directory-setup-optepics-iocs).
+Its default ACL preserves group write access on clones made under `umask 022`;
+setgid alone preserves the group but does not grant write access.
 
 During `install`, the runner checks that `IOC_CHDIR` is group-owned by `ioc`
 with setgid and group write and execute, and that `ioc-srv` can traverse it.
@@ -164,18 +159,14 @@ above rather than the wider systemd grammar. Every key must pass this syntax
 check; operational `IOC_*` keys and `CRASH_LOG_PATTERNS_EXTRA` also receive
 their field-specific validation.
 
-An environment variable that is identical for every IOC on the host, most
-commonly the Channel Access and PV Access client discovery lists, can be set
-once in an optional site-wide file, `site.env`, alongside the per-IOC confs,
-rather than repeated in each conf. Each IOC reads it before its own conf, and a
-per-IOC conf overrides it. See [NETWORK_ENV.md](NETWORK_ENV.md) for which
-variables belong in the shared layer and [ADR 0003](https://github.com/jeonghanlee/epics-ioc-runner/blob/master/docs/adr/0003-site-environment-layer.md)
-for the mechanism.
+Put host-common environment values in optional `site.env` beside the IOC
+configurations. Each system/local IOC reads it before its own configuration;
+per-IOC values take precedence. See [network environment](NETWORK_ENV.md).
 
 ## Attach to the IOC console
 
 `attach` connects your terminal to the IOC shell through the console socket.
-It is the same in both modes; local mode adds `--local`:
+For local IOCs, add `--local`:
 
 ```bash
 ioc-runner attach <ioc_name>
@@ -184,23 +175,13 @@ ioc-runner --local attach <ioc_name>
 
 Press Enter to show the `epics>` prompt when the screen is blank.
 
-- **Detach**: Press `Ctrl-A`, the default, to detach and leave the IOC
-  running. The runner selects `con`, or `socat` when `con` is unavailable;
-  both consume the key when you type it, so it does not reach the IOC shell.
-  Inside pasted text, `con` forwards the key to the IOC shell, while `socat`
-  detaches at it. With the default key, `Ctrl-A` cannot move the cursor to the
-  beginning of the input line.
-- **Ignored keys**: The runner starts procServ with `--ignore=^D^C`, which
-  discards `Ctrl-C` and `Ctrl-D` before they reach the IOC. procServ also
-  handles its own control keys; for example, `Ctrl-X` kills the IOC child. When `Ctrl-C` or `Ctrl-D` is the detach
-  key, the client handles it and detaches first.
-- **Supported clients**: `attach` and `monitor` use only `con` or `socat`.
-  When neither is available, the command fails with an installation hint.
-  For `monitor`, `con` must support `-r`; otherwise `socat` is required.
-- **Production use**: Prefer `con` for production console access. `socat` is
-  supported for ordinary console use, but it has not been validated for
-  production workloads with sustained heavy output or sudden bursts of IOC
-  output. This limitation applies to both `attach` and `monitor`.
+Press `Ctrl-A` to detach and leave the IOC running. The banner names the
+selected client and key. procServ ignores `Ctrl-C` and `Ctrl-D`; its `Ctrl-X`
+key kills the IOC child, so use `stop` for an intentional service stop.
+Prefer `con` for production access. The
+[console reference](CLI_REFERENCE.md#comparison-of-attach-and-monitor)
+covers client selection, paste behavior, input interleaving, and the `socat`
+heavy-output limitation.
 
 To use another key for one connection, pass `--detach-key`; the attach banner
 names the selected key, and later connections use `Ctrl-A` again. The
@@ -213,10 +194,9 @@ ioc-runner attach <ioc_name> --detach-key ctrl-]
 
 ### Read-only monitor
 
-`monitor` shows the console without sending input. It selects `con -r`, or
-`socat` when `con` is unavailable or lacks `-r`; terminal input never reaches
-the IOC. Press `Ctrl-A` to exit with `con`, or `Ctrl-C` with `socat`; the
-monitor banner names the exit key. `--detach-key` applies only to `attach`.
+`monitor` displays output without sending input. Press `Ctrl-A` to exit with
+`con`, or `Ctrl-C` with `socat`; the banner names the exit key.
+`--detach-key` applies only to `attach`.
 
 ```bash
 ioc-runner monitor <ioc_name>
@@ -268,10 +248,8 @@ the journal:
 journalctl -u epics-@<ioc_name>.service
 ```
 
-`/etc/logrotate.d/procserv` rotates the logs into compressed archives,
-`<ioc_name>.log.1.gz` and onward; read them with `zcat` or `zless`. The IOC
-keeps writing to the same path during rotation.
-[LOG_LAYOUT.md](LOG_LAYOUT.md#system-mode-log-rotation) gives the policy.
+For archived output and rotation policy, see
+[system log rotation](LOG_LAYOUT.md#system-mode-log-rotation).
 
 ## Remove an IOC
 
@@ -334,18 +312,16 @@ ioc-runner --container stop <ioc_name>
 ioc-runner --container remove <ioc_name>
 ```
 
-`start` waits for the control socket to appear. `status` prints the IOC name
-and the `s6-svstat` line, for example `myioc: up (pid 123) 42 seconds`.
-`enable` deletes the service's s6 `down` file so the IOC starts when the
-container starts, and `disable` creates it; neither touches the running IOC.
-At startup, the generated `run` script prepares the configured socket parent
-before launching procServ. Existing services need their script regenerated
-after a runner update; see [container setup](INSTALL.md#container-images---container).
+`start` waits for the control socket, not IOC initialization. `enable` and
+`disable` control startup at container boot without changing the running IOC.
+Read IOC output from the container runtime, such as `docker logs <container>`;
+container mode has no IOC log file or journal.
 
-IOC output goes to the container's standard output (`docker logs
-<container>`); there is no log file, no log rotation, and no journal. The
-runner requires a running `s6-svscan` on `/run/s6-procserv`, which the
-container entrypoint starts as PID 1, and refuses to run as a non-root user.
+The entrypoint must run `s6-svscan` and restore service definitions when `/run`
+is recreated. After updating the runner, regenerate installed service scripts
+as described in [container setup](INSTALL.md#container-images---container).
+See the [CLI reference](CLI_REFERENCE.md#the-start-and-restart-commands) for
+startup outcomes.
 
 ## Check the runner version
 

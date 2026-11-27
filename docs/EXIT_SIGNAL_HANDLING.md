@@ -18,9 +18,9 @@ RestartSec=2
 KillMode=mixed
 ```
 
-They set no `TimeoutStopSec=`, so systemd's default of 90 seconds applies, and
-procServ runs without `--killsig`, so its kill signal is the default
-`SIGKILL`.
+They leave `TimeoutStopSec=` to the systemd manager default, normally
+90 seconds; a site manager setting can change it. procServ runs without
+`--killsig`, so its kill signal is the default `SIGKILL`.
 
 When `ioc-runner stop` or `systemctl stop` stops an IOC:
 

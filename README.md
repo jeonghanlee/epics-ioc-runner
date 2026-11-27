@@ -1,100 +1,42 @@
 # EPICS IOC Runner
 
-## Overview
-`epics-ioc-runner` is a robust, dependency-free, and OS-native management environment for EPICS IOCs. It provides a streamlined approach to deploying, monitoring, and controlling IOCs running under `procServ` using standard Linux tools like `systemd`, `bash`, and `sudo`.
+`epics-ioc-runner` manages EPICS Input/Output Controllers (IOCs) under
+procServ. One Bash command generates configurations, controls services,
+connects to consoles, and reports startup results.
 
-By eliminating heavy dependencies, this architecture adheres strictly to the **KISS (Keep It Simple, Stupid)** and **DRY (Don't Repeat Yourself)** principles, ensuring long-term maintainability across different Linux distributions.
+| Mode | Supervisor | Runs as | Guide |
+| --- | --- | --- | --- |
+| System | systemd | Shared service account (`ioc-srv`) | [System operations](docs/USER_GUIDE.md) |
+| Local | User systemd | Invoking user | [Local operations](docs/USER_GUIDE_LOCAL.md) |
+| Container | s6 | Root manages; `ioc-srv` runs the IOC | [Container setup](docs/INSTALL.md#container-images---container) |
 
-## Prerequisites
-This architecture requires the following core utilities to be installed on your system (e.g., in `~/.local/bin` for local-mode user installs, `/usr/local/bin`, or `/usr/bin`):
-* **procServ**: https://github.com/jeonghanlee/procServ-env
-* **con**: https://github.com/jeonghanlee/con (Recommended for clean detachment via Ctrl-A)
-  * *Fallback*: Both `attach` and `monitor` use only `con` or `socat`; `nc` is not supported. If neither is available, console access fails with an installation hint. For `monitor`, `con` must support `-r`, otherwise `socat` is required. Both attach clients use `Ctrl-A` to detach; `attach --detach-key ctrl-] <name>` selects another key for that connection.
-  * **Production use**: Prefer `con` for production console access. `socat` is supported as a fallback for ordinary console use, but has not been validated for production workloads with sustained heavy output or sudden bursts of IOC output. General-use support does not establish system stability under those loads. This limitation applies to both `attach` and `monitor`.
+## Install and run IOCs
 
-## Key Highlights
-* **No Python or Framework Runtime**: Built on Bash 4.3+ and native `systemd`. Runtime depends on `procServ`, `con`, `lsof`, `ss`, `awk`, and `runuser` from `util-linux`; no Python interpreter or application framework is required.
-* **High-Performance Minimal-Fork Architecture**: Utilizes pure Bash stream parsing and O(1) associative arrays to batch-fetch socket and systemd states, eliminating per-IOC subprocess overhead.
-* **Three Execution Modes**: Supports system-wide deployment (via RBAC and sudoers), isolated local user environments for testing, and systemd-less container images (`--container`, s6 supervision, IOC output on the container stdout).
-* **Input Isolation (`monitor`)**: Safe, uni-directional console observation to prevent interleaving of unintended inputs during sensitive hardware operations.
-* **Advanced Peer Tracking (`inspect`)**: Deep Netlink inode correlation to map and isolate specific external users attached to UNIX Domain Sockets.
-* **Site Environment Layer (`site.env`)**: An optional site-wide `EnvironmentFile` layered under each IOC's configuration, so host-common EPICS settings such as the Channel Access and PVAccess client lists live in one place while the per-IOC configuration still overrides them.
+Start with the [installation guide](docs/INSTALL.md) for system or container
+setup, or the [local guide](docs/USER_GUIDE_LOCAL.md) for a user installation.
+The runner requires Bash 4.3+, procServ, and the selected service manager.
+Console access uses [con](https://github.com/jeonghanlee/con), with `socat`
+as a fallback; see the [console requirements and production limitation](docs/CLI_REFERENCE.md#comparison-of-attach-and-monitor).
+The [procServ-env project](https://github.com/jeonghanlee/procServ-env)
+provides a procServ build environment.
 
-## Installation
+## Documentation and source layout
 
-A modular `configure/` Makefile wraps deployment; run `make help` to list targets. Run the system targets as your user (each invokes `sudo` inside the recipe, so they work in place even on an NFS `root_squash` home):
+The [operator book](docs/README.md) links the installation and operations
+guides, command reference, permission model, and log and network settings.
+For common symptoms, use the [operations FAQ](docs/FAQ.md).
 
-```bash
-make setup          # System-wide: accounts, group, sudoers, systemd template, CLI
-make install        # System-wide CLI only (ioc-runner + completion + RHEL symlink)
-make install.user   # User-home install under ~/.local/bin (no root)
-```
-
-See the [System Installation Guide](docs/INSTALL.md) for the full procedure and a manual reference.
-
-## Quick Start / Usage
-
-The `ioc-runner` provides a seamless workflow from automated configuration generation to system-wide deployment.
-
-```bash
-# 1. Generate & Review: Create a .conf file from an iocBoot directory
-# (Interactive diff preview and startup script selection included)
-ioc-runner generate /path/to/iocBoot/myioc
-
-# 2. Install: Deploy the generated .conf to system-wide procServ.d
-# (Accepts the same directory path to auto-resolve the .conf file)
-ioc-runner install /path/to/iocBoot/myioc
-
-# 3. Control: Start and manage the IOC daemon
-ioc-runner start myioc
-ioc-runner stop myioc
-
-# Console Access: Read/Write vs. Read-Only
-ioc-runner attach myioc            # Interactive console access
-ioc-runner monitor myioc           # Safe, uni-directional observation
-
-# Diagnostic & Tracking
-ioc-runner list -vv                # Full kernel socket states and inodes
-ioc-runner log myioc               # Tail the IOC's effective procServ log (-f to follow)
-sudo ioc-runner inspect myioc      # Deep trace of active client PIDs (Admin only)
-```
-
-For isolated testing without root privileges, simply prepend `--local` to any command:
-```bash
-# Local user-space testing workflow
-ioc-runner generate --local .
-ioc-runner install --local .
-ioc-runner start --local myioc
-```
-
-## Repository Structure
-
-```text
-epics-ioc-runner/
-├── Makefile                      # Make front end (install / setup / install.user)
-├── bin/
-│   ├── ioc-runner                # Front-end CLI wrapper
-│   ├── run-setup-system-infra.bash # Root-readable local staging launcher
-│   └── setup-system-infra.bash   # Privileged infrastructure setup
-├── configure/                    # Modular Makefile system (CONFIG / RULES / .local overrides)
-├── docs/                         # Detailed system documentation
-├── policy/                       # RBAC and Sudoers reference configurations
-├── system-wide/                  # External management tool integrations
-├── tests/                        # Automated integration test suites
-├── LICENSE                       # MIT License
-└── README.md                     # Project overview and entry point
-```
-
-## Documentation
-For detailed operational instructions, security models, and architectural notes, please refer to the dedicated documentation in the `docs/` directory:
-
-1. **[System Installation Guide](docs/INSTALL.md)**: Infrastructure setup for System Administrators & SREs.
-2. **[Operations User Guide](docs/USER_GUIDE.md)**: Managing system-wide IOCs for EPICS Engineers.
-3. **[Local Execution Guide](docs/USER_GUIDE_LOCAL.md)**: Testing IOCs in isolated local user space.
-4. **[Architecture Overview](docs/ARCHITECTURE.md)**: Security model, SetGID policies, and system design.
-5. **[CLI Technical Reference](docs/CLI_REFERENCE.md)**: Kernel-level socket state mappings, and data flow architecture for diagnostic commands.
-6. **[Exit Signal Handling](docs/EXIT_SIGNAL_HANDLING.md)**: Signal propagation and systemd exit status technical notes.
-7. **[Operations FAQ](docs/FAQ.md)**: Common operational questions and answers for facility engineers.
+| Path | Contents |
+| --- | --- |
+| `bin/` | Runner, setup scripts, and completion |
+| `configure/` | Make targets and installation settings |
+| `docs/` | Operator book and project records |
+| `policy/` | Access-control reference files |
+| `system-wide/` | External management integrations |
+| `tests/` | Verification suites |
 
 ## Acknowledgments
-This project is inspired by the Python-based `procServUtils` maintained in the [ralphlange/procServ](https://github.com/ralphlange/procServ/tree/master/procServUtils) repository.
+
+This project is inspired by the Python-based `procServUtils` maintained in
+the [ralphlange/procServ](https://github.com/ralphlange/procServ/tree/master/procServUtils)
+repository.

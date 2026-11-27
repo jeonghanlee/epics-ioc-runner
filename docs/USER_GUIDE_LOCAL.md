@@ -6,7 +6,7 @@ Console access, listing, direct `con` access, and the version check work as in
 system mode with `--local` added; they are described once, in
 [USER_GUIDE.md](USER_GUIDE.md), and linked from this page.
 
-Prerequisites:
+## Prerequisites
 
 - `procServ` and `con` are installed. In local mode the runner searches
   `~/.local/bin`, then `/usr/local/bin`, then `/usr/bin`, or uses the path in
@@ -163,15 +163,9 @@ systemctl --user status epics-@<ioc_name>.service
 journalctl --user -u epics-@<ioc_name>.service
 ```
 
-The IOC log is `~/.local/state/procserv/<ioc_name>.log`, or the
-`procserv` directory under `$XDG_STATE_HOME` when that variable is set:
-
-```bash
-tail -f ~/.local/state/procserv/<ioc_name>.log
-```
-
-The per-user rotation described in [Local log rotation](#local-log-rotation)
-bounds its growth.
+Use `ioc-runner --local log <ioc_name>` for IOC output; the journal holds
+service-manager diagnostics. [Log layout](LOG_LAYOUT.md#local-mode-log-paths)
+defines the paths and [local rotation](#local-log-rotation) bounds log growth.
 
 ## Override the runner directories and tools
 
@@ -233,11 +227,10 @@ gives that calculation and the paths to use for cleanup when overrides apply.
 
 ### System setup override (`bin/setup-system-infra.bash`)
 
-System-mode setup reads a separate variable, `IOC_RUNNER_PROCSERV_PATH`, distinct from the runner's `IOC_RUNNER_PROCSERV_TOOL`. It applies only while `bin/setup-system-infra.bash` generates the system template: system-mode setup uses this path as the procServ executable embedded in the system template's `ExecStart`. It takes a single path and replaces the default search list (`/usr/local/bin/procServ`, then `/usr/bin/procServ`) rather than prepending to it.
-
-| Variable | Default | Affects |
-|---|---|---|
-| `IOC_RUNNER_PROCSERV_PATH` | `/usr/local/bin/procServ`, then `/usr/bin/procServ` | system-mode setup: procServ executable in the generated template `ExecStart` |
+System setup uses `IOC_RUNNER_PROCSERV_PATH`, not the runner's
+`IOC_RUNNER_PROCSERV_TOOL`. See the
+[setup environment reference](INSTALL.md#setup-environment-and-launcher-forwarding)
+for its search order and launcher forwarding.
 
 ### Example: sandboxed local run
 
@@ -269,12 +262,9 @@ so the unit, configuration, socket lookup, and log path remain aligned.
 
 ## Local log rotation
 
-`ioc-runner --local install` also deploys per-user log rotation, because a
-crash-looping IOC under `Restart=always` would otherwise grow its log without
-limit. One user timer, `epics-logrotate.timer`, checks the local logs hourly,
-with a randomized delay of up to five minutes. At each check, logrotate
-applies the weekly rotation policy or rotates a log that exceeds 50 MiB
-(`maxsize 50M`). The timer runs only
-while your user instance of systemd runs, so enable lingering on a headless
-host, and `remove` leaves it in place. [LOG_LAYOUT.md](LOG_LAYOUT.md#local-mode-log-rotation)
-gives the files, the policy, and how to remove rotation.
+Local installation attempts to deploy `epics-logrotate.timer` for all local
+IOC logs. Rotation requires `logrotate` and a running user manager;
+[lingering](#start-local-iocs-at-boot) keeps that manager running after logout.
+Removing one IOC leaves the shared timer in place.
+[Log layout](LOG_LAYOUT.md#local-mode-log-rotation) gives the schedule, policy,
+failure handling, and cleanup paths.

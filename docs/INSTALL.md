@@ -1,8 +1,11 @@
 # Install and configure EPICS IOC Runner
 
-This guide describes the initial server setup required to deploy the `epics-ioc-runner` architecture system-wide. It covers the installation of prerequisite utilities, creation of isolated service accounts, strict directory permissions, systemd template deployment, and secure sudoers configuration.
+Set up system-mode infrastructure or prepare a container image. Setup manages
+accounts, configuration paths, supervision, and CLI deployment. IOC deployment
+and operation are covered in the [operations guide](USER_GUIDE.md).
 
 ## Prerequisites
+
 * Root (sudo) access to the target server.
 * For full setup, the `acl`, `logrotate`, and `sudo` packages, with
   `setfacl`, `getfacl`, `logrotate`, and `sudo` available in `PATH`.
@@ -16,10 +19,9 @@ This guide describes the initial server setup required to deploy the `epics-ioc-
   `/usr/sbin/matchpathcon`. Hosts without active SELinux do not require these
   tools.
 
----
-
 ## Automated infrastructure setup
-We provide a hardened, idempotent setup path that automatically configures isolated service accounts, strict directory permissions, and validated sudoers policies.
+
+Use the staging launcher for full setup or repeatable infrastructure updates.
 
 From the repository root, check sudo access and run the staging launcher as the checkout owner for the initial complete setup:
 ```bash
@@ -31,10 +33,9 @@ The sudo check uses NOPASSWD access or cached credentials when available.
 Otherwise, it prompts for authentication. Unattended setup requires
 `sudo -n true` to succeed without a prompt.
 
-The privileged setup verifies every artefact it deploys and **exits 1 if any
-verification check fails** - automated provisioning (ansible, CI) can trust
-the exit status directly; a non-zero exit means the reported items must be
-fixed and the script re-run.
+Setup verifies deployed artifacts and exits 1 if a verification fails.
+Correct the reported condition and rerun setup; a partial deployment is not
+rolled back.
 
 When SELinux is active, the full setup restores the policy-defined context of
 `/etc/sudoers.d/10-epics-ioc` and `/etc/logrotate.d/procserv` after each atomic
@@ -81,30 +82,21 @@ On an NFS export with `root_squash`, server-side access maps root requests to
 the anonymous identity. Root therefore may be unable to traverse or read a
 checkout that remains readable to its owning user.
 
-`run-setup-system-infra.bash` reads three fixed setup sources as the checkout
-owner and sends them to a root-owned temporary directory under `/tmp`. The
-privileged setup runs from that local directory. Git metadata and layout checks
-refer to the original checkout and execute as the invoking owner, so the
-installed version still identifies the candidate repository. The temporary
-directory is removed on exit.
+The launcher reads setup sources and Git metadata as the checkout owner,
+then runs setup from a root-owned local stage under `/tmp`. It removes the
+stage on exit while keeping the installed version tied to the original
+checkout.
 
-Use the launcher directly, or use `make install` and `make setup`, as the
-checkout owner. Do not run the Make targets under `sudo`: root may be unable to
-read the Makefile includes before the launcher can establish the local staging
-boundary. Direct execution of `setup-system-infra.bash` is reserved for a
+Run the launcher, `make install`, or `make setup` as the checkout owner.
+Do not use `sudo make`: root can fail to read the Makefile includes before
+staging begins. Direct `setup-system-infra.bash` execution requires a
 root-readable local source tree.
 
-If the version ever stamps as `unknown` (for example the checkout is not a git
-tree, or its metadata is unreadable), the setup emits a WARN naming the repair:
-as the repository owner, set `RUNNER_GIT_HASH` and `RUNNER_COMMIT_DATE` in the
-deployed script from `git -C bin rev-parse --short HEAD` and the UTC-normalized
-`git -C bin show -s --format=%ct HEAD`. This is the same procedure as the manual
-injection block below.
-
-The system test execution boundary is documented separately in
-`tests/README.md`.
-
----
+An `unknown` version stamp means Git metadata was unavailable. The warning
+names the metadata to repair; the
+[manual CLI deployment](#cli-wrapper-and-bash-completion-deployment) shows
+how hash and dates are obtained. Test execution on NFS is covered separately
+in `tests/README.md`.
 
 ### Container images (`--container`)
 
@@ -203,9 +195,10 @@ only the following eight variables across sudo when they are set:
 | `IOC_RUNNER_BASH_COMP_DEST` | Installed completion path; default `/etc/bash_completion.d/ioc-runner` |
 | `IOC_RUNNER_SCRIPT_SYMLINK` | RHEL-family symlink path; default `/usr/bin/ioc-runner` |
 
-Unset or empty values use the setup defaults. The procServ search order and
-its distinction from the runner's tool override are documented in
-[System setup override](USER_GUIDE_LOCAL.md#system-setup-override-binsetup-system-infrabash).
+Unset or empty values use setup defaults. `IOC_RUNNER_PROCSERV_PATH` replaces
+the default search (`/usr/local/bin/procServ`, then `/usr/bin/procServ`) with
+one path embedded in the system template. It is distinct from the runner's
+`IOC_RUNNER_PROCSERV_TOOL`, used for local and container deployments.
 The [log reference](LOG_LAYOUT.md#system-mode-log-paths) describes how the
 installed template determines system logging.
 
@@ -304,7 +297,10 @@ remain installed. Backups are retained independently of staging cleanup.
 
 ## Manual setup reference
 
-If you prefer to configure the system manually or need to audit the security changes made by the automated script, follow these steps.
+The following reference reproduces the default system infrastructure for
+manual deployment or policy inspection. Prefer automated setup for validated
+deployment and backups. The [permission model](PERMISSION_MODEL.md) lists the
+resulting ownership and modes.
 
 Run the commands in this manual setup section as root in a privileged Bash
 session. The automated staging launcher runs as the checkout owner instead.
@@ -333,7 +329,8 @@ On sudo >= 1.9.10, the anchored regex policy restricts service operations to
 `epics-@<name>.service` instances. Older sudo uses the broader glob policy
 described below.
 
-Sudo requires absolute paths for strict security. Determine the exact path to `systemctl` on your operating system and generate the sudoers file. `setup-system-infra.bash` emits one of two forms based on the local sudo version (OS-agnostic). The canonical regex form (sudo >= 1.9.10) achieves parity with `validate_ioc_name` in `bin/ioc-runner`:
+The runner requires `/usr/bin/systemctl`. For sudo 1.9.10 or later, deploy the
+regex form below, which accepts the runner's IOC-name syntax:
 ```bash
 
 SYSTEMCTL_BIN="/usr/bin/systemctl"
@@ -364,17 +361,14 @@ If your site accepts that broader delegation, replace each service-operation
 regex in the manual policy with `<verb> epics-@*.service`.
 Keep `daemon-reload` as an exact argument without regex anchors.
 
-> **Note (regex form):** the regex form requires sudo >= 1.9.10 (regex
-> command-argument matching); below that version the setup script deploys the
-> glob fallback automatically. The block above reproduces the generator's
-> single-space spelling exactly - do not re-introduce alignment padding
-> between the verb and the pattern, since sudo matches the regex against the
-> literal argument string.
+> Preserve the single space between each verb and its unit pattern. Sudo
+> matches the regex against the literal argument string.
 
 > **Important:** The `@includedir /etc/sudoers.d` (or legacy `#includedir`) directive in `/etc/sudoers` must be the final active line. User-specific rules placed after it are evaluated after the drop-in policies. A later rule that also matches the invoking user and command can override the NOPASSWD setting (for example, `alice ALL=(ALL) ALL` for commands run by `alice`). Verify with `sudo -l` on a group member account: the `(root) NOPASSWD: /usr/bin/systemctl ...` entry must appear last.
 
 ### systemd template unit deployment
-Deploy the single systemd template unit (`@.service`) that will dynamically manage all IOC instances system-wide. Resolve the `procServ` path dynamically to accommodate different installation targets (e.g., `/usr/bin` vs `/usr/local/bin`).
+Deploy one shared template for every IOC instance, resolving the installed
+procServ executable:
 
 The template requests `time-sync.target` with `Wants=` and orders startup
 after it with `After=`. These dependencies do not guarantee that the host
@@ -461,10 +455,9 @@ chmod 0644 /etc/logrotate.d/procserv
 /usr/sbin/matchpathcon -V /etc/logrotate.d/procserv
 ```
 
----
-
 ## CLI wrapper and Bash completion deployment
-Deploy the frontend management script `ioc-runner` to a standard binary path, and install the Bash completion script to provide context-aware suggestions. The staging launcher in [Automated infrastructure setup](#automated-infrastructure-setup) calls `setup-system-infra.bash` to perform the steps below, including injecting the Git hash, commit date, and install date for traceability. The manual procedure is documented for reference.
+Automated setup deploys the runner and completion and stamps the Git hash,
+commit date, and install date. For manual deployment from the repository root:
 
 ```bash
 # 1. Copy the main script to the system path
@@ -536,7 +529,9 @@ when you execute it.
 Before engineers can deploy IOCs, a shared payload directory must be established. This directory must be accessible and writable by the `ioc` group.
 
 ### Local disk deployment
-If the IOCs will reside on the local server's filesystem, you must configure the directory with POSIX ACLs (Access Control Lists). This ensures that when individual engineers run `git clone`, the resulting directories and files automatically inherit the `ioc` group ownership and appropriate read/write permissions, overriding their personal `umask` settings.
+Setgid preserves group ownership; a default Access Control List (ACL) grants
+group write access on cloned files and directories, including under `umask 022`.
+Prepare the shared parent before cloning:
 
 ```bash
 sudo mkdir -p /opt/epics-iocs
@@ -576,21 +571,10 @@ chmod o+x /home/username
 chmod -R o+rx /home/username/epics
 ```
 
-The same traverse requirement applies to the IOC or `ioc-runner` **source tree**
-when it is run in system mode from under a restricted home. Because the
-`procServ` daemon runs as `ioc-srv`, a clone kept beneath a `0700` home is
-unreachable by the service account. The failure is a plain `Permission denied`
-on the path under the home - the account is stopped at the home's traverse bit,
-not at the code - and a shell exec of the runner returns exit code `126`
-(distinct from the `127` shared-library (`ld.so`) case above). On a distribution
-that defaults
-interactive homes to `0700` (`HOME_MODE 0700` in `/etc/login.defs`) this is the
-default state. Open the parent the same way:
-
-```bash
-chmod o+x /home/username
-```
-
-Install mode (the world-readable `/usr/local/bin/ioc-runner`) and local mode
-(each user runs its own IOCs, traversing its own home as owner) do not need
-this.
+The service account also needs traversal through every parent of an IOC
+payload under a restricted home. A `0700` home blocks access before the IOC
+can run. An inaccessible executable can produce shell exit 126, distinct
+from a loader's missing-library exit 127. The home traversal command above
+addresses that parent; check the payload and dependency paths separately.
+The installed runner under `/usr/local/bin` does not depend on home traversal,
+and local mode uses the owning user's access.

@@ -47,8 +47,8 @@ The linked pages give configuration values, command syntax, and procedures.
   keys such as `IOC_USER`, `IOC_GROUP`, `IOC_CHDIR`, `IOC_CMD`, `IOC_ARGS`,
   and `IOC_PORT`, together with environment values for that IOC.
 - **Site environment:** The optional `site.env` file in the configuration
-  directory. It supplies shared environment values; the per-IOC
-  configuration overrides matching keys. See
+  directory in system and local modes. It supplies shared environment
+  values; the per-IOC configuration overrides matching keys. See
   [network environment](NETWORK_ENV.md).
 - **EnvironmentFile:** A systemd directive that loads environment
   assignments from a file. The runner's systemd templates load `site.env`
