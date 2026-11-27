@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.5.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.5.0` (20)
 Gate baseline ref: `1.4.2` (D1)
 
-Next session entry point: Complete readiness review of the Release Verification 3 to 7 evidence at candidate `5c7d442`, then prepare the separately authorized readiness-evidence commit. Release Execution requires its recorded separate authorizations.
+Next session entry point: Review and commit the Release Execution 1 evidence on `master` under separate commit authorization, then obtain separate push authorization for Release Execution 2. The release merge is `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579`.
 
 ## Milestone
 
@@ -308,7 +308,7 @@ bash tests/run-container-tests.bash --image jeonghanlee/rocky10-epics:1.5.0
 
 | Step | Action | Authorization | Expected Result | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | After Release Verification 7 reads Pass, integrate the reviewed release tree into `master` after confirming Release Verification 5 also reads Pass. | Separate release authorization after exact preview | The release tree matches the Gate-tested contents, subject to the register-only exception. | Pending |
+| 1 | After Release Verification 7 reads Pass, integrate the reviewed release tree into `master` after confirming Release Verification 5 also reads Pass. | Release delegation on 2026-11-27 UTC for the previewed merge of `3835ec2` | The release tree matches the Gate-tested contents, subject to the register-only exception. | Merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579` at 2026-11-27T06:33:26Z has parents `0d99ca7` and `3835ec2`. Its tree is identical to `3835ec2`; only this register differs from gated candidate `5c7d442`, with no baseline or executed Test Plan change. The source version reports `1.5.0 (b4a9a17 (live))`. |
 | 2 | Publish the authorized `master` release ref. | Separate push authorization | The remote ref resolves to the authorized release commit. | Pending |
 | 3 | Publish the authorized release branch ref if required by the accepted release plan. | Separate push authorization | The remote release branch matches the authorized ref. | Pending |
 | 4 | Create annotated tag `1.5.0` at the authorized published release object. | Separate tag-create authorization | The local tag resolves to the authorized release commit. | Pending |
@@ -422,7 +422,7 @@ Here `<platform>` is `debian13` or `rocky8`. Debian's four infrastructure NA res
 
 ##### Closure Evidence
 
-- Candidate `5c7d442` passed Release Verification 3 to 7. Readiness review, publication, and released-object verification remain pending.
+- Candidate `5c7d442` passed Release Verification 3 to 7. The reviewed evidence is committed in `3835ec2`, and release merge `b4a9a17` preserves that tree. Publication and released-object verification remain pending.
 
 ## Backlog
 
