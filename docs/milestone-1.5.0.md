@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.5.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.5.0` (20)
 Gate baseline ref: `1.4.2` (D1)
 
-Next session entry point: Review the Release Verification 8 and 10 evidence on `master` and commit it under separate authorization. All ten release checks have passed. Complete the cycle-closure record after the owner decides whether to open the next release line. The published tag object is `7a3d1fabdaa91a9809080406becfe584e7231c50` and its target is release merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579`.
+Next session entry point: Review this 1.5.0 cycle-closure change on `master`, commit it under separate authorization, and publish the closure commit under separate push authorization. The post-release evidence is already committed and published in `c5a7166`. No subsequent release line is opened under D3; future work requires a separately accepted scope. The published tag remains at release merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579`.
 
 ## Milestone
 
@@ -20,7 +20,9 @@ Next session entry point: Review the Release Verification 8 and 10 evidence on `
 | M2 | Start an IOC through the EPICS-env loader | Milestone | Complete | No | | Loader start and refusal checks and issue #169 acceptance. [Detail](#m2---start-an-ioc-through-the-epics-env-loader) |
 | M3 | Report an unenterable target directory | Milestone | Complete | No | | Error-handling S45 and issue #170 acceptance at `b3442f4`. [Detail](#m3---report-an-unenterable-target-directory) |
 | G1 | Startup generator available for the Gate | External gate | Complete | No | | The control host verified the pinned revision from the 1.4.2 Gate bundle. [Detail](#g1---startup-generator-available-for-the-gate) |
-| M4 | Release 1.5.0 | Milestone | In progress | No | M1, M2, M3, G1, D1, D2 | The complete Gate passes on the final candidate and the published release is verified. [Detail](#m4---release-150) |
+| M4 | Release 1.5.0 | Milestone | Complete | No | M1, M2, M3, G1, D1, D2, D3 | The complete Gate and Release Verification 1 to 10 pass; release objects and tracker closure are verified. [Detail](#m4---release-150) |
+
+Release tally: 4 milestones Complete; 1 external gate Complete; no unfinished work. Backlog: empty.
 
 ### Decisions
 
@@ -28,6 +30,7 @@ Next session entry point: Review the Release Verification 8 and 10 evidence on `
 | --- | --- | --- |
 | D1 | Bake the Gate baseline from the `1.4.2` tag, which resolves to `8b1aa9e8fc769ae19a02086ac9c8f258c90d21f3`. Deploy the 1.5.0 candidate on fresh consumers from those images. | 2026-11-24 |
 | D2 | Develop on `master` and cut the release branch at release time. | 2026-11-24 |
+| D3 | Close 1.5.0 without opening a subsequent release line. Future release work requires a separate scope decision. | 2026-11-27 |
 
 ### Milestone Details
 
@@ -227,7 +230,7 @@ The startup generator maintainer supplies the original generator revision used b
 Origin: 1.5.0 / M4
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -249,6 +252,7 @@ Out of scope: Startup generator changes and assigning work to a subsequent cycle
 
 - M1, M2, and M3 provide the change-specific checks. G1 completed when the control host verified the pinned generator.
 - D1 sets the image bake baseline. D2 sets the release branch timing.
+- D3 records the decision not to open a subsequent release line during this closure.
 
 ##### Implementation Plan
 
@@ -437,7 +441,13 @@ Each `guest-evidence-complete.tar.gz` preserves the release checkout, generator,
 
 ##### Closure Evidence
 
-- Candidate `5c7d442` passed Release Verification 3 to 7. The reviewed evidence is committed in `3835ec2`, and release merge `b4a9a17` preserves that tree. Both branch refs, annotated tag `1.5.0`, and GitHub release `1.5.0` are published. The remote tag object matches the local tag and names the release merge; the tagged source declares version `1.5.0`, passing Release Verification 8. The published notes match the prepared body. GitHub milestone 20 and all three issues are closed, passing Release Verification 9. Release Verification 10 passed documented installation and native IOC startup on fresh Debian 13 and Rocky 8.10 consumers. The final milestone remains In progress pending review and commit of the post-release evidence, the next-line decision, and the cycle-closure record.
+- Candidate `5c7d442` passed Release Verification 3 to 7. Readiness evidence commit `3835ec2e7da8a24cc492314cb2effd03c12ede82` retains the reviewed Gate results. Release merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579` preserves that tree, and the release branch remains published at the readiness commit.
+- Annotated tag `1.5.0`, object `7a3d1fabdaa91a9809080406becfe584e7231c50`, names the release merge. GitHub release `460859363` is published for that tag, with the prepared notes and version `1.5.0`. The tag and release objects remain unchanged by this closure.
+- All ten Release Verification results are Pass. Production evidence covers the four container images, the Debian and Rocky Gate matrices, NFS and multi-user deployment, and documented installation and native IOC startup from the published release on fresh Debian 13 and Rocky 8.10 consumers. The evidence paths are recorded above; both final consumers are shut off with disks and evidence retained.
+- The second-person review of the post-release evidence on 2026-11-27 reported no must-fix or minor findings. The subsequent authorized commit `c5a71667ba11ec61ad9615e917ff47a488c95845` records that evidence and is published on `master`.
+- Tracker reconciliation at 2026-11-27T18:50Z confirmed milestone 20 closed with zero open and three closed issues, and #168, #169, and #170 each `CLOSED`. The observed remote `master` was `c5a7166`; tag, release, milestone, and issue readbacks matched the recorded results. Issue intent is to retain all three issues closed; no further issue mutation is required.
+- D3, dated 2026-11-27, records the owner's decision not to open the next release line. This document remains the canonical record for 1.5.0. No new release version, branch, milestone document, or backlog assignment is created by this closure.
+- Cycle closure date: 2026-11-27. All four milestones and the external gate are Complete, with no backlog assignments. This closure record requires its own review and separately authorized commit and push; the published release tag remains unchanged.
 
 ## Backlog
 
