@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.5.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.5.0` (20)
 Gate baseline ref: `1.4.2` (D1)
 
-Next session entry point: Review and commit the Release Execution 2 and 3 evidence on `master` under separate commit authorization. Then prepare annotated tag `1.5.0` at the published release merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579` and obtain separate tag-create authorization.
+Next session entry point: Review and commit the Release Execution 4 evidence on `master` under separate commit authorization. Then publish the existing annotated tag `1.5.0` under the tag-push delegation already granted on 2026-11-27 UTC. Its object is `7a3d1fabdaa91a9809080406becfe584e7231c50` and its target is release merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579`.
 
 ## Milestone
 
@@ -311,8 +311,8 @@ bash tests/run-container-tests.bash --image jeonghanlee/rocky10-epics:1.5.0
 | 1 | After Release Verification 7 reads Pass, integrate the reviewed release tree into `master` after confirming Release Verification 5 also reads Pass. | Release delegation on 2026-11-27 UTC for the previewed merge of `3835ec2` | The release tree matches the Gate-tested contents, subject to the register-only exception. | Merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579` at 2026-11-27T06:33:26Z has parents `0d99ca7` and `3835ec2`. Its tree is identical to `3835ec2`; only this register differs from gated candidate `5c7d442`, with no baseline or executed Test Plan change. The source version reports `1.5.0 (b4a9a17 (live))`. |
 | 2 | Publish the authorized `master` release ref. | Push delegation on 2026-11-27 UTC | The remote ref resolves to the authorized release commit. | At 2026-11-27T07:38:02Z, remote `refs/heads/master` resolved to checkpoint `28d3cc35503707923b12057289819fa65026e3ed`. It contains release merge `b4a9a17`; their trees differ only in this register. Read back with `git ls-remote --heads origin refs/heads/master`. |
 | 3 | Publish the authorized release branch ref if required by the accepted release plan. | Previously delegated release-branch push | The remote release branch matches the authorized ref. | At 2026-11-27T07:38:02Z, remote `refs/heads/release-1.5.0` still resolved to reviewed evidence commit `3835ec2e7da8a24cc492314cb2effd03c12ede82`. The authorized ref is already published. Read back with `git ls-remote --heads origin refs/heads/release-1.5.0`. |
-| 4 | Create annotated tag `1.5.0` at the authorized published release object. | Separate tag-create authorization | The local tag resolves to the authorized release commit. | Pending |
-| 5 | Publish the exact tag ref `refs/tags/1.5.0`. | Separate tag-push authorization | The remote tag and local tag are identical. | Pending |
+| 4 | Create annotated tag `1.5.0` at the authorized published release object. | Tag-create delegation on 2026-11-27 UTC | The local tag resolves to the authorized release commit. | Created at 2026-11-27T16:19:23Z. Tag object `7a3d1fabdaa91a9809080406becfe584e7231c50` has type `tag`, message `epics-ioc-runner 1.5.0`, and target `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579`. Verified with `git cat-file -t refs/tags/1.5.0` and `git rev-parse refs/tags/1.5.0 'refs/tags/1.5.0^{commit}'`. |
+| 5 | Publish the exact tag ref `refs/tags/1.5.0`. | Tag-push delegation on 2026-11-27 UTC | The remote tag and local tag are identical. | Pending; requires the separate Release Execution 4 evidence checkpoint commit first. |
 | 6 | Publish the GitHub release for `1.5.0` with curated notes. | Separate release authorization | The GitHub release is published for the verified tag. | Pending |
 | 7 | Close GitHub milestone 20 after release publication. | Separate release authorization after exact preview | The milestone is closed with zero open issues. | Pending |
 
@@ -422,7 +422,7 @@ Here `<platform>` is `debian13` or `rocky8`. Debian's four infrastructure NA res
 
 ##### Closure Evidence
 
-- Candidate `5c7d442` passed Release Verification 3 to 7. The reviewed evidence is committed in `3835ec2`, and release merge `b4a9a17` preserves that tree. Both branch refs are published. Tag publication, GitHub release publication, tracker closure, and released-object verification remain pending.
+- Candidate `5c7d442` passed Release Verification 3 to 7. The reviewed evidence is committed in `3835ec2`, and release merge `b4a9a17` preserves that tree. Both branch refs are published, and local annotated tag `1.5.0` names the release merge. Tag publication, GitHub release publication, tracker closure, and released-object verification remain pending.
 
 ## Backlog
 
