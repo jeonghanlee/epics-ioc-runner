@@ -13,4 +13,4 @@ create-missing = false
 [output.html]
 git-repository-url = "https://github.com/jeonghanlee/epics-ioc-runner"
 git-repository-icon = "fab-github"
-edit-url-template = "https://github.com/jeonghanlee/epics-ioc-runner/edit/master/docs/{path}"
+edit-url-template = "https://github.com/jeonghanlee/epics-ioc-runner/edit/master/{path}"
