@@ -8,7 +8,7 @@ Git upstream: `origin/release-1.5.0`
 Remote tracker: `jeonghanlee/epics-ioc-runner`, GitHub milestone `1.5.0` (20)
 Gate baseline ref: `1.4.2` (D1)
 
-Next session entry point: Review this 1.5.0 cycle-closure change on `master`, commit it under separate authorization, and publish the closure commit under separate push authorization. The post-release evidence is already committed and published in `c5a7166`. No subsequent release line is opened under D3; future work requires a separately accepted scope. The published tag remains at release merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579`.
+Next session entry point: The 1.5.0 cycle is closed; closure commit `a284150dbbdfadc58040d6035ed4302bf0ded9cd` is published on `master`. No assigned or backlog work remains. Wait for a separately accepted scope; no subsequent release line is opened under D3. The published tag remains at release merge `b4a9a171b30eaefee85c1ed6d51ace65f8eaf579`.
 
 ## Milestone
 
@@ -447,7 +447,7 @@ Each `guest-evidence-complete.tar.gz` preserves the release checkout, generator,
 - The second-person review of the post-release evidence on 2026-11-27 reported no must-fix or minor findings. The subsequent authorized commit `c5a71667ba11ec61ad9615e917ff47a488c95845` records that evidence and is published on `master`.
 - Tracker reconciliation at 2026-11-27T18:50Z confirmed milestone 20 closed with zero open and three closed issues, and #168, #169, and #170 each `CLOSED`. The observed remote `master` was `c5a7166`; tag, release, milestone, and issue readbacks matched the recorded results. Issue intent is to retain all three issues closed; no further issue mutation is required.
 - D3, dated 2026-11-27, records the owner's decision not to open the next release line. This document remains the canonical record for 1.5.0. No new release version, branch, milestone document, or backlog assignment is created by this closure.
-- Cycle closure date: 2026-11-27. All four milestones and the external gate are Complete, with no backlog assignments. This closure record requires its own review and separately authorized commit and push; the published release tag remains unchanged.
+- Cycle closure date: 2026-11-27. All four milestones and the external gate are Complete, with no backlog assignments. Closure commit `a284150dbbdfadc58040d6035ed4302bf0ded9cd` is published on `master`; the published release tag remains unchanged. Further work requires a separately accepted scope.
 
 ## Backlog
 
